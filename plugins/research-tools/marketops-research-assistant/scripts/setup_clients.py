@@ -46,9 +46,15 @@ def install(destination: Path, client: str, *, dependencies: bool,
     dest = Path(result["destination"])
     target = dest / "plugins" / "marketops-research-assistant"
     target.parent.mkdir(parents=True, exist_ok=True)
+    # Never package local customer data even if someone accidentally created it
+    # under the source directory. The distributable is only code, Skills and docs.
     shutil.copytree(SOURCE, target,
-                    ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".pytest_cache",
-                                                  ".venv", "dist", "runs", "scratch", "*.zip"))
+                    ignore=shutil.ignore_patterns(
+                        "__pycache__", "*.pyc", ".pytest_cache", ".venv",
+                        "dist", "runs", "scratch", "data", "state", "artifacts",
+                        "exports", "experience", "search-receipts",
+                        "*.zip", "*.sqlite3", "*.sqlite3-*", "*.db",
+                        "*.jsonl", ".env", ".env.*", "credentials.json"))
     # Runtime storage intentionally lives OUTSIDE plugin versioned source files.
     (dest / "data").mkdir(mode=0o700)
     python_home = dest / ".venv"
