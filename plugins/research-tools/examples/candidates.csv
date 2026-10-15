@@ -1,0 +1,2 @@
+candidate_name,entity_type,country_region,official_url,source_url,verified_claim,status,confidence_note,checked_at
+example-sample,venue,GB-England-Devon,https://example.com,https://example.com,example-only,unknown,not-a-real-business,
