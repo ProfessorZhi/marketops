@@ -1,58 +1,55 @@
-# Codex / WorkBuddy / DeepSeek Harness 安装与卸载
+# Codex / WorkBuddy / DSH 客户端配置（v0.4.0 Candidate）
 
-**目标是“一个用户可调用的调研工作流入口”，不是一次安装四套计费服务**。此包本身不含 Provider API Key，不包含 Serper/Crawl4AI/TinyFish/Jev 的第三方源码，也不启动东京 CC。
+**新版本唯一安装流程**：先读 [MEMBER_A_INSTALL.md](MEMBER_A_INSTALL.md) 再使用 skills/marketops-setup/SKILL.md 与 scripts/setup_clients.py。原有 v0.2/v0.3 的双搜索独立 MCP 和 8/15-Skills 指南已退居兼容用途。当前**只有一个** marketops-research Lite MCP 对接五家基础能力，不要同时安装旧 dual-search MCP 或另一个同名插件。
 
-> v0.3.0 额外提供 [SerpApi/Serper 双搜索本地 MCP](DUAL_SEARCH_SETUP.md)。需要安装 mcp>=2.2,<3，并由用户明确配置两个或一个 API Key、网络开关、累计调用上限。**不能声称上传了代码就能自动开户并运行。**
+## 安装步骤（由当前设备上的 Agent 辅助执行）
 
-## 1. Codex
+1. 只读检查本机：平台、Python >=3.11、Codex/WorkBuddy 版本、用户选择的目录、旧插件是否存在。**默认不下载、不更改现有环境，不运行付费查询。**
+2. 先在插件源码目录执行：
 
-1. 在独立工作目录查看 `.codex-plugin/plugin.json` 和 Skills；开发/试用安装使用 Codex 当前版本支持的本地插件路径/市场机制。Codex 官方插件手册：https://developers.openai.com/plugins/build/plugins 。
-2. **v0.3 已内置一个双搜索本地 stdio MCP 候选。** `.mcp.json` 注册了 `marketops-dual-search`（SerpApi 与 Serper 二选一搜索工具），但网络默认关闭，必须由操作者配置 API Key 和累计调用上限后才可发送搜索请求。安装方法见 [DUAL_SEARCH_SETUP](DUAL_SEARCH_SETUP.md)。其它 Provider 仍按需独立配置：
-   - TinyFish 官方：`npx @tiny-fish/cli connect codex --dry-run` → 审核 → `npx @tiny-fish/cli connect codex` → OAuth。
-   - Crawl4AI Cloud：按上级 `providers/crawl4ai.md` 在 `~/.codex/config.toml` 单独配置远程 MCP + 用户自己的 Bearer Key。
-   - Serper：按 `providers/serper.md` 使用官方 API 或经审查的社区 MCP，不宣称 Serper 官方 MCP 存在。
-   - TypeSafe/Jev：`npx skills add typesafe-ai/skills --skill typesafe-ai` 为官方方法知识；实际调用仍需 SDK/API 或受管 Tool。
-3. 可选通用 Excel 功能：`npx skills add https://github.com/openai/skills --skill spreadsheet`。本包 `marketops-excel` 提供业务表格和引用质量合同。
-4. 在新会话先问“帮我在本地创建一个空的 MarketOps research pack，并解释有哪些研究阶段”；这一步应零 Provider 调用。
-5. 之后只对明确批准的查询使用真实 Search/Fetch；检查实际工具可见性、OAuth 与费用，再开展小批研究。
+~~~bash
+python scripts/setup_clients.py --destination /CUSTOMER/NEW/INSTALL --client both
+~~~
 
-**卸载**：从当前 Codex 插件管理界面移除 MarketOps Research Assistant；TinyFish 如通过官方 CLI 安装，可经用户确认执行 `npx @tiny-fish/cli connect codex --uninstall`。仅删除用户明确要删除的连接项，不覆盖整个 `~/.codex/config.toml`。已创建 research pack 属用户数据，不随卸载清除。
+它只展示 dry run 安装计划。用户确认该台机器允许创建文件后用 --apply。用户再次确认 PyPI 依赖安装后才加 --install-deps。
 
-## 2. WorkBuddy
+3. Codex：脚本在安装根的 .agents/plugins/marketplace.json 创建来源，源码复制到 plugins/marketops-research-assistant，MCP 执行路径绑定本机 venv Python。由用户/Agent单独执行返回的 codex plugin marketplace add 命令，并在 Codex 插件界面启用。先做工具列举（零费用），再确认实际权限。官方规范：https://developers.openai.com/plugins/build/plugins 。
 
-WorkBuddy 官方 Connector：https://open.workbuddy.cn/docs/connector 。它支持 `type: "skill-only"`，所以可以先安装只有 MarketOps Skills 的**单一调研连接器**；不需要把四个 MCP 服务硬塞到一个连接器。
+4. WorkBuddy：--client workbuddy|both 会在客户**当前机器**生成一个 connector-meta.json + mcp.json + token-schema.json + skills/ 目录，仅一个 marketops-research stdio MCP。WorkBuddy 官方规格：https://open.workbuddy.cn/docs/connector 。Token 表单由用户自己填写可选五家 Key、数据根与各预算/联网开关。需要 WorkBuddy >=4.24.0。**机器绑定的源码路径和Python路径不可拿到另一台电脑直接用。**
 
-```bash
-python scripts/build_client_bundles.py --output ~/marketops-research-bundles
-```
+5. DSH：项目目前只有 Skills 文件兼容候选，没有已验收 Cordis 原生插件/自动安装。不可把 Codex/WorkBuddy PASS 迁移成 DSH PASS。
 
-得到 `~/marketops-research-bundles/workbuddy/marketops-research-assistant/`（及 ZIP）；检查目录和元数据后，在支持导入自定义连接器的 WorkBuddy 客户端中安装。具体 UI 操作依当前客户端版本；官方 `name_zh`/示例字段要求 4.24.0+。
+## 五家能力如何连接
 
-如果希望同一个 WorkBuddy 插件具备 **SerpApi / Serper 两家搜索 MCP**，在目标客户**同一台机器**执行：
+| 上游 | 当前唯一市场研究 MCP 的路径 | 客户 Key |
+| --- | --- | --- |
+| SerpApi | local research_mcp -> dual_search_mcp -> SerpApi Google Web/Maps REST | SERPAPI_API_KEY |
+| Serper.dev | local research_mcp -> dual_search_mcp -> Serper Google Web/Places REST | SERPER_API_KEY |
+| Crawl4AI | local research_mcp -> AsyncWebCrawler OSS（可单独安装）或 Cloud HTTPS /scrape | 本地不需要第三方 Cloud Key；Cloud 需要 CRAWL4AI_API_KEY |
+| TinyFish | local research_mcp -> 官方 Search/Fetch REST；交互浏览器 Agent 另接官方 MCP | TINYFISH_API_KEY 或官方 OAuth |
+| Jev / TypeSafe | local research_mcp -> typesafe-sdk Choice；其它 Noul/Score 暂无MCP工具 | TYPESAFE_API_KEY |
 
-```bash
-python scripts/build_client_bundles.py --output ~/marketops-search-bundles --with-search-mcp
-```
+五家都只实现了一部分**候选结果能力**，无正式 A/B/C/D 联系人晋升、完整业务数据库或验证通过的 E2E；用户也不必五家都申请才能开始一个小样本任务。
 
-生成的是一个机器绑定的本地 `stdio MCP + 15 Skills` 候选包；需安装 Python MCP SDK，WorkBuddy 通过本地 Token 表单收集两家可选 Key、数据根、联网开关和额度。默认包仍是纯 Skills，没有收费搜索工具。插件包不能在另一台电脑直接复用本地解释器/源码绝对路径；那台电脑必须重新构建。实机兼容性待验收。
+## 默认不联网与验收
 
-需要网络工具时可继续分别接入上级已准备的 [TinyFish](../../workbuddy/tinyfish/) 和 [Crawl4AI](../../workbuddy/crawl4ai/) **MCP+Skill 候选连接器**。两者需客户端真机 OAuth/Key 验收；Serper/Jev 则使用官方 API/SDK 或经过审核的 MCP 接入，不能被伪装成已安装。
+用户设置 MARKETOPS_RESEARCH_DATA_ROOT（安装目录旁边独立 data/），**不能在 Git 仓库内部**。两套执行开关默认关闭，额度默认零：
+- MARKETOPS_SEARCH_ALLOW_NETWORK=0，MARKETOPS_SEARCH_MAX_CALLS=0；
+- MARKETOPS_RESEARCH_ALLOW_NETWORK=0，MARKETOPS_RESEARCH_MAX_EXTERNAL_CALLS=0。
 
-**卸载**：通过 WorkBuddy 的连接器管理移除 MarketOps Research Assistant（以及用户明确决定要卸载的供应商连接器）。不应自动删除客户研究文件或供应商账户。
+只有用户批准本次查询及金额/次数后，才在本地宿主的凭据设置中配置并重新加载 MCP。Crawl4AI 本地可将浏览器算力放本机，但本地安装与联网抓取同样需要独立许可。实际网页目标必须属于 MARKETOPS_FETCH_ALLOWED_DOMAINS。
 
-## 3. DeepSeek Harness / DSH
+工具验收顺序：
+- marketops_capabilities 不触发外部网络；
+- marketops_start 创建带业务范围版本的本地 Run；
+- marketops_search / crawl / tinyfish / jev 在各自获准后进行**一条**真实调用并读回；
+- marketops_propose 仅写 candidate；
+- marketops_status / marketops_events 可读回实际数据；
+- marketops_handoff 同时生成候选 CSV 与未审批经验草稿，业务审核之后才能正式交付；
+- 按 [RELEASE_GATE](RELEASE_GATE.md) 完成 Codex 与 WorkBuddy 两端的完整测试。
 
-官方源代码和文档：https://github.com/deepseek-ai/deepseek-harness 。DSH 使用自身 Cordis 插件框架、filesystem Skill provider。首版交付的是可复制的标准 `skills/*/SKILL.md` + 工作流数据包脚本；由 DSH 管理员根据官方 Skill 发现目录进行安装并验证。**目前不提供未经测试的 Cordis 原生 plugin.ts，也不保证直接识别 Codex Manifest。**
+用户不需要提供完整聊天原始日志、公开客户列表或任何密码给 MarketOps 项目维护者。真实源网页、雇员联系方式等业务资料只保存在客户自行控制的受限数据根中。不要把本地 SQLite 经网络共享，不自动上传 GitHub。
 
-参考官方 `packages/skill/README.md` 与 `packages/skill/tool-skill/README.md`。执行真实 Provider 操作前同样必须单独配置受控 MCP/SDK 并核实权限。
+## 卸载与回滚
 
-## 4. 隔离与费用
-
-- Provider 凭据只保留在客户自己的凭据管理器 / 客户机器，不上传到共享 Git 或本插件 ZIP。
-- 默认人工 `manual`；不运行东京 Agent、不创建自动任务、不启动外联。
-- Skill 指令只能指导行为，**不能**替代服务端授权和真实收费上限。限制 Provider 额度并检查 Token、认证和工具权限。
-- 不在多人共享网络磁盘对同一个 CSV 包并发读改写；多人持续使用以后再连接 MarketOps 持久数据库。
-
-## 5. 试用验收口径
-
-按照四层验收：文件解包正确 → Skill 可见 → 外部 MCP 可见并完成 OAuth（如需）→ 一次有真实来源的 3–5 个对象调查 + Excel/CSV 交接。四层未全过时标 `PARTIAL`，不能声称完成客户端接入。
+从客户端管理界面移除 MarketOps 插件/连接器；如要删除安装根、venv或数据根，需要用户分别授权。不要修改并覆盖用户的全局 ~/.codex/config.toml 或 WorkBuddy 既有连接器配置。若本插件的测试版本发生迁移问题，保留既有数据并回退到上一个 Git SHA，禁止直接修改已交付的历史 Run。
