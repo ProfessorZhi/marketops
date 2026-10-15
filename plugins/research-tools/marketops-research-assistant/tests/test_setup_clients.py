@@ -32,7 +32,7 @@ class LocalInstallTests(unittest.TestCase):
             self.assertEqual("0.4.0", manifest["version"])
             for filename in ("mcp.json", ".mcp.json"):
                 config = json.loads((source / filename).read_text(encoding="utf-8"))
-                server = next(iter(config["mcpServers"].values()))
+                server = next(iter((config.get("mcpServers") or config.get("mcp_servers")).values()))
                 self.assertEqual(result["venv_python"], server["command"])
                 self.assertEqual(str(source / "scripts" / "research_mcp.py"), server["args"][0])
             wb = result["workbuddy_bundle"]
