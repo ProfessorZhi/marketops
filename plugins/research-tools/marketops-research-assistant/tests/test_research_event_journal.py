@@ -81,7 +81,7 @@ class JournalTests(unittest.TestCase):
                         "--country", "GB", "--scene", "gb-natural-grass",
                         "--objective", "Public sports grounds"])
         self.assertEqual(0, rc)
-        events = journal.read_events(folder.parent, "devon-001")
+        events = journal.read_events(self.root, "devon-001")
         self.assertEqual(1, len(events))
         self.assertEqual("intake", events[0]["stage"])
 
