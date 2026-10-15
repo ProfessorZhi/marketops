@@ -47,10 +47,10 @@
 ## 离线研究包
 
 ```bash
-python scripts/research_pack.py init ./my-research --request-id demo-001 --country GB --objective "Find public sports venues in Devon"
-python scripts/research_pack.py validate ./my-research
-python scripts/research_pack.py summary ./my-research
-python scripts/build_client_bundles.py --output ./local-build
+python scripts/research_pack.py init ~/marketops-research-data/my-research --request-id demo-001 --country GB --objective "Find public sports venues in Devon"
+python scripts/research_pack.py validate ~/marketops-research-data/my-research
+python scripts/research_pack.py summary ~/marketops-research-data/my-research
+python scripts/build_client_bundles.py --output ~/marketops-research-bundles
 python -m unittest discover -s tests -v
 ```
 
