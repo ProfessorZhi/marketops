@@ -27,6 +27,17 @@
 
 请参考 [配置候选](../examples/codex/config.toml.example)，将片段**合并**到自己现有的 TOML，不要整份覆盖。`disabled_tools` 是 Codex 的本地工具限制，不替代 Provider 级付费上限。Cloud MCP 具有收费操作，未经授权不能调用。
 
+### 可选：SerpApi 官方 MCP（不是 Serper）
+
+如果你持有的是 https://serpapi.com/manage-api-key 的 Key，则属于 **SerpApi**，不是本仓已接入的 Serper Adapter。SerpApi 官方已经提供托管 MCP，在你的 Codex 终端安全设置 `SERPAPI_API_KEY` 后可按官方方法连接：
+
+```bash
+codex mcp add serpapi --url https://mcp.serpapi.com/mcp --bearer-token-env-var SERPAPI_API_KEY
+codex mcp list
+```
+
+官方安装说明：https://serpapi.com/integrations/mcp ；不要把 Key 拼在 URL 或提交到 Git。此处为独立供应商 MCP 试用方法，不表示其结果会自动写入 MarketOps Research Store。更多见 [SerpApi 指南](../providers/serpapi.md)。
+
 ## 4. Serper 与 Jev
 
 - Serper：官方提供 API；目前不能声称存在 Serper 官方 MCP。优先采用后续受管 MarketOps MCP，独立试验时人工使用官方 API。参见 [Serper 指南](../providers/serper.md)。
