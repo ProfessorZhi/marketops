@@ -35,6 +35,7 @@ class LocalInstallTests(unittest.TestCase):
                 server = next(iter((config.get("mcpServers") or config.get("mcp_servers")).values()))
                 self.assertEqual(result["venv_python"], server["command"])
                 self.assertEqual(str(source / "scripts" / "research_mcp.py"), server["args"][0])
+                self.assertNotIn("cwd", server, "Codex cached plugin root must not inherit external cwd")
             wb = result["workbuddy_bundle"]
             self.assertEqual(1, wb["mcp_servers_bundled"])
             self.assertEqual(16, wb["skills"])
