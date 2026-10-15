@@ -74,7 +74,7 @@ def build(output: Path, *, with_search_mcp: bool = False) -> dict:
     for part in ("skills", "references"):
         shutil.copytree(HERE / part, target / part)
     (target / "scripts").mkdir()
-    for name in ("research_pack.py", "export_excel_safe_csv.py", "experience_pack.py", "research_event_journal.py", "dual_search_mcp.py"):
+    for name in ("research_pack.py", "export_excel_safe_csv.py", "experience_pack.py", "research_event_journal.py", "dual_search_mcp.py", "compare_search_receipts.py"):
         shutil.copy2(HERE / "scripts" / name, target / "scripts" / name)
     shutil.copy2(HERE / "README.md", target / "README.md")
     if with_search_mcp:
