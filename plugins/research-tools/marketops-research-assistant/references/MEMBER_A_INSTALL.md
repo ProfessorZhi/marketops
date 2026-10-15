@@ -44,6 +44,8 @@ crawl4ai-doctor
 
 Crawl4AI 的浏览器依赖/Chromium 下载会产生文件和网络流量；Windows 企业终端权限可能有限。不能静默安装系统级浏览器或复用其他用户的 Chrome Profile。若选 Cloud 模式，不必安装本地 Crawl4AI，也不需要丰疆模型 Key。
 
+在插件源码目录可先独立运行 `python scripts/preflight.py` 检查 Python 语法、16 Skills、两份 MCP 清单等静态结构。**它不联网、不检查 Key，也不代表真实服务可调用。**
+
 ## 3. 安装前核对：先计划再更改机器
 
 Python 要求 >=3.11。客户需要有权下载并安装自己机器上的 Python 包；无网络权限时只能先做源码/Schema 检查。
