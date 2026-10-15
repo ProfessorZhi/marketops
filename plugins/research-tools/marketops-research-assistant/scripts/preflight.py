@@ -77,7 +77,8 @@ def report() -> dict:
     if root_manifest.get("version") != compat_manifest.get("version"):
         errors.append("Portable/compat manifests disagree on version")
     for name, config in (("mcp.json", root_mcp), (".mcp.json", compat_mcp)):
-        servers = config.get("mcpServers") if name == "mcp.json" else config.get("mcp_servers")
+        # Codex loader canonical JSON uses mcpServers, despite older docs showing mcp_servers.
+        servers = config.get("mcpServers")
         if not isinstance(servers, dict) or set(servers) != {"marketops-research"}:
             errors.append(f"{name}: exactly one 'marketops-research' server required")
             continue
