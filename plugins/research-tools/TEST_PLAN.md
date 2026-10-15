@@ -55,3 +55,16 @@ python scripts/build_client_bundles.py --output ~/marketops-research-bundles
 - [ ] 人工审核一条 `ready` 联系路线后仍不得自动发送邮件、提交表单或提高预算。
 
 **静态 JSON/Frontmatter/Markdown 校验 ≠ Python 单元测试 PASS ≠ 客户机安装 PASS ≠ Provider 真实验收 PASS。** 未实际跑过的层级均维持 `NOT_TESTED`。
+
+
+## E. v0.2.2 本地事件自动保存（待执行并验收）
+
+- [ ] python -m unittest discover -s tests -p 'test_research_event_journal.py' -v 在客户批准的隔离环境中运行。
+- [ ] 在客户数据根外运行CLI init，检查研究包与state/research-events.sqlite3确实落盘；日志中只有非敏感操作元数据。
+- [ ] Excel-safe CSV导出成功时追加export操作事件。
+- [ ] 相同operation的相同状态重复写入幂等；同标识但内容不同拒绝。
+- [ ] 错误/阻断事件生成候选经验时根因必须是unknown，不能自动被证据不足的事件批准。
+- [ ] 未通过统一Research MCP的四个Provider操作必须显示NOT_CAPTURED/observability_gap，不得声称自动记录全部调用。
+- [ ] 不在Git、临时共享目录、生产MarketOps数据根存真实客户原文或Keys。
+
+以上是待验收要求，不是实时客户端实测结果。
