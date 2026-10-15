@@ -38,8 +38,8 @@ class ResearchPackTests(unittest.TestCase):
             rp.init_pack(self.folder, "test-001", "GB", "retry")
 
     def test_private_local_source_url_rejected(self):
-        put(self.folder, "sources", source_id="s1", query="x",
-            url="http://127.0.0.1/private", kind="web", discovered_at="2026-10-15T00:00:00+00:00", status="discovered")
+        put(self.folder, "sources", dict(source_id="s1", query="x",
+            url="http://127.0.0.1/private", kind="web", discovered_at="2026-10-15T00:00:00+00:00", status="discovered"))
         self.assertEqual("INVALID", rp.verify(self.folder)["result"])
 
     def test_duplicate_key_rejected(self):
@@ -49,6 +49,7 @@ class ResearchPackTests(unittest.TestCase):
         self.assertIn("duplicate ID", " ".join(rp.verify(self.folder)["errors"]))
 
     def test_ready_route_with_literal_source_and_scene(self):
+        # Synthetic structural fixture; this is not UK SOP grade adjudication.
         source_url = "https://example.org/team"
         excerpt = "Jane Doe, Grounds Manager; jane@example.org"
         put(self.folder, "sources", dict(source_id="s1", query="staff", url=source_url, kind="web",
@@ -95,7 +96,9 @@ class WorkBuddyBundleTests(unittest.TestCase):
             meta = json.loads((pkg / "connector-meta.json").read_text(encoding="utf-8"))
             self.assertEqual("skill-only", meta["type"])
             self.assertFalse((pkg / "mcp.json").exists())
-            self.assertEqual(8, build1["skills"])
+            self.assertEqual(14, build1["skills"])
+            self.assertTrue((pkg / "scripts" / "experience_pack.py").exists())
+            self.assertTrue((pkg / "scripts" / "export_excel_safe_csv.py").exists())
 
 if __name__ == "__main__":
     unittest.main()

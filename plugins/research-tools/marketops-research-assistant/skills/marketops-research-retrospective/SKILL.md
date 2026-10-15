@@ -1,0 +1,32 @@
+---
+name: marketops-research-retrospective
+description: Capture observable research bottlenecks, successful methods and corrections during each stage; synthesize a scoped evidence-linked experience pack and replay proposals without automatically rewriting Skills, policy or permissions.
+---
+
+# 调研流程复盘与经验包
+
+此Skill在阶段交接、卡点/工具换路/人工纠正、暂停或最终交付时触发。研究进行中只追加短记录，结束时做一次归纳；不是另一个常驻Agent，也不读取私人推理链。协议见 [EXPERIENCE_PROTOCOL](../../references/EXPERIENCE_PROTOCOL.md)，历史依据见 [MEMBER_A_SKILL_ANALYSIS](../../references/MEMBER_A_SKILL_ANALYSIS.md)。
+
+## 输入
+
+本轮Brief/规则/工具版本、operation回执、实际资料/提交/读回定位、失败与成功样本、人工反馈、成本/耗时（缺失为null，不补0）。只用授权范围内可见资料。客户原件留本地；用脱敏局部定位符，不复制会话全文、邮箱名单、cookie、密钥。
+
+## 每次卡点如何记
+
+写事件id、阶段、对象、operation_ref、预期行为、实际行为、影响、尝试过什么及结果、可回读证据。分类按协议闭集；技术错误、业务规则不明和授权暂停不是同类。先写observation，再写hypothesis；没有复现或对照不得称根因已确认。
+
+用一次事件更新代替每分钟重复记录。成功也记录，特别是合法换源、复用材料、修复抽取和回写校验。注明它是否独立样本，不把同一父任务的子Agent当多次验证。
+
+## 归纳
+
+1. 按卡点机制+阶段+工具版本分组，不能只凭类似文字合并。
+2. 产生少量条件化经验：when / do / avoid / applicability / limitations / source incident refs；一次成功为draft，不是通用定律。
+3. 明列反例、尚未证实原因、未做试验。没有效果计时就不承诺节省比例。
+4. 每个改进提案带基线、改变的唯一机制、固定评估集、holdout案例、验收指标/停止条件、风险和回滚。
+5. 遇到SOP/权限/预算变化只提议，须独立批准。不要自动编辑既有Skills，不自动创建Issue、发邮件或向GitHub上传客户日志。
+
+## 输出
+
+按模板生成 `experience.json`，运行 `scripts/experience_pack.py validate ...`；需要阅读版时运行 `render ... --output <Git外新文件>`。两者是候选知识/审查报告，不是执行系统。业务结果、未完成项和store snapshot仍按handoff单独交付。
+
+本版经验包的promotion固定candidate_only。测试回执可以附上，但自动验证只检查结构与引用，不证明事实或因果。人批准采纳后在独立维护PR里发布新Skill/规则版本，下一次同类任务加载已批准版本。即使API调用成功，若未落库/未交付，也必须记录business_incomplete。

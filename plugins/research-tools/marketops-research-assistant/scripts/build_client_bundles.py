@@ -15,28 +15,29 @@ META = {
     "name": "MarketOps Research Assistant",
     "name_zh": "MarketOps 半自动市场调研",
     "name_en": "MarketOps Research Assistant",
-    "description": "Evidence-based research Skills for market discovery, venues, organizations, people, contact routes and Excel review.",
-    "description_zh": "从调研需求到来源、场地与组织、候选人、证据和正式联系路线，辅助研究并生成可审核 Excel/CSV。",
-    "description_en": "Guide human-reviewed market research with evidence-linked candidate pools and Excel handoffs.",
+    "description": "Member-A-grounded business Skills, provider routing and candidate research experience packs.",
+    "description_zh": "研究业务、四工具路由和有出处的卡点经验；统一MCP运行时仍待接线。",
+    "description_en": "Research methods, four-provider routing and scoped lessons; unified MCP runtime not bundled.",
     "source": "marketops-research-assistant-lite",
     "type": "skill-only",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "minWorkbuddyVersion": "4.24.0",
     "examples_zh": [
         "研究 Devon 的体育场地，先列来源和候选场地，所有不确定项进人工复核。",
         "根据已有公司名单，寻找相关岗位和有原始出处的公开工作邮箱。",
-        "检查这批调研 CSV 的证据、关联和重复项，做成供人工审核的 Excel。"
+        "检查调研交付，并把卡点与成功方法归纳成待验证的经验包。"
     ],
     "examples_en": [
         "Find public sports venues in Devon and leave ambiguous claims for manual review.",
         "Research decision-maker roles from official public pages without guessing emails.",
-        "Audit the evidence links in this CSV research pack and prepare an Excel review workbook."
+        "Audit the research handoff and produce an evidence-linked candidate retrospective."
     ],
 }
 
+
 def make_zip(folder: Path, output_zip: Path) -> None:
     """Fixed timestamps/order: same source bytes produce identical ZIP."""
-    with zipfile.ZipFile(output_zip, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+    with zipfile.ZipFile(output_zip, "x", compression=zipfile.ZIP_DEFLATED) as archive:
         for filename in sorted(p for p in folder.rglob("*") if p.is_file()):
             arcname = f"{folder.name}/{filename.relative_to(folder).as_posix()}"
             info = zipfile.ZipInfo(arcname, date_time=(2020, 1, 1, 0, 0, 0))
@@ -44,11 +45,16 @@ def make_zip(folder: Path, output_zip: Path) -> None:
             info.external_attr = 0o644 << 16
             archive.writestr(info, filename.read_bytes())
 
+
 def build(output: Path) -> dict:
+    output = output.expanduser().resolve()
+    if output.is_relative_to(HERE):
+        raise ValueError("Build output must be outside this plugin source directory")
     workbuddy = output / "workbuddy"
     target = workbuddy / "marketops-research-assistant"
-    if target.exists():
-        raise FileExistsError(f"Will not overwrite an existing connector: {target}")
+    package = workbuddy / f"marketops-research-assistant-v{META['version']}.zip"
+    if target.exists() or package.exists():
+        raise FileExistsError(f"Will not overwrite an existing connector/package: {target}")
     target.parent.mkdir(parents=True, exist_ok=True)
     target.mkdir()
     (target / "connector-meta.json").write_text(json.dumps(META, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -56,10 +62,10 @@ def build(output: Path) -> dict:
     for part in ("skills", "references"):
         shutil.copytree(HERE / part, target / part)
     (target / "scripts").mkdir()
-    shutil.copy2(HERE / "scripts" / "research_pack.py", target / "scripts" / "research_pack.py")
+    for name in ("research_pack.py", "export_excel_safe_csv.py", "experience_pack.py"):
+        shutil.copy2(HERE / "scripts" / name, target / "scripts" / name)
     shutil.copy2(HERE / "README.md", target / "README.md")
-    # By design no mcp.json: this connector teaches workflow and never auto-connects providers.
-    package = workbuddy / "marketops-research-assistant-v0.2.0.zip"
+    # No mcp.json: source methods do not automatically grant provider access or payment.
     make_zip(target, package)
     return {
         "status": "BUILT_STATIC_NOT_CLIENT_TESTED",
@@ -69,15 +75,17 @@ def build(output: Path) -> dict:
         "mcp_servers_bundled": 0,
     }
 
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True, help="explicit user-owned destination outside source")
     args = parser.parse_args()
     try:
         print(json.dumps(build(args.output), ensure_ascii=False, indent=2))
-    except OSError as exc:
+    except (OSError, ValueError) as exc:
         parser.exit(status=2, message=f"ERROR: {exc}\n")
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

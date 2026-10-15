@@ -1,19 +1,27 @@
 ---
 name: marketops-research
-description: Main entry for stage-based, human-reviewed public market research from natural-language intake to sources, venue/organization pools, people, evidence, contact routes and Excel.
+description: Complete a bounded, human-led market research task from brief through venue/account and contact evidence to a verifiable result, using four-provider routing and producing a scoped retrospective experience pack.
 ---
 
-# MarketOps Research Assistant
+# MarketOps Research Assistant：业务、工具、复盘三层
 
-Use this as the **one conversational entry** for a user who wants to find market opportunities or research venues/organizations/contacts. This is not a background scheduler.
+先读 [BUSINESS_PLAYBOOK](../../references/BUSINESS_PLAYBOOK.md)。历史依据和不能推广的结论在 [MEMBER_A_SKILL_ANALYSIS](../../references/MEMBER_A_SKILL_ANALYSIS.md)。本插件不是后台自动调度器，技能存在不代表四家MCP已接通。
 
-1. Start with `marketops-intake`. Prefer the approved scope and any existing research pack over inventing a new country, industry, customer class or budget.
-2. Read `references/FLOW_AND_SCHEMA.md`; choose the appropriate next-stage Skill. Use `marketops-source-discovery` for search, `marketops-venue-account` for entities, `marketops-person-research` for people, and `marketops-evidence` at *every* step.
-3. Invoke *only* currently connected, authorized tools. Search: Serper API/MCP or TinyFish Search. Fetch: Crawl4AI/HTTP or TinyFish Fetch. Dynamic site interaction: TinyFish Agent only with an explicit human approval of site, task and cost. Jev/TypeSafe only for bounded classification after source evidence exists.
-4. Preserve individual states: source hit -> candidate -> verified venue/account -> person/role candidate -> verified literal contact channel -> assessed contact route. Do not skip a gate simply because a tool returned JSON.
-5. Materialize data in the portable CSV research pack using its stable IDs; run the local read-only validator before handoff. Use `marketops-excel` for the final workbook/CSV review.
-6. Stop when scope/budget is exhausted, useful additional sources are unavailable, evidence conflicts, a website blocks access, or human judgment is required. Report `HOLD/UNKNOWN` honestly.
+## 一次用户任务内完整推进
 
-**Hard boundaries**: never send messages, submit forms, top up accounts, change provider billing, bypass login/CAPTCHA, invent emails, silently widen geography, automatically schedule the next run or present spreadsheet row counts as full-market coverage. Business approval cannot be inferred from an Agent's tool permission.
+1. `marketops-intake`读取原始目标、当前Brief/Scene/SOP/授权；[DATA_HANDOFF](../../references/DATA_HANDOFF.md)确定唯一store与schema，不让不同Skill各造CSV/数据库。
+2. 读取已有池子和资料，找下一处缺口。只按需展开 `marketops-source-discovery`、`marketops-venue-account`、`marketops-person-research`；证据核验贯穿全程。
+3. 通过 `marketops-provider-router` 选择Serper/Crawl4AI/TinyFish/Jev的实际已连接能力；原始资料、观察、模型判断、业务评级分别记录。
+4. 每一步结果提交同一store并读回，保留每个输入的处置。若只有离线pack，则使用其固定字段与单写者纪律，不冒充统一MCP数据库完成。
+5. 对照当前SOP判资格和联系路线；缺证据、归属矛盾、采购等级等规则缺口保留hold/unknown。Agent填reviewed_by不构成业务授权。
+6. 当前Run内可执行的步骤继续推进，无需用户机械地逐页说“继续”；真正需要批准/裁决时停该对象或方法，其他独立获准对象可继续。不无声扩大范围/费用，不启动下一轮无限任务。
+7. `marketops-excel`按同一数据快照导出，`marketops-handoff`回读校验并交付：业务结果、来源、未解决项、实际费用/未知与下一步。没有XLSX能力交付CSV并明说。
+8. `marketops-research-retrospective`在过程卡点/人工纠正/方法变化时短记，交付时归纳经验包。候选经验不自动变规则，复盘不替代业务交付。
 
-If the user wants a real MarketOps server database change, this Skill alone is insufficient: the authorized MarketOps MCP/Run import must be available. See `references/QUALITY_GATES.md`.
+## 两套产出必须区分
+
+业务：场地/组织母池→候选人/岗位→真实公开联系渠道→按SOP评估的联系路线→报告。证据池从第一份材料开始并行。
+
+学习：operation与交接记录→观察/假设→卡点/成功经验→回放评测提案→人工采纳→后续独立版本。不是记录隐藏思维链，不把一次试用包装成全局成功。
+
+禁止默认发送、表单提交、充值、绕访问控制、猜邮箱、全市场覆盖声明或秘密读取。Skills是方法层，OS隔离、硬预算、统一存储及受管MCP需要真实实现和验收。
