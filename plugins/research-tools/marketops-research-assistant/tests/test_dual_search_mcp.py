@@ -122,6 +122,12 @@ class TestDualSearch(unittest.TestCase):
                 self.call(provider="serpapi", opener=lambda req, timeout: self.fail("network touched"))
         self.assertFalse((self.root / "state" / "dual-search-ledger.sqlite3").exists())
 
+    def test_unexpanded_workbuddy_key_placeholder_rejected(self):
+        with patch.dict(os.environ, {"SERPAPI_API_KEY": "${SERPAPI_API_KEY}"}):
+            self.assertFalse(dual._configuration()["serpapi"]["configured"])
+            with self.assertRaisesRegex(ValueError, "PROVIDER_KEY_MISSING"):
+                self.call(provider="serpapi", opener=lambda req, timeout: self.fail("unexpected request"))
+        self.assertFalse((self.root / "state" / "dual-search-ledger.sqlite3").exists())
     def test_vendor_http_error_redacts_url_and_key(self):
         def fail(req, timeout):
             raise urllib.error.HTTPError(
