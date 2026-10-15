@@ -87,6 +87,8 @@ def save_artifact(root: Path | str | None, run_id: str, artifact_id: str,
                   material_kind: str) -> dict:
     store_root = _root(root)
     _id(run_id, "run_id"); _id(artifact_id, "artifact_id")
+    # Reject invalid Run BEFORE writing any customer material bytes.
+    list_run(store_root, run_id, limit=1)
     if not isinstance(content, bytes) or not content or len(content) > 4_000_000:
         raise ValueError("Nonempty material bytes required (<=4 MB)")
     if material_kind not in {"provider_extracted", "rendered_html", "raw_response", "decision_response"}:
@@ -115,9 +117,9 @@ def save_artifact(root: Path | str | None, run_id: str, artifact_id: str,
                 os.unlink(temp_name)
     with closing(_connection(store_root)) as db:
         db.execute("BEGIN IMMEDIATE")
-        existing = db.execute("SELECT content_sha256 FROM artifacts WHERE artifact_id=?", (artifact_id,)).fetchone()
-        if existing and existing[0] != digest:
-            raise ValueError("ARTIFACT_ID_COLLISION")
+        existing = db.execute("SELECT run_id,content_sha256 FROM artifacts WHERE artifact_id=?", (artifact_id,)).fetchone()
+        if existing and (existing[0] != run_id or existing[1] != digest):
+            raise ValueError("ARTIFACT_ID_COLLISION_OR_CROSS_RUN")
         if not existing:
             db.execute("INSERT INTO artifacts VALUES (?,?,?,?,?,?,?,?)",
                        (artifact_id, run_id, provider, origin_url, material_kind, digest,
@@ -156,12 +158,12 @@ def put_candidate(root: Path | str | None, run_id: str, record_id: str, stage: s
                              (aid, run_id)).fetchone()
             if not row:
                 raise ValueError("ARTIFACT_NOT_IN_RUN")
-        prior = db.execute("SELECT payload_json,artifact_ids_json FROM records WHERE record_id=?",
-                           (record_id,)).fetchone()
+        prior = db.execute("SELECT run_id,stage,kind,entity_key,payload_json,artifact_ids_json "
+                           "FROM records WHERE record_id=?", (record_id,)).fetchone()
         refs = json.dumps(ids, sort_keys=True)
         if prior:
-            if prior != (body, refs):
-                raise ValueError("RECORD_ID_COLLISION: append a correction with a new ID")
+            if prior != (run_id, stage, kind, entity_key, body, refs):
+                raise ValueError("RECORD_ID_COLLISION_OR_CROSS_RUN: append a new ID")
             return {"record_id": record_id, "status": "IDEMPOTENT"}
         status = "candidate_with_material" if ids else "candidate_unverified"
         db.execute("INSERT INTO records VALUES (?,?,?,?,?,?,?,?,?)",
