@@ -201,10 +201,9 @@ def export_csv(root: Path | str | None, run_id: str, output: Path) -> dict:
     output = output.expanduser().resolve()
     if output.exists():
         raise FileExistsError("Output exists; historical exports are immutable")
-    if _root(root) == output or _root(root) in output.parents:
-        pass  # customer-owned data directory is appropriate
-    elif output.is_relative_to(Path(__file__).resolve().parents[1]):
-        raise ValueError("Exports must not be written inside Git source")
+    customer_root = _root(root)
+    if not output.is_relative_to(customer_root / "exports"):
+        raise ValueError("EXPORT_OUTSIDE_CUSTOMER_APPROVED_DIRECTORY")
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("x", encoding="utf-8-sig", newline="") as fh:
         writer = csv.writer(fh)
