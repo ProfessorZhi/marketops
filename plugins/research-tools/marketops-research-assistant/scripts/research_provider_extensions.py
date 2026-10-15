@@ -227,7 +227,15 @@ def invoke(action: str, *, run_id: str, operation_id: str, url: str = "",
                                   data={"urls": [url]}, opener=opener)
         else:
             response = _jev_choice(document=document, question=question, options=options or [])
-        encoded = json.dumps(response, ensure_ascii=False, default=str).encode("utf-8")
+        serialized = json.dumps(response, ensure_ascii=False, default=str)
+        # Upstream services must not be allowed to echo operator credentials into
+        # evidence/artifact storage or back into the Agent context.
+        for key_name in ("SERPAPI_API_KEY", "SERPER_API_KEY", "TINYFISH_API_KEY",
+                         "CRAWL4AI_API_KEY", "TYPESAFE_API_KEY"):
+            secret = os.environ.get(key_name, "").strip()
+            if len(secret) >= 8:
+                serialized = serialized.replace(secret, "[REDACTED_PROVIDER_SECRET]")
+        encoded = serialized.encode("utf-8")
         artifact_id = "art-" + hashlib.sha256(
             (run_id + ":" + operation_id + ":" + action).encode("utf-8")).hexdigest()[:32]
         stored = store.save_artifact(
@@ -253,7 +261,8 @@ def invoke(action: str, *, run_id: str, operation_id: str, url: str = "",
         return {"status": "SAVED_MATERIAL_NOT_VERIFIED",
                 "provider": action, "operation_id": operation_id,
                 "artifact": stored, "record": entry,
-                "preview": response if action == "jev_choice" else None}
+                "preview": serialized[:4000],
+                "preview_truncated": len(serialized) > 4000}
     except Exception:
         try:
             append_event(root, run_id=run_id, operation_id=operation_id,
