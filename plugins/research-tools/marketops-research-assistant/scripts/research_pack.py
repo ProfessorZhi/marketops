@@ -291,10 +291,10 @@ def main(argv: list[str] | None = None) -> int:
             # Persist the stage event automatically when this local CLI owns the operation.
             # External Serper/Crawl4AI/TinyFish/Jev calls need their own MCP hooks.
             try:
-                from .research_event_journal import append_event
+                from .research_event_journal import append_event, data_root_for_pack
             except ImportError:
-                from research_event_journal import append_event
-            ledger_root = os.environ.get("MARKETOPS_RESEARCH_DATA_ROOT") or args.path.expanduser().resolve().parent
+                from research_event_journal import append_event, data_root_for_pack
+            ledger_root = data_root_for_pack(args.path)
             receipt = append_event(ledger_root, run_id=args.request_id,
                                    operation_id=f"init-{args.request_id}",
                                    stage="intake", kind="run", status="succeeded",
