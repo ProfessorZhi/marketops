@@ -41,6 +41,10 @@ def _root(value: str | Path | None) -> Path:
     root = Path(configured).expanduser().resolve()
     if root == HERE or HERE in root.parents:
         raise ValueError("Runtime/customer data must not be inside plugin source")
+    # A sibling directory inside a cloned Git checkout is also unsafe:
+    # future agents may accidentally stage artifacts/PII into Git.
+    if any((part / ".git").exists() for part in (root, *root.parents)):
+        raise ValueError("Runtime/customer data must be outside all Git checkouts")
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     return root
 
