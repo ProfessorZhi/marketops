@@ -21,7 +21,7 @@
 WorkBuddy 官方 Connector：https://open.workbuddy.cn/docs/connector 。它支持 `type: "skill-only"`，所以可以先安装只有 MarketOps Skills 的**单一调研连接器**；不需要把四个 MCP 服务硬塞到一个连接器。
 
 ```bash
-python scripts/build_client_bundles.py --output ./dist-marketops-local
+python scripts/build_client_bundles.py --output ~/marketops-research-bundles
 ```
 
 得到 `dist-marketops-local/workbuddy/marketops-research-assistant/`（及 ZIP）；检查目录和元数据后，在支持导入自定义连接器的 WorkBuddy 客户端中安装。具体 UI 操作依当前客户端版本；官方 `name_zh`/示例字段要求 4.24.0+。
