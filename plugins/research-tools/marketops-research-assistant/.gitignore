@@ -1,0 +1,15 @@
+# Local research packs and customer evidence must never be committed.
+/local-build/
+/dist/
+/scratch/
+/runs/
+/my-research/
+/devon-sample/
+/devon-excel-review/
+/*.xlsx
+/*.xls
+/*.zip
+*.pyc
+__pycache__/
+.pytest_cache/
+.venv/
