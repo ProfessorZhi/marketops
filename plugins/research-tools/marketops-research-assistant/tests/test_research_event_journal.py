@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import os
+from unittest.mock import patch
 import sys
 import tempfile
 import unittest
@@ -77,9 +79,10 @@ class JournalTests(unittest.TestCase):
 
     def test_init_cli_automatically_records_run_creation(self):
         folder = self.root / "runs" / "devon-001"
-        rc = pack.main(["init", str(folder), "--request-id", "devon-001",
-                        "--country", "GB", "--scene", "gb-natural-grass",
-                        "--objective", "Public sports grounds"])
+        with patch.dict(os.environ, {"MARKETOPS_RESEARCH_DATA_ROOT": str(self.root)}):
+            rc = pack.main(["init", str(folder), "--request-id", "devon-001",
+                            "--country", "GB", "--scene", "gb-natural-grass",
+                            "--objective", "Public sports grounds"])
         self.assertEqual(0, rc)
         events = journal.read_events(self.root, "devon-001")
         self.assertEqual(1, len(events))
