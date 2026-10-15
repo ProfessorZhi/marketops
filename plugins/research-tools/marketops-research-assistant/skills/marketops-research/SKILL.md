@@ -18,6 +18,12 @@ description: Complete a bounded, human-led market research task from brief throu
 7. `marketops-excel`按同一数据快照导出，`marketops-handoff`回读校验并交付：业务结果、来源、未解决项、实际费用/未知与下一步。没有XLSX能力交付CSV并明说。
 8. `marketops-research-retrospective`在过程卡点/人工纠正/方法变化时短记，交付时归纳经验包。候选经验不自动变规则，复盘不替代业务交付。
 
+## 经验自动存储的实际边界
+
+当前 Lite 记录器在客户选定的 MARKETOPS_RESEARCH_DATA_ROOT下保存 SQLite 操作事件。本地 init 与 Excel-safe CSV exporter 已加自动事件钩子。每次通过独立厂商MCP完成的操作，若客户端允许调用本地 recorder，则按实际工具回执记录 operation/status/receipt ID；不能自动拦截未经过我们的 Research MCP 的调用。缺少记录必须报告 observability_gap，不能说“已自动保存”。
+
+每次暂停/交接/完成调用 marketops-research-retrospective，以实际日志起草经验候选，人工验证后才可更改正式业务SOP。先保存本轮业务结果，不能只交经验而漏交客户成果。
+
 ## 两套产出必须区分
 
 业务：场地/组织母池→候选人/岗位→真实公开联系渠道→按SOP评估的联系路线→报告。证据池从第一份材料开始并行。
