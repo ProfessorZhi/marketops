@@ -1,0 +1,7 @@
+{
+  "name": "marketops-research-assistant",
+  "version": "0.2.0",
+  "description": "Evidence-first semi-automated market and contact research: Skills, portable stage data, human review and Excel handoff.",
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json"
+}
