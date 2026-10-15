@@ -10,9 +10,9 @@
 
 用户提供的 https://serpapi.com/manage-api-key 属于 **SerpApi**，不是 Serper。现有 MarketOps 后端是 `SerperSearchProvider`（`https://google.serper.dev/search` + `SERPER_API_KEY`）。两家账户/密钥不可混用。**SerpApi 官方有托管 MCP 和 MIT 开源 MCP Server**，可作为半自动研究插件的另一种搜索方案；现有 MarketOps 后端尚未实现 SerpApi Adapter。见 [SerpApi 官方 MCP / Key / 价格](providers/serpapi.md) 与 [Serper 官方 API](providers/serper.md)。
 
-## 当前首要交付：统一半自动调研插件（v0.2.0）
+## 当前首要交付：统一半自动调研插件（v0.3.0 候选）
 
-**[MarketOps Research Assistant](marketops-research-assistant/README.md)** 是目前的主入口：一套渐进式业务 Skills、明确的信息流/阶段 CSV、可离线初始化和验证的交接包、Excel 数据 Skill、可生成的 WorkBuddy `skill-only` 连接器，以及 Codex 插件候选。它**没有内置收费 MCP**，不能代替客户自己的 API/OAuth 认证；正式无人值守 CC/服务器端自动化列入后续阶段。
+**[MarketOps Research Assistant](marketops-research-assistant/README.md)** 是目前的主入口：一套渐进式业务 Skills、明确的信息流/阶段 CSV、可离线初始化和验证的交接包、Excel 数据 Skill、可生成的 WorkBuddy `skill-only` 连接器，以及 Codex 插件候选。它**内置默认不联网的本地双搜索 MCP 候选**，但不会自动取得客户 API Key，也不代表双端安装或付费调用已经验收；完整四能力统一 MCP 和无人值守 CC/服务器端自动化仍属后续阶段。
 
 - [真实信息流和主/外键](marketops-research-assistant/references/FLOW_AND_SCHEMA.md)
 - [Codex / WorkBuddy / DeepSeek Harness 安装](marketops-research-assistant/references/CLIENT_SETUP.md)
