@@ -1,5 +1,7 @@
 # Codex 接入：官方工具优先，逐个启用
 
+> **更新（v0.2）**：建议优先使用 [统一 MarketOps Research Assistant](../marketops-research-assistant/README.md)。本页保留单个 Provider 的设置示例；`codex/marketops-research-starter/` 是之前的 v0.1 候选，不是现在的唯一规范入口。
+
 目的：让用户自己的 Codex 先做半自动研究，不使用东京服务器上的开发 CC 身份，不部署 MarketOps 后端。
 
 ## 1. 准备
