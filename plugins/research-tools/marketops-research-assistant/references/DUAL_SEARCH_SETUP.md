@@ -55,3 +55,13 @@ marketops_search(provider, query, country, language, run_id, operation_id, mode=
 在相同目标、国家、语言、预算和少量固定查询下分别调用两家，观察经官网验证的独立场地数量、运营组织匹配率、Place ID/URL 误合并、最终具名联系人/业务入口数量、每条有效结果的花费与人工检查成本。不能把两个供应商的相同场地相加算增长，也不能仅因SerpApi更贵或更全就直接宣布效果更好。
 
 **未完成**：客户API Key、真实服务调用、双端实机验收、完整统一Research MCP和业务市场数据库自动写入。此候选先证明双搜索工具层可实现，之后才与MarketOps完整信息流接线。
+
+## 7. 离线发现结果重合度对照（不调用 Provider）
+
+如果对同一检索式、国家、语言、模式、limit 分别保存了 SerpApi 与 Serper 回执，可在插件目录内运行：
+
+```bash
+python scripts/compare_search_receipts.py /USER/ROOT/search-receipts/run-001/serper-receipt.json /USER/ROOT/search-receipts/run-001/serpapi-receipt.json
+```
+
+文件路径由实际运行生成的哈希文件名决定，不要照抄示例。报告只统计两家搜索结果行数、相同 Place ID 或完整规范 URL 的候选重合度、以及无法自动比对的行；**不是场地真实性、召回率、联系人转化率或性价比结论**。官方站点 URL 可能同时属于多个不同场地，真正业务 A/B 仍需要人工证据核查和付费账单。
