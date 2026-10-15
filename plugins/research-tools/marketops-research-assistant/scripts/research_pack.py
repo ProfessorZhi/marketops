@@ -171,6 +171,8 @@ def verify(root: Path) -> dict:
         if not public_url(r["url"]):
             err("evidence", key, "evidence URL must be public http(s)")
         if r["status"] == "usable":
+            if not r["source_id"] or r["source_id"] not in rows["sources"]:
+                err("evidence", key, "usable evidence needs an existing source_id")
             if not SHA_RE.fullmatch(r["content_sha256"]):
                 err("evidence", key, "usable evidence requires actual 64-character lowercase SHA-256")
             if not r["excerpt"]:
@@ -186,6 +188,12 @@ def verify(root: Path) -> dict:
         for key, r in rows[table].items():
             if r["status"] == "verified" and not usable(r["evidence_id"]):
                 err(table, key, "verified object requires usable evidence")
+    for key, r in rows["venue_candidates"].items():
+        if not r["name"] or not r["source_id"]:
+            err("venue_candidates", key, "candidate needs name and source lineage")
+    for key, r in organizations.items():
+        if r["status"] == "verified" and not r["name"]:
+            err("organizations", key, "verified organization needs name")
     for key, r in rows["venues"].items():
         if r["status"] == "verified" and (not r["candidate_id"] or not r["name"]):
             err("venues", key, "verified venue needs candidate lineage and name")
@@ -199,8 +207,11 @@ def verify(root: Path) -> dict:
                 err("venue_org_links", key, "verified link needs verified organization")
     assessments = rows["account_assessments"]
     for key, r in assessments.items():
-        if r["decision"] == "eligible" and (not r["scene"] or not usable(r["evidence_id"])):
-            err("account_assessments", key, "eligible requires named scene and usable evidence")
+        if r["decision"] == "eligible":
+            if not r["scene"] or not usable(r["evidence_id"]):
+                err("account_assessments", key, "eligible requires named scene and usable evidence")
+            if organizations.get(r["organization_id"], {}).get("status") != "verified":
+                err("account_assessments", key, "eligible requires verified organization")
     for key, r in people.items():
         if r["status"] == "verified" and (
             organizations.get(r["organization_id"], {}).get("status") != "verified"
@@ -224,11 +235,15 @@ def verify(root: Path) -> dict:
             err("contact_routes", key, "route person and organization mismatch")
         if p and p["organization_id"] != r["organization_id"]:
             err("contact_routes", key, "route point and organization mismatch")
+        if p and r["person_id"] and p.get("person_id") and p["person_id"] != r["person_id"]:
+            err("contact_routes", key, "route person and contact point person mismatch")
         if r["status"] == "ready":
             if not (p and p.get("status") == "verified" and p.get("type") == "email"):
                 err("contact_routes", key, "ready route needs verified literal email point")
             if organizations.get(r["organization_id"], {}).get("status") != "verified":
                 err("contact_routes", key, "ready route needs verified organization")
+            if r["person_id"] and people.get(r["person_id"], {}).get("status") != "verified":
+                err("contact_routes", key, "ready named-person route needs verified person/role")
             if not usable(r["evidence_id"]) or not r["reviewed_by"]:
                 err("contact_routes", key, "ready route needs usable evidence and human reviewed_by")
             if r["grade"] not in {"A", "B", "C", "D"} or not r["role_function"]:
