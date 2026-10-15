@@ -2,6 +2,12 @@
 
 这是MarketOps编写的路由方法，不是厂商官方Skill，也没有在此实现统一MCP Server。当前客户端可使用已经配置的官方MCP、审核过的API/SDK或CLI；未来统一MarketOps MCP复用同一合同。官方事实与设计建议分开如下。
 
+### 搜索供应商名称纠偏
+
+**SerpApi.com 与 Serper.dev 是不同产品。** `https://serpapi.com/manage-api-key` 是 SerpApi Key 页面；`https://google.serper.dev/search` 是已有 Serper Adapter。不能用 SerpApi Key 访问 Serper，也不能在没有专用响应解析与预算验证的情况下把两家后端悄悄互换。
+
+SerpApi 官方拥有 [托管 MCP 与 MIT 开源 MCP Server](https://serpapi.com/integrations/mcp)，适合半自动 Codex/WorkBuddy 客户端直接连接试用；它不是当前市场业务 Store 的自动写入接口，必须仍将结果经统一证据/实体流程提交。详见 [SerpApi 入门及安装](../../../providers/serpapi.md)。**现有四种研究能力仍是搜索、抓取、交互、判断；搜索槽可以选择 Serper 或 SerpApi。**
+
 ## 1. 来源与接口事实（2026-10-15核对）
 
 | 项目 | 已核对来源 | 可使用形态 | 不该声称 |
@@ -23,7 +29,7 @@
 
 | 当前问题 | 优先动作 | 合法升级条件 | 返回并保存 |
 |---|---|---|---|
-| 未知来源/地区候选 | Serper Search/Maps/Places或已批准TinyFish Search | 覆盖不足且新查询有具体依据 | query/locale/source URL/候选，不写verified |
+| 未知来源/地区候选 | Serper Search/Maps/Places、已配置 SerpApi 官方 Search/Maps MCP 或已批准TinyFish Search | 覆盖不足且新查询有具体依据 | query/locale/source URL/候选，不写verified |
 | 已知URL，需要正文 | 复用有效缓存；Crawl4AI或TinyFish Fetch | 确认是JS/交互限制而非解析bug | 单URL状态、正文材料、时间、变换/出处 |
 | 结构稳定的多页目录 | Crawl4AI批量/非LLM抽取 | 小样本字段保真后，预算内扩展 | 原始行、规范字段、每行来源、游标 |
 | 必须点击筛选/分页 | TinyFish交互，明确只读目标和输出结构 | 已批准网站、动作、费用；不跨访问限制 | provider run id、结果、步骤、失败/未知用量 |
