@@ -26,6 +26,7 @@ This is the customer-facing stdio MCP in scripts/research_mcp.py, registered by 
 | marketops_events | run_id | Reads bounded recent journal receipts from this Run |
 | marketops_export | run_id, output_path | Writes candidate-only UTF-8-BOM CSV within approved data root exports directory; not a confirmed XLSX nor an official CRM update |
 | marketops_experience_draft | run_id, scope, rule_version, output_path | Writes unapproved experience.json from persisted incidents/events under approved experience directory |
+| marketops_handoff | run_id, operation_id | One candidate-only export operation: save a CSV and an unapproved incident experience draft to customer runtime directories, record HOLD on partial failure; **not verified contacts or an XLSX file** |
 
 All real network calls require an existing approved Run, client-set data root, explicit network on and two independent cumulative attempt limits:
 - Search: MARKETOPS_SEARCH_ALLOW_NETWORK=1 and MARKETOPS_SEARCH_MAX_CALLS >0.
