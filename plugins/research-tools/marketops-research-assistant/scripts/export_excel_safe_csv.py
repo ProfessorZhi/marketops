@@ -5,6 +5,7 @@ import argparse
 import csv
 import hashlib
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -46,8 +47,20 @@ def export_pack(source: Path, output: Path) -> dict:
         "Check SUMMARY.json for actual rows and errors. Ready routes never authorize email sending.\n",
         encoding="utf-8",
     )
+    # The journal records this verified local handoff automatically; it does not
+    # infer that a customer has accepted the research result or authorized outreach.
+    try:
+        from .research_event_journal import append_event
+    except ImportError:
+        from research_event_journal import append_event
+    brief = json.loads((source / "intake.json").read_text(encoding="utf-8"))
+    run_id = brief["request_id"]
+    operation_id = "export-" + hashlib.sha256(str(output.resolve()).encode("utf-8")).hexdigest()[:24]
+    ledger_root = os.environ.get("MARKETOPS_RESEARCH_DATA_ROOT") or source.expanduser().resolve().parent
+    receipt = append_event(ledger_root, run_id=run_id, operation_id=operation_id,
+                           stage="export", kind="export", status="succeeded", provider="local")
     return {"result": "CSV_HANDOFF_CREATED_NOT_XLSX", "files": len(TABLES),
-            "row_counts": report["counts"], "output": str(output)}
+            "row_counts": report["counts"], "output": str(output), "journal": receipt}
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
