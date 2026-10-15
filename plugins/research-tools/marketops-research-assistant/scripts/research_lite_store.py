@@ -96,6 +96,13 @@ def save_artifact(root: Path | str | None, run_id: str, artifact_id: str,
     if len(origin_url) > 2048 or len(provider) > 60 or not provider:
         raise ValueError("Invalid material metadata")
     digest = hashlib.sha256(content).hexdigest()
+    # Check key ownership BEFORE touching the per-run artifact directory. The
+    # transaction below repeats this check to defend against concurrent writers.
+    with closing(_connection(store_root)) as db:
+        previous = db.execute("SELECT run_id,content_sha256 FROM artifacts WHERE artifact_id=?",
+                              (artifact_id,)).fetchone()
+        if previous and (previous[0] != run_id or previous[1] != digest):
+            raise ValueError("ARTIFACT_ID_COLLISION_OR_CROSS_RUN")
     relative = Path("artifacts") / run_id / (_safe_name(artifact_id) + ".bin")
     target = store_root / relative
     target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
