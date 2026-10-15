@@ -11,7 +11,7 @@
 - Linux 试用目录示例：~/.local/share/marketops-research/
 - 服务器：由部署者配置的专属持久数据卷，独立非特权服务账号持有。
 
-上述都是**建议位置**，不是在 Member-A 的设备上已查到的真实路径。MarketOps 后端还有自己的 MARKSTOP_DATA_ROOT（正确变量名 MARKETOPS_DATA_ROOT）；切勿擅自将客户试用库指向生产库。
+上述都是**建议位置**，不是在 Member-A 的设备上已查到的真实路径。MarketOps 后端还有自己的 MARKETOPS_DATA_ROOT；切勿擅自将客户试用库指向生产库。
 
 当前的文件形状与未来扩展：
 
