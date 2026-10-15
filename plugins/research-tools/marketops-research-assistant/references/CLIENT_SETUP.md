@@ -2,6 +2,8 @@
 
 **新版本唯一安装流程**：先读 [MEMBER_A_INSTALL.md](MEMBER_A_INSTALL.md) 再使用 skills/marketops-setup/SKILL.md 与 scripts/setup_clients.py。原有 v0.2/v0.3 的双搜索独立 MCP 和 8/15-Skills 指南已退居兼容用途。当前**只有一个** marketops-research Lite MCP 对接五家基础能力，不要同时安装旧 dual-search MCP 或另一个同名插件。
 
+**Codex 配置审查：** 两份根目录 MCP JSON 均使用 `mcpServers`。Codex 曾有文档将兼容 `.mcp.json` 写成 `mcp_servers`，但实际加载器测试以 camelCase 为准；不要因看见旧文档就改为 snake_case。参考 [Codex 源码/问题记录](https://github.com/openai/codex/issues/22105)。WorkBuddy 同样要求 `mcpServers`。
+
 ## 安装步骤（由当前设备上的 Agent 辅助执行）
 
 1. 只读检查本机：平台、Python >=3.11、Codex/WorkBuddy 版本、用户选择的目录、旧插件是否存在。**默认不下载、不更改现有环境，不运行付费查询。**
