@@ -66,7 +66,10 @@ def install(destination: Path, client: str, *, dependencies: bool,
         for server in servers.values():
             server["command"] = str(py)
             server["args"] = [str(target / "scripts" / "research_mcp.py")]
-            server["cwd"] = str(target)
+            # Codex may cache a local plugin under a different plugin root and
+            # rejects a cwd outside that root. The script uses __file__, so cwd
+            # is unnecessary: let Codex select its installed plugin directory.
+            server.pop("cwd", None)
         config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
     results = {"status": "SOURCE_INSTALLED_UNVERIFIED", **result,
                "venv_python": str(py), "dependencies_installed": dependencies}
