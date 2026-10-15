@@ -5,6 +5,7 @@ import argparse
 import csv
 import hashlib
 import json
+import sqlite3
 import os
 import sys
 from pathlib import Path
@@ -70,7 +71,7 @@ def main() -> int:
     try:
         print(json.dumps(export_pack(args.pack, args.output), indent=2))
         return 0
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, sqlite3.Error) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
 
