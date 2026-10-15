@@ -7,6 +7,7 @@ Calls made directly against third-party MCP servers cannot be observed here.
 from __future__ import annotations
 
 import argparse
+from contextlib import closing
 import hashlib
 import json
 import os
@@ -87,7 +88,7 @@ def append_event(data_root: str | Path | None, *, run_id: str, operation_id: str
     encoded = json.dumps(payload, sort_keys=True, ensure_ascii=True, separators=(",", ":"))
     digest = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
     root = _root(data_root)
-    with _connect(root) as db:
+    with closing(_connect(root)) as db:
         db.execute("BEGIN IMMEDIATE")
         existing = db.execute(
             "SELECT sequence,payload_sha256 FROM experience_events "
@@ -97,6 +98,7 @@ def append_event(data_root: str | Path | None, *, run_id: str, operation_id: str
         if existing:
             if existing[1] != digest:
                 raise ValueError("Conflicting replay of an existing operation event")
+            db.commit()
             return {"result": "IDEMPOTENT", "sequence": existing[0], "payload_sha256": digest}
         cursor = db.execute(
             "INSERT INTO experience_events "
@@ -105,12 +107,13 @@ def append_event(data_root: str | Path | None, *, run_id: str, operation_id: str
             (run_id, operation_id, stage, kind, status,
              datetime.now(timezone.utc).isoformat(), digest, encoded),
         )
+        db.commit()
         return {"result": "RECORDED", "sequence": cursor.lastrowid, "payload_sha256": digest}
 
 
 def read_events(data_root: str | Path | None, run_id: str) -> list[dict]:
     _identifier(run_id, "run_id")
-    with _connect(_root(data_root)) as db:
+    with closing(_connect(_root(data_root))) as db:
         rows = db.execute("SELECT sequence,recorded_at,payload_sha256,payload_json "
                           "FROM experience_events WHERE run_id=? ORDER BY sequence",
                           (run_id,)).fetchall()
