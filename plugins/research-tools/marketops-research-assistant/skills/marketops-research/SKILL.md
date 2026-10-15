@@ -1,33 +1,27 @@
 ---
 name: marketops-research
-description: Complete a bounded, human-led market research task from brief through venue/account and contact evidence to a verifiable result, using four-provider routing and producing a scoped retrospective experience pack.
+description: Drive one Member-A-style human-reviewed public market research run end-to-end through one MarketOps Lite MCP, evidence and candidate pools, Excel/CSV handoff and experience retrospective.
 ---
 
-# MarketOps Research Assistant：业务、工具、复盘三层
+# MarketOps Research Assistant — 统一业务入口
 
-先读 [BUSINESS_PLAYBOOK](../../references/BUSINESS_PLAYBOOK.md)。历史依据和不能推广的结论在 [MEMBER_A_SKILL_ANALYSIS](../../references/MEMBER_A_SKILL_ANALYSIS.md)。本插件不是后台自动调度器，技能存在不代表四家MCP已接通。
+先按需读取 references/MEMBER_A_SKILL_ANALYSIS.md、BUSINESS_PLAYBOOK.md、QUALITY_GATES.md、MCP_TOOL_CATALOG.md，遵循场景正式SOP。**本版本只有候选阶段的存储与导出，不具备正式 A/B/C/D 业务晋升或外联。**
 
-## 一次用户任务内完整推进
+## 在一个已授权的 Run 内连续推进
 
-1. `marketops-intake`读取原始目标、当前Brief/Scene/SOP/授权；[DATA_HANDOFF](../../references/DATA_HANDOFF.md)确定唯一store与schema，不让不同Skill各造CSV/数据库。
-2. 读取已有池子和资料，找下一处缺口。只按需展开 `marketops-source-discovery`、`marketops-venue-account`、`marketops-person-research`；证据核验贯穿全程。
-3. 搜索槽可用两家独立后端 SerpApi 或 Serper。先用 `marketops_search_capabilities()` 查询配置，不触发付费；执行 `marketops_search` 必须指定一家以及 run/operation id，不允许失败后隐式重付费。只有明确由操作者设置网络开关、独立 API Key 和持久化预算上限，才允许真实查询。其它按需通过 `marketops-provider-router` 选择Crawl4AI/TinyFish/Jev；原始资料、观察、模型判断、业务评级分别记录。 选择Serper/Crawl4AI/TinyFish/Jev的实际已连接能力；原始资料、观察、模型判断、业务评级分别记录。
-4. 每一步结果提交同一store并读回，保留每个输入的处置。若只有离线pack，则使用其固定字段与单写者纪律，不冒充统一MCP数据库完成。
-5. 对照当前SOP判资格和联系路线；缺证据、归属矛盾、采购等级等规则缺口保留hold/unknown。Agent填reviewed_by不构成业务授权。
-6. 当前Run内可执行的步骤继续推进，无需用户机械地逐页说“继续”；真正需要批准/裁决时停该对象或方法，其他独立获准对象可继续。不无声扩大范围/费用，不启动下一轮无限任务。
-7. `marketops-excel`按同一数据快照导出，`marketops-handoff`回读校验并交付：业务结果、来源、未解决项、实际费用/未知与下一步。没有XLSX能力交付CSV并明说。
-8. `marketops-research-retrospective`在过程卡点/人工纠正/方法变化时短记，交付时归纳经验包。候选经验不自动变规则，复盘不替代业务交付。
+1. 使用 marketops-setup 核对本机 MCP/Skills 是否真正可用，marketops_capabilities 显示实际配置。不能把 key_configured、SDK installed 或工具已列出等同真实API或业务通过。
+2. marketops-intake 固定目标场景、地理范围、客户资格、当前SOP版本和允许费用；marketops_start 创建 Run。已存在的 Run 先通过 marketops_status 读取记录，不能每次再从零爬。
+3. 发现阶段通过 marketops-provider-router 选择 SerpApi 或 Serper；也可按需用 TinyFish Search。每次明确 provider，禁止未经用户批准自动切换另一家收费路径。搜索摘要与 Google Place ID 只进入 source candidate，不能直接证明场地责任或邮箱。
+4. 采集阶段优先复用原始材料；按资源选择已安装 Crawl4AI 本地爬虫/Cloud、TinyFish Fetch。只有实际授权的公开 HTTPS 站点与读取动作允许访问；不绕登录墙、验证码或权限控制。材料需有真实出处、哈希和可回读 artifact_id。
+5. 使用 marketops-venue-account 与 marketops-person-research 分离场地、组织、责任关系、人员、岗位和字面公开联系渠道；通过 marketops_propose 逐一保留候选、证据引用、未核实与冲突。可使用 Jev Choice 对**已拥有证据**的候选做语义辅助，但结论不是事实，也不能覆盖SOP。
+6. 通过 marketops_status 对实际行数、来源材料、stage和用户任务目标复核。缺证据、业务规则冲突、人员归属不明进入review/hold；不能“为了完成报表”猜测邮箱或把候选标为verified。
+7. 仅在已批准同一Run内继续可独立进行的工作；人类保留范围、预算、账户资格规则、等级冲突与外联等权力。不能自动扩大预算、启动无限下一批或发送邮件。
+8. 完成当前可完成部分时调用 marketops_handoff（一个操作同时产候选CSV与经验初稿，全部保留到数据根），随后用 marketops-excel 与 marketops-handoff做材料核验和真正工作簿（若宿主有电子表格工具）。**没有XLSX能力只能说CSV。** 经验 Skill 在暂停/卡点/完结时记录明确的观察、假设、真实回执与反例，绝不自动更新正式Skill/SOP。
 
-## 经验自动存储的实际边界
+## 两条并行数据流
 
-当前 Lite 记录器在客户选定的 MARKETOPS_RESEARCH_DATA_ROOT下保存 SQLite 操作事件。本地 init 与 Excel-safe CSV exporter 已加自动事件钩子。每次通过独立厂商MCP完成的操作，若客户端允许调用本地 recorder，则按实际工具回执记录 operation/status/receipt ID；不能自动拦截未经过我们的 Research MCP 的调用。缺少记录必须报告 observability_gap，不能说“已自动保存”。
+业务数据：Brief/Run → SourceCandidate → VenueAsset/Account候选及责任关系 → Person/RoleCandidate → ContactPoint候选 → 待核验联系路线 → 有来源的CSV/Excel研究结果。要成为**正式联系路线**，必须以后接入MarketOps主项目的可信SOP/授权晋升引擎，本 Lite 工具不提供此权力。
 
-每次暂停/交接/完成调用 marketops-research-retrospective，以实际日志起草经验候选，人工验证后才可更改正式业务SOP。先保存本轮业务结果，不能只交经验而漏交客户成果。
+经验事件：每个受管工具调用的开始/结果及材料落地 → research-events SQLite → 失败/阻断/人工纠错 → experience.json候选 → holdout回放与人工采纳。统一五家Lite MCP内的调用自动记事件；**独立直连的官方TinyFish/Crawl4AI MCP不在本地自动记录范围内**。
 
-## 两套产出必须区分
-
-业务：场地/组织母池→候选人/岗位→真实公开联系渠道→按SOP评估的联系路线→报告。证据池从第一份材料开始并行。
-
-学习：operation与交接记录→观察/假设→卡点/成功经验→回放评测提案→人工采纳→后续独立版本。不是记录隐藏思维链，不把一次试用包装成全局成功。
-
-禁止默认发送、表单提交、充值、绕访问控制、猜邮箱、全市场覆盖声明或秘密读取。Skills是方法层，OS隔离、硬预算、统一存储及受管MCP需要真实实现和验收。
+不可把“工具调用成功”“保存一个JSON文件”“MCP启动成功”当成“完整市场任务已完成”。在真实业务E2E通过前，这是一份试用工作流，不是已交付成品。
