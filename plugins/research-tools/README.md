@@ -1,59 +1,47 @@
-# MarketOps Research Tools | 半自动调研插件与工具包
+# MarketOps 半自动调研插件：研究能力与安装入口
 
-> **试用候选 / 非生产发布（2026-10-15）**。本目录独立于 MarketOps 的业务服务、数据根和现有 `marketops-plugin`。只包含公开说明、无凭据配置样例、Skills 和 WorkBuddy 连接器候选；**未完成客户机上安装与真实付费端到端验收**。
+> **当前 v0.4.0 是 PR #64 Draft 候选；禁止以“装上即可完成正式联系人研究”名义发布。** 这是 MarketOps 的两份交付物之一；另一个是后续客户服务器上的完整自动化 CC 工作流。本目录专门实现 Member-A / Codex / WorkBuddy 的人工授权、Agent 执行的半自动研究能力。
 
-## v0.3.0 双搜索可调用 MCP 候选
+## 当前唯一主入口
 
-统一半自动研究插件已新增 `marketops-research-assistant/scripts/dual_search_mcp.py`，并在 Codex `.mcp.json` 注册了一个本地 stdio MCP：明确选择 SerpApi **或** Serper 发送一次授权查询，保存发现回执和事件。WorkBuddy 可通过显式 `--with-search-mcp` 生成 **MCP+Skills** 候选，而默认仍为不自动收费的 skill-only 包。完整信息与账号申请见 [双搜索安装指南](marketops-research-assistant/references/DUAL_SEARCH_SETUP.md)。**未开户、未调用真实API、未做客户端E2E验收**。
+**[MarketOps Research Assistant](marketops-research-assistant/README.md)**
 
-## 重要：Serper.dev ≠ SerpApi.com
+- **[MEMBER_A_INSTALL](marketops-research-assistant/references/MEMBER_A_INSTALL.md)**：给 Member-A 和 Agent 的安装/配置手册及可直接转发的提示。
+- **[MCP_TOOL_CATALOG](marketops-research-assistant/references/MCP_TOOL_CATALOG.md)**：本地 Lite Research MCP 实际暴露的工具与未覆盖能力。
+- **[BUSINESS_PLAYBOOK](marketops-research-assistant/references/BUSINESS_PLAYBOOK.md)**、**[MEMBER_A_SKILL_ANALYSIS](marketops-research-assistant/references/MEMBER_A_SKILL_ANALYSIS.md)**：Member-A Session 审计后固化的业务方法。
+- **[STORAGE_AND_TOPOLOGY](marketops-research-assistant/references/STORAGE_AND_TOPOLOGY.md)**：五个项目的接入、开源/本地部署、客户数据根与事件库。
+- **[RELEASE_GATE](marketops-research-assistant/references/RELEASE_GATE.md)**：发 ZIP 前必须签收的静态/离线/客户端/真实 E2E 验收。
 
-用户提供的 https://serpapi.com/manage-api-key 属于 **SerpApi**，不是 Serper。现有 MarketOps 后端是 `SerperSearchProvider`（`https://google.serper.dev/search` + `SERPER_API_KEY`）。两家账户/密钥不可混用。**SerpApi 官方有托管 MCP 和 MIT 开源 MCP Server**，可作为半自动研究插件的另一种搜索方案；现有 MarketOps 后端尚未实现 SerpApi Adapter。见 [SerpApi 官方 MCP / Key / 价格](providers/serpapi.md) 与 [Serper 官方 API](providers/serper.md)。
+## 当前统一插件结构
 
-## 当前首要交付：统一半自动调研插件（v0.3.0 候选）
+16 个 Skills：8 个业务、6 个 Provider/路由、1 个经验复盘、1 个安装配置。一个本地 `marketops-research` stdio MCP 对接：
 
-**[MarketOps Research Assistant](marketops-research-assistant/README.md)** 是目前的主入口：一套渐进式业务 Skills、明确的信息流/阶段 CSV、可离线初始化和验证的交接包、Excel 数据 Skill、可生成的 WorkBuddy `skill-only` 连接器，以及 Codex 插件候选。它**内置默认不联网的本地双搜索 MCP 候选**，但不会自动取得客户 API Key，也不代表双端安装或付费调用已经验收；完整四能力统一 MCP 和无人值守 CC/服务器端自动化仍属后续阶段。
+| 上游 | 当前 Lite MCP 使用形式 | 边界 |
+| --- | --- | --- |
+| **SerpApi.com** | 官方 REST Google Web/Maps（自有Key） | 它不是 Serper；官方还有 MIT 开源MCP包装 |
+| **Serper.dev** | 官方 REST Google Search/Places（自有Key） | 老 MarketOps 后端已有独立 Serper Adapter |
+| **Crawl4AI** | 本机开源 AsyncWebCrawler 或官方 Cloud /scrape | 丰疆 LiteLLM 网关是可选抽取模型，**不是**爬虫服务 |
+| **TinyFish** | 官方 Search/Fetch REST | 复杂浏览器 Agent 另接官方 MCP，尚未桥接本地事件 |
+| **Jev / TypeSafe** | 官方 SDK Choice | Noul/Score尚未作为Lite MCP工具暴露 |
 
-- [真实信息流和主/外键](marketops-research-assistant/references/FLOW_AND_SCHEMA.md)
-- [Codex / WorkBuddy / DeepSeek Harness 安装](marketops-research-assistant/references/CLIENT_SETUP.md)
-- [Member-A 三项半自动试用](marketops-research-assistant/references/MEMBER_A_PILOT.md)
-- [Excel 工作簿规范](marketops-research-assistant/references/WORKBOOK_SPEC.md)
-- [两阶段路线图](marketops-research-assistant/references/ROADMAP.md)
+所有来源、场地、人员与组织资料只进入候选暂存库、衍生材料索引和操作日志，**不能无证据晋升正式联系人或自动发信**。本机 SQLite/CSV 是 Lite 验证模式，不替代 MarketOps 主项目的 Market Graph、SOP 分级与授权。
 
-下方四家 Provider 文档与历史 v0.1 独立候选保留，供按需选择能力。**不要把下方旧 Codex/TinyFish/WorkBuddy 候选与上方 v0.2 统一研究插件混为同一件交付。**
+## 用户安装流程
 
-## 目标
+源码解压之后交给客户 Agent 阅读 `MEMBER_A_INSTALL.md`、`skills/marketops-setup/SKILL.md`。先 dry-run 核对电脑/路径/依赖，再由用户逐步批准安装 Python venv、Codex 本地插件或 WorkBuddy MCP+Skills 连接器。安装器不自动注册五家付费账户、读取密钥或启动收费查询。
 
-让已经使用 Codex / WorkBuddy / Claude Code 的团队先把半自动流程提速：**发现网站与场地 → 读取官网正文 → 处理少量交互页面 → 人工复核业务结论 → 导出带来源的候选清单**。不用先部署东京 Claude Code，也不用先接入完整 MarketOps 后端。
+一个 Run 从客户需求和已有候选开始，经五家可选能力获取材料、更新候选场地/组织/岗位、保存证据、输出候选 CSV 与经验草稿。Excel Skill 在 Agent 真正具备 XLSX 工具时才能制作真实工作簿；没有时如实交 CSV。
 
-## 四种能力
+## 保留的独立供应商参考
 
-| Provider | 推荐阶段 | 官方 / 非官方 | 本目录 |
-| --- | --- | --- | --- |
-| **Serper** | Google Search / Maps / Places，发现候选 URL | 官方 API；第三方 MCP 并非 Serper 官方维护 | [注册与使用](providers/serper.md) |
-| **Crawl4AI** | 官网、PDF、批量网页、结构化抽取 | 官方 Cloud MCP / API；可自托管 | [申请 Key 与接入](providers/crawl4ai.md) |
-| **TinyFish** | Search / Fetch；必要时执行多步网页交互 | 官方 MCP / CLI / Skill | [OAuth / API Key](providers/tinyfish.md) |
-| **Jev / TypeSafe** | Choice / Noul / Score 结构化判断及不确定性 | 官方 SDK 与 Agent Skill；不宣称拥有已验收的官方 MCP | [申请 Key 与判断](providers/jev.md) |
+| Provider | 申请与安装 |
+| --- | --- |
+| SerpApi | [官方 MCP 与 Key](providers/serpapi.md) |
+| Serper | [官方 API](providers/serper.md) |
+| Crawl4AI | [本地/Cloud](providers/crawl4ai.md) |
+| TinyFish | [官方 MCP/CLI](providers/tinyfish.md) |
+| Jev/TypeSafe | [SDK/Key](providers/jev.md) |
 
-## 选择入口
+`workbuddy/tinyfish/`、`workbuddy/crawl4ai/` 和 `codex/marketops-research-starter/` 是历史**独立候选**，不是当前 v0.4 统一插件。它们可能需要单独 OAuth/Key，也不会自动将调用回写我们的 Lite Research Store。切勿把多个直接连接的 MCP 当作同一个受管服务。
 
-- **Codex**：先看 [Codex 安装与工具选择](clients/codex.md)，优先 TinyFish 官方连接器与本目录的研究 Skill，其他 Provider 按需开启。
-- **WorkBuddy**：先看 [WorkBuddy 连接器指南](clients/workbuddy.md)；`workbuddy/tinyfish/` 与 `workbuddy/crawl4ai/` 是按开放平台规范整理的**候选包**，需在对应版本的真实客户端验收。
-- **只用 API/SDK**：按四份 Provider 指南分别申请用户自己的凭据；API 调用样例仅为手动测试，不产生 MarketOps 数据库写入。
-
-## 内容索引
-
-- [SECURITY.md](SECURITY.md)：凭据、外网访问、付费工具、客户数据和隔离要求。
-- [TEST_PLAN.md](TEST_PLAN.md)：静态校验、真人客户端连接、付费额度及研究质量验收。
-- [research-lite Skill](skills/research-lite/SKILL.md)：跨供应商的半自动调查方法。
-- [候选字段样例](examples/candidates.csv)：人工可审查的数据表；不可直接当作已核实的客户池。
-- [Codex Plugin 候选](codex/marketops-research-starter/)：TinyFish MCP + Skill 的插件文件，未登录无法调用；不内置 Serper/Jev 密钥。
-
-## 从手动研究到 MarketOps
-
-当前版本**不启动任务、不开 Worker、不写东京数据库**。今后若连接正式 MarketOps Business/Research MCP，仍必须按经过批准的 Scene、Run、Evidence 和预算边界调用；搜索摘要只是发现线索，不是场地或联系人已经核实的证据。
-
-## 资料可信度
-
-官方入口：Serper https://serper.dev/ · Crawl4AI https://api.crawl4ai.com/docs/ · TinyFish https://github.com/tinyfish-io/tinyfish-cookbook · TypeSafe https://docs.typesafe.ai/introduction/quickstart · WorkBuddy https://open.workbuddy.cn/docs/connector · Codex https://developers.openai.com/learn/docs-mcp 。价格、配额和认证流程可能调整，应以各家控制台为准。
-
+目前仅通过 GitHub 对 PR 文件、清单和路径范围进行了静态核对；Python 全套单元测试、Codex/WorkBuddy 真机安装、五个 Provider 真实调用、正式联系路线晋升和客户业务 E2E **均未宣布完成**。先做本地 E2E，再提供验证过、有SHA与安装说明的最终ZIP。
