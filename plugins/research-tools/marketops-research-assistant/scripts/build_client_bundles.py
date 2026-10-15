@@ -20,7 +20,7 @@ META = {
     "description_en": "Research methods, four-provider routing and scoped lessons; unified MCP runtime not bundled.",
     "source": "marketops-research-assistant-lite",
     "type": "skill-only",
-    "version": "0.2.1",
+    "version": "0.2.2",
     "minWorkbuddyVersion": "4.24.0",
     "examples_zh": [
         "研究 Devon 的体育场地，先列来源和候选场地，所有不确定项进人工复核。",
