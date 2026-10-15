@@ -7,6 +7,7 @@ import os
 import csv
 import ipaddress
 import json
+import sqlite3
 import re
 import sys
 from datetime import datetime, timezone
@@ -307,7 +308,7 @@ def main(argv: list[str] | None = None) -> int:
             result = {k: result[k] for k in ("result", "counts", "statuses", "errors", "note")}
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 1 if result["result"] == "INVALID" else 0
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, sqlite3.Error) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
 
