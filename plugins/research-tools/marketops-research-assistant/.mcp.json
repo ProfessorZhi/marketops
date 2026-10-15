@@ -1,3 +1,19 @@
 {
-  "mcpServers": {}
+  "mcpServers": {
+    "marketops-dual-search": {
+      "type": "stdio",
+      "command": "python",
+      "args": [
+        "scripts/dual_search_mcp.py"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "MARKETOPS_RESEARCH_DATA_ROOT",
+        "MARKETOPS_SEARCH_ALLOW_NETWORK",
+        "MARKETOPS_SEARCH_MAX_CALLS",
+        "SERPAPI_API_KEY",
+        "SERPER_API_KEY"
+      ]
+    }
+  }
 }
