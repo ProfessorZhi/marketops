@@ -161,6 +161,36 @@ class LiteTests(unittest.TestCase):
                 self.assertIn("hold", answer["preview"])
                 self.assertTrue(answer["record"]["artifact_ids"])
 
+    def test_one_handoff_creates_candidate_result_and_experience(self):
+        mcp.propose("run-001", "venue-001", "entities", "venue",
+                    "asset-001", {"name": "Synthetic Ground"})
+        result = mcp.handoff("run-001", "handoff-001")
+        self.assertEqual("CANDIDATE_HANDOFF_NOT_BUSINESS_VERIFIED", result["status"])
+        self.assertTrue(Path(result["candidate_csv"]).exists())
+        self.assertTrue(Path(result["experience_candidate"]).exists())
+        with open(result["experience_candidate"], encoding="utf-8") as fh:
+            experience = json.load(fh)
+        self.assertEqual("candidate_only", experience["promotion"])
+        self.assertTrue(result["unresolved_business_review"])
+        with self.assertRaisesRegex(ValueError, "HANDOFF_PARTIAL_OR_FAILED"):
+            mcp.handoff("run-001", "handoff-001")
+        statuses = [(row["kind"], row["status"]) for row in read_events(self.root, "run-001")]
+        self.assertIn(("handoff", "hold"), statuses)
+
+    def test_cross_run_ids_are_not_implicitly_shared(self):
+        store.start_run(self.root, "run-002", "GB-other", "Second synthetic run", "policy-1")
+        source = b"synthetic publicly obtained material"
+        store.save_artifact(self.root, "run-001", "artifact-001", "crawl4ai_cloud",
+                            "https://example.org/page", source, "provider_extracted")
+        with self.assertRaisesRegex(ValueError, "CROSS_RUN"):
+            store.save_artifact(self.root, "run-002", "artifact-001", "crawl4ai_cloud",
+                                "https://example.org/page", source, "provider_extracted")
+        store.put_candidate(self.root, "run-001", "record-001", "entities", "venue",
+                            "venue-001", {"name": "One"})
+        with self.assertRaisesRegex(ValueError, "CROSS_RUN"):
+            store.put_candidate(self.root, "run-002", "record-001", "entities", "venue",
+                                "venue-001", {"name": "One"})
+
     def test_experience_draft_is_not_approved(self):
         root = self.root / "experience" / "run-001"
         root.mkdir(parents=True)
