@@ -83,3 +83,14 @@ python -m unittest discover -s tests -p 'test_experience_pack.py' -v
 ```
 
 render不覆盖已有文件；请用新版本文件。工具不读取locator对应文件、不抓网址、不执行回放、不调用四个Provider、不读取客户设备其他目录、不改规则。VALID_CANDIDATE_NOT_VERIFIED只说明结构和声明引用正确；EMPTY_NOT_EVALUATED没有经验样本，不是通过业务验收。
+
+
+## 8. 自动事件记录与实际范围（v0.2.2）
+
+研究数据与经验记录使用客户明确选定的运行数据根，原则见 [STORAGE_AND_TOPOLOGY.md](STORAGE_AND_TOPOLOGY.md)。
+
+新增 scripts/research_event_journal.py 作为一个轻量的本地 SQLite WAL 操作事件账本。**本地 research_pack CLI 初始化和 Excel-safe CSV 导出已经自动写事件**；已配置统一 MCP 前，任何直接调用供应商官方 MCP 的行为并不会神奇地进入日志，必须由宿主或人工显式 record。事件仅存非敏感、不带原始网页/邮箱/密钥的ID与状态元数据，重复请求幂等，冲突回执拒绝覆盖。
+
+此脚本的 draft 命令可将真实事件中 blocked/failed/hold/unknown 状态编译成**初始 incident 候选**，并将已有 journal event 的哈希与定位作为 evidence_manifest。它不会自动证明根因、产生可采纳 lesson，也不会改变既有 Skill/SOP。Agent 用本 Skill 在阶段交接/结案时读回底层回执与上下文，再完善经验包；审批独立进行。
+
+未来统一 Research MCP **必须**在 Provider 调用、原文/证据落地、实体写入、Review 及导出时提供强制记录钩子。这一层没有建成之前不能声称四家工具的经验已能无遗漏自动收集。
