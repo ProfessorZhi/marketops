@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import csv
 import ipaddress
 import json
@@ -287,7 +288,19 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.cmd == "init":
             init_pack(args.path, args.request_id, args.country, args.objective, args.scene)
-            print(json.dumps({"result": "EMPTY_PACK_CREATED", "path": str(args.path), "tables": len(TABLES)}))
+            # Persist the stage event automatically when this local CLI owns the operation.
+            # External Serper/Crawl4AI/TinyFish/Jev calls need their own MCP hooks.
+            try:
+                from .research_event_journal import append_event
+            except ImportError:
+                from research_event_journal import append_event
+            ledger_root = os.environ.get("MARKETOPS_RESEARCH_DATA_ROOT") or args.path.expanduser().resolve().parent
+            receipt = append_event(ledger_root, run_id=args.request_id,
+                                   operation_id=f"init-{args.request_id}",
+                                   stage="intake", kind="run", status="succeeded",
+                                   provider="local")
+            print(json.dumps({"result": "EMPTY_PACK_CREATED", "path": str(args.path),
+                              "tables": len(TABLES), "journal": receipt}))
             return 0
         result = verify(args.path)
         if args.cmd == "summary":
