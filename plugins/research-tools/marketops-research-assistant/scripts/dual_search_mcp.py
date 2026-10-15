@@ -223,7 +223,20 @@ def search(provider: str, query: str, country: str, language: str,
            run_id: str, operation_id: str, mode: str = "web",
            limit: int = 10, opener=None) -> dict:
     """Search one selected provider and store a bounded discovery-only receipt."""
-    _check_args(provider, query, country, language, run_id, operation_id, mode, limit)
+    try:
+        _check_args(provider, query, country, language, run_id, operation_id, mode, limit)
+    except ValueError:
+        # Save an observable preflight blocker when the supplied operation IDs are
+        # safe. No provider charge or attempt reservation has happened yet.
+        if isinstance(run_id, str) and isinstance(operation_id, str) and ID.fullmatch(run_id) and ID.fullmatch(operation_id):
+            try:
+                append_event(data_root(None), run_id=run_id, operation_id=operation_id,
+                             stage="discovery", kind="tool", status="blocked",
+                             provider=provider if provider in PROVIDERS else "unknown",
+                             reason_code="search_preflight_blocked")
+            except Exception:
+                pass
+        raise
     root = data_root(None)  # explicit customer data root, outside plugin checkout
     request_meta = {"provider": provider, "query": query.strip(), "mode": mode,
                     "country": country, "language": language, "limit": limit}
