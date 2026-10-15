@@ -206,7 +206,19 @@ def invoke(action: str, *, run_id: str, operation_id: str, url: str = "",
         "document": hashlib.sha256(document.encode("utf-8")).hexdigest(),
         "question": question, "options": options,
     }, sort_keys=True, ensure_ascii=True).encode("utf-8")).hexdigest()
-    _reserve(root, run_id=run_id, operation_id=operation_id, action=action, signature=fingerprint)
+    try:
+        _reserve(root, run_id=run_id, operation_id=operation_id, action=action, signature=fingerprint)
+    except ValueError:
+        # A rejected budget/key/network preflight is a real research obstacle.
+        # Keep a receipt without leaking Key values or the raw problem text.
+        try:
+            append_event(root, run_id=run_id, operation_id=operation_id,
+                         stage="qualification" if action == "jev_choice" else "acquisition",
+                         kind="tool", status="blocked", provider=action,
+                         reason_code="external_preflight_blocked")
+        except Exception:
+            pass
+        raise
     append_event(root, run_id=run_id, operation_id=operation_id,
                  stage="acquisition" if action != "jev_choice" else "qualification",
                  kind="tool", status="started", provider=action)
