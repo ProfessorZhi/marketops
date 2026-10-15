@@ -57,7 +57,7 @@ flowchart TD
  X -. "经验证且获准" .-> SK
 ~~~
 
-现阶段统一 G 并不存在，所以用户分别接入已授权的厂商 MCP/API，Skill 只能指导操作。**无法自动观察直接从 Codex/WorkBuddy 发往厂商的全部调用。**
+现阶段完整 Research MCP 网关 G 仍未实现，但 v0.3.0 已新增**局部双搜索 stdio MCP 候选**，可调用 SerpApi/Serper 并保存搜索发现回执与事件。，所以用户分别接入已授权的厂商 MCP/API，Skill 只能指导操作。**无法自动观察直接从 Codex/WorkBuddy 发往厂商的全部调用。**
 
 未来统一 G 的双重角色：对 Codex/WorkBuddy/DSH，它是 **MCP Server**；向官方 TinyFish、Crawl4AI 等 MCP 提供方调用时，它又是 **MCP Client**。若供应商只提供 HTTP/SDK，则网关用普通 HTTP/SDK Adapter，而不需要臆造官方 MCP。
 
