@@ -7,6 +7,12 @@ description: Capture observable research bottlenecks, successful methods and cor
 
 此Skill在阶段交接、卡点/工具换路/人工纠正、暂停或最终交付时触发。研究进行中只追加短记录，结束时做一次归纳；不是另一个常驻Agent，也不读取私人推理链。协议见 [EXPERIENCE_PROTOCOL](../../references/EXPERIENCE_PROTOCOL.md)，历史依据见 [MEMBER_A_SKILL_ANALYSIS](../../references/MEMBER_A_SKILL_ANALYSIS.md)。
 
+## 经验事件的持久化（v0.2.2）
+
+若当前使用本地插件模式，先明确客户选择的 MARKETOPS_RESEARCH_DATA_ROOT。每次关键阶段结束应检查 scripts/research_event_journal.py list 对本 Run 的事件；本地 init 与 Excel-safe CSV 导出已自动产生日志。已经直接调用的厂商 MCP 不会自动出现在日志里：若宿主可运行本地 CLI，按实际工具回执用 record 追加事件（只记非敏感 ID/状态）；否则**明确报告 event_not_captured**，不能假称自动保存成功。
+
+在每次手动交接、暂停或研究完成时，使用 scripts/research_event_journal.py draft 生成**未审批** experience.json 初稿，并用 scripts/experience_pack.py validate 检查格式；只有掌握实际回执与证据时才能由Agent补充根因/经验假设，仍不得自行批准SOP/Skill更新。日志、经验初稿和阅读版都应落在客户数据根中，不在代码仓库。
+
 ## 输入
 
 本轮Brief/规则/工具版本、operation回执、实际资料/提交/读回定位、失败与成功样本、人工反馈、成本/耗时（缺失为null，不补0）。只用授权范围内可见资料。客户原件留本地；用脱敏局部定位符，不复制会话全文、邮箱名单、cookie、密钥。
