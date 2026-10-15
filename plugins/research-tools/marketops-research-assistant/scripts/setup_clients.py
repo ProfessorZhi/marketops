@@ -52,6 +52,17 @@ def install(destination: Path, client: str, *, dependencies: bool,
     if dependencies:
         subprocess.run([str(py), "-m", "pip", "install", "-r",
                         str(target / "requirements-lite.txt")], check=True)
+    # Bind the installed Codex plugin to this customer's venv instead of PATH.
+    # No keys are written; env_vars remain inherited from the client process.
+    for config_name in ("mcp.json", ".mcp.json"):
+        config_path = target / config_name
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        servers = config.get("mcpServers") or {}
+        for server in servers.values():
+            server["command"] = str(py)
+            server["args"] = [str(target / "scripts" / "research_mcp.py")]
+            server["cwd"] = str(target)
+        config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
     results = {"status": "SOURCE_INSTALLED_UNVERIFIED", **result,
                "venv_python": str(py), "dependencies_installed": dependencies}
     if client in {"codex", "both"}:
