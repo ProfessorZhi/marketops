@@ -1,0 +1,7 @@
+{
+  "name": "marketops-research-starter",
+  "version": "0.1.0",
+  "description": "Evidence-first semi-automated public market research using TinyFish MCP and MarketOps Research Lite Skill; experimental.",
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json"
+}
