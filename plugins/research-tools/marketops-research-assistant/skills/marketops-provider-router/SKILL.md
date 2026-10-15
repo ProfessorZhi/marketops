@@ -16,3 +16,8 @@ description: Choose and combine Serper, Crawl4AI, TinyFish and TypeSafe Jev for 
 7. 当前目标已完成/明确阻塞/额度耗尽时停止对应对象或方法，其他已授权独立对象可继续。
 
 输出为真实来源/资料/判断的引用和持久化处置，不是口头说“工具跑了”。每次卡点、换路、成功改进由 `marketops-research-retrospective` 记录。此Skill不实现网关或硬权限。
+
+
+## v0.3.0 双搜索
+
+已接入本地 MarketOps Dual Search MCP 候选：`marketops_search` 指定 `serpapi` 或 `serper`。先调用 `marketops_search_capabilities` 做不联网检查，真实请求需要操作者密钥/网络开关/调用上限。失败后禁止静默换另一家，完整配置见 references/DUAL_SEARCH_SETUP.md。
