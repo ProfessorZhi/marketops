@@ -41,11 +41,17 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         raise ValueError("PROVIDER_REDIRECT_BLOCKED")
 
 
+def _key_ready(provider: str) -> bool:
+    """Unsubstituted WorkBuddy token placeholders never count as configured credentials."""
+    name = "SERPAPI_API_KEY" if provider == "serpapi" else "SERPER_API_KEY"
+    value = os.environ.get(name, "").strip()
+    return bool(value) and not re.fullmatch(r"\$\{[A-Z][A-Z0-9_]*\}", value)
+
 def _configuration() -> dict:
     """Capability discovery only, never disclose tokens or send a provider request."""
     return {
-        "serper": {"configured": bool(os.environ.get("SERPER_API_KEY"))},
-        "serpapi": {"configured": bool(os.environ.get("SERPAPI_API_KEY"))},
+        "serper": {"configured": _key_ready("serper")},
+        "serpapi": {"configured": _key_ready("serpapi")},
         "network_enabled": os.environ.get("MARKETOPS_SEARCH_ALLOW_NETWORK") == "1",
         "max_total_reserved_calls": _number("MARKETOPS_SEARCH_MAX_CALLS"),
         "transport": "stdio",
@@ -82,7 +88,7 @@ def _check_args(provider: str, query: str, country: str, language: str,
             raise ValueError(f"{name} must be an opaque identifier")
     if os.environ.get("MARKETOPS_SEARCH_ALLOW_NETWORK") != "1":
         raise ValueError("SEARCH_DISABLED: operator must enable network usage before paid calls")
-    if not os.environ.get("SERPAPI_API_KEY" if provider == "serpapi" else "SERPER_API_KEY"):
+    if not _key_ready(provider):
         raise ValueError("PROVIDER_KEY_MISSING: configure the selected vendor only")
     if _number("MARKETOPS_SEARCH_MAX_CALLS") < 1:
         raise ValueError("BUDGET_NOT_APPROVED: operator must set positive max calls")
