@@ -7,7 +7,7 @@
 ## 1. Codex
 
 1. 在独立工作目录查看 `.codex-plugin/plugin.json` 和 Skills；开发/试用安装使用 Codex 当前版本支持的本地插件路径/市场机制。Codex 官方插件手册：https://developers.openai.com/plugins/build/plugins 。
-2. 本包的 `.mcp.json` 默认为 `{"mcpServers":{}}`，没有偷偷启用任何收费接口。用户可以逐个安装自己需要的 Provider：
+2. **v0.3 已内置一个双搜索本地 stdio MCP 候选。** `.mcp.json` 注册了 `marketops-dual-search`（SerpApi 与 Serper 二选一搜索工具），但网络默认关闭，必须由操作者配置 API Key 和累计调用上限后才可发送搜索请求。安装方法见 [DUAL_SEARCH_SETUP](DUAL_SEARCH_SETUP.md)。其它 Provider 仍按需独立配置：
    - TinyFish 官方：`npx @tiny-fish/cli connect codex --dry-run` → 审核 → `npx @tiny-fish/cli connect codex` → OAuth。
    - Crawl4AI Cloud：按上级 `providers/crawl4ai.md` 在 `~/.codex/config.toml` 单独配置远程 MCP + 用户自己的 Bearer Key。
    - Serper：按 `providers/serper.md` 使用官方 API 或经审查的社区 MCP，不宣称 Serper 官方 MCP 存在。
@@ -26,7 +26,15 @@ WorkBuddy 官方 Connector：https://open.workbuddy.cn/docs/connector 。它支�
 python scripts/build_client_bundles.py --output ~/marketops-research-bundles
 ```
 
-得到 `dist-marketops-local/workbuddy/marketops-research-assistant/`（及 ZIP）；检查目录和元数据后，在支持导入自定义连接器的 WorkBuddy 客户端中安装。具体 UI 操作依当前客户端版本；官方 `name_zh`/示例字段要求 4.24.0+。
+得到 `~/marketops-research-bundles/workbuddy/marketops-research-assistant/`（及 ZIP）；检查目录和元数据后，在支持导入自定义连接器的 WorkBuddy 客户端中安装。具体 UI 操作依当前客户端版本；官方 `name_zh`/示例字段要求 4.24.0+。
+
+如果希望同一个 WorkBuddy 插件具备 **SerpApi / Serper 两家搜索 MCP**，在目标客户**同一台机器**执行：
+
+```bash
+python scripts/build_client_bundles.py --output ~/marketops-search-bundles --with-search-mcp
+```
+
+生成的是一个机器绑定的本地 `stdio MCP + 15 Skills` 候选包；需安装 Python MCP SDK，WorkBuddy 通过本地 Token 表单收集两家可选 Key、数据根、联网开关和额度。默认包仍是纯 Skills，没有收费搜索工具。插件包不能在另一台电脑直接复用本地解释器/源码绝对路径；那台电脑必须重新构建。实机兼容性待验收。
 
 需要网络工具时可继续分别接入上级已准备的 [TinyFish](../../workbuddy/tinyfish/) 和 [Crawl4AI](../../workbuddy/crawl4ai/) **MCP+Skill 候选连接器**。两者需客户端真机 OAuth/Key 验收；Serper/Jev 则使用官方 API/SDK 或经过审核的 MCP 接入，不能被伪装成已安装。
 
