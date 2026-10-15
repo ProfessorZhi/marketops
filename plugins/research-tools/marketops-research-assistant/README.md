@@ -1,6 +1,6 @@
 # MarketOps Research Assistant — 半自动调研与经验积累
 
-> **v0.2.2 数据记录与拓扑试用候选**。MarketOps的两个交付物仍是半自动Research MCP/Plugin和后续全自动工作流。本切片先完善Member-A业务方法、四Provider使用方法与复盘经验；**统一MCP Server/业务Research Store、四家真实连通和客户机验收尚未完成**。没有部署东京CC，没有付费调用，没有外联。
+> **v0.3.0 双搜索 MCP 试用候选**。MarketOps的两个交付物仍是半自动Research MCP/Plugin和后续全自动工作流。本切片先完善Member-A业务方法、四Provider使用方法与复盘经验；**完整业务 Research MCP Server/业务 Research Store、四家全流程与客户机验收尚未完成**。没有部署东京CC，没有付费调用，没有外联。
 
 > **搜索 Provider 名称校正：** 当前 MarketOps 后端接的是 **Serper.dev**；用户提供的 `https://serpapi.com/manage-api-key` 是另一家 **SerpApi.com**。后者已有[官方开源 MCP](../providers/serpapi.md)，但**尚未接入本插件的统一 Gateway**。两者 Key 不互通，不能因为名字相近就默认用户持有的是 Serper 账号。
 
@@ -20,17 +20,18 @@
 - [Member-A分析与16条业务规则映射](references/MEMBER_A_SKILL_ANALYSIS.md)：固定分析revision、依据、不推广的历史阈值和规则缺口。
 - [业务执行手册](references/BUSINESS_PLAYBOOK.md)：每阶段输入、方法、产物、交接校验。
 - [四Provider路由与接口边界](references/PROVIDER_ROUTING.md)：实际MCP/API/SDK发现、成本、失败分类、合法换路。
+- [SerpApi + Serper 双搜索 MCP 安装](references/DUAL_SEARCH_SETUP.md)：一个本地 MCP Server、两个可选账号、默认禁用实际收费调用。
 - [统一存取与交接合同](references/DATA_HANDOFF.md)：一个store、一次提交/读回、同单位对账；不让Skill各自造数据库。
 - [运行数据目录和完整拓扑](references/STORAGE_AND_TOPOLOGY.md)：当前与目标、Windows/本地/服务器的数据根、MCP Client/Server角色、供应商开源与自托管范围。
 - [经验包协议](references/EXPERIENCE_PROTOCOL.md)：卡点记录、条件化经验、留出回放、独立采纳。
 - [外部方法参考](references/EXTERNAL_METHOD_NOTES.md)：SciSpace发现、作者摘要复核；不是Member-A需求依据。
 
-## 14个Skills，按需加载
+## 15个Skills，按需加载
 
 | 层 | Skills |
 |---|---|
 | 业务8项 | marketops-research、marketops-intake、marketops-source-discovery、marketops-venue-account、marketops-person-research、marketops-evidence、marketops-excel、marketops-handoff |
-| 工具5项 | marketops-provider-router、marketops-serper、marketops-crawl4ai、marketops-tinyfish、marketops-jev |
+| 工具6项 | marketops-provider-router、marketops-serpapi、marketops-serper、marketops-crawl4ai、marketops-tinyfish、marketops-jev |
 | 复盘1项 | marketops-research-retrospective |
 
 统一入口是 `skills/marketops-research/SKILL.md`。其余按研究阶段和实际工具展开，避免所有文档挤满上下文。厂商Skill只作接口方法参考，不覆盖MarketOps业务优先级或批准规则。
@@ -39,7 +40,7 @@
 
 已有：Skills、源码/注册/安装指南、v0.2.0离线CSV交接包、结构校验、Excel-safe CSV、WorkBuddy skill-only候选打包；203行标准库经验校验/阅读版脚本与12个离线测试。v0.2.2新增本地SQLite事件日志、操作幂等与经验草稿导出；插件CLI的建包、导出动作现在自动落操作事件，尚未接管厂商直接MCP调用。
 
-未有：本包内可直接调用四家的统一MCP运行时；自动入库的统一Research Store；可信审批服务；完整实机OAuth/Provider/Agent端到端验收。`.mcp.json`保持空，不能把装入本包等同于工具连通。现有已配置供应商MCP/SDK可按工具Skills使用，费用边界由实际环境负责。
+现已有：可运行代码候选 scripts/dual_search_mcp.py，使用 stdio MCP 将 SerpApi 与 Serper 两个搜索后端合并为一个显式选择工具；`.mcp.json` 注册了这个本地搜索 MCP。**它不默认开启联网，不代表两个账户已经申请，也不表示完成真实付费/客户端验收。** 尚未实现完整四能力Research MCP、自动入库的Research Store或可信审批服务；其它厂商MCP/SDK仍由用户按需配置。
 
 CSV仍为单写者交接格式，不是生产唯一真源。客户已连接受管MarketOps存储时优先用它；不能同时双写两个store。未来统一服务复用主项目领域模型，本文不新建另一套数据库。
 
@@ -55,6 +56,8 @@ python scripts/research_event_journal.py --data-root ~/marketops-research-data l
 python scripts/experience_pack.py validate references/experience/example.synthetic.json
 python scripts/experience_pack.py render /客户目录/experience.json --output /客户目录/REVIEW.md
 python scripts/build_client_bundles.py --output ~/marketops-research-bundles
+# 若需同机本地双搜索MCP，再另选一个空目录执行
+# python scripts/build_client_bundles.py --output ~/marketops-search-mcp-bundles --with-search-mcp
 python -m unittest discover -s tests -p 'test_experience_pack.py' -v
 ```
 
@@ -62,7 +65,7 @@ python -m unittest discover -s tests -p 'test_experience_pack.py' -v
 
 ## 客户端与既有资料
 
-[CLIENT_SETUP](references/CLIENT_SETUP.md) 仍是客户端候选说明。Codex加载manifest/Skills；WorkBuddy生成skill-only ZIP，供应商MCP另行按需连接；DSH仍待实际宿主验证。新包含14项Skills，旧v0.2安装说明中的8项是当时版本，不是新包计数。
+[CLIENT_SETUP](references/CLIENT_SETUP.md) 仍是客户端候选说明。Codex加载manifest/Skills及本地双搜索stdio MCP候选；WorkBuddy默认生成skill-only ZIP，或主动选择--with-search-mcp生成双搜索MCP+Skills候选；DSH仍待实际宿主验证。新包含15项Skills，旧v0.2安装说明中的8项是当时版本，不是新包计数。
 
 已有 [FLOW_AND_SCHEMA](references/FLOW_AND_SCHEMA.md)、[QUALITY_GATES](references/QUALITY_GATES.md)、[WORKBOOK_SPEC](references/WORKBOOK_SPEC.md)、[MEMBER_A_PILOT](references/MEMBER_A_PILOT.md)、[ROADMAP](references/ROADMAP.md) 保留；离线数据格式版本仍为0.2.0。供应商独立指南在 [上级工具目录](../README.md)。
 
