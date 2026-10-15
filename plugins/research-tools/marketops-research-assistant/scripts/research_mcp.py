@@ -113,6 +113,54 @@ def export(run_id, output_path):
     return result
 
 
+
+def handoff(run_id, operation_id):
+    """One human-initiated, candidate-only research+experience handoff.
+
+    Both outputs are immutable and live under this customer's data root.
+    An incomplete second write remains a visible HOLD, never a green result.
+    """
+    r = root()
+    store._id(run_id, "run_id")
+    store._id(operation_id, "operation_id")
+    # Validate Run exists before creating user-visible artifacts.
+    snapshot = store.list_run(r, run_id, limit=500)
+    if snapshot["record_count"] > snapshot["returned"]:
+        raise ValueError("HANDOFF_REQUIRES_COMPLETE_SNAPSHOT")
+    exports = r / "exports" / run_id
+    experiences = r / "experience" / run_id
+    exports.mkdir(parents=True, exist_ok=True)
+    experiences.mkdir(parents=True, exist_ok=True)
+    csv_path = exports / (operation_id + "-candidates.csv")
+    experience_path = experiences / (operation_id + "-experience.json")
+    # Partial success is not a completed handoff.
+    try:
+        export_result = export(run_id, str(csv_path))
+        experience_result = draft_experience(
+            r, run_id=run_id, scope=snapshot["scope"],
+            rule_version=snapshot["rule_version"], skill_version="0.4.0",
+            output=experience_path)
+        append_event(r, run_id=run_id, operation_id=operation_id,
+                     stage="handoff", kind="handoff", status="succeeded",
+                     provider="local")
+        return {
+            "status": "CANDIDATE_HANDOFF_NOT_BUSINESS_VERIFIED",
+            "run_id": run_id,
+            "records": snapshot["record_count"],
+            "artifacts": snapshot["artifact_count"],
+            "candidate_csv": str(csv_path),
+            "experience_candidate": str(experience_path),
+            "experience_incidents": experience_result["incidents"],
+            "unresolved_business_review": True,
+            "warning": "CSV is NOT XLSX and staged candidates are NOT ready contacts.",
+        }
+    except Exception:
+        append_event(r, run_id=run_id, operation_id=operation_id,
+                     stage="handoff", kind="handoff", status="hold",
+                     provider="local", reason_code="partial_handoff_or_file_conflict")
+        raise ValueError("HANDOFF_PARTIAL_OR_FAILED: inspect immutable output files and journal") from None
+
+
 def build_server():
     from mcp.server import MCPServer
     mcp = MCPServer("MarketOps Lite Research")
@@ -178,6 +226,11 @@ def build_server():
     def marketops_export(run_id: str, output_path: str) -> dict:
         """Export local candidate-only CSV; no contact/outreach authorization."""
         return export(run_id, output_path)
+
+    @mcp.tool()
+    def marketops_handoff(run_id: str, operation_id: str) -> dict:
+        """Write both candidate research CSV and experience incident draft in one review handoff."""
+        return handoff(run_id, operation_id)
 
     @mcp.tool()
     def marketops_experience_draft(run_id: str, scope: str, rule_version: str,
