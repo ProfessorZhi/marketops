@@ -1,7 +1,7 @@
 {
   "name": "marketops-research-assistant",
-  "version": "0.2.2",
-  "description": "Member-A-grounded research Skills, four-provider routing, evidence-linked data handoff and candidate experience packs. Unified MCP runtime is not yet bundled.",
+  "version": "0.3.0",
+  "description": "Member-A-grounded semi-automatic market research Skills and an optional bounded Serper/SerpApi local search MCP",
   "skills": "./skills/",
   "mcpServers": "./.mcp.json"
 }
