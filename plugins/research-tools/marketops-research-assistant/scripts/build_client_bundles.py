@@ -70,16 +70,19 @@ def build(output: Path, *, with_search_mcp: bool = False,
             "type": "mcp",
             "auth_mode": "token",
             "description": "One local Research MCP with SerpApi, Serper, Crawl4AI, TinyFish Search/Fetch and Jev Choice; all network calls default off." if with_research_mcp else "One local Search MCP for SerpApi or Serper; paid network calls default off.",
-            "description_zh": "统一调研 MCP + 15 项业务和工具 Skills；五家 Provider 任选，联网默认关闭。" if with_research_mcp else "本地双搜索 MCP + 15 项 Skills，联网默认关闭。",
+            "description_zh": "统一调研 MCP + 16 项业务和工具 Skills；五家 Provider 任选，联网默认关闭。" if with_research_mcp else "本地双搜索 MCP + 16 项 Skills，联网默认关闭。",
         })
     (target / "connector-meta.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     (target / "icon.svg").write_text(ICON, encoding="utf-8")
     for part in ("skills", "references"):
         shutil.copytree(HERE / part, target / part)
     (target / "scripts").mkdir()
-    for name in ("research_pack.py", "export_excel_safe_csv.py", "experience_pack.py", "research_event_journal.py", "dual_search_mcp.py", "compare_search_receipts.py", "research_lite_store.py", "research_provider_extensions.py", "research_mcp.py"):
+    for name in ("research_pack.py", "export_excel_safe_csv.py", "experience_pack.py", "research_event_journal.py", "dual_search_mcp.py", "compare_search_receipts.py", "research_lite_store.py", "research_provider_extensions.py", "research_mcp.py",
+                 "preflight.py", "setup_clients.py"):
         shutil.copy2(HERE / "scripts" / name, target / "scripts" / name)
     shutil.copy2(HERE / "README.md", target / "README.md")
+    for requirements_file in ("requirements-lite.txt", "requirements-crawl-local.txt"):
+        shutil.copy2(HERE / requirements_file, target / requirements_file)
     if with_search_mcp or with_research_mcp:
         # This is a *machine-bound* preview: the checked-out source and Python
         # interpreter must remain on the importing client's machine. Never copy
