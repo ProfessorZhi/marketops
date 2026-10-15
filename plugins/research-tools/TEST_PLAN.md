@@ -46,8 +46,8 @@ python scripts/build_client_bundles.py --output ~/marketops-research-bundles
 
 `STRUCTURALLY_VALID_EMPTY` 仅表示空的 11 张 CSV 表形状正确，不得升级为真实研究完成。交接 CSV 工具**不会**生成 XLSX；生成真正 Excel 需 Agent 已具备 Excel 文件处理能力，并按 [WORKBOOK_SPEC](marketops-research-assistant/references/WORKBOOK_SPEC.md) 逐格复验。
 
-- [ ] 8 个 Skills 元数据被真实 Codex 读取；`.mcp.json` 空表不产生自动网络/费用。
-- [ ] WorkBuddy 4.24.0+ 可以导入生成的 `skill-only` ZIP，8 个 Skills 可见；不需要四家供应商 Key 才能载入业务 Skill。
+- [ ] **15 个 Skills** 在真实 Codex 中可见；v0.3 `.mcp.json` 注册一个本地双搜索 MCP，但未设 Key / 网络开关 / 额度时拒绝真实付费请求。
+- [ ] WorkBuddy 4.24.0+ 可以导入默认 `skill-only` ZIP，15 个 Skills 可见；`--with-search-mcp` 模式另验 Token 表单与机器绑定 stdio。
 - [ ] DeepSeek Harness：基于官方 filesystem Skills 路线验证技能加载，原生 Cordis Plugin **仍为未发布**。
 - [ ] 真实 3–5 家调查产生正确 SOURCE→ENTITY→EVIDENCE→CONTACT 引用，不用搜索摘要/挑战页充当证据。
 - [ ] 故意损坏一条外键/证据 SHA/邮箱字面来源/人员归属，`research_pack.py validate` 必须失败。
@@ -68,3 +68,17 @@ python scripts/build_client_bundles.py --output ~/marketops-research-bundles
 - [ ] 不在Git、临时共享目录、生产MarketOps数据根存真实客户原文或Keys。
 
 以上是待验收要求，不是实时客户端实测结果。
+
+## F. v0.3 双搜索 MCP（已入库、离线和客户端验收待完成）
+
+- [ ] `python -m unittest discover -s tests -p 'test_dual_search_mcp.py' -v` 使用合成密钥/mock 响应，绝不发真实 API 请求。
+- [ ] 安装 Python `mcp>=2.2,<3` 后真实 `tools/list` 可列出 `marketops_search_capabilities` 与 `marketops_search`。
+- [ ] 默认联网关闭 / 额度为 0；能力查询不收费；真实搜索被拒绝。
+- [ ] 两种凭据各进对应官方域名/鉴权方式，不自动切换，不复制另一家 Key。
+- [ ] Web/Maps 结果保留明确 Provider、Place ID、时间和发现状态；搜索摘要不得成为业务 Evidence。
+- [ ] 跨重启累计操作预留有效，失败/超时不能用相同 operation_id 重复扣费。
+- [ ] 搜索回执及事件不包含真实 Key，SerpApi key-bearing GET 不得被重定向；代理日志风险明确告知。
+- [ ] WorkBuddy MCP+Skills 候选在目标机器重新打包，Token 字段与 mcp.json 的 env 完全匹配。
+- [ ] 固定英国场地样本比较两家真实合格场地数量、官网证据、误合并率、花费与人工成本。
+
+**上述均为待执行的测试合同，不代表当前已实现真实付费 E2E。**
