@@ -2,6 +2,8 @@
 
 **目标是“一个用户可调用的调研工作流入口”，不是一次安装四套计费服务**。此包本身不含 Provider API Key，不包含 Serper/Crawl4AI/TinyFish/Jev 的第三方源码，也不启动东京 CC。
 
+> v0.3.0 额外提供 [SerpApi/Serper 双搜索本地 MCP](DUAL_SEARCH_SETUP.md)。需要安装 mcp>=2.2,<3，并由用户明确配置两个或一个 API Key、网络开关、累计调用上限。**不能声称上传了代码就能自动开户并运行。**
+
 ## 1. Codex
 
 1. 在独立工作目录查看 `.codex-plugin/plugin.json` 和 Skills；开发/试用安装使用 Codex 当前版本支持的本地插件路径/市场机制。Codex 官方插件手册：https://developers.openai.com/plugins/build/plugins 。
