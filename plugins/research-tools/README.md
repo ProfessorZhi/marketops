@@ -2,6 +2,10 @@
 
 > **试用候选 / 非生产发布（2026-10-15）**。本目录独立于 MarketOps 的业务服务、数据根和现有 `marketops-plugin`。只包含公开说明、无凭据配置样例、Skills 和 WorkBuddy 连接器候选；**未完成客户机上安装与真实付费端到端验收**。
 
+## 重要：Serper.dev ≠ SerpApi.com
+
+用户提供的 https://serpapi.com/manage-api-key 属于 **SerpApi**，不是 Serper。现有 MarketOps 后端是 `SerperSearchProvider`（`https://google.serper.dev/search` + `SERPER_API_KEY`）。两家账户/密钥不可混用。**SerpApi 官方有托管 MCP 和 MIT 开源 MCP Server**，可作为半自动研究插件的另一种搜索方案；现有 MarketOps 后端尚未实现 SerpApi Adapter。见 [SerpApi 官方 MCP / Key / 价格](providers/serpapi.md) 与 [Serper 官方 API](providers/serper.md)。
+
 ## 当前首要交付：统一半自动调研插件（v0.2.0）
 
 **[MarketOps Research Assistant](marketops-research-assistant/README.md)** 是目前的主入口：一套渐进式业务 Skills、明确的信息流/阶段 CSV、可离线初始化和验证的交接包、Excel 数据 Skill、可生成的 WorkBuddy `skill-only` 连接器，以及 Codex 插件候选。它**没有内置收费 MCP**，不能代替客户自己的 API/OAuth 认证；正式无人值守 CC/服务器端自动化列入后续阶段。
