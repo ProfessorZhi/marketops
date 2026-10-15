@@ -56,7 +56,7 @@ python -m unittest discover -s tests -v
 
 命令只创建/检查**用户指定的本地目录**，不访问外网、不消耗 API Key、不运行 CC。数据是**便携交接工件**，不是 MarketOps 真正的数据库唯一真源；后续如接入 MarketOps 服务，必须通过有鉴权、有场景、有证据的导入 API。
 
-详细数据规则见 [FLOW_AND_SCHEMA](references/FLOW_AND_SCHEMA.md)、[QUALITY_GATES](references/QUALITY_GATES.md)、[CLIENT_SETUP](references/CLIENT_SETUP.md)。服务申请及官方源码见上级 [四家 Provider 指南](../README.md)。
+详细数据规则见 [FLOW_AND_SCHEMA](references/FLOW_AND_SCHEMA.md)、[QUALITY_GATES](references/QUALITY_GATES.md)、[CLIENT_SETUP](references/CLIENT_SETUP.md)、[WORKBOOK_SPEC](references/WORKBOOK_SPEC.md)。Member-A 可按 [三项试用场景](references/MEMBER_A_PILOT.md) 开始；[ROADMAP](references/ROADMAP.md) 区分半自动与未来全自动。服务申请及官方源码见上级 [四家 Provider 指南](../README.md)。
 
 ## 试用范围与真实性
 
