@@ -160,5 +160,31 @@ class TestDualSearch(unittest.TestCase):
             dual.search("serper", "grounds", "UK-DEVON", "en", "run-01", "op-01",
                         opener=lambda req, timeout: self.fail("called"))
 
+    def test_redirect_is_explicitly_refused(self):
+        with self.assertRaisesRegex(ValueError, "PROVIDER_REDIRECT_BLOCKED"):
+            dual.NoRedirect().redirect_request(
+                None, None, 302, "Moved", {}, "https://untrusted.example/"
+            )
+
+    def test_workbuddy_opt_in_one_mcp_and_no_embedded_keys(self):
+        import build_client_bundles as bundle
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "client-package"
+            info = bundle.build(output, with_search_mcp=True)
+            self.assertEqual(1, info["mcp_servers_bundled"])
+            self.assertEqual(15, info["skills"])
+            target = Path(info["directory"])
+            mcp = json.loads((target / "mcp.json").read_text(encoding="utf-8"))
+            schema = json.loads((target / "token-schema.json").read_text(encoding="utf-8"))
+            self.assertEqual(["marketops-dual-search"], list(mcp["mcpServers"]))
+            self.assertEqual("token", json.loads(
+                (target / "connector-meta.json").read_text(encoding="utf-8")
+            )["auth_mode"])
+            keys = {x["key"] for x in schema["fields"]}
+            self.assertIn("SERPAPI_API_KEY", keys)
+            self.assertIn("SERPER_API_KEY", keys)
+            self.assertNotIn("synthetic-serpapi-secret", (target / "mcp.json").read_text())
+            self.assertIn("$" + "{SERPAPI_API_KEY}", json.dumps(mcp))
+
 if __name__ == "__main__":
     unittest.main()
