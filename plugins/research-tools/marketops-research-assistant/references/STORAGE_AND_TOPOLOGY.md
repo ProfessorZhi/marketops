@@ -63,7 +63,7 @@ flowchart TD
 
 ## 3. 四个项目：源码、本地部署、MCP 的区别
 
-**搜索槽有两家容易混淆的候选供应商。** 当前代码是 Serper，用户提供的 Key 管理地址属于 SerpApi。后者官方拥有托管 MCP、MIT 开源自托管 MCP 包装，但实际搜索数据仍来自其收费云 API。二者不能共享 Key。比较见 [SerpApi 官方 MCP 说明](../../../providers/serpapi.md)。
+**搜索槽有两家容易混淆的候选供应商。** 当前代码是 Serper，用户提供的 Key 管理地址属于 SerpApi。后者官方拥有托管 MCP、MIT 开源自托管 MCP 包装，但实际搜索数据仍来自其收费云 API。二者不能共享 Key。比较见 [SerpApi 官方 MCP 说明](../../providers/serpapi.md)。
 
 
 
