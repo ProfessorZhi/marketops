@@ -10,6 +10,7 @@
 - **[MCP_TOOL_CATALOG](marketops-research-assistant/references/MCP_TOOL_CATALOG.md)**：本地 Lite Research MCP 实际暴露的工具与未覆盖能力。
 - **[BUSINESS_PLAYBOOK](marketops-research-assistant/references/BUSINESS_PLAYBOOK.md)**、**[MEMBER_A_SKILL_ANALYSIS](marketops-research-assistant/references/MEMBER_A_SKILL_ANALYSIS.md)**：Member-A Session 审计后固化的业务方法。
 - **[STORAGE_AND_TOPOLOGY](marketops-research-assistant/references/STORAGE_AND_TOPOLOGY.md)**：五个项目的接入、开源/本地部署、客户数据根与事件库。
+- **[AUDIT_STATUS](marketops-research-assistant/references/AUDIT_STATUS_2026-10-16.md)**：本轮审查发现、已修复问题及必须阻断发包的事项。
 - **[RELEASE_GATE](marketops-research-assistant/references/RELEASE_GATE.md)**：发 ZIP 前必须签收的静态/离线/客户端/真实 E2E 验收。
 
 ## 当前统一插件结构
