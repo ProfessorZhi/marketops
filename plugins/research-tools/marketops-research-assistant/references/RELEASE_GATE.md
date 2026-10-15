@@ -4,6 +4,9 @@ Status of this branch: **code candidate**, not a verified product release. This 
 
 ## A. Source and dependency verification (offline)
 
+- [ ] 从插件根目录执行 `python scripts/preflight.py`，确保 status=STATIC_PASS_NOT_RUNTIME_VERIFIED 且errors为空。若缺mcp/SDK仅可视为警告，不能视为真实MCP可用。
+
+
 - [ ] Identify pinned git commit/branch. All plugin files are under plugins/research-tools; no personal email/Key/session transcript/hard-coded server endpoints.
 - [ ] Compile every *.py with the selected Python >=3.11; test Python 3.11 and 3.12 if target supported.
 - [ ] Validate portable root plugin.json/mcp.json schema and compatibility fallback .codex-plugin/plugin.json + .mcp.json. The two MCP catalogs must expose the same **single** marketops-research service.
