@@ -2,6 +2,8 @@
 
 > **v0.2.2 数据记录与拓扑试用候选**。MarketOps的两个交付物仍是半自动Research MCP/Plugin和后续全自动工作流。本切片先完善Member-A业务方法、四Provider使用方法与复盘经验；**统一MCP Server/业务Research Store、四家真实连通和客户机验收尚未完成**。没有部署东京CC，没有付费调用，没有外联。
 
+> **搜索 Provider 名称校正：** 当前 MarketOps 后端接的是 **Serper.dev**；用户提供的 `https://serpapi.com/manage-api-key` 是另一家 **SerpApi.com**。后者已有[官方开源 MCP](../../providers/serpapi.md)，但**尚未接入本插件的统一 Gateway**。两者 Key 不互通，不能因为名字相近就默认用户持有的是 Serper 账号。
+
 ## 三层能力，一条业务主线
 
 ```text
