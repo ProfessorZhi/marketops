@@ -21,7 +21,7 @@ META = {
     "description_en": "Research methods, four-provider routing and scoped lessons; unified MCP runtime not bundled.",
     "source": "marketops-research-assistant-lite",
     "type": "skill-only",
-    "version": "0.3.0",
+    "version": "0.4.0",
     "minWorkbuddyVersion": "4.24.0",
     "examples_zh": [
         "研究 Devon 的体育场地，先列来源和候选场地，所有不确定项进人工复核。",
@@ -47,7 +47,10 @@ def make_zip(folder: Path, output_zip: Path) -> None:
             archive.writestr(info, filename.read_bytes())
 
 
-def build(output: Path, *, with_search_mcp: bool = False) -> dict:
+def build(output: Path, *, with_search_mcp: bool = False,
+          with_research_mcp: bool = False) -> dict:
+    if with_search_mcp and with_research_mcp:
+        raise ValueError("Select exactly one MCP mode")
     output = output.expanduser().resolve()
     if output.is_relative_to(HERE):
         raise ValueError("Build output must be outside this plugin source directory")
@@ -59,25 +62,25 @@ def build(output: Path, *, with_search_mcp: bool = False) -> dict:
     target.parent.mkdir(parents=True, exist_ok=True)
     target.mkdir()
     metadata = dict(META)
-    if with_search_mcp:
+    if with_search_mcp or with_research_mcp:
         metadata.update({
-            "name": "MarketOps Research Assistant + Search MCP",
-            "name_zh": "MarketOps 调研与双搜索 MCP",
-            "source": "marketops-research-assistant-dual-search",
+            "name": "MarketOps Research Assistant + Research MCP" if with_research_mcp else "MarketOps Research Assistant + Search MCP",
+            "name_zh": "MarketOps 半自动调研 MCP" if with_research_mcp else "MarketOps 调研与双搜索 MCP",
+            "source": "marketops-research-assistant" if with_research_mcp else "marketops-research-assistant-dual-search",
             "type": "mcp",
             "auth_mode": "token",
-            "description": "One optional local stdio MCP searches SerpApi OR Serper; research Skills are unchanged. Paid network calls disabled until explicitly approved.",
-            "description_zh": "本地双搜索 MCP + 15 项 Skills；每次只选 SerpApi 或 Serper，一开始默认禁止付费联网搜索。",
+            "description": "One local Research MCP with SerpApi, Serper, Crawl4AI, TinyFish Search/Fetch and Jev Choice; all network calls default off." if with_research_mcp else "One local Search MCP for SerpApi or Serper; paid network calls default off.",
+            "description_zh": "统一调研 MCP + 15 项业务和工具 Skills；五家 Provider 任选，联网默认关闭。" if with_research_mcp else "本地双搜索 MCP + 15 项 Skills，联网默认关闭。",
         })
     (target / "connector-meta.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     (target / "icon.svg").write_text(ICON, encoding="utf-8")
     for part in ("skills", "references"):
         shutil.copytree(HERE / part, target / part)
     (target / "scripts").mkdir()
-    for name in ("research_pack.py", "export_excel_safe_csv.py", "experience_pack.py", "research_event_journal.py", "dual_search_mcp.py", "compare_search_receipts.py"):
+    for name in ("research_pack.py", "export_excel_safe_csv.py", "experience_pack.py", "research_event_journal.py", "dual_search_mcp.py", "compare_search_receipts.py", "research_lite_store.py", "research_provider_extensions.py", "research_mcp.py"):
         shutil.copy2(HERE / "scripts" / name, target / "scripts" / name)
     shutil.copy2(HERE / "README.md", target / "README.md")
-    if with_search_mcp:
+    if with_search_mcp or with_research_mcp:
         # This is a *machine-bound* preview: the checked-out source and Python
         # interpreter must remain on the importing client's machine. Never copy
         # the generated ZIP to a different machine without rebuilding locally.
@@ -86,11 +89,19 @@ def build(output: Path, *, with_search_mcp: bool = False) -> dict:
             "MARKETOPS_SEARCH_ALLOW_NETWORK", "MARKETOPS_SEARCH_MAX_CALLS",
         ]
         env = {name: "${" + name + "}" for name in variables}
-        search_config = {"mcpServers": {"marketops-dual-search": {
+        server_name = "marketops-research" if with_research_mcp else "marketops-dual-search"
+        program = "research_mcp.py" if with_research_mcp else "dual_search_mcp.py"
+        if with_research_mcp:
+            variables.extend(["CRAWL4AI_API_KEY", "TINYFISH_API_KEY", "TYPESAFE_API_KEY",
+                              "MARKETOPS_RESEARCH_ALLOW_NETWORK",
+                              "MARKETOPS_RESEARCH_MAX_EXTERNAL_CALLS",
+                              "MARKETOPS_FETCH_ALLOWED_DOMAINS"])
+            env.update({name: "$" + "{" + name + "}" for name in variables})
+        search_config = {"mcpServers": {server_name: {
             "type": "stdio",
             "command": sys.executable,
-            "args": [str(HERE / "scripts" / "dual_search_mcp.py")],
-            "cwd": str(HERE),
+            "args": [str(target / "scripts" / program)],
+            "cwd": str(target),
             "env": env,
             "timeout": 30000,
         }}}
@@ -103,8 +114,17 @@ def build(output: Path, *, with_search_mcp: bool = False) -> dict:
             ("MARKETOPS_SEARCH_ALLOW_NETWORK", "Enable billable search: enter 1, otherwise 0", "text", True, "0"),
             ("MARKETOPS_SEARCH_MAX_CALLS", "Cumulative reserved call limit", "text", True, "0"),
         ]
+        if with_research_mcp:
+            field_data.extend([
+                ("CRAWL4AI_API_KEY", "Crawl4AI Cloud API Key (optional; local mode uses no key)", "password", False, ""),
+                ("TINYFISH_API_KEY", "TinyFish API Key (optional)", "password", False, ""),
+                ("TYPESAFE_API_KEY", "TypeSafe Jev API Key (optional)", "password", False, ""),
+                ("MARKETOPS_RESEARCH_ALLOW_NETWORK", "Enable non-search provider calls: 1/0", "text", True, "0"),
+                ("MARKETOPS_RESEARCH_MAX_EXTERNAL_CALLS", "Cumulative other provider attempts cap", "text", True, "0"),
+                ("MARKETOPS_FETCH_ALLOWED_DOMAINS", "Comma separated approved public website domains", "text", False, ""),
+            ])
         schema = {
-            "title": "MarketOps Dual Search (local stdio)",
+            "title": "MarketOps Research MCP" if with_research_mcp else "MarketOps Dual Search (local stdio)",
             "description": "One optional account or both; payment authorization and quotas remain your responsibility.",
             "docUrl": "https://github.com/ProfessorZhi/marketops",
             "fields": [
@@ -121,18 +141,20 @@ def build(output: Path, *, with_search_mcp: bool = False) -> dict:
         "directory": str(target), "zip": str(package),
         "zip_sha256": hashlib.sha256(package.read_bytes()).hexdigest(),
         "skills": len(list((target / "skills").glob("*/SKILL.md"))),
-        "mcp_servers_bundled": 1 if with_search_mcp else 0,
-        "machine_bound_local_mcp": with_search_mcp,
+        "mcp_servers_bundled": 1 if (with_search_mcp or with_research_mcp) else 0,
+        "machine_bound_local_mcp": with_search_mcp or with_research_mcp,
     }
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True, help="explicit user-owned destination outside source")
-    parser.add_argument("--with-search-mcp", action="store_true", help="opt in to one local, machine-bound, metered SerpApi/Serper stdio MCP")
+    parser.add_argument("--with-search-mcp", action="store_true", help="legacy dual-search local MCP")
+    parser.add_argument("--with-research-mcp", action="store_true", help="one local MCP for all 5 provider integrations (beta)")
     args = parser.parse_args()
     try:
-        print(json.dumps(build(args.output, with_search_mcp=args.with_search_mcp), ensure_ascii=False, indent=2))
+        print(json.dumps(build(args.output, with_search_mcp=args.with_search_mcp,
+                               with_research_mcp=args.with_research_mcp), ensure_ascii=False, indent=2))
     except (OSError, ValueError) as exc:
         parser.exit(status=2, message=f"ERROR: {exc}\n")
     return 0
