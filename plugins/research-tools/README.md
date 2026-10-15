@@ -2,6 +2,18 @@
 
 > **试用候选 / 非生产发布（2026-10-15）**。本目录独立于 MarketOps 的业务服务、数据根和现有 `marketops-plugin`。只包含公开说明、无凭据配置样例、Skills 和 WorkBuddy 连接器候选；**未完成客户机上安装与真实付费端到端验收**。
 
+## 当前首要交付：统一半自动调研插件（v0.2.0）
+
+**[MarketOps Research Assistant](marketops-research-assistant/README.md)** 是目前的主入口：一套渐进式业务 Skills、明确的信息流/阶段 CSV、可离线初始化和验证的交接包、Excel 数据 Skill、可生成的 WorkBuddy `skill-only` 连接器，以及 Codex 插件候选。它**没有内置收费 MCP**，不能代替客户自己的 API/OAuth 认证；正式无人值守 CC/服务器端自动化列入后续阶段。
+
+- [真实信息流和主/外键](marketops-research-assistant/references/FLOW_AND_SCHEMA.md)
+- [Codex / WorkBuddy / DeepSeek Harness 安装](marketops-research-assistant/references/CLIENT_SETUP.md)
+- [Member-A 三项半自动试用](marketops-research-assistant/references/MEMBER_A_PILOT.md)
+- [Excel 工作簿规范](marketops-research-assistant/references/WORKBOOK_SPEC.md)
+- [两阶段路线图](marketops-research-assistant/references/ROADMAP.md)
+
+下方四家 Provider 文档与历史 v0.1 独立候选保留，供按需选择能力。**不要把下方旧 Codex/TinyFish/WorkBuddy 候选与上方 v0.2 统一研究插件混为同一件交付。**
+
 ## 目标
 
 让已经使用 Codex / WorkBuddy / Claude Code 的团队先把半自动流程提速：**发现网站与场地 → 读取官网正文 → 处理少量交互页面 → 人工复核业务结论 → 导出带来源的候选清单**。不用先部署东京 Claude Code，也不用先接入完整 MarketOps 后端。
