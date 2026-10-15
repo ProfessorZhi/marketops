@@ -62,7 +62,7 @@ def install(destination: Path, client: str, *, dependencies: bool,
     for config_name in ("mcp.json", ".mcp.json"):
         config_path = target / config_name
         config = json.loads(config_path.read_text(encoding="utf-8"))
-        servers = config.get("mcpServers") or {}
+        servers = config.get("mcpServers") or config.get("mcp_servers") or {}
         for server in servers.values():
             server["command"] = str(py)
             server["args"] = [str(target / "scripts" / "research_mcp.py")]
