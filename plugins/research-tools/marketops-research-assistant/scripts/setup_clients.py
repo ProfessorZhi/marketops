@@ -38,6 +38,11 @@ def plan(destination: Path, client: str) -> dict:
 def install(destination: Path, client: str, *, dependencies: bool,
             register_codex: bool) -> dict:
     result = plan(destination, client)
+    # Never install source with malformed manifests, Skills or Python syntax.
+    from preflight import report as static_report
+    outcome = static_report()
+    if outcome["errors"]:
+        raise ValueError("STATIC_PREFLIGHT_FAILED: review preflight.py results")
     dest = Path(result["destination"])
     target = dest / "plugins" / "marketops-research-assistant"
     target.parent.mkdir(parents=True, exist_ok=True)
