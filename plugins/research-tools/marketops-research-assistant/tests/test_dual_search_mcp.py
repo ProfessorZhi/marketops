@@ -178,7 +178,7 @@ class TestDualSearch(unittest.TestCase):
             output = Path(tmp) / "client-package"
             info = bundle.build(output, with_search_mcp=True)
             self.assertEqual(1, info["mcp_servers_bundled"])
-            self.assertEqual(15, info["skills"])
+            self.assertEqual(16, info["skills"])
             target = Path(info["directory"])
             mcp = json.loads((target / "mcp.json").read_text(encoding="utf-8"))
             schema = json.loads((target / "token-schema.json").read_text(encoding="utf-8"))
