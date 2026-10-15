@@ -1,5 +1,7 @@
 # WorkBuddy 接入：MCP + Skill 连接器候选
 
+> **更新（v0.2）**：统一 [MarketOps Research Assistant](../marketops-research-assistant/README.md) 可以生成 **skill-only** 连接器，和供应商 MCP 连接器分别安装；WorkBuddy 每个 MCP 连接器只能配置一个服务。本页保留 TinyFish/Crawl4AI 的独立 Provider 连接说明，并非统一插件的全部配置。
+
 官方文档：https://open.workbuddy.cn/docs/connector 。WorkBuddy 支持 **MCP + Skill** 和 **CLI + Skill**；本目录的候选包采用远程 HTTPS MCP，不要求本机安装 Crawl4AI 浏览器。
 
 ## 准备
