@@ -1,4 +1,6 @@
-# Serper — Search / Maps / Places
+# Serper.dev — Search / Maps / Places（与 SerpApi 不同）
+
+**与 SerpApi 的区别：** https://serpapi.com/manage-api-key 是另一家厂商 **SerpApi.com** 的后台，不能用于下述 Serper 接口；如使用该账户，请读 [SerpApi 官方 MCP / API 指南](serpapi.md)。
 
 **官方 API**：https://serper.dev/ 。用于快速搜索发现企业、场地、官网链接，以及 Maps / Places 的地理信息。**尚未确认 Serper 官方维护的通用 MCP。** 网上社区封装属于第三方项目，安装前要单独审核来源、权限、依赖和更新维护。
 
