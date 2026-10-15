@@ -66,6 +66,8 @@ def build(output: Path, *, with_search_mcp: bool = False) -> dict:
             "source": "marketops-research-assistant-dual-search",
             "type": "mcp",
             "auth_mode": "token",
+            "description": "One optional local stdio MCP searches SerpApi OR Serper; research Skills are unchanged. Paid network calls disabled until explicitly approved.",
+            "description_zh": "本地双搜索 MCP + 15 项 Skills；每次只选 SerpApi 或 Serper，一开始默认禁止付费联网搜索。",
         })
     (target / "connector-meta.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     (target / "icon.svg").write_text(ICON, encoding="utf-8")
