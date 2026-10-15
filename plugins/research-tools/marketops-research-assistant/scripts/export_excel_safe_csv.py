@@ -8,7 +8,10 @@ import json
 import sys
 from pathlib import Path
 
-from research_pack import TABLES, verify
+try:
+    from .research_pack import TABLES, verify
+except ImportError:  # direct script invocation: python scripts/export_excel_safe_csv.py
+    from research_pack import TABLES, verify
 
 DANGEROUS_PREFIXES = ("=", "+", "-", "@", "\t", "\r", "\n")
 
