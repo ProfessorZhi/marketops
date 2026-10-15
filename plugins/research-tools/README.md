@@ -2,6 +2,10 @@
 
 > **试用候选 / 非生产发布（2026-10-15）**。本目录独立于 MarketOps 的业务服务、数据根和现有 `marketops-plugin`。只包含公开说明、无凭据配置样例、Skills 和 WorkBuddy 连接器候选；**未完成客户机上安装与真实付费端到端验收**。
 
+## v0.3.0 双搜索可调用 MCP 候选
+
+统一半自动研究插件已新增 `marketops-research-assistant/scripts/dual_search_mcp.py`，并在 Codex `.mcp.json` 注册了一个本地 stdio MCP：明确选择 SerpApi **或** Serper 发送一次授权查询，保存发现回执和事件。WorkBuddy 可通过显式 `--with-search-mcp` 生成 **MCP+Skills** 候选，而默认仍为不自动收费的 skill-only 包。完整信息与账号申请见 [双搜索安装指南](marketops-research-assistant/references/DUAL_SEARCH_SETUP.md)。**未开户、未调用真实API、未做客户端E2E验收**。
+
 ## 重要：Serper.dev ≠ SerpApi.com
 
 用户提供的 https://serpapi.com/manage-api-key 属于 **SerpApi**，不是 Serper。现有 MarketOps 后端是 `SerperSearchProvider`（`https://google.serper.dev/search` + `SERPER_API_KEY`）。两家账户/密钥不可混用。**SerpApi 官方有托管 MCP 和 MIT 开源 MCP Server**，可作为半自动研究插件的另一种搜索方案；现有 MarketOps 后端尚未实现 SerpApi Adapter。见 [SerpApi 官方 MCP / Key / 价格](providers/serpapi.md) 与 [Serper 官方 API](providers/serper.md)。
