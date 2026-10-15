@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import shutil
+import sys
 import zipfile
 from pathlib import Path
 
@@ -20,7 +21,7 @@ META = {
     "description_en": "Research methods, four-provider routing and scoped lessons; unified MCP runtime not bundled.",
     "source": "marketops-research-assistant-lite",
     "type": "skill-only",
-    "version": "0.2.2",
+    "version": "0.3.0",
     "minWorkbuddyVersion": "4.24.0",
     "examples_zh": [
         "研究 Devon 的体育场地，先列来源和候选场地，所有不确定项进人工复核。",
@@ -46,7 +47,7 @@ def make_zip(folder: Path, output_zip: Path) -> None:
             archive.writestr(info, filename.read_bytes())
 
 
-def build(output: Path) -> dict:
+def build(output: Path, *, with_search_mcp: bool = False) -> dict:
     output = output.expanduser().resolve()
     if output.is_relative_to(HERE):
         raise ValueError("Build output must be outside this plugin source directory")
@@ -57,31 +58,79 @@ def build(output: Path) -> dict:
         raise FileExistsError(f"Will not overwrite an existing connector/package: {target}")
     target.parent.mkdir(parents=True, exist_ok=True)
     target.mkdir()
-    (target / "connector-meta.json").write_text(json.dumps(META, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    metadata = dict(META)
+    if with_search_mcp:
+        metadata.update({
+            "name": "MarketOps Research Assistant + Search MCP",
+            "name_zh": "MarketOps 调研与双搜索 MCP",
+            "source": "marketops-research-assistant-dual-search",
+            "type": "mcp",
+            "auth_mode": "token",
+        })
+    (target / "connector-meta.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     (target / "icon.svg").write_text(ICON, encoding="utf-8")
     for part in ("skills", "references"):
         shutil.copytree(HERE / part, target / part)
     (target / "scripts").mkdir()
-    for name in ("research_pack.py", "export_excel_safe_csv.py", "experience_pack.py", "research_event_journal.py"):
+    for name in ("research_pack.py", "export_excel_safe_csv.py", "experience_pack.py", "research_event_journal.py", "dual_search_mcp.py"):
         shutil.copy2(HERE / "scripts" / name, target / "scripts" / name)
     shutil.copy2(HERE / "README.md", target / "README.md")
-    # No mcp.json: source methods do not automatically grant provider access or payment.
+    if with_search_mcp:
+        # This is a *machine-bound* preview: the checked-out source and Python
+        # interpreter must remain on the importing client's machine. Never copy
+        # the generated ZIP to a different machine without rebuilding locally.
+        variables = [
+            "SERPAPI_API_KEY", "SERPER_API_KEY", "MARKETOPS_RESEARCH_DATA_ROOT",
+            "MARKETOPS_SEARCH_ALLOW_NETWORK", "MARKETOPS_SEARCH_MAX_CALLS",
+        ]
+        env = {name: "${" + name + "}" for name in variables}
+        search_config = {"mcpServers": {"marketops-dual-search": {
+            "type": "stdio",
+            "command": sys.executable,
+            "args": [str(HERE / "scripts" / "dual_search_mcp.py")],
+            "cwd": str(HERE),
+            "env": env,
+            "timeout": 30000,
+        }}}
+        (target / "mcp.json").write_text(
+            json.dumps(search_config, indent=2) + "\n", encoding="utf-8")
+        field_data = [
+            ("SERPAPI_API_KEY", "SerpApi API Key (optional)", "password", False, ""),
+            ("SERPER_API_KEY", "Serper API Key (optional)", "password", False, ""),
+            ("MARKETOPS_RESEARCH_DATA_ROOT", "Private absolute data directory", "text", True, ""),
+            ("MARKETOPS_SEARCH_ALLOW_NETWORK", "Enable billable search: enter 1, otherwise 0", "text", True, "0"),
+            ("MARKETOPS_SEARCH_MAX_CALLS", "Cumulative reserved call limit", "text", True, "0"),
+        ]
+        schema = {
+            "title": "MarketOps Dual Search (local stdio)",
+            "description": "One optional account or both; payment authorization and quotas remain your responsibility.",
+            "docUrl": "https://github.com/ProfessorZhi/marketops",
+            "fields": [
+                {"key": key, "label": label, "type": datatype, "required": required, "defaultValue": default}
+                for key, label, datatype, required, default in field_data
+            ],
+        }
+        (target / "token-schema.json").write_text(
+            json.dumps(schema, indent=2) + "\n", encoding="utf-8")
+    # The default skill-only bundle has no MCP; explicitly request search for tool mode.
     make_zip(target, package)
     return {
         "status": "BUILT_STATIC_NOT_CLIENT_TESTED",
         "directory": str(target), "zip": str(package),
         "zip_sha256": hashlib.sha256(package.read_bytes()).hexdigest(),
         "skills": len(list((target / "skills").glob("*/SKILL.md"))),
-        "mcp_servers_bundled": 0,
+        "mcp_servers_bundled": 1 if with_search_mcp else 0,
+        "machine_bound_local_mcp": with_search_mcp,
     }
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True, help="explicit user-owned destination outside source")
+    parser.add_argument("--with-search-mcp", action="store_true", help="opt in to one local, machine-bound, metered SerpApi/Serper stdio MCP")
     args = parser.parse_args()
     try:
-        print(json.dumps(build(args.output), ensure_ascii=False, indent=2))
+        print(json.dumps(build(args.output, with_search_mcp=args.with_search_mcp), ensure_ascii=False, indent=2))
     except (OSError, ValueError) as exc:
         parser.exit(status=2, message=f"ERROR: {exc}\n")
     return 0
