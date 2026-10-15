@@ -1,4 +1,24 @@
-# 试用验收清单
+# 当前 v0.4.0 统一 Research MCP 验收入口
+
+**唯一现行发布门禁是 [marketops-research-assistant/references/RELEASE_GATE.md](marketops-research-assistant/references/RELEASE_GATE.md)**。下方旧版 v0.1–v0.3 测试清单是历史记录，不可直接按其 8/15 Skills、空 MCP或仅双搜索MCP 判断当前版本已合格。
+
+本次源码已准备：16 Skills、一个本地 marketops-research MCP、SerpApi/Serper/Crawl4AI/TinyFish/Jev 五家的基础路由、单客户SQLite暂存、操作事件/经验包、Codex/WorkBuddy机器本地安装计划。
+
+先在源码目录执行（零真实 Provider 请求）：
+
+~~~bash
+python scripts/preflight.py
+python -m unittest discover -s tests -v
+python -m compileall -q scripts tests
+python scripts/setup_clients.py --destination /USER/EMPTY/INSTALLROOT --client both
+~~~
+
+没有本地测试结果或 Client tools/list 结果时，状态必须是 NOT_RUN，不得因为文件已入库就标 PASS。经用户明确批准才执行带 --apply 的本地安装；依赖下载需要单独 --install-deps。真实 API、身份、企业关系、正式联系人 A/B/C/D、Excel XLSX 与体验回放须按 RELEASE_GATE 的 D/E 环节逐项验收。**在这些验收前不出正式给 Member-A 的 ZIP。**
+
+---
+
+## 历史候选测试（v0.1-v0.3；保留溯源）
+
 
 ## A. 静态检查（可离线）
 
