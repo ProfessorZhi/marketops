@@ -31,10 +31,10 @@
 在 `marketops-research-assistant/` 根下：
 
 ```bash
-python scripts/research_pack.py init ./devon-sample --request-id devon-001 --country GB --scene gb-natural-grass --objective "Public sports ground research"
-python scripts/research_pack.py summary ./devon-sample
-python scripts/research_pack.py validate ./devon-sample
-python scripts/export_excel_safe_csv.py ./devon-sample --output ./devon-excel-review
+python scripts/research_pack.py init ~/marketops-research-data/devon-sample --request-id devon-001 --country GB --scene gb-natural-grass --objective "Public sports ground research"
+python scripts/research_pack.py summary ~/marketops-research-data/devon-sample
+python scripts/research_pack.py validate ~/marketops-research-data/devon-sample
+python scripts/export_excel_safe_csv.py ~/marketops-research-data/devon-sample --output ~/marketops-research-data/devon-excel-review
 ```
 
 空表只是 `STRUCTURALLY_VALID_EMPTY`，证明模板/字段能读，不是研究完成。请不要把测试数据或真实客户邮箱提交到 Git。
