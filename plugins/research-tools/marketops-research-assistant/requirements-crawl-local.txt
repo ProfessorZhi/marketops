@@ -1,0 +1,2 @@
+# Optional local Chrome/Chromium crawler after explicit user approval.
+crawl4ai>=0.9,<1
