@@ -1,0 +1,26 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "marketops-research": {
+      "type": "stdio",
+      "command": "python",
+      "args": [
+        "${PLUGIN_ROOT}/scripts/research_mcp.py"
+      ],
+      "env_vars": [
+        "MARKETOPS_RESEARCH_DATA_ROOT",
+        "MARKETOPS_SEARCH_ALLOW_NETWORK",
+        "MARKETOPS_SEARCH_MAX_CALLS",
+        "MARKETOPS_RESEARCH_ALLOW_NETWORK",
+        "MARKETOPS_RESEARCH_MAX_EXTERNAL_CALLS",
+        "MARKETOPS_FETCH_ALLOWED_DOMAINS",
+        "SERPAPI_API_KEY",
+        "SERPER_API_KEY",
+        "CRAWL4AI_API_KEY",
+        "TINYFISH_API_KEY",
+        "TYPESAFE_API_KEY"
+      ],
+      "default_tools_approval_mode": "prompt"
+    }
+  }
+}
