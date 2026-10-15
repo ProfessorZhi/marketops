@@ -103,7 +103,9 @@ def propose(run_id, record_id, stage, kind, entity_key, facts, artifact_ids=None
 
 def export(run_id, output_path):
     r = root()
-    output = Path(output_path).expanduser()
+    output = Path(output_path).expanduser().resolve()
+    if not output.is_relative_to(r / "exports"):
+        raise ValueError("EXPORT_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT_EXPORTS")
     result = store.export_csv(r, run_id, output)
     operation_id = "exp-" + hashlib.sha256(str(output.resolve()).encode()).hexdigest()[:24]
     append_event(r, run_id=run_id, operation_id=operation_id, stage="export",
@@ -181,9 +183,14 @@ def build_server():
     def marketops_experience_draft(run_id: str, scope: str, rule_version: str,
                                    output_path: str) -> dict:
         """Create unapproved incident draft from actual event receipts."""
-        return draft_experience(root(), run_id=run_id, scope=scope,
+        r = root()
+        output = Path(output_path).expanduser().resolve()
+        if not output.is_relative_to(r / "experience"):
+            raise ValueError("EXPERIENCE_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT")
+        output.parent.mkdir(parents=True, exist_ok=True)
+        return draft_experience(r, run_id=run_id, scope=scope,
                                 rule_version=rule_version, skill_version="0.4.0",
-                                output=Path(output_path))
+                                output=output)
 
     return mcp
 
