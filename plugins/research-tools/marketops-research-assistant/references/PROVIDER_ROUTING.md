@@ -1,6 +1,6 @@
 # 四Provider选用合同：先看业务问题，再看可用能力
 
-这是MarketOps编写的路由方法，不是厂商官方Skill，也没有在此实现统一MCP Server。当前客户端可使用已经配置的官方MCP、审核过的API/SDK或CLI；未来统一MarketOps MCP复用同一合同。官方事实与设计建议分开如下。
+这是MarketOps编写的路由方法，不是厂商官方Skill。v0.3.0已有本地双搜索stdio MCP候选，但整套四能力统一Research MCP Server仍未实现。当前客户端可使用已经配置的官方MCP、审核过的API/SDK或CLI；未来统一MarketOps MCP复用同一合同。官方事实与设计建议分开如下。
 
 ### 搜索供应商名称纠偏
 
@@ -18,6 +18,10 @@ SerpApi 官方拥有 [托管 MCP 与 MIT 开源 MCP Server](https://serpapi.com/
 | Jev/TypeSafe | https://github.com/typesafe-ai/skills/blob/main/skills/typesafe-ai/SKILL.md （blob `0109513f9656917dc93cbc5ecddfca465a53ce66`） | 官方Skill + SDK/API；MarketOps已有Jev adapter可作为受管工具接线基础 | Skill本身不提供可调用服务；不称第三方Jev站点为TypeSafe官方 |
 
 本次TypeSafe live docs读取失败，官方Skill读取成功；不猜测最新模型别名/版本依赖参数。Crawl4AI自托管文档列出md/html/crawl等工具，Cloud另有scrape/extract；执行时必须重新列出本连接实际schema。价格与限额不复制为恒定事实，查用户当前账户；自托管也有算力费用。
+
+### 已落地的双搜索 MCP（局部，不是完整统一研究网关）
+
+`marketops-search` 使用 `scripts/dual_search_mcp.py` 对 SerpApi / Serper API 显式选择：`marketops_search_capabilities` 和 `marketops_search(provider="serpapi"|"serper", mode="web"|"maps", ...)`。没有 `auto` 选项，也不会在异常或空结果时静默换另一家。操作调用上限在用户数据根的 SQLite 预留账本中跨重启计数；密钥取自用户环境变量，默认联网关闭。输出为发现候选，不能直接升为 Evidence 或 ContactRoute。详细见 [DUAL_SEARCH_SETUP](DUAL_SEARCH_SETUP.md)。
 
 ## 2. 运行前Capability Map
 
