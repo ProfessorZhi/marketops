@@ -6,7 +6,7 @@
 
 **SerpApi.com 与 Serper.dev 是不同产品。** `https://serpapi.com/manage-api-key` 是 SerpApi Key 页面；`https://google.serper.dev/search` 是已有 Serper Adapter。不能用 SerpApi Key 访问 Serper，也不能在没有专用响应解析与预算验证的情况下把两家后端悄悄互换。
 
-SerpApi 官方拥有 [托管 MCP 与 MIT 开源 MCP Server](https://serpapi.com/integrations/mcp)，适合半自动 Codex/WorkBuddy 客户端直接连接试用；它不是当前市场业务 Store 的自动写入接口，必须仍将结果经统一证据/实体流程提交。详见 [SerpApi 入门及安装](../../../providers/serpapi.md)。**现有四种研究能力仍是搜索、抓取、交互、判断；搜索槽可以选择 Serper 或 SerpApi。**
+SerpApi 官方拥有 [托管 MCP 与 MIT 开源 MCP Server](https://serpapi.com/integrations/mcp)，适合半自动 Codex/WorkBuddy 客户端直接连接试用；它不是当前市场业务 Store 的自动写入接口，必须仍将结果经统一证据/实体流程提交。详见 [SerpApi 入门及安装](../../providers/serpapi.md)。**现有四种研究能力仍是搜索、抓取、交互、判断；搜索槽可以选择 Serper 或 SerpApi。**
 
 ## 1. 来源与接口事实（2026-10-15核对）
 
