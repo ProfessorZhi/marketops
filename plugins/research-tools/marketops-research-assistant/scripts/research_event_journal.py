@@ -44,6 +44,15 @@ def _root(value: str | Path | None) -> Path:
     return root
 
 
+def data_root_for_pack(pack_dir: str | Path) -> str | Path:
+    """Use an explicit runtime root, otherwise the parent of a named run directory."""
+    configured = os.environ.get("MARKETOPS_RESEARCH_DATA_ROOT")
+    if configured:
+        return configured
+    parent = Path(pack_dir).expanduser().resolve().parent
+    return parent.parent if parent.name == "runs" else parent
+
+
 def _connect(root: Path) -> sqlite3.Connection:
     state = root / "state"
     state.mkdir(parents=True, exist_ok=True, mode=0o700)
