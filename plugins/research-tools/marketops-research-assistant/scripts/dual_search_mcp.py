@@ -34,6 +34,13 @@ LANG = re.compile(r"^[a-z]{2,3}$")
 MAX_BODY = 4 * 1024 * 1024
 
 
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Do not follow third-party redirects; a SerpApi query URL contains a secret."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise ValueError("PROVIDER_REDIRECT_BLOCKED")
+
+
 def _configuration() -> dict:
     """Capability discovery only, never disclose tokens or send a provider request."""
     return {
@@ -113,7 +120,7 @@ def _reserve(root: Path, *, run_id: str, operation_id: str, fingerprint: str,
 
 
 def _request(provider: str, mode: str, q: str, country: str,
-             language: str, limit: int, opener=urllib.request.urlopen) -> dict:
+             language: str, limit: int, opener=None) -> dict:
     """Fixed allowlisted HTTPS origins, never follow search URLs or expose API secrets."""
     if provider == "serper":
         endpoint = ("https://google.serper.dev/search" if mode == "web"
@@ -135,6 +142,8 @@ def _request(provider: str, mode: str, q: str, country: str,
             params["num"] = str(limit)
         endpoint = "https://serpapi.com/search.json?" + urllib.parse.urlencode(params)
         req = urllib.request.Request(endpoint, method="GET")
+    if opener is None:
+        opener = urllib.request.build_opener(NoRedirect()).open
     try:
         with opener(req, timeout=20) as resp:
             if getattr(resp, "status", 200) != 200:
@@ -176,6 +185,11 @@ def _normalize(provider: str, mode: str, data: dict, limit: int) -> list[dict]:
         name = row.get("title") or row.get("name") or ""
         # A map venue may have no direct external website.
         href = row.get("link") or row.get("website") or ""
+        if not isinstance(href, str):
+            href = ""
+        parsed = urllib.parse.urlsplit(href)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            href = ""
         position = row.get("position") or row.get("rank") or len(normalized) + 1
         geo = row.get("gps_coordinates") or {}
         if not isinstance(geo, dict):
@@ -201,7 +215,7 @@ def _normalize(provider: str, mode: str, data: dict, limit: int) -> list[dict]:
 
 def search(provider: str, query: str, country: str, language: str,
            run_id: str, operation_id: str, mode: str = "web",
-           limit: int = 10, opener=urllib.request.urlopen) -> dict:
+           limit: int = 10, opener=None) -> dict:
     """Search one selected provider and store a bounded discovery-only receipt."""
     _check_args(provider, query, country, language, run_id, operation_id, mode, limit)
     root = data_root(None)  # explicit customer data root, outside plugin checkout
