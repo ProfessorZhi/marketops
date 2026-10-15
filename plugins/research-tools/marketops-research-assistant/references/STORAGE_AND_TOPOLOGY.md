@@ -63,8 +63,13 @@ flowchart TD
 
 ## 3. 四个项目：源码、本地部署、MCP 的区别
 
+**搜索槽有两家容易混淆的候选供应商。** 当前代码是 Serper，用户提供的 Key 管理地址属于 SerpApi。后者官方拥有托管 MCP、MIT 开源自托管 MCP 包装，但实际搜索数据仍来自其收费云 API。二者不能共享 Key。比较见 [SerpApi 官方 MCP 说明](../../../providers/serpapi.md)。
+
+
+
 | 项目 | 源码情况 | 可自托管核心能力？ | MarketOps 目标调用方式 | 当前客户独立接入 |
 | --- | --- | --- | --- | --- |
+| SerpApi.com（搜索槽可选替代） | 官方 `serpapi/serpapi-mcp` MIT 开源 + 托管搜索服务闭源 | **MCP 包装可自托管；真实搜索仍依赖 SerpApi 订阅 API** | 官方 `https://mcp.serpapi.com/mcp` 或自托管官方 MCP，后续可新增正式 HTTP Adapter | 官方 MCP / Codex 内置连接命令；WorkBuddy 待认证实测 |
 | Serper.dev | 搜索服务闭源；存在第三方 MCP 的可见源码，但不能冒充官方，许可证要逐项目核对 | 没有确认可自部署的 Serper 搜索服务 | 现有 Serper HTTP API Adapter | 个人 API/经审核的社区 MCP |
 | Crawl4AI | 官方开源核心，Apache-2.0；Cloud 是另一个托管产品 | **可以**，Python 或 Docker 服务，也提供官方自托管 MCP 能力 | 本地爬虫/自托管 MCP，或 Cloud MCP | 官方自托管服务或 Cloud MCP |
 | TinyFish | 官方 Cookbook/安装器/Skills 源码开放（Cookbook MIT）；核心浏览器 Agent 托管服务不因此开源 | 未确认托管 Agent 可自行部署 | 官方托管 MCP（由我们的网关做上游 Client）或官方 SDK/API | 官方 https://mcp.tinyfish.ai，OAuth 或 API/CLI |
