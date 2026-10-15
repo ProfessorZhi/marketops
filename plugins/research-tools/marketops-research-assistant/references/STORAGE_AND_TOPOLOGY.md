@@ -57,9 +57,11 @@ flowchart TD
  X -. "经验证且获准" .-> SK
 ~~~
 
-现阶段完整 Research MCP 网关 G 仍未实现，但 v0.3.0 已新增**局部双搜索 stdio MCP 候选**，可调用 SerpApi/Serper 并保存搜索发现回执与事件。，所以用户分别接入已授权的厂商 MCP/API，Skill 只能指导操作。**无法自动观察直接从 Codex/WorkBuddy 发往厂商的全部调用。**
+现阶段完整 Research MCP 网关 G 仍未实现，但 v0.3.0 已新增**局部双搜索 stdio MCP 候选**，可以在客户明确授权后调用 SerpApi 或 Serper，并保存搜索发现回执与事件。Crawl4AI、TinyFish、Jev 目前仍由用户分别配置并按需调用；**直接从 Codex/WorkBuddy 发往其它厂商的操作不会自动被本地双搜索记录器捕获。**
 
 未来统一 G 的双重角色：对 Codex/WorkBuddy/DSH，它是 **MCP Server**；向官方 TinyFish、Crawl4AI 等 MCP 提供方调用时，它又是 **MCP Client**。若供应商只提供 HTTP/SDK，则网关用普通 HTTP/SDK Adapter，而不需要臆造官方 MCP。
+
+**已实现的局部研究工具入口：** `scripts/dual_search_mcp.py` 对客户 Agent 是本地 stdio MCP Server，后面通过固定官方 HTTPS API 地址明确选择 SerpApi 或 Serper；默认不联网。参见 [双搜索安装和授权](DUAL_SEARCH_SETUP.md)。
 
 ## 3. 四个项目：源码、本地部署、MCP 的区别
 
