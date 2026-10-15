@@ -29,3 +29,10 @@
 Excel为同一事实快照的投影。业务版按客户总表、联系路线、排除/待确认、证据索引、本轮说明；审计版可展开现有13个Sheet。两种视图不得重新计算不同的资格或计数定义。任何导出都附store/run/snapshot、规则版本、实际行数、文件hash和未完成项。
 
 业务数据留在客户域内；通用经验包只带脱敏定位符和必要最小案例。上传GitHub前人工检查，用户批准组装Skills不等于允许上传客户原始语料、邮件或凭据。
+
+
+### 自动经验事件与业务存储
+
+v0.2.2的Lite本地CLI：research_pack init和Excel-safe CSV exporter已经有SQLite WAL事件日志自动钩子，推荐在客户授权的MARKETOPS_RESEARCH_DATA_ROOT内运行。目录拓扑与MCP Server/Client边界见 [STORAGE_AND_TOPOLOGY.md](STORAGE_AND_TOPOLOGY.md)。
+
+**不要把这个事件SQLite当第二个联系人数据库。** 它只有操作观察、运行ID和非敏感收据引用；业务候选和证据事实仍按唯一已选择的store管理。尚未建立MarketOps统一Research MCP时，直接调用第三方Provider无法被保证自动记录，必须将其明确列为observability gap或经授权调用本地record补录。后续应在受管工具事务里统一写回事件和业务结果。
