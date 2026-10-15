@@ -4,16 +4,17 @@
       "type": "stdio",
       "command": "python",
       "args": [
-        "scripts/dual_search_mcp.py"
+        "${PLUGIN_ROOT}/scripts/dual_search_mcp.py"
       ],
-      "cwd": ".",
+      "cwd": "${PLUGIN_ROOT}",
       "env_vars": [
         "MARKETOPS_RESEARCH_DATA_ROOT",
         "MARKETOPS_SEARCH_ALLOW_NETWORK",
         "MARKETOPS_SEARCH_MAX_CALLS",
         "SERPAPI_API_KEY",
         "SERPER_API_KEY"
-      ]
+      ],
+      "default_tools_approval_mode": "prompt"
     }
   }
 }
