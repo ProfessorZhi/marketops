@@ -73,8 +73,8 @@ class TestDualSearch(unittest.TestCase):
         stored = "\n".join(p.read_text() for p in self.root.rglob("*.json"))
         self.assertNotIn("synthetic-serper-secret", stored)
         self.assertNotIn("synthetic-serpapi-secret", stored)
-        self.assertEqual(2, len([e for e in dual.append_event.__globals__["read_events"](self.root, "run-01")])
-                         if "read_events" in dual.append_event.__globals__ else 2)
+        from research_event_journal import read_events
+        self.assertEqual(["started", "succeeded"], [e["status"] for e in read_events(self.root, "run-01")])
 
     def test_serpapi_api_uses_different_key_and_preserves_place_id(self):
         seen = []
