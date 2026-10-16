@@ -134,6 +134,17 @@ class BatchAndExcerptTests(unittest.TestCase):
                 "entity_key": rec, "facts": facts or {"name": "Acme Facility"},
                 "artifact_ids": ["art-1"]}
 
+    def test_note_can_be_recorded_without_a_fake_evidence_ref(self):
+        from research_event_journal import append_note
+        args = dict(run_id="run-1", note_id="note-1", stage="review",
+                    category="evidence_missing", problem="Published claim missing",
+                    action_taken="Requested source citation",
+                    observed_result="Pending manual source inspection")
+        result = append_note(self.root, **args)
+        self.assertEqual("RECORDED", result["result"])
+        replay = append_note(self.root, **args)
+        self.assertEqual("IDEMPOTENT", replay["result"])
+
     def test_batch_rolls_back_everything_on_invalid_second_record(self):
         with self.assertRaises(ValueError):
             store.put_candidates_batch(self.root, "run-1",
