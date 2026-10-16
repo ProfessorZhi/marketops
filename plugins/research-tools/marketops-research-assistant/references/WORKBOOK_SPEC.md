@@ -50,3 +50,9 @@ npx skills add https://github.com/openai/skills --skill spreadsheet
 ```
 
 这是**通用工作簿制作 Skill**；它无法自动满足本业务的真实性门禁，需要与 `marketops-excel` 联合执行。WorkBuddy/DSH 可使用宿主已有 Excel 工具或同类能力；需要在真客户端测试，不能声称该 Codex 命令也在所有宿主受支持。
+
+## Current executable path vs formal target
+
+The source plugin's actual `marketops_export_xlsx` produces **eight** candidate-stage sheets: 客户总表, 联系人路线, 排除与待确认, 证据索引, 本轮说明, 场地与资产, 来源与查询, 候选数据审计. These are a readable **Lite projection** of the staging store; no row claims that an email route is formally A/B/C/D.
+
+The thirteen-sheet description earlier in this document is a **target detailed audit workbook** for canonical formal research; it is not the current automatically generated file. Avoid treating the two as conflicting contractual outputs. For formal production handoff, reuse canonical five-sheet `marketops/application/export.py` schemas and authorized grade rules, not a second set of judgments in the plugin.
