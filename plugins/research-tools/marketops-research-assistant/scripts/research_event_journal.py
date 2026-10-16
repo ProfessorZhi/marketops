@@ -239,7 +239,7 @@ def append_note(data_root: str | Path | None, *, run_id: str, note_id: str, stag
         raise ValueError("Unsupported note stage")
     if category not in NOTE_CATEGORIES:
         raise ValueError("Unsupported note category")
-    evidence_ref = _identifier(evidence_ref, "evidence_ref")
+    evidence_ref = _identifier(evidence_ref, "evidence_ref", optional=True)
     fields = {
         "run_id": run_id, "note_id": note_id, "stage": stage, "category": category,
         "problem": sanitize_note_text(problem, "problem"),
