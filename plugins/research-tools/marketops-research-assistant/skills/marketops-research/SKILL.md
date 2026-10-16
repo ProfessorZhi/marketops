@@ -13,7 +13,8 @@ description: Single entry for one human-initiated MarketOps candidate research R
 2. 需要资料才调用 provider router。优先复用当前 Run 的真实材料；用 `marketops_material_excerpt` 根据关键词读最多1200字符，不把整页 HTML、全部 Skill 或整批候选堆入上下文。允许联网和费用必须**明确、有限、可停**。
 3. 对多个候选用 `marketops_propose_batch` 一次提交最多20条，原子写入、失败全回滚。不得在正式 Run 插测试探针。每条主张要有 `claims=[{field,artifact_id,quote}]`，关系、排除和场景要求的关键事实必须给出**同源引文**；仅有 artifact_id 不构成论据。
 4. 用户要求哪些实体、数量、字段，严格按原话区分：场地探索数 ≠ 已核实客户数 ≠ 具名邮箱数；“争取”不是强制 `minimum_targets`。若有硬最低值，必须保存其 `minimum_targets_unit`，与 `target_kind` 一致。场景特定门槛写在 Brief 的 `evidence_requirements`，不写死在插件代码。
-5. 每批调用 `marketops_evidence_audit` 看简短缺口码，再判断继续取证、HOLD、EXCLUDED 或暂停。引文匹配仅证明文本出现，**不代表事实语义、当前任职、采购权限或正式 SOP 通过**。查不到有效原文就 HOLD，禁猜邮箱/关系，禁绕访问墙。
+5. 每批调用 `marketops_evidence_audit` 看简短缺口码，再判断继续取证、HOLD、EXCLUDED 或暂停。
+6. **防空转**：保存本批 `marketops_next.snapshot_id`；一次真实工具尝试后，带 `previous_snapshot_id`、`after_attempt=true` 再查询。若返回 `NO_NEW_PERSISTED_RECORD_AFTER_ATTEMPT`，不可原地重复同一搜索/抓取或反复加载相同 Skill；要么选择另一独立且已授权的来源/对象，要么记录 HOLD 和卡点，结束该路径。重复只读查询不算失败；“新增行”也不等于可靠事实。引文匹配仅证明文本出现，**不代表事实语义、当前任职、采购权限或正式 SOP 通过**。查不到有效原文就 HOLD，禁猜邮箱/关系，禁绕访问墙。
 
 ## 收口与经验
 
