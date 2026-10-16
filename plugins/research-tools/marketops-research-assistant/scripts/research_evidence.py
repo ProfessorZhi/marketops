@@ -34,7 +34,7 @@ def _text(artifact: dict) -> str:
                 text = parsed.get("markdown", text)
         except (ValueError, TypeError):
             pass
-    if artifact.get("kind") == "rendered_html":
+    if artifact.get("kind") in {"rendered_html", "raw_response"}:
         # Rendered HTML is NOT the original on-the-wire HTTP response.
         text = re.sub(r"(?is)<(?:script|style)[^>]*>.*?</(?:script|style)>", " ", text)
         text = re.sub(r"<[^>]+>", " ", text)
@@ -118,7 +118,7 @@ def audit_records(records: list[dict], artifacts: dict[str, dict],
                 codes.add("EXCERPT_NOT_FOUND")
                 continue
             matched_fields.add(field)
-            if material.get("kind") == "rendered_html":
+            if material.get("kind") in {"rendered_html", "raw_response"}:
                 anchored_rendered += 1
             else:
                 codes.add("DERIVED_EXCERPT_ONLY")
@@ -138,14 +138,14 @@ def audit_records(records: list[dict], artifacts: dict[str, dict],
                 if not isinstance(value, str) or not EMAIL.fullmatch(value):
                     codes.add("EMAIL_INVALID")
                 elif not any(
-                    a in artifacts and artifacts[a].get("kind") == "rendered_html"
+                    a in artifacts and artifacts[a].get("kind") in {"rendered_html", "raw_response"}
                     and re.search(r"(?<![\w.+-])" + re.escape(value) + r"(?![\w.+-])",
                                   html.unescape(re.sub(
                                       r"(?is)<(?:script|style)[^>]*>.*?</(?:script|style)>",
                                       " ", artifacts[a].get("text", ""))), re.I)
                     for a in ids
                 ):
-                    codes.add("EMAIL_NOT_IN_RENDERED_HTML")
+                    codes.add("EMAIL_NOT_IN_PRIMARY_MATERIAL")
         # Quote availability is distinct from a factual interpretation. Even a
         # record with no codes is still candidate-only, awaiting meaning review.
         for code in sorted(codes):
