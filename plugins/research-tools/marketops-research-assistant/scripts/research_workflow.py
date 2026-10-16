@@ -145,12 +145,23 @@ def assess_records(run_id: str, records: list[dict], *, limit: int = 25) -> dict
             or type(named) is not bool
             or (goal == "contacts" and kind != "organization")
             or (named and goal != "contacts")
-            or (minimum is not None and minimum_unit != kind)
-            or (minimum is None and minimum_unit is not None and minimum_unit != kind)):
+            or (minimum_unit is not None and minimum_unit != kind)):
         return {**base, "status": "BRIEF_INVALID", "stage": "intake",
                 "recommended_skill": SKILLS["intake"], "targets": [], "target_ids": [],
                 "gap_counts": {"BRIEF_INVALID": 1}, "goal_satisfied": False,
                 "blocked_target_count": 0, "completion_rule": "correct_the_structured_brief"}
+
+    if minimum is not None and minimum_unit is None:
+        # Legacy Runs may have misinterpreted a venue exploration target as a
+        # minimum of named organization contacts. Do not enforce that fabricated
+        # number or call the whole Brief invalid; request an append-only unit
+        # clarification while preserving existing records and sources.
+        return {**base, "status": "BRIEF_UNIT_REVIEW_REQUIRED", "stage": "intake",
+                "recommended_skill": SKILLS["intake"], "targets": [], "target_ids": [],
+                "minimum_targets_unconfirmed": minimum,
+                "gap_counts": {"minimum_target_unit_unconfirmed": 1},
+                "goal_satisfied": False, "blocked_target_count": 0,
+                "completion_rule": "append_brief_revision_with_minimum_targets_unit_or_null"}
 
     grouped, associated, dispositions = defaultdict(list), defaultdict(list), defaultdict(list)
     related_groups, related_conflicts = defaultdict(list), set()
