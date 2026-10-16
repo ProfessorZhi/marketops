@@ -4,9 +4,9 @@
       "type": "stdio",
       "command": "python",
       "args": [
-        "${PLUGIN_ROOT}/scripts/research_mcp.py"
+        "${CLAUDE_PLUGIN_ROOT}/scripts/research_mcp.py"
       ],
-      "cwd": "${PLUGIN_ROOT}",
+      "cwd": "${CLAUDE_PLUGIN_ROOT}",
       "env_vars": [
         "MARKETOPS_RESEARCH_DATA_ROOT",
         "MARKETOPS_RESEARCH_CONFIG",
