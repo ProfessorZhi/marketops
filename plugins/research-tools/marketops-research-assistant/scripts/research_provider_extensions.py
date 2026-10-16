@@ -80,7 +80,24 @@ def _checked_run(root: Path, run_id: str, operation_id: str) -> None:
     store.list_run(root, run_id, limit=1)
 
 
-def _reserve(root: Path, *, run_id: str, operation_id: str, action: str, signature: str) -> None:
+def _host_key(url: str) -> str:
+    """One-way host label for same-Run stop signals; URLs never enter journal."""
+    if not url:
+        return ""
+    host = (urllib.parse.urlsplit(url).hostname or "").lower()
+    # Plain www and apex represent the same website for access-stop purposes.
+    if host.startswith("www."):
+        host = host[4:]
+    return hashlib.sha256(host.encode("utf-8")).hexdigest() if host else ""
+
+
+def _reserve(root: Path, *, run_id: str, operation_id: str, action: str,
+             signature: str, host_key: str = "") -> None:
+    """Reserve once; prohibit renamed-operation retries and challenge-site loops.
+
+    Reuse the existing provider-reservations DB. Extra columns migrate in place;
+    no customer hostnames, page bodies or API credentials are stored.
+    """
     if action not in ALLOWED_ACTIONS:
         raise ValueError("UNSUPPORTED_PROVIDER_ACTION")
     if os.environ.get("MARKETOPS_RESEARCH_ALLOW_NETWORK") != "1":
@@ -95,25 +112,53 @@ def _reserve(root: Path, *, run_id: str, operation_id: str, action: str, signatu
     folder = root / "state"
     folder.mkdir(parents=True, exist_ok=True, mode=0o700)
     with closing(sqlite3.connect(folder / "provider-reservations.sqlite3", timeout=20)) as db:
+        db.execute("PRAGMA busy_timeout=20000")
+        db.execute("BEGIN IMMEDIATE")
         db.execute("""CREATE TABLE IF NOT EXISTS provider_reservations (
             run_id TEXT NOT NULL, operation_id TEXT NOT NULL, action TEXT NOT NULL,
             signature TEXT NOT NULL, created_at TEXT NOT NULL,
             PRIMARY KEY (run_id, operation_id)
         )""")
-        db.execute("BEGIN IMMEDIATE")
+        existing_columns = {row[1] for row in db.execute("PRAGMA table_info(provider_reservations)")}
+        if "host_key" not in existing_columns:
+            db.execute("ALTER TABLE provider_reservations ADD COLUMN host_key TEXT NOT NULL DEFAULT ''")
+        if "outcome_code" not in existing_columns:
+            db.execute("ALTER TABLE provider_reservations ADD COLUMN outcome_code TEXT NOT NULL DEFAULT ''")
         old = db.execute("SELECT signature FROM provider_reservations "
                          "WHERE run_id=? AND operation_id=?", (run_id, operation_id)).fetchone()
         if old:
             if old[0] == signature:
                 raise ValueError("OPERATION_ALREADY_RESERVED: inspect the prior receipt")
             raise ValueError("OPERATION_ID_COLLISION")
-        reserved = db.execute("SELECT COUNT(*) FROM provider_reservations").fetchone()[0]
-        if reserved >= ceiling:
+        # An agent can invent a new operation_id; it cannot silently reissue
+        # an identical billable/unknown operation inside the same Run.
+        if db.execute("SELECT 1 FROM provider_reservations WHERE run_id=? AND signature=?",
+                      (run_id, signature)).fetchone():
+            raise ValueError("DUPLICATE_RESEARCH_ATTEMPT_SAME_RUN")
+        if host_key and db.execute(
+            "SELECT 1 FROM provider_reservations WHERE run_id=? AND host_key=? "
+            "AND outcome_code IN ('SOURCE_ACCESS_BLOCKED','SOURCE_CHALLENGE_PAGE')",
+            (run_id, host_key)
+        ).fetchone():
+            raise ValueError("HOST_PREVIOUSLY_BLOCKED_SAME_RUN")
+        used = db.execute("SELECT COUNT(*) FROM provider_reservations").fetchone()[0]
+        if used >= ceiling:
             raise ValueError("EXTERNAL_CALL_CEILING_REACHED")
-        db.execute("INSERT INTO provider_reservations VALUES (?,?,?,?,?)",
-                   (run_id, operation_id, action, signature, datetime.now(timezone.utc).isoformat()))
+        db.execute("INSERT INTO provider_reservations "
+                   "(run_id,operation_id,action,signature,created_at,host_key,outcome_code) "
+                   "VALUES (?,?,?,?,?,?,?)",
+                   (run_id, operation_id, action, signature,
+                    datetime.now(timezone.utc).isoformat(), host_key, "reserved"))
         db.commit()
 
+
+def _record_outcome(root: Path, run_id: str, operation_id: str, code: str) -> None:
+    """Persist bounded outcome codes only; no extra database or raw target."""
+    with closing(sqlite3.connect(root / "state" / "provider-reservations.sqlite3", timeout=20)) as db:
+        db.execute("PRAGMA busy_timeout=20000")
+        db.execute("UPDATE provider_reservations SET outcome_code=? "
+                   "WHERE run_id=? AND operation_id=?", (code, run_id, operation_id))
+        db.commit()
 
 def _http_json(url: str, *, method: str, key: str, data: dict | None = None,
                opener=None) -> dict:
@@ -154,15 +199,18 @@ def _crawl4ai_local(url: str) -> dict:
             status = getattr(result, "status_code", None)
             if status in {401, 403, 429}:
                 raise ValueError("SOURCE_ACCESS_BLOCKED")
-            if not result.success:
-                raise ValueError("LOCAL_CRAWL_FAILED")
-            markdown = result.markdown
+            markdown = getattr(result, "markdown", None)
             content = getattr(markdown, "raw_markdown", None) or str(markdown or "")
             rendered = getattr(result, "html", None) or ""
-            probe = (content[:1500] + rendered[:1500]).casefold()
-            if any(word in probe for word in ("cf-chl-", "verify you are human",
-                                               "captcha challenge", "just a moment...")):
+            # Check for a challenge before treating crawler.success as decisive.
+            # A blocked page may be served with HTTP 200 and success=False.
+            probe = (rendered[:1800] + content[:1000]).casefold()
+            if any(word in probe for word in ("cf-chl-", "challenges.cloudflare.com",
+                                               "verify you are human", "captcha challenge",
+                                               "just a moment...", "checking your browser")):
                 raise ValueError("SOURCE_CHALLENGE_PAGE")
+            if not result.success:
+                raise ValueError("LOCAL_CRAWL_FAILED")
             if not content.strip():
                 raise ValueError("SOURCE_EMPTY_EXTRACT")
             return {"url": getattr(result, "url", url), "markdown": content,
@@ -233,15 +281,22 @@ def invoke(action: str, *, run_id: str, operation_id: str, url: str = "",
         "question": question, "options": options,
     }, sort_keys=True, ensure_ascii=True).encode("utf-8")).hexdigest()
     try:
-        _reserve(root, run_id=run_id, operation_id=operation_id, action=action, signature=fingerprint)
-    except ValueError:
-        # A rejected budget/key/network preflight is a real research obstacle.
-        # Keep a receipt without leaking Key values or the raw problem text.
+        _reserve(root, run_id=run_id, operation_id=operation_id, action=action,
+                 signature=fingerprint,
+                 host_key=_host_key(url) if action in {"crawl4ai_local", "crawl4ai_cloud",
+                                                      "tinyfish_fetch"} else "")
+    except ValueError as exc:
+        # Already-reserved/blocked operations are not another provider attempt.
+        # Keep an explicit code, never the URL, search text or token values.
+        code = str(exc).split(":", 1)[0]
+        safe = {"DUPLICATE_RESEARCH_ATTEMPT_SAME_RUN",
+                "HOST_PREVIOUSLY_BLOCKED_SAME_RUN", "OPERATION_ALREADY_RESERVED",
+                "OPERATION_ID_COLLISION", "EXTERNAL_CALL_CEILING_REACHED"}
         try:
             append_event(root, run_id=run_id, operation_id=operation_id,
                          stage="qualification" if action == "jev_choice" else "acquisition",
                          kind="tool", status="blocked", provider=action,
-                         reason_code="external_preflight_blocked")
+                         reason_code=(code.lower() if code in safe else "external_preflight_blocked"))
         except Exception:
             pass
         raise
@@ -314,6 +369,7 @@ def invoke(action: str, *, run_id: str, operation_id: str, url: str = "",
         append_event(root, run_id=run_id, operation_id=operation_id,
                      stage=stage, kind="tool", status="succeeded",
                      provider=action, receipt_ref=artifact_id)
+        _record_outcome(root, run_id, operation_id, "SUCCEEDED")
         return {"status": "SAVED_MATERIAL_NOT_VERIFIED",
                 "provider": action, "operation_id": operation_id,
                 "artifact": stored, "rendered_artifact": rendered_artifact,
@@ -325,6 +381,10 @@ def invoke(action: str, *, run_id: str, operation_id: str, url: str = "",
                        "SOURCE_EMPTY_EXTRACT", "LOCAL_CRAWL_FAILED",
                        "LOCAL_BROWSER_NOT_INSTALLED", "LOCAL_CRAWL_RUNTIME_FAILED"}
         reason = str(exc) if isinstance(exc, ValueError) and str(exc) in known_codes else "PROVIDER_OR_STORAGE_FAILED"
+        try:
+            _record_outcome(root, run_id, operation_id, reason)
+        except OSError:
+            pass
         try:
             append_event(root, run_id=run_id, operation_id=operation_id,
                          stage="qualification" if action == "jev_choice" else "acquisition",
