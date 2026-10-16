@@ -11,6 +11,7 @@ from pathlib import Path
 import dual_search_mcp
 import research_lite_store as store
 import research_provider_extensions as extra
+import research_delivery as delivery
 from research_event_journal import _root, append_event, draft_experience, read_events
 
 
@@ -226,6 +227,14 @@ def build_server():
     def marketops_export(run_id: str, output_path: str) -> dict:
         """Export local candidate-only CSV; no contact/outreach authorization."""
         return export(run_id, output_path)
+
+    @mcp.tool()
+    def marketops_export_xlsx(run_id: str, delivery_id: str) -> dict:
+        """Write real 8-sheet evidence-audited XLSX + CSV from this Run's Lite store.
+
+        All contacts remain CANDIDATE_NOT_APPROVED; no A/B/C/D or send authority.
+        """
+        return delivery.write_delivery(root(), run_id, delivery_id)
 
     @mcp.tool()
     def marketops_handoff(run_id: str, operation_id: str) -> dict:
