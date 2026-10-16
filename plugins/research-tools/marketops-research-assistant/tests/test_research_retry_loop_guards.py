@@ -126,6 +126,23 @@ class CrawlChallengeClassificationTests(unittest.TestCase):
                 ext._crawl4ai_local("https://public.example.org/staff")
 
 
+    def test_cloudflare_header_detected_without_html_marker(self):
+        async def _enter(self):
+            return self
+        async def _exit(self, exc_type, exc, tb):
+            return None
+        async def _arun(self, *, url):
+            return types.SimpleNamespace(
+                success=True, status_code=200,
+                response_headers={"CF-Mitigated": "challenge"},
+                markdown="normal-looking text", html="<p>ordinary page</p>")
+        fake = type("FakeCrawler", (), {
+            "__aenter__": _enter, "__aexit__": _exit, "arun": _arun})
+        with patch.dict(sys.modules, {"crawl4ai": types.SimpleNamespace(AsyncWebCrawler=fake)}):
+            with self.assertRaisesRegex(ValueError, "SOURCE_CHALLENGE_PAGE"):
+                ext._crawl4ai_local("https://public.example.org/info")
+
+
 class SnapshotAndEventTests(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
