@@ -24,8 +24,18 @@ The workflow core cannot check a goal it cannot read. Write the brief into the R
 - `target_kind`: `venue` or `organization`. `goal`: `pool` or `contacts`.
 - Contact goals target organizations; `require_named_person` is a boolean and only valid for contacts.
 - `minimum_targets` is the explicitly requested candidate count, **not** a claim about market size.
+  **If the user never asked for a quantity, omit it or store `null`.** The result then reports
+  `quantity_target_status=UNSPECIFIED`. Do not invent a quota, and do not ask the user an unnecessary
+  question just to satisfy the planner.
 - Extract these from a clear user request; clarify only genuinely missing business choices. Never
   default a department-contact task to named procurement contacts, or a venue-only task to sales research.
+
+A completed current candidate batch is not market coverage. When the investigation ends, each target gets one
+closed disposition (`RESEARCHED_CANDIDATE`, `HOLD`, `EXCLUDED`, `DUPLICATE`) with a short factual reason:
+`HOLD` is an unresolved target and stays a visible goal gap; a justified `EXCLUDED` or `DUPLICATE` is a
+**resolved** disposition, not a failure, but it never counts toward an explicit positive-candidate minimum.
+An all-excluded sample is a legitimate negative research result — never report it as a successful
+positive-candidate delivery, and never as proof that the market has no customers.
 
 Without this record the Run reads `BRIEF_REQUIRED` — an explicit unknown, not false completion. A later
 change of requirement is a new record using the **same brief entity key** with `supersedes`; never lower
