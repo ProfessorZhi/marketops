@@ -137,7 +137,7 @@ def assess_records(run_id: str, records: list[dict], *, limit: int = 25) -> dict
     minimum, named = brief.get("minimum_targets"), brief.get("require_named_person")
     if (not isinstance(kind, str) or kind not in {"venue", "organization"}
             or not isinstance(goal, str) or goal not in {"pool", "contacts"}
-            or type(minimum) is not int or not 1 <= minimum <= MAX_ROWS
+            or (minimum is not None and (type(minimum) is not int or not 1 <= minimum <= MAX_ROWS))
             or type(named) is not bool
             or (goal == "contacts" and kind != "organization")
             or (named and goal != "contacts")):
@@ -170,7 +170,7 @@ def assess_records(run_id: str, records: list[dict], *, limit: int = 25) -> dict
             if isinstance(org, str):
                 associated[org].append(active)
 
-    tasks, gaps = [], Counter()
+    tasks, gaps, outcomes = [], Counter(), Counter()
     researched = blocked = 0
     for key in sorted(grouped):
         row = _tip(grouped[key])
@@ -187,8 +187,12 @@ def assess_records(run_id: str, records: list[dict], *, limit: int = 25) -> dict
             missing.append("invalid_disposition")
             outcome = None
         if not missing and outcome in {"HOLD", "EXCLUDED", "DUPLICATE"}:
-            blocked += 1
-            gaps["target_" + outcome.lower()] += 1
+            outcomes[outcome] += 1
+            if outcome == "HOLD":
+                blocked += 1
+                gaps["target_hold"] += 1
+            # A legitimate exclusion/duplicate is a resolved disposition, not
+            # itself a research failure; it still does not count toward a quota.
             continue
         if row is not None and not _supported(row):
             missing.append("target_source_material")
@@ -233,13 +237,14 @@ def assess_records(run_id: str, records: list[dict], *, limit: int = 25) -> dict
                           "stage": stage, "missing_facts": missing})
         else:
             researched += 1
-    shortfall = max(0, minimum - researched)
+            outcomes["RESEARCHED_CANDIDATE"] += 1
+    shortfall = max(0, minimum - researched) if minimum is not None else 0
     if shortfall:
         gaps["minimum_researched_targets_shortfall"] = shortfall
     if not grouped:
         stage = "entities" if counts["source"] else "discovery"
         status = "MORE_RESEARCH_REQUIRED"
-        gaps["target_pool_missing"] = minimum
+        gaps["target_pool_missing"] = minimum if minimum is not None else 1
     elif tasks:
         order = {"acquisition": 0, "people": 1, "review": 2}
         stage = min(tasks, key=lambda t: order.get(t["stage"], 3))["stage"]
@@ -248,19 +253,26 @@ def assess_records(run_id: str, records: list[dict], *, limit: int = 25) -> dict
         stage, status = "handoff", "STOPPED_WITH_GAPS"
     elif shortfall:
         stage, status = "discovery", "MORE_RESEARCH_REQUIRED"
+    elif not researched:
+        # An all-excluded sample is a valid negative result, not useful positive
+        # candidate delivery or proof that the market has no customers.
+        gaps["no_researched_candidates"] = 1
+        stage, status = "handoff", "STOPPED_WITH_GAPS"
     else:
         stage, status = "review", "READY_FOR_CANDIDATE_REVIEW"
     batch = [t for t in tasks if t["stage"] == stage][:limit]
     return {**base, "status": status, "stage": stage, "recommended_skill": SKILLS[stage],
             "brief_record_id": brief_row["record_id"], "target_kind": kind, "goal": goal,
             "minimum_targets": minimum, "require_named_person": named,
+            "quantity_target_status": "EXPLICIT_MINIMUM" if minimum is not None else "UNSPECIFIED",
             "target_count": len(grouped), "researched_target_count": researched,
             "blocked_target_count": blocked, "pending_target_count": len(tasks),
+            "disposition_counts": dict(sorted(outcomes.items())),
             "returned_targets": len(batch), "targets": batch,
             "target_ids": [t["entity_key"] for t in batch],
             "gap_counts": dict(sorted(gaps.items())),
             "goal_satisfied": not gaps,
-            "completion_rule": "every_target_has_disposition_and_minimum_researched_candidates_met",
+            "completion_rule": "every_target_has_disposition_and_explicit_minimum_if_present",
             "warning": "Source presence and candidate disposition do not validate facts, SOP grade or market coverage."}
 
 
@@ -296,9 +308,10 @@ def page(root: Path | str, run_id: str, limit: int = 100, cursor: str = "",
                 if len(cursor) > 2048:
                     raise ValueError()
                 token = json.loads(base64.b64decode(cursor.encode(), altchars=b"-_", validate=True))
-                if (not isinstance(token, dict) or token.get("v") != 1 or token.get("binding") != binding
+                if (not isinstance(token, dict) or type(token.get("v")) is not int or token.get("v") != 1
+                        or token.get("binding") != binding
                         or type(token.get("high")) is not int or type(token.get("after")) is not int
-                        or not 0 <= token["after"] <= token["high"]):
+                        or not 0 <= token["after"] <= token["high"] <= 2**63 - 1):
                     raise ValueError()
                 high, after = token["high"], token["after"]
             except (ValueError, KeyError, TypeError, UnicodeError):
