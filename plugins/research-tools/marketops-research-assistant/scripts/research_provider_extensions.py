@@ -199,6 +199,16 @@ def _crawl4ai_local(url: str) -> dict:
             status = getattr(result, "status_code", None)
             if status in {401, 403, 429}:
                 raise ValueError("SOURCE_ACCESS_BLOCKED")
+            # Cloudflare documents cf-mitigated: challenge on all its
+            # interstitial Challenge Page responses. Check it when Crawl4AI
+            # exposes headers; fallback to page markers when it does not.
+            headers = getattr(result, "response_headers", None)
+            if isinstance(headers, dict) and any(
+                str(key).casefold() == "cf-mitigated"
+                and str(value).casefold() == "challenge"
+                for key, value in headers.items()
+            ):
+                raise ValueError("SOURCE_CHALLENGE_PAGE")
             markdown = getattr(result, "markdown", None)
             content = getattr(markdown, "raw_markdown", None) or str(markdown or "")
             rendered = getattr(result, "html", None) or ""
