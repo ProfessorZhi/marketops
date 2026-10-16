@@ -29,7 +29,9 @@ def plan(destination: Path, client: str) -> dict:
     return {
         "version": VERSION, "client": client, "destination": str(dest),
         "plugin_copy": str(dest / "plugins" / "marketops-research-assistant"),
-        "customer_data_root": str(dest / "data"),
+        "customer_data_root": None,
+        "experience_file": None,
+        "storage_configuration": "USE_EXISTING_CONFIG_OR_ASK_TWO_PATHS_ON_FIRST_USE",
         "no_live_provider_calls": True, "no_secrets_written": True,
         "install_deps": "separate opt-in; only local venv packages",
     }
@@ -55,8 +57,9 @@ def install(destination: Path, client: str, *, dependencies: bool,
                         "exports", "experience", "search-receipts",
                         "*.zip", "*.sqlite3", "*.sqlite3-*", "*.db",
                         "*.jsonl", ".env", ".env.*", "credentials.json"))
-    # Runtime storage intentionally lives OUTSIDE plugin versioned source files.
-    (dest / "data").mkdir(mode=0o700)
+    # Installation chooses code/toolchain locations only. Never create a data
+    # directory or a new experience file before the user selects the two paths.
+    # Existing configuration is read by the runtime, not modified by install.
     python_home = dest / ".venv"
     venv.EnvBuilder(with_pip=True).create(python_home)
     py = _python(python_home)
