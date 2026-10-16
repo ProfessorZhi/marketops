@@ -21,7 +21,7 @@ EXPECTED_SKILLS = {
     "marketops-excel", "marketops-handoff", "marketops-provider-router",
     "marketops-serpapi", "marketops-serper", "marketops-crawl4ai",
     "marketops-tinyfish", "marketops-jev", "marketops-research-retrospective",
-    "marketops-setup",
+    "marketops-setup", "marketops-research-acceptance",
 }
 EXPECTED_VARS = {
     "SERPAPI_API_KEY", "SERPER_API_KEY", "TINYFISH_API_KEY",
