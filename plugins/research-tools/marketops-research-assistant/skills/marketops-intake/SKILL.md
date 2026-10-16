@@ -18,12 +18,12 @@ The workflow core cannot check a goal it cannot read. Write the brief into the R
 `marketops_propose`, stage `qualification`, kind `observation`:
 
 ```json
-{"record_type":"research_brief","target_kind":"organization","goal":"contacts","minimum_targets":1,"require_named_person":true}
+{"record_type":"research_brief","target_kind":"organization","goal":"contacts","minimum_targets":null,"require_named_person":true,"evidence_requirements":{"organization":["identity"]}}
 ```
 
 - `target_kind`: `venue` or `organization`. `goal`: `pool` or `contacts`.
 - Contact goals target organizations; `require_named_person` is a boolean and only valid for contacts.
-- `minimum_targets` is the explicitly requested candidate count, **not** a claim about market size.
+- `minimum_targets` is a **hard** positive target count only when the user explicitly requested that exact unit. When present, `minimum_targets_unit` is REQUIRED and must equal `target_kind`; an aspirational venue exploration count must not be applied to organization-contact quotas.
   **If the user never asked for a quantity, omit it or store `null`.** The result then reports
   `quantity_target_status=UNSPECIFIED`. Do not invent a quota, and do not ask the user an unnecessary
   question just to satisfy the planner.
@@ -42,3 +42,4 @@ change of requirement is a new record using the **same brief entity key** with `
 the goal to make a check pass. Changes to scope require a new revision and review.
 
 Hand off to `marketops-source-discovery`. Output first: 2-4 sentence interpretation; secondly a small set of unknowns and the next *authorized* action.
+**Scene neutrality:** the workflow schema never embeds a fixed country/product/surface/role matrix. Use optional `evidence_requirements` keyed by entity kind (e.g. a product directory may require organization/identity + organization/product_line; a venue study may require venue/identity + venue/surface + venue/location). Each field name is a user/Scene hypothesis to research, **not** automatic confirmation. If the task has multiple outcome units, retain all in the human brief but select a single well-defined hard minimum or none. Do not fabricate one to get a numerical PASS.
