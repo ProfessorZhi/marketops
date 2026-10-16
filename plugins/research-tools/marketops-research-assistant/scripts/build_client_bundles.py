@@ -82,7 +82,8 @@ def build(output: Path, *, with_search_mcp: bool = False,
                  "research_experience_summary.py", "research_workflow.py", "research_evidence.py",
                  "dual_search_mcp.py", "compare_search_receipts.py", "research_lite_store.py",
                  "research_provider_extensions.py", "research_mcp.py",
-                 "research_delivery.py", "_xlsx.py", "preflight.py", "setup_clients.py"):
+                 "research_delivery.py", "_xlsx.py", "preflight.py", "setup_clients.py",
+                 "build_client_bundles.py"):
         shutil.copy2(HERE / "scripts" / name, target / "scripts" / name)
     shutil.copy2(HERE / "README.md", target / "README.md")
     for requirements_file in ("requirements-lite.txt", "requirements-crawl-local.txt"):
