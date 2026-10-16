@@ -44,6 +44,7 @@ TABLES = (
                  "取得时间", "字节数", "SHA-256", "引用状态")),
     ("本轮说明", ("字段", "值")),
     ("场地与资产", ("场地ID", "名称", "关联组织ID", "研究状态", "资料引用")),
+    ("人员岗位", ("候选ID", "记录类型", "姓名或部门", "原始岗位", "组织ID", "状态", "资料引用")),
     ("来源与查询", ("线索ID", "标题", "来源URL", "工具", "状态")),
     ("候选数据审计", ("记录ID", "阶段", "对象类型", "实体键", "存储状态",
                    "引用资料ID", "原始候选JSON")),
@@ -211,6 +212,22 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
         "CANDIDATE_NOT_APPROVED", "; ".join(x["artifact_ids"]) or "NONE",
     ) for x in by_kind["venue"]]
 
+    people_rows = []
+    for item in by_kind["person"] + by_kind["role"]:
+        facts = item["data"]
+        org = str(facts.get("organization_id", "")).strip()
+        if org and org not in org_by_key:
+            issues.append(("岗位组织关联", item["record_id"], "任职或部门指向未知组织", "补充组织证据"))
+        if not item["artifact_ids"]:
+            issues.append(("岗位证据", item["record_id"], "缺少可回读资料引用", "先获取原始岗位证据"))
+        people_rows.append((
+            item["record_id"], item["kind"],
+            _plain(facts.get("name", facts.get("department", ""))),
+            _plain(facts.get("role_title", facts.get("role_function", ""))),
+            org or "UNKNOWN", "CANDIDATE_NOT_VERIFIED",
+            "; ".join(item["artifact_ids"]) or "NONE"
+        ))
+
     source_rows = [(
         x["record_id"], _plain(x["data"].get("title")),
         _plain(x["data"].get("url")), _plain(x["data"].get("provider")),
@@ -236,6 +253,7 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
         ("业务正式审查", "NOT_PERFORMED"),
         ("实际组织候选数", len(organizations)),
         ("实际场地候选数", len(venue_rows)),
+        ("实际人员/岗位候选数", len(people_rows)),
         ("实际联系渠道候选数", len(contact_rows)),
         ("实际原始/派生资料数", len(evidence_rows)),
         ("待核查事项数", len(issues)),
@@ -253,7 +271,8 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
     collected = {
         "客户总表": org_rows, "联系人路线": contact_rows, "排除与待确认": issues,
         "证据索引": evidence_rows, "本轮说明": notes,
-        "场地与资产": venue_rows, "来源与查询": source_rows, "候选数据审计": audit_rows,
+        "场地与资产": venue_rows, "人员岗位": people_rows,
+        "来源与查询": source_rows, "候选数据审计": audit_rows,
     }
     sheets = [_table(name, collected[name]) for name, _ in TABLES]
     return sheets, {
