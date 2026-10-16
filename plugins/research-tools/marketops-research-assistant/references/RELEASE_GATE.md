@@ -78,3 +78,13 @@ The setup command without --apply must have **zero filesystem effects**.
 - [ ] Compute published archive sha256 and produce rollback notes before sending to Member-A.
 
 **Current state: these boxes are NOT checked merely because test functions have been committed.** GitHub CI failures or missing logs must be investigated, not converted to PASS. Explicitly refuse to publish a “ready-to-use ZIP” until D/E succeed.
+
+
+## E. New candidate XLSX and real public-source E2E
+
+- [ ] `python -m unittest discover -s tests -p test_research_delivery.py -v` passed, including good source, wrong SHA, unsupported email and immutable duplicate ID.
+- [ ] Opt-in `MARKETOPS_LIVE_PUBLIC_E2E=1 python -m unittest discover -s tests -p test_research_live_e2e.py -v` read City of Lincoln Council actual page, saved its bytes, wrote a real XLSX, independently reopened the workbook and checked public email evidence. Record runner URL, SHA, time. This is *real-source candidate* E2E, NOT a paid-provider or approved-business E2E.
+- [ ] On real Codex and WorkBuddy, confirm `tools/list`, `tools/call marketops_export_xlsx`, file readback, customer data isolation, Run and provider receipts.
+- [ ] Connect approved MarketOps business A/B/C/D domain and authenticated reviewer before claiming formal verified contacts, or preparing a Member-A customer release.
+
+See [E2E_VERIFICATION](E2E_VERIFICATION.md) for the L0–L5 ladder.
