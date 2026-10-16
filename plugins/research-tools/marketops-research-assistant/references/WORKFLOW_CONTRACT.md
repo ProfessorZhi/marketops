@@ -15,7 +15,7 @@ Call `marketops_setup_status` before stateful operations. Only CONFIG_REQUIRED a
 Call `marketops_start(run_id, scope, objective, rule_version)` with the user's actual scope. An unknown SOP version stays UNKNOWN; never manufacture approved business rules. Persist a structured brief with `marketops_propose`, stage `qualification`, kind `observation`, stable record/entity IDs and facts:
 
 ```json
-{"record_type":"research_brief","target_kind":"organization","goal":"contacts","minimum_targets":1,"require_named_person":true}
+{"record_type":"research_brief","target_kind":"organization","goal":"contacts","minimum_targets":null,"require_named_person":true,"evidence_requirements":{"organization":["identity"]}}
 ```
 
 `target_kind` is `venue` or `organization`; `goal` is `pool` or `contacts`. Contact goals target organizations. `minimum_targets`, when supplied, is an explicit requested candidate count, not a claim about total market size. **If the user did not request a quantity, omit it or store null**: the result reports quantity_target_status=UNSPECIFIED. Do not invent a quota or ask an unnecessary question just to satisfy the planner. A completed current candidate batch does not establish market coverage.
@@ -69,3 +69,13 @@ At delivery, structural goal gaps from the **same record snapshot as the workboo
 ## Experience and trust boundary
 
 The user collects one configured Research_Experience.md across Runs. Automatic entries state observations/counts, not causes. Agent notes separately state problem, action, result, optional explicitly uncertain hypothesis and opaque evidence references. No hidden reasoning, raw contact lists, URLs, credentials or cookies in the collectable note. Log retries, corrections, holds and the gap between request and result. Accumulate candidates for later human review; do not automatically edit Skills, SOPs, code, permissions or formal contact grades.
+
+## Evidence, efficient context and quantity unit (generic supplement)
+
+**No fixed market assumptions.** The plugin handles named entity kinds and arbitrary brief-defined evidence keys; country, sector, product, surface, licensing, buyer role, exclusion policy and search localization all belong to the selected user task or a separately approved Scene/Profile. Do not bake a particular UK venue SOP into shared Python or the universal Research Skill.
+
+When a genuinely mandatory `minimum_targets` is set, also set `minimum_targets_unit` equal to `target_kind` (venue or organization). Aspirational counts such as “try 10–15 sites” are not hard organization-contact quotas. Wrong/missing unit is BRIEF_INVALID; correct append-only via the same brief key + `supersedes` rather than changing the historical record.
+
+Record-specific support uses `facts.claims=[{"field":"identity","artifact_id":"...","quote":"actual published fragment"},...]`. `artifact_ids` must contain the same saved artifact. At minimum: `identity` for venues and organizations, `relationship` for typed relations, `exclusion` for hard excluded target dispositions. A Scene may add other required keys through `facts.evidence_requirements={"venue":["location","surface"],...}` **in the brief**, not code. Literal quote matches are auditable links, never proof of semantic truth, present employment, suitability or approval. Missing/derived-only material is visible as HOLD and gap codes in `marketops_evidence_audit` and the workbook manifest.
+
+A normal budget-conscious batch: call next(limit=10), use filtered status(limit=20), read <=1200 characters via material_excerpt, submit up to20 records atomically with propose_batch, then audit a compact summary. Do not load 17 Skills or all pages. One Run; resume after restart. Local `rendered_html` is a post-render DOM representation, not byte-for-byte HTTP raw; `provider_extracted` is derivative Markdown. The original bytes are UNKNOWN unless independently captured. Use an immutable delivery snapshot and do not attempt to rewrite an older workbook to hide corrected evidence.
