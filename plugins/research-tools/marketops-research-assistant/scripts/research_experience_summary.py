@@ -96,7 +96,11 @@ def render(events: list[dict], notes: list[dict], header: dict) -> str:
         "不能凭此晋升业务联系人，也不能代替人工复核。",
         "> 你要定期收取的就是这一个文件；单次 Run 的审计原件（experience.json、研究表格）仍留在数据根里。",
         f"> 刷新时间（UTC）：{stamp}",
-        "> **无异常不代表零卡点**：这里没有记录到阻断，只说明没有记录到，不等于没有卡点。",
+        # The standing caveat always stands; the clause after it must match the
+        # table below rather than assert an all-clear above a list of bumps.
+        ("> **无异常不代表零卡点**：这里没有记录到阻断，只说明没有记录到，不等于没有卡点。"
+         if not bumps else
+         f"> **无异常不代表零卡点**：本文件记录了 {len(bumps)} 项卡点；没有出现在这里的部分仍未可知。"),
         "> 只保留脱敏 ID 和简短文本；不含邮件、URL、Key/Token/cookie，也不含隐藏思维链。",
         "",
         "## 一、按「阶段 / 问题类型」统计",

@@ -83,6 +83,18 @@ class RefreshTests(unittest.TestCase):
             self.assertEqual(0, stats["bump_events"])
             self.assertIn("无异常不代表零卡点", text)
 
+    def test_the_preamble_matches_whether_bumps_were_actually_recorded(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            data, exp = paths(tmp)
+            seed_run(data, "run-a", blocked=True)
+            summary.refresh(data_root=data, experience_file=exp)
+            text = exp.read_text(encoding="utf-8")
+            # The standing caveat stays, but it must not claim "nothing was recorded"
+            # directly above a table that lists a recorded bottleneck.
+            self.assertIn("无异常不代表零卡点", text)
+            self.assertNotIn("这里没有记录到阻断", text)
+            self.assertIn("1 项卡点", text)
+
     def test_summary_is_marked_candidate_only(self):
         with tempfile.TemporaryDirectory() as tmp:
             data, exp = paths(tmp)
