@@ -1,0 +1,63 @@
+# Dedicated MarketOps Research Plugin tests. Does not use paid provider secrets.
+name: research-plugin-e2e
+
+on:
+  pull_request:
+    paths:
+      - "plugins/research-tools/**"
+      - ".github/workflows/research-plugin-e2e.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline:
+    name: offline-${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    defaults:
+      run:
+        working-directory: plugins/research-tools/marketops-research-assistant
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install minimal MCP dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-lite.txt
+      - name: Compile
+        run: python -m compileall -q scripts tests
+      - name: Test full offline plugin suite
+        run: python -m unittest discover -s tests -v
+      - name: Static source and security preflight
+        run: python scripts/preflight.py
+
+  live-public-source:
+    name: live-readonly-public-source-to-xlsx
+    runs-on: ubuntu-latest
+    needs: offline
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: plugins/research-tools/marketops-research-assistant
+    env:
+      MARKETOPS_LIVE_PUBLIC_E2E: "1"
+      MARKETOPS_RESEARCH_ALLOW_NETWORK: "0"
+      MARKETOPS_SEARCH_ALLOW_NETWORK: "0"
+      MARKETOPS_RESEARCH_MAX_EXTERNAL_CALLS: "0"
+      MARKETOPS_SEARCH_MAX_CALLS: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install minimal MCP dependencies
+        run: python -m pip install -r requirements-lite.txt
+      - name: Live read-only official council page -> SQLite -> XLSX
+        run: python -m unittest discover -s tests -p test_research_live_e2e.py -v
