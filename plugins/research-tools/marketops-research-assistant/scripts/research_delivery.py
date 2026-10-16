@@ -25,6 +25,7 @@ from xml.etree import ElementTree as ET
 
 import research_lite_store as store
 import research_workflow as workflow
+import research_evidence as evidence
 from research_event_journal import _root, append_event
 from research_experience_summary import refresh_quietly as refresh_summary
 from _xlsx import Sheet, render_workbook
@@ -148,12 +149,20 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
     # This is a structural check only — not semantic, not SOP and not coverage.
     goal = workflow.assess_records(run_id, records)
     assets = {x["artifact_id"]: x for x in artifacts}
+    audit = evidence.audit_records(records, assets, result_limit=8)
     by_kind: dict[str, list[dict]] = defaultdict(list)
     for record in records:
         by_kind[record["kind"]].append(record)
     organizations = by_kind["organization"]
     org_by_key: dict[str, dict] = {}
     issues: list[tuple] = []
+    # Missing excerpts and mismatched source links are review items, not
+    # automatically certified venue types, ownership or hard exclusions.
+    for sample in audit["samples"]:
+        issues.append(("来源声明未核实", sample["record_id"],
+                       ", ".join(sample["reason_codes"]),
+                       "回到同一资料的具体引文；禁止据附件ID本身晋升事实"))
+
     for org in organizations:
         key = org["entity_key"]
         if key in org_by_key:
@@ -192,6 +201,17 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
             supported = any(value.casefold() in assets[i]["text"].casefold()
                             for i in candidate["artifact_ids"])
             validation = "LITERAL_IN_SAVED_MATERIAL" if supported else "HOLD_NOT_LITERAL"
+            if supported and channel == "email":
+                single = evidence.audit_records([candidate], assets, result_limit=1)
+                problems = single["gap_counts"]
+                if "EMAIL_NOT_IN_RENDERED_HTML" in problems:
+                    validation = "HOLD_EMAIL_NOT_IN_RENDERED_HTML"
+                elif "NO_EXCERPT" in problems or "CLAIMS_INVALID" in problems:
+                    validation = "HOLD_EMAIL_NO_SOURCE_QUOTE"
+                elif "EXCERPT_NOT_FOUND" in problems:
+                    validation = "HOLD_EMAIL_QUOTE_MISMATCH"
+                else:
+                    validation = "RENDERED_EMAIL_LITERAL_NOT_BUSINESS_VERIFIED"
         # A literal in a provider-extracted page is useful source support, not formal SOP grading.
         if validation.startswith("HOLD"):
             issues.append(("联系渠道证据", candidate["record_id"], validation,
@@ -277,6 +297,9 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
         ("收费 Provider 额度与价格", "UNKNOWN_NOT_IN_LITE_STORE"),
         ("联系路线评级", "RULES_UNKNOWN; no A/B/C/D assigned by Agent"),
         ("发送授权", "FALSE: research-only; no outreach"),
+        ("通用证据审计状态", audit["status"]),
+        ("待补证据计数", json.dumps(audit["gap_counts"], ensure_ascii=False, sort_keys=True)),
+        ("证据语义人工复核", "REQUIRED: quote match cannot prove business fact"),
         ("结构目标状态", goal["status"]),
         ("结构目标满足", str(goal["goal_satisfied"])),
         ("结构检查范围", goal["assessment_scope"]),
@@ -303,6 +326,8 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
         "input_record_count": len(records), "saved_artifact_count": len(artifacts),
         "evidence_hash_readback": "ALL_OK", "business_verification": "NOT_PERFORMED",
         "send_authorized": False,
+        "evidence_assessment": audit,
+        "evidence_ready_for_business_use": False,
         "goal_assessment": goal,
     }
 
