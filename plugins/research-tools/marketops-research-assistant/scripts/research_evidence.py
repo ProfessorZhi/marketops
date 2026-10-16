@@ -36,6 +36,7 @@ def _text(artifact: dict) -> str:
             pass
     if artifact.get("kind") == "rendered_html":
         # Rendered HTML is NOT the original on-the-wire HTTP response.
+        text = re.sub(r"(?is)<(?:script|style)[^>]*>.*?</(?:script|style)>", " ", text)
         text = re.sub(r"<[^>]+>", " ", text)
     return _norm(text if isinstance(text, str) else "")
 
@@ -77,6 +78,7 @@ def audit_records(records: list[dict], artifacts: dict[str, dict],
     required, invalid_rules = _brief_rules(records)
     reasons, samples = Counter(), []
     checked = anchored_rendered = 0
+    normalized_sources = {aid: _text(a) for aid, a in artifacts.items()}
     for rec in records:
         kind = rec["kind"]
         data = rec["data"]
@@ -112,7 +114,7 @@ def audit_records(records: list[dict], artifacts: dict[str, dict],
             if material.get("kind") == "decision_response":
                 codes.add("DECISION_NOT_EVIDENCE")
                 continue
-            if _norm(quote) not in _text(material):
+            if _norm(quote) not in normalized_sources[aid]:
                 codes.add("EXCERPT_NOT_FOUND")
                 continue
             matched_fields.add(field)
@@ -138,7 +140,9 @@ def audit_records(records: list[dict], artifacts: dict[str, dict],
                 elif not any(
                     a in artifacts and artifacts[a].get("kind") == "rendered_html"
                     and re.search(r"(?<![\w.+-])" + re.escape(value) + r"(?![\w.+-])",
-                                  html.unescape(artifacts[a].get("text", "")), re.I)
+                                  html.unescape(re.sub(
+                                      r"(?is)<(?:script|style)[^>]*>.*?</(?:script|style)>",
+                                      " ", artifacts[a].get("text", ""))), re.I)
                     for a in ids
                 ):
                     codes.add("EMAIL_NOT_IN_RENDERED_HTML")
