@@ -68,4 +68,4 @@ Today's candidate is at code_present for all five, not full auth/live E2E.
 
 ## XLSX tool added (2026-10-16; code candidate)
 
-`marketops_export_xlsx(run_id, delivery_id)` emits `Research_Result.xlsx` (8 candidate business/audit sheets), CSV counterparts and `MANIFEST.json`. It validates source material SHA-256 by rereading actual bytes and reopens ZIP/XML/CSV before returning. All formal grades stay `RULES_UNKNOWN`; the Lite store cannot independently approve A/B/C/D or outreach. See [E2E_VERIFICATION](E2E_VERIFICATION.md).
+`marketops_export_xlsx(run_id, delivery_id)` emits `Research_Result.xlsx` (9 candidate business/audit sheets), CSV counterparts and `MANIFEST.json`. It validates source material SHA-256 by rereading actual bytes and reopens ZIP/XML/CSV before returning. All formal grades stay `RULES_UNKNOWN`; the Lite store cannot independently approve A/B/C/D or outreach. See [E2E_VERIFICATION](E2E_VERIFICATION.md).
