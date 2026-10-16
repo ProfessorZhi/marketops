@@ -136,49 +136,92 @@ def save_artifact(root: Path | str | None, run_id: str, artifact_id: str,
             "storage_status": "SAVED_NOT_BUSINESS_VERIFIED"}
 
 
-def put_candidate(root: Path | str | None, run_id: str, record_id: str, stage: str,
-                  kind: str, entity_key: str, payload: dict,
-                  artifact_ids: list[str] | None = None) -> dict:
-    """Staging ONLY; verified/ready cannot be specified by an LLM tool argument."""
+def _insert_candidate(db: sqlite3.Connection, run_id: str, record_id: str,
+                      stage: str, kind: str, entity_key: str, payload: dict,
+                      artifact_ids: list[str] | None = None) -> dict:
+    """One candidate insertion on the caller's transaction; no second DB."""
     _id(run_id, "run_id"); _id(record_id, "record_id"); _id(entity_key, "entity_key")
     if stage not in STAGES or kind not in KINDS:
         raise ValueError("Unknown stage or object category")
     if not isinstance(payload, dict):
         raise ValueError("Record payload must be an object")
-    # Never allow client-supplied status/authorization to bypass business domain checks.
     if any(k in payload for k in ("verified", "ready", "send_authorized", "approved", "reviewed_by")):
         raise ValueError("Promotion and authorization fields cannot be written by this staging tool")
     body = json.dumps(payload, ensure_ascii=False, sort_keys=True)
     if len(body.encode("utf-8")) > MAX_RECORD:
         raise ValueError("Record too large; store source material as an artifact reference")
-    ids = artifact_ids or []
-    if not isinstance(ids, list) or len(ids) > 12:
+    ids = artifact_ids if artifact_ids is not None else []
+    if not isinstance(ids, list) or len(ids) > 12 or any(not isinstance(a, str) for a in ids):
         raise ValueError("artifact_ids must be a bounded list")
     if len(ids) != len(set(ids)):
         raise ValueError("Duplicate artifact reference")
+    for aid in ids:
+        _id(aid, "artifact_id")
+        if db.execute("SELECT 1 FROM artifacts WHERE artifact_id=? AND run_id=?",
+                      (aid, run_id)).fetchone() is None:
+            raise ValueError("ARTIFACT_NOT_IN_RUN")
+    prior = db.execute("SELECT run_id,stage,kind,entity_key,payload_json,artifact_ids_json "
+                       "FROM records WHERE record_id=?", (record_id,)).fetchone()
+    refs = json.dumps(ids, sort_keys=True)
+    if prior:
+        if prior != (run_id, stage, kind, entity_key, body, refs):
+            raise ValueError("RECORD_ID_COLLISION_OR_CROSS_RUN: append a new ID")
+        return {"record_id": record_id, "status": "IDEMPOTENT"}
+    status = "candidate_with_material" if ids else "candidate_unverified"
+    db.execute("INSERT INTO records VALUES (?,?,?,?,?,?,?,?,?)",
+               (record_id, run_id, stage, kind, status, entity_key,
+                body, refs, datetime.now(timezone.utc).isoformat()))
+    return {"record_id": record_id, "status": status, "artifact_ids": ids}
+
+
+def put_candidate(root: Path | str | None, run_id: str, record_id: str, stage: str,
+                  kind: str, entity_key: str, payload: dict,
+                  artifact_ids: list[str] | None = None) -> dict:
+    """Staging only. Single-row and bounded batch share the exact validation."""
     store_root = _root(root)
     with closing(_connection(store_root)) as db:
         db.execute("BEGIN IMMEDIATE")
-        for aid in ids:
-            _id(aid, "artifact_id")
-            row = db.execute("SELECT 1 FROM artifacts WHERE artifact_id=? AND run_id=?",
-                             (aid, run_id)).fetchone()
-            if not row:
-                raise ValueError("ARTIFACT_NOT_IN_RUN")
-        prior = db.execute("SELECT run_id,stage,kind,entity_key,payload_json,artifact_ids_json "
-                           "FROM records WHERE record_id=?", (record_id,)).fetchone()
-        refs = json.dumps(ids, sort_keys=True)
-        if prior:
-            if prior != (run_id, stage, kind, entity_key, body, refs):
-                raise ValueError("RECORD_ID_COLLISION_OR_CROSS_RUN: append a new ID")
-            return {"record_id": record_id, "status": "IDEMPOTENT"}
-        status = "candidate_with_material" if ids else "candidate_unverified"
-        db.execute("INSERT INTO records VALUES (?,?,?,?,?,?,?,?,?)",
-                   (record_id, run_id, stage, kind, status, entity_key,
-                    body, refs, datetime.now(timezone.utc).isoformat()))
+        result = _insert_candidate(db, run_id, record_id, stage, kind, entity_key,
+                                   payload, artifact_ids)
         db.commit()
-    return {"record_id": record_id, "status": status, "artifact_ids": ids}
+    return result
 
+
+def put_candidates_batch(root: Path | str | None, run_id: str,
+                         items: list[dict]) -> dict:
+    """One atomic, idempotent batch, returning compact IDs rather than facts.
+
+    Bounded to avoid dumping large documents into a single tool call. On any
+    invalid item nothing from this batch is committed; existing data is intact.
+    """
+    _id(run_id, "run_id")
+    if type(items) is not list or not 1 <= len(items) <= 20:
+        raise ValueError("BATCH_SIZE_1_TO_20_REQUIRED")
+    if any(type(x) is not dict for x in items):
+        raise ValueError("BATCH_ITEM_INVALID")
+    if len(json.dumps(items, ensure_ascii=False).encode("utf-8")) > 65_536:
+        raise ValueError("BATCH_PAYLOAD_TOO_LARGE")
+    store_root = _root(root)
+    results = []
+    with closing(_connection(store_root)) as db:
+        db.execute("BEGIN IMMEDIATE")
+        if db.execute("SELECT 1 FROM runs WHERE run_id=?", (run_id,)).fetchone() is None:
+            raise ValueError("Unknown Run")
+        for item in items:
+            if set(item) - {"record_id", "stage", "kind", "entity_key", "facts", "artifact_ids"}:
+                raise ValueError("BATCH_ITEM_UNRECOGNIZED_FIELD")
+            for field in ("record_id", "stage", "kind", "entity_key", "facts"):
+                if field not in item:
+                    raise ValueError("BATCH_ITEM_MISSING_FIELD")
+            results.append(_insert_candidate(
+                db, run_id, item["record_id"], item["stage"], item["kind"],
+                item["entity_key"], item["facts"], item.get("artifact_ids")))
+        db.commit()
+    return {"status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED",
+            "requested": len(items),
+            "created": sum(x["status"] != "IDEMPOTENT" for x in results),
+            "idempotent": sum(x["status"] == "IDEMPOTENT" for x in results),
+            "record_ids": [x["record_id"] for x in results]}
 
 def list_run(root: Path | str | None, run_id: str, limit: int = 300) -> dict:
     _id(run_id, "run_id")
