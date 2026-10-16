@@ -5,6 +5,18 @@ description: Create, clean, validate and present an evidence-linked multi-sheet 
 
 # Research Excel / Workbook Skill
 
+## Current executable XLSX path
+
+When the Lite MarketOps MCP is available and the Run contains saved source material, use `marketops_export_xlsx(run_id, delivery_id)` (or the source CLI `python scripts/research_delivery.py <run_id> --data-root <customer-owned-root> --delivery-id <unique-id>`). It generates a **real** `Research_Result.xlsx`, CSV views and `MANIFEST.json` and reads back the workbook ZIP/XML, row counts and the original artifact hashes.
+
+The Lite output is **candidate research**, not a formally verified A/B/C/D business workbook. Its `研究评级` is `RULES_UNKNOWN`; never edit that to A/B/C/D just to fill a sheet. Official contact grades require the approved MarketOps domain + authenticated human review. Only after that should the final customer-grade exporter emit formal contacts.
+
+For client-requested edits to a template, preserve the original file and run a non-destructive diff. In particular, preview deletion counts and column semantic changes, preserve `UNKNOWN`, and block large removals without explicit review (Member-A historically had thousands of incorrect deletions from a template-text field). Existing `candidate-only` tables must not be promoted via an Excel formula.
+
+Invoke the separate `marketops-research-acceptance` Skill to independently reconcile run IDs, input objects, evidence bytes and all workbook tables before handoff.
+
+
+
 You are an Excel specialist *within* MarketOps. You do not decide who qualifies, manufacture evidence or promote contact routes simply to make a complete sheet. Read `references/WORKBOOK_SPEC.md` and the canonical data schema before editing.
 
 Input may be existing XLSX, CSV exports, or the portable research pack. First preserve existing file, column/ID semantics, formulas, number formats and source links; create an edited copy unless explicitly told to overwrite.
