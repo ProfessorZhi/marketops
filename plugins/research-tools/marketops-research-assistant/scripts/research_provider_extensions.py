@@ -145,17 +145,43 @@ def _http_json(url: str, *, method: str, key: str, data: dict | None = None,
 
 
 def _crawl4ai_local(url: str) -> dict:
+    """Keep post-rendered HTML separate from derivative Markdown, never claim HTTP raw."""
     from crawl4ai import AsyncWebCrawler
+
     async def crawl() -> dict:
         async with AsyncWebCrawler() as crawler:
             result = await crawler.arun(url=url)
+            status = getattr(result, "status_code", None)
+            if status in {401, 403, 429}:
+                raise ValueError("SOURCE_ACCESS_BLOCKED")
             if not result.success:
                 raise ValueError("LOCAL_CRAWL_FAILED")
             markdown = result.markdown
             content = getattr(markdown, "raw_markdown", None) or str(markdown or "")
-            return {"url": getattr(result, "url", url),
-                    "markdown": content, "material_kind": "provider_extracted"}
-    return asyncio.run(crawl())
+            rendered = getattr(result, "html", None) or ""
+            probe = (content[:1500] + rendered[:1500]).casefold()
+            if any(word in probe for word in ("cf-chl-", "verify you are human",
+                                               "captcha challenge", "just a moment...")):
+                raise ValueError("SOURCE_CHALLENGE_PAGE")
+            if not content.strip():
+                raise ValueError("SOURCE_EMPTY_EXTRACT")
+            return {"url": getattr(result, "url", url), "markdown": content,
+                    "_rendered_html": rendered, "material_kind": "provider_extracted"}
+
+    try:
+        return asyncio.run(crawl())
+    except ValueError as exc:
+        if str(exc) in {"SOURCE_ACCESS_BLOCKED", "SOURCE_CHALLENGE_PAGE",
+                        "SOURCE_EMPTY_EXTRACT", "LOCAL_CRAWL_FAILED"}:
+            raise
+        raise ValueError("LOCAL_CRAWL_RUNTIME_FAILED") from None
+    except Exception as exc:
+        # Reason codes only: browser installation defects should be actionable
+        # without exposing URL, headers or secrets from an exception message.
+        msg = str(exc).casefold()
+        if "executable doesn't exist" in msg or "browser executable" in msg:
+            raise ValueError("LOCAL_BROWSER_NOT_INSTALLED") from None
+        raise ValueError("LOCAL_CRAWL_RUNTIME_FAILED") from None
 
 
 def _jev_choice(*, document: str, question: str, options: list[str]) -> dict:
@@ -239,6 +265,9 @@ def invoke(action: str, *, run_id: str, operation_id: str, url: str = "",
                                   data={"urls": [url]}, opener=opener)
         else:
             response = _jev_choice(document=document, question=question, options=options or [])
+        # A browser's rendered DOM is a separate source representation, not
+        # on-the-wire HTTP bytes. Never include it in the Agent's tool preview.
+        rendered_html = response.pop("_rendered_html", None) if isinstance(response, dict) else None
         serialized = json.dumps(response, ensure_ascii=False, default=str)
         # Upstream services must not be allowed to echo operator credentials into
         # evidence/artifact storage or back into the Agent context.
@@ -250,6 +279,21 @@ def invoke(action: str, *, run_id: str, operation_id: str, url: str = "",
         encoded = serialized.encode("utf-8")
         artifact_id = "art-" + hashlib.sha256(
             (run_id + ":" + operation_id + ":" + action).encode("utf-8")).hexdigest()[:32]
+        rendered_artifact = None
+        if isinstance(rendered_html, str) and rendered_html.strip():
+            safe_html = rendered_html
+            for key_name in ("SERPAPI_API_KEY", "SERPER_API_KEY", "TINYFISH_API_KEY",
+                             "CRAWL4AI_API_KEY", "TYPESAFE_API_KEY"):
+                secret = os.environ.get(key_name, "").strip()
+                if len(secret) >= 8:
+                    safe_html = safe_html.replace(secret, "[REDACTED_PROVIDER_SECRET]")
+            raw_id = "raw-" + hashlib.sha256(
+                (run_id + ":" + operation_id + ":rendered_html").encode()).hexdigest()[:32]
+            rendered_artifact = store.save_artifact(
+                root, run_id, raw_id, provider=action,
+                origin_url=url if url else "provider-response",
+                content=safe_html.encode("utf-8"), material_kind="rendered_html",
+            )
         stored = store.save_artifact(
             root, run_id, artifact_id, provider=action,
             origin_url=url if url else "provider-response",
@@ -265,22 +309,27 @@ def invoke(action: str, *, run_id: str, operation_id: str, url: str = "",
             stage=stage, kind=kind, entity_key=operation_id,
             payload={"provider": action, "material_kind": stored["material_kind"],
                      "artifact_id": artifact_id, "derived_only": True},
-            artifact_ids=[artifact_id],
+            artifact_ids=[artifact_id] + ([rendered_artifact["artifact_id"]] if rendered_artifact else []),
         )
         append_event(root, run_id=run_id, operation_id=operation_id,
                      stage=stage, kind="tool", status="succeeded",
                      provider=action, receipt_ref=artifact_id)
         return {"status": "SAVED_MATERIAL_NOT_VERIFIED",
                 "provider": action, "operation_id": operation_id,
-                "artifact": stored, "record": entry,
-                "preview": serialized[:4000],
-                "preview_truncated": len(serialized) > 4000}
-    except Exception:
+                "artifact": stored, "rendered_artifact": rendered_artifact,
+                "record": entry,
+                "preview": serialized[:480], "preview_truncated": len(serialized) > 480,
+                "preview_kind": "brief_derived_snippet_not_evidence"}
+    except Exception as exc:
+        known_codes = {"SOURCE_ACCESS_BLOCKED", "SOURCE_CHALLENGE_PAGE",
+                       "SOURCE_EMPTY_EXTRACT", "LOCAL_CRAWL_FAILED",
+                       "LOCAL_BROWSER_NOT_INSTALLED", "LOCAL_CRAWL_RUNTIME_FAILED"}
+        reason = str(exc) if isinstance(exc, ValueError) and str(exc) in known_codes else "PROVIDER_OR_STORAGE_FAILED"
         try:
             append_event(root, run_id=run_id, operation_id=operation_id,
                          stage="qualification" if action == "jev_choice" else "acquisition",
-                         kind="tool", status="unknown", provider=action,
-                         reason_code="provider_or_storage_failed")
+                         kind="tool", status="blocked" if reason in known_codes else "unknown",
+                         provider=action, reason_code=reason.lower())
         except Exception:
             pass
-        raise ValueError("PROVIDER_OR_STORAGE_FAILED: review journal and provider dashboard; no automatic retry") from None
+        raise ValueError(reason + ": inspect prior operation; never auto-retry") from None
