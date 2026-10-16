@@ -135,12 +135,18 @@ def assess_records(run_id: str, records: list[dict], *, limit: int = 25) -> dict
     brief = brief_row["data"]
     kind, goal = brief.get("target_kind"), brief.get("goal")
     minimum, named = brief.get("minimum_targets"), brief.get("require_named_person")
+    minimum_unit = brief.get("minimum_targets_unit")
+    # A quantity cannot silently migrate from "venues to investigate" to
+    # "organizations with named email routes". Aspirational quantities are not
+    # hard minimums; old briefs must explicitly confirm their unit.
     if (not isinstance(kind, str) or kind not in {"venue", "organization"}
             or not isinstance(goal, str) or goal not in {"pool", "contacts"}
             or (minimum is not None and (type(minimum) is not int or not 1 <= minimum <= MAX_ROWS))
             or type(named) is not bool
             or (goal == "contacts" and kind != "organization")
-            or (named and goal != "contacts")):
+            or (named and goal != "contacts")
+            or (minimum is not None and minimum_unit != kind)
+            or (minimum is None and minimum_unit not in {None, kind})):
         return {**base, "status": "BRIEF_INVALID", "stage": "intake",
                 "recommended_skill": SKILLS["intake"], "targets": [], "target_ids": [],
                 "gap_counts": {"BRIEF_INVALID": 1}, "goal_satisfied": False,
@@ -263,7 +269,8 @@ def assess_records(run_id: str, records: list[dict], *, limit: int = 25) -> dict
     batch = [t for t in tasks if t["stage"] == stage][:limit]
     return {**base, "status": status, "stage": stage, "recommended_skill": SKILLS[stage],
             "brief_record_id": brief_row["record_id"], "target_kind": kind, "goal": goal,
-            "minimum_targets": minimum, "require_named_person": named,
+            "minimum_targets": minimum, "minimum_targets_unit": minimum_unit,
+            "require_named_person": named,
             "quantity_target_status": "EXPLICIT_MINIMUM" if minimum is not None else "UNSPECIFIED",
             "target_count": len(grouped), "researched_target_count": researched,
             "blocked_target_count": blocked, "pending_target_count": len(tasks),
