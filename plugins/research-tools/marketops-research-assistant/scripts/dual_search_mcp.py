@@ -114,6 +114,12 @@ def _reserve(root: Path, *, run_id: str, operation_id: str, fingerprint: str,
             if previous[0] != fingerprint:
                 raise ValueError("OPERATION_ID_COLLISION: input for reserved id changed")
             raise ValueError("ALREADY_RESERVED: request may already have been billed; inspect receipt")
+        # Renaming operation_id must not replay the same provider/search/locale
+        # query. A timeout may still have incurred a charge. Reuse the stored
+        # receipt or explicitly start a different approved research objective.
+        if db.execute("SELECT 1 FROM search_attempts WHERE run_id=? AND fingerprint=?",
+                      (run_id, fingerprint)).fetchone():
+            raise ValueError("DUPLICATE_SEARCH_SAME_RUN: inspect previous receipt")
         used = db.execute("SELECT COUNT(*) FROM search_attempts").fetchone()[0]
         if used >= limit:
             raise ValueError("SEARCH_BUDGET_EXHAUSTED: operator must approve a new ceiling")
