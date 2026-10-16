@@ -7,7 +7,21 @@ description: Create, clean, validate and present an evidence-linked multi-sheet 
 
 ## Current executable XLSX path
 
-When the Lite MarketOps MCP is available and the Run contains saved source material, use `marketops_export_xlsx(run_id, delivery_id)` (or the source CLI `python scripts/research_delivery.py <run_id> --data-root <customer-owned-root> --delivery-id <unique-id>`). It generates a **real** `Research_Result.xlsx`, CSV views and `MANIFEST.json` and reads back the workbook ZIP/XML, row counts and the original artifact hashes.
+When the Lite MarketOps MCP is available and the Run contains saved source material, use
+`marketops_export_xlsx(run_id, delivery_id)` — the workbook-only path — or `marketops_handoff(run_id, operation_id)`,
+which is the **primary final path** and additionally writes the experience draft and refreshes the collectable
+summary. Do **not** call both for the same delivery ID, and never regenerate a second research snapshot just
+to produce another format. The source CLI equivalent is
+`python scripts/research_delivery.py <run_id> --data-root <customer-owned-root> --delivery-id <unique-id>`.
+It generates a **real** `Research_Result.xlsx`, CSV views and `MANIFEST.json` and reads back the workbook
+ZIP/XML, row counts and the original artifact hashes.
+
+The manifest and the 本轮说明 sheet carry the workflow core's `goal_assessment` for the same snapshot:
+structural goal status, whether it is satisfied, the gap counts and the recommended next Skill. Read it and
+report it. A successful export with an unmet structural goal is a normal, honest outcome — say both, and do
+not present the workbook as complete market coverage. A structural pass is **not** a fact, SOP or outreach verdict.
+
+`marketops_export` (candidate CSV) is a **legacy** utility, no longer part of the main chain.
 
 The Lite output is **candidate research**, not a formally verified A/B/C/D business workbook. Its `研究评级` is `RULES_UNKNOWN`; never edit that to A/B/C/D just to fill a sheet. Official contact grades require the approved MarketOps domain + authenticated human review. Only after that should the final customer-grade exporter emit formal contacts.
 

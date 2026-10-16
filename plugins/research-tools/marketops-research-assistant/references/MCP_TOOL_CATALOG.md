@@ -15,18 +15,25 @@ This is the customer-facing stdio MCP in scripts/research_mcp.py, registered by 
 
 **The five vendors each have at least one implemented callable Lite MCP route in source**, but no complete vendor/cross-client E2E acceptance exists yet. This is not a claim all vendor functions or accounts are enabled.
 
+**Capabilities that are NOT wired into this MCP**, so no Skill may present them as available here: Jev/TypeSafe Noul and Score; the TinyFish interactive browser Agent (only Search/Fetch are registered — Agent/browser tasks need the separately authorized official MCP/CLI); the official Crawl4AI Cloud MCP as a connector (only the REST route is wrapped); and any SerpApi/Serper capability beyond the implemented search modes. No vendor route has a live billed call, an account login or a credential recorded by this repository.
+
 ## Other tools: stage progress and memory
 
 | Tool | Required input | What it really does |
 | --- | --- | --- |
+| marketops_setup_status | none | Read-only first-use state; returns CONFIG_REQUIRED with the two path questions, or the configured summary. Never creates a file |
+| marketops_setup_configure | data_root, experience_file, optional confirm | Persists the two chosen absolute paths; refuses to invent a default or overwrite a foreign file; changing paths needs confirm=true |
 | marketops_capabilities | none | Read configured flags, installed SDK hints and current limits; no network |
 | marketops_start | run_id, scope, objective, rule_version | Creates/resumes one durable local Run, writes event; no scheduler |
-| marketops_propose | run_id, record_id, stage, kind, entity_key, facts, optional artifact_ids | Candidate venue/account/person/route or review observation in local SQLite. Cannot set verified, ready, approved or send_authorized |
-| marketops_status | run_id, optional limit | Reads real persisted run records and artifacts. One status isn't full-market coverage |
+| marketops_propose | run_id, record_id, stage, kind, entity_key, facts, optional artifact_ids | Candidate venue/account/person/route, a structured research_brief observation or a review disposition in local SQLite. Cannot set verified, ready, approved or send_authorized |
+| marketops_status | run_id, optional limit, cursor, kind, entity_key | Reads persisted candidates through the workflow page contract: a page fixes a row high-water mark, later appends land in a new query, and a cursor belongs to its Run and filters. One status isn't full-market coverage |
+| marketops_next | run_id, optional limit (default 25) | Bounded structural next-step batch from the workflow core: recommended stage/skill and missing-fact list. It recommends work; it grants no spending authority and is not a fact or SOP verdict |
 | marketops_events | run_id | Reads bounded recent journal receipts from this Run |
-| marketops_export | run_id, output_path | Writes candidate-only UTF-8-BOM CSV within approved data root exports directory; not a confirmed XLSX nor an official CRM update |
+| marketops_note | run_id, note_id, stage, category, problem, action_taken, observed_result, evidence_ref | Appends one de-identified bottleneck note and refreshes the collectable experience file. Rejects emails/URLs/keys/cookies; has no field for hidden reasoning |
+| marketops_export | run_id, output_path | Legacy candidate-only UTF-8-BOM CSV utility; **not part of the main workflow contract** and not a confirmed XLSX |
+| marketops_export_xlsx | run_id, delivery_id | The explicit workbook-only path: one immutable 9-sheet candidate workbook, per-sheet CSV counterparts and a SHA-256 MANIFEST.json |
 | marketops_experience_draft | run_id, scope, rule_version, output_path | Writes unapproved experience.json from persisted incidents/events under approved experience directory |
-| marketops_handoff | run_id, operation_id | One candidate-only export operation: save a CSV and an unapproved incident experience draft to customer runtime directories, record HOLD on partial failure; **not verified contacts or an XLSX file** |
+| marketops_handoff | run_id, operation_id | **The primary final path.** Exactly one research snapshot — the workbook — then the unapproved experience draft and the configured summary refresh. A failed draft or summary refresh is PARTIAL/HOLD carrying partial_reasons, and the receipt still names the workbook that really exists. Immutable path conflicts stay errors |
 
 All real network calls require an existing approved Run, client-set data root, explicit network on and two independent cumulative attempt limits:
 - Search: MARKETOPS_SEARCH_ALLOW_NETWORK=1 and MARKETOPS_SEARCH_MAX_CALLS >0.
@@ -63,9 +70,8 @@ Today's candidate is at code_present for all five, not full auth/live E2E.
 
 ## Actual XLSX export (v0.4 candidate extension)
 
-`marketops_export_xlsx(run_id, delivery_id)` writes immutable `Research_Result.xlsx` with eight business/audit worksheets, eight matching CSV files and an actual-file SHA-256 `MANIFEST.json`. It directly reads the same Lite SQLite candidate store and verifies source bytes, cross-run references, XLSX sheet header/row shapes, CSV rows and file hashes. It deliberately **does not** promote candidates to approved customer accounts or A/B/C/D ContactRoutes. See [E2E_VERIFICATION](E2E_VERIFICATION.md).
+`marketops_export_xlsx(run_id, delivery_id)` writes an immutable `Research_Result.xlsx` with **9 candidate business/audit worksheets**, 9 matching CSV files and an actual-file SHA-256 `MANIFEST.json`. It reads the same Lite SQLite candidate store, verifies source material by rereading the real bytes, reopens ZIP/XML/CSV before returning, and refuses an empty Run, wrong-run references, corrupted source bytes and a reused delivery ID.
 
+The manifest carries a `goal_assessment` computed from **the same record snapshot as the workbook**, and the 本轮说明 sheet restates that structural goal status, whether it is satisfied, the gap counts and the recommended next Skill. This is a structural completeness check only: it is **not** semantic fact verification, **not** SOP grading and **not** market coverage. When the structural goal is unmet the gaps are recorded in the existing journal as a bounded note, so a successful file export and an unmet business goal can coexist and both are reported. Repeating a delivery for an unchanged snapshot does not duplicate that note, and a later satisfied snapshot does not erase the earlier gap record.
 
-## XLSX tool added (2026-10-16; code candidate)
-
-`marketops_export_xlsx(run_id, delivery_id)` emits `Research_Result.xlsx` (9 candidate business/audit sheets), CSV counterparts and `MANIFEST.json`. It validates source material SHA-256 by rereading actual bytes and reopens ZIP/XML/CSV before returning. All formal grades stay `RULES_UNKNOWN`; the Lite store cannot independently approve A/B/C/D or outreach. See [E2E_VERIFICATION](E2E_VERIFICATION.md).
+All formal grades stay `RULES_UNKNOWN`; the Lite store cannot independently approve A/B/C/D or outreach. See [E2E_VERIFICATION](E2E_VERIFICATION.md) and [WORKFLOW_CONTRACT](WORKFLOW_CONTRACT.md).

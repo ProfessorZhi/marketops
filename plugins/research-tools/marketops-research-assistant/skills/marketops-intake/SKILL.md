@@ -11,6 +11,24 @@ Produce a concise brief before paid calls: original user wording, research objec
 - Do not require product/offer when the user only wants a public venue/market inventory.
 - Explicitly write unknown or pending fields; do not silently guess a budget. A natural-language task request is not permission for new paid Browser Agent, JEV inference, email sending or recurring monitoring.
 - Ask the human for an essential business decision only when it blocks execution. For other uncertainty, use bounded exploratory queries within an already approved allowance or prepare a free plan.
-- Create `intake.json` in a user-authorized research pack; changes to scope require a new revision and review, never silently edit history.
+
+## Persist the brief as a structured record (main path)
+
+The workflow core cannot check a goal it cannot read. Write the brief into the Run with
+`marketops_propose`, stage `qualification`, kind `observation`:
+
+```json
+{"record_type":"research_brief","target_kind":"organization","goal":"contacts","minimum_targets":1,"require_named_person":true}
+```
+
+- `target_kind`: `venue` or `organization`. `goal`: `pool` or `contacts`.
+- Contact goals target organizations; `require_named_person` is a boolean and only valid for contacts.
+- `minimum_targets` is the explicitly requested candidate count, **not** a claim about market size.
+- Extract these from a clear user request; clarify only genuinely missing business choices. Never
+  default a department-contact task to named procurement contacts, or a venue-only task to sales research.
+
+Without this record the Run reads `BRIEF_REQUIRED` — an explicit unknown, not false completion. A later
+change of requirement is a new record using the **same brief entity key** with `supersedes`; never lower
+the goal to make a check pass. Changes to scope require a new revision and review.
 
 Hand off to `marketops-source-discovery`. Output first: 2-4 sentence interpretation; secondly a small set of unknowns and the next *authorized* action.

@@ -7,7 +7,15 @@ description: Independent acceptance of a bounded research Run and its XLSX/CSV/e
 
 This Skill is used at **every complete or partial research handoff**, not only when a spreadsheet happens to exist. Read references/BUSINESS_PLAYBOOK.md, references/QUALITY_GATES.md, references/WORKBOOK_SPEC.md, and references/E2E_VERIFICATION.md.
 
-1. Identify *one* named Run and one frozen scope/SOP revision. Read back its real SQLite store and operation events. Missing data or a different Run is a blocker, not an implicit empty result.
+1. Identify *one* named Run and one frozen scope/SOP revision. Read back its real SQLite store and operation
+   events. Missing data or a different Run is a blocker, not an implicit empty result. Use
+   `marketops_status(run_id, limit, cursor, kind, entity_key)` for the audit — a page fixes a row high-water
+   mark, later appends appear in a new query, and a cursor belongs to its Run and its filters. Use
+   `marketops_next(run_id)` for the bounded structural task batch. Neither one certifies a fact, and
+   `READY_FOR_CANDIDATE_REVIEW` is a structural state, not an approval.
+1b. Read the delivery's `goal_assessment` (manifest and 本轮说明 sheet) and confirm it was computed from the
+   **same record snapshot as the workbook** — compare `input_record_count`. Structural gaps recorded at delivery
+   are a work backlog; they are not evidence of fraud and not a substitute for the meaning/age/ownership review.
 2. Reconcile actual inputs and outcomes by **unique entity IDs**. Compare source hit, acquisition, venue, organization, person/department, role, contact point, route proposal and review counts, including held/rejected/unchanged. A page may yield several venues; do not subtract incomparable units.
 3. Verify source material on disk by reading its bytes and recomputing SHA-256. Material marked `provider_extracted` must not be described as raw source bytes. Confirm that the person's organizational association and **literal public email** appear in attributed material; an email pattern or search snippet is not enough.
 4. Validate **two separate gates**: customer eligibility per Scene and route A/B/C/D grading. An ungraded route, no business SOP, absent human approval or only a local Lite candidate MUST remain `RULES_UNKNOWN`, `HOLD` or `CANDIDATE_NOT_APPROVED`. Do not infer buyer authority from an operational inbox.
