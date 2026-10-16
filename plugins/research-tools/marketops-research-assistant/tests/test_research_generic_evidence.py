@@ -165,7 +165,7 @@ class BatchAndExcerptTests(unittest.TestCase):
                 "goal": "contacts", "require_named_person": True,
                 "minimum_targets": 10, **({"minimum_targets_unit": unit} if unit else {})})
             return workflow.assess_records("run-1", [b])
-        self.assertEqual("BRIEF_INVALID", assess(None)["status"])
+        self.assertEqual("BRIEF_UNIT_REVIEW_REQUIRED", assess(None)["status"])
         self.assertEqual("BRIEF_INVALID", assess("venue")["status"])
         self.assertNotEqual("BRIEF_INVALID", assess("organization")["status"])
 
