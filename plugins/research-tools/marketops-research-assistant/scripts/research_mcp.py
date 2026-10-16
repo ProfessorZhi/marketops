@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import functools
+from collections import Counter
 import hashlib
 import importlib.util
 import json
@@ -401,7 +402,14 @@ def build_server():
     def marketops_events(run_id: str) -> dict:
         """Inspect saved operation events and failures."""
         rows = read_events(root(), run_id)
-        return {"count": len(rows), "events": rows[-100:]}
+        # Summary is all-run; detailed events are recent and bounded to avoid
+        # filling the Agent's context with old operation history.
+        reasons = Counter(r["reason_code"] for r in rows
+                          if r["status"] in {"blocked", "failed", "hold", "unknown"}
+                          and r.get("reason_code"))
+        return {"count": len(rows), "events": rows[-20:],
+                "blocker_counts": dict(reasons.most_common(8)),
+                "detail_limit": 20, "summary_scope": "full_run"}
 
     @tool
     def marketops_export(run_id: str, output_path: str) -> dict:
