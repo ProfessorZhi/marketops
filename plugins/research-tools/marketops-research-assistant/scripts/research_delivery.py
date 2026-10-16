@@ -26,7 +26,7 @@ from xml.etree import ElementTree as ET
 import research_lite_store as store
 import research_workflow as workflow
 import research_evidence as evidence
-from research_event_journal import _root, append_event
+from research_event_journal import _root, append_event, append_note
 from research_experience_summary import refresh_quietly as refresh_summary
 from _xlsx import Sheet, render_workbook
 
@@ -400,18 +400,39 @@ def write_delivery(data_root: Path | str | None, run_id: str, delivery_id: str) 
         gap_record = workflow.record_goal_gaps(root, run_id, manifest["goal_assessment"])
     except Exception as exc:
         gap_record = {"status": "FAILED", "reason_code": type(exc).__name__, "detail": str(exc)}
+    # Store semantic-evidence gaps in the same append-only journal, so the
+    # user's single experience file reflects failed research even when XLSX
+    # serialization succeeded. Only short reason codes/counts; no PII or URLs.
+    evidence_note = {"status": "NO_GAPS"}
+    evidence_codes = manifest["evidence_assessment"]["gap_counts"]
+    if evidence_codes:
+        try:
+            short_codes = ",".join(list(sorted(evidence_codes))[:8])
+            evidence_note = append_note(
+                root, run_id=run_id,
+                note_id="evgap-" + manifest["goal_assessment"]["snapshot_id"][:24],
+                stage="review", category="evidence_missing",
+                problem="Candidate facts lack complete source excerpts or original rendering support",
+                action_taken="Retained candidate status and listed evidence holds in workbook review",
+                observed_result="gap_types=" + str(len(evidence_codes)) +
+                                " codes=" + short_codes,
+                hypothesis="", evidence_ref="")
+        except Exception as exc:
+            evidence_note = {"status": "FAILED", "reason_code": type(exc).__name__}
     refresh = refresh_summary(data_root=root)
     # Two artifacts, two honest reports: a workbook that was really written is never
     # retracted, but neither is a partial delivery dressed up as a complete one.
     partial_reasons = []
     if gap_record.get("status") == "FAILED":
         partial_reasons.append("GOAL_GAP_RECORD_FAILED")
+    if evidence_note.get("status") == "FAILED":
+        partial_reasons.append("EVIDENCE_NOTE_FAILED")
     if refresh.get("status") != "REFRESHED":
         partial_reasons.append("EXPERIENCE_REFRESH_"
                                + str(refresh.get("reason_code") or refresh.get("status")))
     return {**receipt, "directory": str(destination),
             "xlsx_path": str(destination / "Research_Result.xlsx"),
-            "goal_gap_record": gap_record,
+            "goal_gap_record": gap_record, "evidence_note": evidence_note,
             "experience_file": refresh.get("experience_file"),
             "experience_refresh": refresh,
             "delivery_completeness": "COMPLETE" if not partial_reasons else "PARTIAL",
