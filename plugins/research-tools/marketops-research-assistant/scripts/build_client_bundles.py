@@ -79,7 +79,7 @@ def build(output: Path, *, with_search_mcp: bool = False,
     (target / "scripts").mkdir()
     for name in ("research_pack.py", "export_excel_safe_csv.py", "experience_pack.py",
                  "research_event_journal.py", "research_config.py",
-                 "research_experience_summary.py", "research_workflow.py",
+                 "research_experience_summary.py", "research_workflow.py", "research_evidence.py",
                  "dual_search_mcp.py", "compare_search_receipts.py", "research_lite_store.py",
                  "research_provider_extensions.py", "research_mcp.py",
                  "research_delivery.py", "_xlsx.py", "preflight.py", "setup_clients.py"):
