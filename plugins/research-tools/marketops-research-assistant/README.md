@@ -87,3 +87,10 @@ We keep this PR Draft and do not deploy anything to Tokyo, change company LiteLL
 The local Lite MCP now exposes `marketops_export_xlsx`, backed by the existing MarketOps standard-library OOXML serializer technology. It creates a real 8-sheet candidate research workbook plus individually checkable CSVs and a SHA-256 manifest. Source artifacts are actually reread and hashed; contact values are checked for literal occurrence in their attributed material. All routes remain `RULES_UNKNOWN` and research-only: this is NOT the formal SOP-approved A/B/C/D business exporter.
 
 The `marketops-research-acceptance` Skill and [E2E_VERIFICATION](references/E2E_VERIFICATION.md) define the L0–L5 verification ladder. A live, read-only public-council source test exists behind `MARKETOPS_LIVE_PUBLIC_E2E=1`; official paid-provider and real Codex/WorkBuddy tests remain independent requirements.
+
+
+## Actual XLSX and independent acceptance (new candidate extension)
+
+`marketops_export_xlsx` generates `Research_Result.xlsx` (8 business/audit sheets), individual CSVs and SHA-256 manifest from the Lite SQLite Run. Real saved source materials are reread and hashed, the workbook is reopened at ZIP/XML level, and emails must occur literally in their attributed material. No Lite Agent can grant A/B/C/D or outbound authorization; unknown business policy remains `RULES_UNKNOWN`.
+
+The new `marketops-research-acceptance` Skill and [E2E_VERIFICATION](references/E2E_VERIFICATION.md) separate offline unit checks, real public source tests, billable provider E2E, formal business review and actual Codex/WorkBuddy E2E. No Member-A release can claim the last three without observed client/provider evidence.
