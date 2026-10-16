@@ -53,11 +53,11 @@ npx skills add https://github.com/openai/skills --skill spreadsheet
 
 ## Current executable path vs formal target
 
-The source plugin's actual `marketops_export_xlsx` produces **eight** candidate-stage sheets: 客户总表, 联系人路线, 排除与待确认, 证据索引, 本轮说明, 场地与资产, 来源与查询, 候选数据审计. These are a readable **Lite projection** of the staging store; no row claims that an email route is formally A/B/C/D.
+The source plugin's actual `marketops_export_xlsx` produces **eight** candidate-stage sheets: 客户总表, 联系人路线, 排除与待确认, 证据索引, 本轮说明, 场地与资产, 人员岗位, 来源与查询, 候选数据审计. These are a readable **Lite projection** of the staging store; no row claims that an email route is formally A/B/C/D.
 
 The thirteen-sheet description earlier in this document is a **target detailed audit workbook** for canonical formal research; it is not the current automatically generated file. Avoid treating the two as conflicting contractual outputs. For formal production handoff, reuse canonical five-sheet `marketops/application/export.py` schemas and authorized grade rules, not a second set of judgments in the plugin.
 
 
 ## Current auto-generated workbook versus target audit layout
 
-The **implemented** Lite `marketops_export_xlsx` contains eight sheets: 客户总表, 联系人路线, 排除与待确认, 证据索引, 本轮说明, 场地与资产, 来源与查询, 候选数据审计. Their business status is always candidate/not approved. The **13-sheet detailed audit specification** earlier in this document describes a future canonical data projection, and must not be misrepresented as the current ZIP contents. Once MarketOps qualified account/route promotion is connected, use its existing canonical five-sheet business output, not a separate grading logic in a generic Excel Skill.
+The **implemented** Lite `marketops_export_xlsx` contains nine sheets: 客户总表, 联系人路线, 排除与待确认, 证据索引, 本轮说明, 场地与资产, 来源与查询, 候选数据审计. Their business status is always candidate/not approved. The **13-sheet detailed audit specification** earlier in this document describes a future canonical data projection, and must not be misrepresented as the current ZIP contents. Once MarketOps qualified account/route promotion is connected, use its existing canonical five-sheet business output, not a separate grading logic in a generic Excel Skill.
