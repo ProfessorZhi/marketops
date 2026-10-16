@@ -7,6 +7,7 @@ Calls made directly against third-party MCP servers cannot be observed here.
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 from contextlib import closing
 import hashlib
 import json
@@ -201,6 +202,41 @@ def read_events(data_root: str | Path | None, run_id: str) -> list[dict]:
                           (run_id,)).fetchall()
     return [{**json.loads(r[3]), "sequence": r[0], "recorded_at": r[1],
              "payload_sha256": r[2]} for r in rows]
+
+
+def summarize_events(data_root: str | Path | None, run_id: str,
+                     limit: int = 20) -> dict:
+    """Cheap diagnostics: latest N details and whole-Run blocker totals.
+
+    Does not load all successful events into Agent context or memory.
+    Source URLs, raw HTML and user messages are not journal payload fields.
+    """
+    run_id = _identifier(run_id, "run_id")
+    if type(limit) is not int or not 1 <= limit <= 50:
+        raise ValueError("INVALID_EVENT_PAGE_LIMIT")
+    with closing(_connect(_root(data_root))) as db:
+        count = db.execute(
+            "SELECT COUNT(*) FROM experience_events WHERE run_id=?", (run_id,)
+        ).fetchone()[0]
+        recent = db.execute(
+            "SELECT sequence,recorded_at,payload_sha256,payload_json "
+            "FROM experience_events WHERE run_id=? ORDER BY sequence DESC LIMIT ?",
+            (run_id, limit)
+        ).fetchall()
+        blocked_payloads = db.execute(
+            "SELECT payload_json FROM experience_events WHERE run_id=? "
+            "AND status IN ('blocked','failed','hold','unknown')", (run_id,)
+        ).fetchall()
+    reasons = Counter()
+    for (payload,) in blocked_payloads:
+        code = json.loads(payload).get("reason_code")
+        if code:
+            reasons[code] += 1
+    events = [{**json.loads(r[3]), "sequence": r[0], "recorded_at": r[1],
+               "payload_sha256": r[2]} for r in reversed(recent)]
+    return {"count": count, "events": events,
+            "blocker_counts": dict(reasons.most_common(8)),
+            "detail_limit": limit, "summary_scope": "full_run"}
 
 
 def sanitize_note_text(value: str, field: str) -> str:
