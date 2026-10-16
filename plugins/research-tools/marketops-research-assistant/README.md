@@ -84,7 +84,7 @@ We keep this PR Draft and do not deploy anything to Tokyo, change company LiteLL
 
 ## XLSX delivery and independent acceptance (new candidate extension)
 
-The local Lite MCP now exposes `marketops_export_xlsx`, backed by the existing MarketOps standard-library OOXML serializer technology. It creates a real 8-sheet candidate research workbook plus individually checkable CSVs and a SHA-256 manifest. Source artifacts are actually reread and hashed; contact values are checked for literal occurrence in their attributed material. All routes remain `RULES_UNKNOWN` and research-only: this is NOT the formal SOP-approved A/B/C/D business exporter.
+The local Lite MCP now exposes `marketops_export_xlsx`, backed by the existing MarketOps standard-library OOXML serializer technology. It creates a real 9-sheet candidate research workbook plus individually checkable CSVs and a SHA-256 manifest. Source artifacts are actually reread and hashed; contact values are checked for literal occurrence in their attributed material. All routes remain `RULES_UNKNOWN` and research-only: this is NOT the formal SOP-approved A/B/C/D business exporter.
 
 The `marketops-research-acceptance` Skill and [E2E_VERIFICATION](references/E2E_VERIFICATION.md) define the L0–L5 verification ladder. A live, read-only public-council source test exists behind `MARKETOPS_LIVE_PUBLIC_E2E=1`; official paid-provider and real Codex/WorkBuddy tests remain independent requirements.
 
