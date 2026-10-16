@@ -54,7 +54,7 @@ class CandidateDeliveryE2E(unittest.TestCase):
                      "value": "grounds@example.org", "role_function": "Grounds Management",
                      "department": "Grounds Management"}, ["art-public"])
 
-    def test_delivers_real_xlsx_with_8_sheets_and_evidence(self):
+    def test_delivers_real_xlsx_with_9_sheets_and_evidence(self):
         result = delivery.write_delivery(self.root, "run-test", "delivery-001")
         self.assertEqual("PARTIAL_CANDIDATE_ONLY_NOT_FORMAL_CONTACTS", result["status"])
         self.assertEqual("ALL_OK", result["evidence_hash_readback"])
@@ -65,7 +65,7 @@ class CandidateDeliveryE2E(unittest.TestCase):
         self.assertTrue(workbook.exists())
         with zipfile.ZipFile(workbook) as z:
             self.assertIsNone(z.testzip())
-            self.assertEqual(8, len([n for n in z.namelist()
+            self.assertEqual(9, len([n for n in z.namelist()
                                      if n.startswith("xl/worksheets/sheet") and n.endswith(".xml")]))
         with (workbook.parent / "联系人路线.csv").open(encoding="utf-8-sig", newline="") as f:
             row = next(csv.DictReader(f))
