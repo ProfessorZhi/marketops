@@ -24,7 +24,7 @@ python -m unittest discover -s tests -v
 python scripts/preflight.py
 ```
 
-The new regression tests validate 8-sheet XLSX/CSV creation, saved-artifact SHA reread, document/email literal evidence, wrong Run and idempotent immutable output, and a route staying ungraded without an authorized business verdict.
+The new regression tests validate 9-sheet XLSX/CSV creation, saved-artifact SHA reread, document/email literal evidence, wrong Run and idempotent immutable output, and a route staying ungraded without an authorized business verdict.
 
 ## Real public source test (manual opt-in)
 
@@ -53,6 +53,7 @@ exports/<run-id>/<delivery-id>/
   证据索引.csv
   本轮说明.csv
   场地与资产.csv
+  人员岗位.csv
   来源与查询.csv
   候选数据审计.csv
   MANIFEST.json
