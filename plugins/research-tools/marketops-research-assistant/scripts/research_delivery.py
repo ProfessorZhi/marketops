@@ -27,7 +27,7 @@ import research_lite_store as store
 from research_event_journal import _root, append_event
 from _xlsx import Sheet, render_workbook
 
-VERSION = "0.5.0-candidate"
+VERSION = "0.4.0-plus-xlsx-candidate"
 EMAIL = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 FORMULA = ("=", "+", "-", "@")
 NAMESPACE = {"x": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
