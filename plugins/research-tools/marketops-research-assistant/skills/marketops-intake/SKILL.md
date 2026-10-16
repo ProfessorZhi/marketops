@@ -43,3 +43,5 @@ the goal to make a check pass. Changes to scope require a new revision and revie
 
 Hand off to `marketops-source-discovery`. Output first: 2-4 sentence interpretation; secondly a small set of unknowns and the next *authorized* action.
 **Scene neutrality:** the workflow schema never embeds a fixed country/product/surface/role matrix. Use optional `evidence_requirements` keyed by entity kind (e.g. a product directory may require organization/identity + organization/product_line; a venue study may require venue/identity + venue/surface + venue/location). Each field name is a user/Scene hypothesis to research, **not** automatic confirmation. If the task has multiple outcome units, retain all in the human brief but select a single well-defined hard minimum or none. Do not fabricate one to get a numerical PASS.
+
+Existing Runs with a historical non-null minimum but no unit return `BRIEF_UNIT_REVIEW_REQUIRED`; reuse their existing evidence and append a revised brief, rather than restarting discovery or force-promoting a false quota.
