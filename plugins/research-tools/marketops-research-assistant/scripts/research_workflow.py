@@ -294,14 +294,35 @@ def assess_records(run_id: str, records: list[dict], *, limit: int = 25) -> dict
             "warning": "Source presence and candidate disposition do not validate facts, SOP grade or market coverage."}
 
 
-def next_step(root: Path | str, run_id: str, limit: int = 25) -> dict:
+def next_step(root: Path | str, run_id: str, limit: int = 25,
+              previous_snapshot_id: str = "", after_attempt: bool = False) -> dict:
+    """Read-only progress guard; no hidden scheduler or extra mutable state.
+
+    An unchanged record snapshot after an attempted batch is a stop/switch
+    signal, NOT evidence the market has no customers or that an API failed.
+    Merely reading status twice does not count as a failed attempt.
+    """
+    if not isinstance(previous_snapshot_id, str) or (
+            previous_snapshot_id and (len(previous_snapshot_id) != 64
+                                      or any(x not in "0123456789abcdef" for x in previous_snapshot_id))):
+        raise ValueError("INVALID_PREVIOUS_SNAPSHOT_ID")
+    if type(after_attempt) is not bool or (after_attempt and not previous_snapshot_id):
+        raise ValueError("INVALID_ATTEMPT_PROGRESS_CHECK")
     with closing(_read_connection(root)) as db:
         _run(db, run_id)
         rows = db.execute(
             "SELECT record_id,stage,kind,status,entity_key,payload_json,artifact_ids_json "
             "FROM records WHERE run_id=? ORDER BY record_id LIMIT ?", (run_id, MAX_ROWS + 1)
         ).fetchall()
-    return assess_records(run_id, [_decode(r) for r in rows], limit=limit)
+    result = assess_records(run_id, [_decode(r) for r in rows], limit=limit)
+    unchanged = bool(previous_snapshot_id) and previous_snapshot_id == result["snapshot_id"]
+    if after_attempt and unchanged:
+        return {**result, "progress_state": "NO_NEW_PERSISTED_RECORD_AFTER_ATTEMPT",
+                "repeat_guard": "STOP_IDENTICAL_ACTION_AND_RECORD_HOLD_OR_SWITCH_TARGET",
+                "progress_interpretation": "Snapshot unchanged, not a market-coverage conclusion"}
+    return {**result, "progress_state": ("CHANGED" if previous_snapshot_id and not unchanged
+                                        else "READ_ONLY_OR_INITIAL"),
+            "repeat_guard": "NO_NEW_SPENDING_AUTHORITY"}
 
 
 def page(root: Path | str, run_id: str, limit: int = 100, cursor: str = "",
