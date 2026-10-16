@@ -18,6 +18,9 @@ class LocalInstallTests(unittest.TestCase):
             target = Path(tmp) / "new-install"
             result = install.plan(target, "both")
             self.assertTrue(result["no_live_provider_calls"])
+            self.assertIsNone(result["customer_data_root"])
+            self.assertIsNone(result["experience_file"])
+            self.assertEqual("USE_EXISTING_CONFIG_OR_ASK_TWO_PATHS_ON_FIRST_USE", result["storage_configuration"])
             self.assertFalse(target.exists())
 
     def test_install_prepared_mcp_without_keys(self):
@@ -50,7 +53,9 @@ class LocalInstallTests(unittest.TestCase):
                         "TINYFISH_API_KEY", "TYPESAFE_API_KEY"):
                 self.assertIn(key, keys)
             self.assertFalse((source / "data").exists())
-            self.assertTrue((target / "data").exists())
+            self.assertFalse((target / "data").exists(), "Installer must not create an unchosen data root")
+            self.assertIsNone(result["customer_data_root"])
+            self.assertIsNone(result["experience_file"])
             with self.assertRaises(FileExistsError):
                 install.plan(target, "both")
 
