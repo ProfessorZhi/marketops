@@ -77,7 +77,11 @@ def build(output: Path, *, with_search_mcp: bool = False,
     for part in ("skills", "references"):
         shutil.copytree(HERE / part, target / part)
     (target / "scripts").mkdir()
-    for name in ("research_pack.py", "export_excel_safe_csv.py", "experience_pack.py", "research_event_journal.py", "dual_search_mcp.py", "compare_search_receipts.py", "research_lite_store.py", "research_provider_extensions.py", "research_mcp.py",
+    for name in ("research_pack.py", "export_excel_safe_csv.py", "experience_pack.py",
+                 "research_event_journal.py", "research_config.py",
+                 "research_experience_summary.py",
+                 "dual_search_mcp.py", "compare_search_receipts.py", "research_lite_store.py",
+                 "research_provider_extensions.py", "research_mcp.py",
                  "research_delivery.py", "_xlsx.py", "preflight.py", "setup_clients.py"):
         shutil.copy2(HERE / "scripts" / name, target / "scripts" / name)
     shutil.copy2(HERE / "README.md", target / "README.md")
@@ -89,6 +93,7 @@ def build(output: Path, *, with_search_mcp: bool = False,
         # the generated ZIP to a different machine without rebuilding locally.
         variables = [
             "SERPAPI_API_KEY", "SERPER_API_KEY", "MARKETOPS_RESEARCH_DATA_ROOT",
+            "MARKETOPS_RESEARCH_CONFIG",
             "MARKETOPS_SEARCH_ALLOW_NETWORK", "MARKETOPS_SEARCH_MAX_CALLS",
         ]
         env = {name: "${" + name + "}" for name in variables}
@@ -114,6 +119,7 @@ def build(output: Path, *, with_search_mcp: bool = False,
             ("SERPAPI_API_KEY", "SerpApi API Key (optional)", "password", False, ""),
             ("SERPER_API_KEY", "Serper API Key (optional)", "password", False, ""),
             ("MARKETOPS_RESEARCH_DATA_ROOT", "Private absolute data directory", "text", True, ""),
+            ("MARKETOPS_RESEARCH_CONFIG", "Optional: path to a different first-use config JSON", "text", False, ""),
             ("MARKETOPS_SEARCH_ALLOW_NETWORK", "Enable billable search: enter 1, otherwise 0", "text", True, "0"),
             ("MARKETOPS_SEARCH_MAX_CALLS", "Cumulative reserved call limit", "text", True, "0"),
         ]
