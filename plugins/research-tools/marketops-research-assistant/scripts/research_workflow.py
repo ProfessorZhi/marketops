@@ -146,7 +146,7 @@ def assess_records(run_id: str, records: list[dict], *, limit: int = 25) -> dict
             or (goal == "contacts" and kind != "organization")
             or (named and goal != "contacts")
             or (minimum is not None and minimum_unit != kind)
-            or (minimum is None and minimum_unit not in {None, kind})):
+            or (minimum is None and minimum_unit is not None and minimum_unit != kind)):
         return {**base, "status": "BRIEF_INVALID", "stage": "intake",
                 "recommended_skill": SKILLS["intake"], "targets": [], "target_ids": [],
                 "gap_counts": {"BRIEF_INVALID": 1}, "goal_satisfied": False,
