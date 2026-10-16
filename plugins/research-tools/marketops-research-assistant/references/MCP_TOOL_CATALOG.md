@@ -59,3 +59,8 @@ For known webpage acquisition, an operator-approved public HTTPS hostname must m
 - end_to_end: same Run traversed stages and delivered agreed Excel/CSV, plus experience with zero silent drop.
 
 Today's candidate is at code_present for all five, not full auth/live E2E.
+
+
+## Actual XLSX export (v0.4 candidate extension)
+
+`marketops_export_xlsx(run_id, delivery_id)` writes immutable `Research_Result.xlsx` with eight business/audit worksheets, eight matching CSV files and an actual-file SHA-256 `MANIFEST.json`. It directly reads the same Lite SQLite candidate store and verifies source bytes, cross-run references, XLSX sheet header/row shapes, CSV rows and file hashes. It deliberately **does not** promote candidates to approved customer accounts or A/B/C/D ContactRoutes. See [E2E_VERIFICATION](E2E_VERIFICATION.md).
