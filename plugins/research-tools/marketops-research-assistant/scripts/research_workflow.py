@@ -61,13 +61,17 @@ def _tip(rows: list[dict]) -> dict | None:
     New append-only corrections may supersede the previous record of the same
     kind/entity. Forks, cycles and references outside this group are conflicts.
     """
-    if not rows:
+    if not rows or len({(r["kind"], r["entity_key"]) for r in rows}) != 1:
         return None
     index = {row["record_id"]: row for row in rows}
-    parents = {row["data"].get("supersedes") for row in rows
-               if row["data"].get("supersedes")}
-    if not all(isinstance(p, str) and p in index for p in parents):
-        return None
+    parents = set()
+    for row in rows:
+        parent = row["data"].get("supersedes")
+        if parent is None or parent == "":
+            continue
+        if not isinstance(parent, str) or parent not in index:
+            return None
+        parents.add(parent)
     tips = set(index) - parents
     if len(tips) != 1:
         return None
@@ -84,7 +88,8 @@ def _tip(rows: list[dict]) -> dict | None:
 
 
 def _text(value: object) -> bool:
-    return isinstance(value, str) and bool(value.strip())
+    return (isinstance(value, str) and bool(value.strip())
+            and value.strip().upper() not in {"UNKNOWN", "NONE", "N/A", "NULL", "TBD", "NOT_FOUND"})
 
 
 def _supported(row: dict) -> bool:
@@ -104,8 +109,10 @@ def assess_records(run_id: str, records: list[dict], *, limit: int = 25) -> dict
         raise ValueError("INVALID_WORKFLOW_LIMIT")
     if len(records) > MAX_ROWS:
         raise ValueError("LITE_WORKFLOW_TOO_MANY_RECORDS")
+    # Stable across SQL query order; identical candidate states have one note ID.
     snapshot = hashlib.sha256(json.dumps(
-        records, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        sorted(records, key=lambda r: r["record_id"]), ensure_ascii=False,
+        sort_keys=True, separators=(",", ":")
     ).encode()).hexdigest()
     counts = Counter(row["kind"] for row in records)
     base = {
@@ -128,7 +135,8 @@ def assess_records(run_id: str, records: list[dict], *, limit: int = 25) -> dict
     brief = brief_row["data"]
     kind, goal = brief.get("target_kind"), brief.get("goal")
     minimum, named = brief.get("minimum_targets"), brief.get("require_named_person")
-    if (kind not in {"venue", "organization"} or goal not in {"pool", "contacts"}
+    if (not isinstance(kind, str) or kind not in {"venue", "organization"}
+            or not isinstance(goal, str) or goal not in {"pool", "contacts"}
             or type(minimum) is not int or not 1 <= minimum <= MAX_ROWS
             or type(named) is not bool
             or (goal == "contacts" and kind != "organization")
@@ -139,17 +147,28 @@ def assess_records(run_id: str, records: list[dict], *, limit: int = 25) -> dict
                 "blocked_target_count": 0, "completion_rule": "correct_the_structured_brief"}
 
     grouped, associated, dispositions = defaultdict(list), defaultdict(list), defaultdict(list)
+    related_groups, related_conflicts = defaultdict(list), set()
     for row in records:
         if row["kind"] == kind:
             grouped[row["entity_key"]].append(row)
-        org = row["data"].get("organization_id")
-        if isinstance(org, str):
-            associated[org].append(row)
+        if row["kind"] in {"person", "role", "contact_point"}:
+            related_groups[(row["kind"], row["entity_key"])].append(row)
         if (row["kind"] == "review" and row["data"].get("review_type") == "target_disposition"
                 and row["data"].get("target_kind") == kind):
             key = row["data"].get("target_entity_key")
             if isinstance(key, str):
                 dispositions[key].append(row)
+    for versions in related_groups.values():
+        active = _tip(versions)
+        if active is None:
+            for row in versions:
+                org = row["data"].get("organization_id")
+                if isinstance(org, str):
+                    related_conflicts.add(org)
+        else:
+            org = active["data"].get("organization_id")
+            if isinstance(org, str):
+                associated[org].append(active)
 
     tasks, gaps = [], Counter()
     researched = blocked = 0
@@ -163,8 +182,8 @@ def assess_records(run_id: str, records: list[dict], *, limit: int = 25) -> dict
         if review_rows and disposition is None:
             missing.append("disposition_version_conflict")
         outcome = disposition["data"].get("disposition") if disposition else None
-        if outcome is not None and (outcome not in DISPOSITIONS
-                                   or not _text(disposition["data"].get("reason"))):
+        if disposition is not None and (not isinstance(outcome, str) or outcome not in DISPOSITIONS
+                                       or not _text(disposition["data"].get("reason"))):
             missing.append("invalid_disposition")
             outcome = None
         if not missing and outcome in {"HOLD", "EXCLUDED", "DUPLICATE"}:
@@ -176,6 +195,8 @@ def assess_records(run_id: str, records: list[dict], *, limit: int = 25) -> dict
             stage = "acquisition"
         if row is not None and goal == "contacts":
             related = associated.get(key, [])
+            if key in related_conflicts:
+                missing.append("related_entity_version_conflict")
             people = [r for r in related if r["kind"] == "person"
                       and _supported(r) and _text(r["data"].get("name"))]
             roles = [r for r in related if r["kind"] == "role" and _supported(r)
@@ -259,20 +280,24 @@ def page(root: Path | str, run_id: str, limit: int = 100, cursor: str = "",
     store._id(run_id, "run_id")
     if type(limit) is not int or not 1 <= limit <= 500:
         raise ValueError("INVALID_PAGE_LIMIT")
-    if kind and kind not in store.KINDS:
+    if not isinstance(kind, str) or (kind and kind not in store.KINDS):
         raise ValueError("INVALID_PAGE_KIND")
+    if not isinstance(entity_key, str):
+        raise ValueError("INVALID_PAGE_ENTITY_KEY")
     if entity_key:
         store._id(entity_key, "entity_key")
+    if not isinstance(cursor, str):
+        raise ValueError("INVALID_OR_MISMATCHED_PAGE_CURSOR")
     binding = [run_id, kind, entity_key]
     with closing(_read_connection(root)) as db:
         run = _run(db, run_id)
         if cursor:
             try:
-                if not isinstance(cursor, str) or len(cursor) > 2048:
+                if len(cursor) > 2048:
                     raise ValueError()
                 token = json.loads(base64.b64decode(cursor.encode(), altchars=b"-_", validate=True))
-                if (token["v"] != 1 or token["binding"] != binding
-                        or type(token["high"]) is not int or type(token["after"]) is not int
+                if (not isinstance(token, dict) or token.get("v") != 1 or token.get("binding") != binding
+                        or type(token.get("high")) is not int or type(token.get("after")) is not int
                         or not 0 <= token["after"] <= token["high"]):
                     raise ValueError()
                 high, after = token["high"], token["after"]
