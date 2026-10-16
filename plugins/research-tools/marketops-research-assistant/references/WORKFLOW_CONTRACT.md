@@ -10,7 +10,7 @@ Paths in Skills are relative to the containing SKILL.md. `../../references/` is 
 
 ## First use and a single Run
 
-Call `marketops_setup_status` before stateful operations. Only CONFIG_REQUIRED asks the user for (1) an absolute data directory and (2) an absolute experience Markdown file path. Do not invent either path. Existing configuration is not a reason to ask again. Explicit environment overrides remain advanced overrides, not required WorkBuddy onboarding fields.
+Call `marketops_setup_status` before stateful operations. Only CONFIG_REQUIRED asks the user for (1) an absolute data directory and (2) an absolute experience Markdown file path. Do not invent either path. Existing configuration is not a reason to ask again. Explicit environment overrides remain advanced overrides, not required WorkBuddy onboarding fields. The installer chooses code/toolchain locations only; it must not preselect or create an unchosen install/data directory.
 
 Call `marketops_start(run_id, scope, objective, rule_version)` with the user's actual scope. An unknown SOP version stays UNKNOWN; never manufacture approved business rules. Persist a structured brief with `marketops_propose`, stage `qualification`, kind `observation`, stable record/entity IDs and facts:
 
@@ -18,7 +18,9 @@ Call `marketops_start(run_id, scope, objective, rule_version)` with the user's a
 {"record_type":"research_brief","target_kind":"organization","goal":"contacts","minimum_targets":1,"require_named_person":true}
 ```
 
-`target_kind` is `venue` or `organization`; `goal` is `pool` or `contacts`. Contact goals target organizations. `minimum_targets` is an explicit requested candidate count, not a claim about total market size. `require_named_person` must be a boolean; true is only valid for contacts. For a venue pool use `venue` / `pool` / false. Extract these values from a clear user request; clarify only genuinely missing business choices. Do not silently default a department-contact task to named procurement contacts or a venue-only task to sales research. Older Runs without this record return BRIEF_REQUIRED, not false completion.
+`target_kind` is `venue` or `organization`; `goal` is `pool` or `contacts`. Contact goals target organizations. `minimum_targets`, when supplied, is an explicit requested candidate count, not a claim about total market size. **If the user did not request a quantity, omit it or store null**: the result reports quantity_target_status=UNSPECIFIED. Do not invent a quota or ask an unnecessary question just to satisfy the planner. A completed current candidate batch does not establish market coverage.
+
+`require_named_person` must be a boolean; true is only valid for contacts. For a venue pool use `venue` / `pool` / false. Extract these values from a clear user request; clarify only genuinely missing business choices. Do not silently default a department-contact task to named procurement contacts or a venue-only task to sales research. Older Runs without this record return BRIEF_REQUIRED, not false completion.
 
 ## Candidate records and joins
 
@@ -44,7 +46,7 @@ Cross-Run canonical merging is **not implemented**. Reusing a known key does not
 
 ## Append-only corrections and target dispositions
 
-To correct a record, append a new record of the same kind/entity with `supersedes` naming the previous record_id. Never overwrite history. Workflow checks accept only an unbroken, single-tip chain; a fork, cycle or foreign predecessor is a conflict. A brief correction must use the same brief entity key and reflect the user's changed requirement, not an Agent lowering its goal to pass a check.
+To correct a record, append a new record of the same kind/entity with `supersedes` naming the previous record_id. Never overwrite history. Workflow checks accept only an unbroken, single-tip chain; a fork, cycle or foreign predecessor is a conflict. Superseded person/role/contact records no longer contribute to structural completion. A brief correction must use the same brief entity key and reflect the user's changed requirement, not an Agent lowering its goal to pass a check.
 
 After research/review, append kind `review`, stage `review` with facts:
 
@@ -52,7 +54,9 @@ After research/review, append kind `review`, stage `review` with facts:
 {"review_type":"target_disposition","target_kind":"organization","target_entity_key":"org-001","disposition":"HOLD","reason":"Public role source missing; approved methods exhausted."}
 ```
 
-Closed dispositions: RESEARCHED_CANDIDATE, HOLD, EXCLUDED, DUPLICATE. Each needs a short factual reason. Corrections use `supersedes` in the same target's disposition chain. RESEARCHED_CANDIDATE is **not approval** and cannot suppress missing entity/role/contact material. HOLD/EXCLUDED/DUPLICATE are explicit stops, not successful researched targets. They remain visible goal gaps in a partial delivery. Do not keep repeating the same blocked method or expand budget to fill a quota.
+Closed dispositions: RESEARCHED_CANDIDATE, HOLD, EXCLUDED, DUPLICATE. Each needs a short factual reason. Corrections use `supersedes` in the same target's disposition chain. RESEARCHED_CANDIDATE is **not approval** and cannot suppress missing entity/role/contact material.
+
+HOLD is an unresolved target and remains a visible goal gap. A justified EXCLUDED or DUPLICATE is a resolved disposition, **not itself a failure**, and remains visible in disposition_counts; it does not count toward an explicit positive-candidate minimum. An all-excluded sample is a legitimate negative research result, not a successful positive-candidate delivery or proof that the market has no customers. Do not keep repeating the same blocked method or expand budget to fill a quota.
 
 ## Exit and delivery
 
