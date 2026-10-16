@@ -215,6 +215,7 @@ def handoff(run_id, operation_id):
         "candidate_csv_schema": "audit_csv_from_this_workbook_not_a_second_snapshot",
         "goal_assessment": workbook.get("goal_assessment"),
         "goal_gap_record": workbook.get("goal_gap_record"),
+        "evidence_note": workbook.get("evidence_note"),
         "workbook_delivery_completeness": workbook.get("delivery_completeness"),
         "workbook_experience_refresh": workbook.get("experience_refresh"),
         "unresolved_business_review": True,
