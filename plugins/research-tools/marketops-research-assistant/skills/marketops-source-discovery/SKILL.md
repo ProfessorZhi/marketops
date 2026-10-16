@@ -1,18 +1,18 @@
 ---
 name: marketops-source-discovery
-description: Find traceable public sources for target markets using connected Serper/TinyFish Search and record search hits without falsely promoting snippets to verified venue/company facts.
+description: Discover bounded public sources only when the current Run lacks target sources; store traceable source candidates through Research MCP without promoting snippets to facts.
 ---
 
 # Source discovery
 
-Read ResearchBrief and existing pool before spending resources. Reuse already-fetched, in-scope, nonstale evidence; then prepare country/language-correct queries and a small bounded batch.
+**Trigger:** marketops_next recommends discovery, or an approved target has a concrete source gap. **Input:** persisted Brief, current Run and existing source candidates. Read [workflow contract](../../references/WORKFLOW_CONTRACT.md) only when needed.
 
-- Use **Serper Search / Maps / Places** for broad discovery when configured, or **TinyFish Search**; neither is guaranteed to be free. Provider MCP names are not stable assumptions—discover available tools at runtime.
-- Store each hit in `sources.csv`: a stable `source_id`, query, URL, `kind`, discovered timestamp, and `status`.
-- Determine whether a result points to an independent venue, an organization website, a directory listing or an index with *multiple* venues. **Never deduplicate the entire site down to one venue**; use both canonical URL and provisional entity identity.
-- Source summaries/maps are leads, **not** evidence of legal identity, surface type, purchase authority, person employment, or actual email.
-- If a search method yields zero results, record how much was searched and why an alternate query/source might help; do not claim there are no businesses in the market.
-- Fetch selected official pages with `marketops-evidence` support. Ordinary readable pages need not trigger browser automation; blocked pages remain blocked.
-- For authorized batch work, preserve query, locale, result count, credits if the provider reports them and a clear stop reason.
+Read `marketops_status(run_id, kind="source")` first and reuse appropriate saved material. Fix country/language, the user's scope and a small query budget. Load `marketops-provider-router` only if an actual external capability is needed. SerpApi/Serper via `marketops_search` and configured TinyFish search are discovery options; do not assume free use or silently fail over to a billable provider.
 
-Then hand off relevant rows to `marketops-venue-account`.
+`marketops_search` returns stored_record_ids: read those back rather than creating duplicate source rows. For other actual receipts, use `marketops_propose(stage="discovery", kind="source")` with url/title/provider/operation_id and discovery_only=true. **Do not create or edit sources.csv as the inter-Skill data store.**
+
+A directory page can describe many venues. Preserve page identity separately from candidate entity identity; neither one-domain-one-venue nor one-search-hit-one-qualified-company is valid. Snippets/Maps/Place IDs do not establish legal identity, ownership, current employment, purchasing responsibility or an email.
+
+Zero hits require a bounded attempt record and a stop reason, not a claim that a market contains no customers. Fetch selected public pages through the permitted evidence path; challenge/login pages stay blocked. No bypass of access controls.
+
+**Output:** actual stored source IDs, material references if acquired, unresolved gaps and attempts. **Exit:** read back saved source records, then call marketops_next; hand off the indicated batch to venue-account/evidence, not a prose-only or CSV-only result. Record substantive search failure or goal shortfall via marketops_note without raw URLs or contacts in the collectable note.

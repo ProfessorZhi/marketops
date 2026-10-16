@@ -1,23 +1,18 @@
 ---
 name: marketops-provider-router
-description: Choose and combine Serper, Crawl4AI, TinyFish and TypeSafe Jev for a research-stage data gap; inspect actual MCP/API capabilities, preserve budget and evidence lineage, and diagnose before switching.
+description: Select one actually available, authorized provider capability for a concrete current-stage gap; load only that provider's Skill and preserve budget, source lineage and failures.
 ---
 
-# 四Provider路由
+# Provider router — 按需加载
 
-先读 [路由合同](../../references/PROVIDER_ROUTING.md) 与 [统一交接](../../references/DATA_HANDOFF.md)。输入：已批准Brief/Run、当前store、缺失事实、可用工具和费用范围。
+**触发：** 当前 Run 存在具体外部数据/提取/语义判断缺口。输入是 Brief、marketops_next 的 missing_facts、已存材料和允许费用，不是整个工具库。
 
-1. 先查已有资产/证据和当前阶段，避免重复搜索。
-2. 发现本宿主真实MCP catalog/SDK能力，分别记录配置、认证、真实调用状态；不要凭Skill假设API可用。
-3. 未知URL→Serper/TinyFish search；有URL→Crawl4AI/TinyFish fetch；稳定批量→Crawl4AI；必须交互→获批TinyFish；已有证据的语义判断→Jev；计算/去重/硬规则→代码。
-4. 选择后仅加载对应 `marketops-serper`、`marketops-crawl4ai`、`marketops-tinyfish` 或 `marketops-jev` Skill。不要一次加载四套全文。
-5. 决策留短记录：目标缺口、为何选择、实际工具/版本、授权引用、材料类型、预期产物、操作id。返回后追加实际结果、用量/未知、写回与读回定位符。
-6. 失败先定位层次；DNS迁移、解析、存储与WAF不是同类。不要把timeout自动解读为未计费，不用另一个工具绕同一访问墙。
-7. 当前目标已完成/明确阻塞/额度耗尽时停止对应对象或方法，其他已授权独立对象可继续。
+1. 先复用适用的已存材料。调用统一 MCP 的 `marketops_capabilities`；配置、SDK安装、认证和真实调用成功是四种不同状态。
+2. 未知URL：SerpApi或Serper的 `marketops_search`，也可选择获批TinyFish search。有URL：获批Crawl4AI local/cloud或TinyFish fetch。已有证据的语义辅助：Jev Choice。去重/计数/硬规则不交给模型判断。
+3. 选择后只加载相应 marketops-serpapi / marketops-serper / marketops-crawl4ai / marketops-tinyfish / marketops-jev Skill，细节才读 [Provider路由](../../references/PROVIDER_ROUTING.md)。不要一次加载所有Provider文档。
+4. 统一 MCP 的 TinyFish 当前只有search/fetch，浏览器Agent需另行发现并获授权的官方连接器；Jev当前只有Choice，不能据知识文档宣称Noul/Score已接入。外部直连动作不在本地自动事件链中，必须补记实际回执/材料落点，不能伪造为受管调用。
+5. 请求前明确provider、operation_id、目标、边界、调用上限；没有批准不自动收费，不把next建议当成授权。返回后确认真实材料ID、候选写入与readback，不只报告“工具跑了”。
+6. 区分网络、权限墙、提取、存储和业务缺口。已接受job但本地超时，先查原job，不能默认未计费或重复创建。不得用换工具绕过同一访问限制，也不得静默切到另一家收费Provider。
+7. 目标已完成、方法明确阻塞或额度耗尽就停止该方法；已授权的独立对象可以继续。卡点/换路/修正通过marketops_note留下观察、动作和结果，假设不冒充根因。
 
-输出为真实来源/资料/判断的引用和持久化处置，不是口头说“工具跑了”。每次卡点、换路、成功改进由 `marketops-research-retrospective` 记录。此Skill不实现网关或硬权限。
-
-
-## v0.3.0 双搜索
-
-已接入本地 MarketOps Dual Search MCP 候选：`marketops_search` 指定 `serpapi` 或 `serper`。先调用 `marketops_search_capabilities` 做不联网检查，真实请求需要操作者密钥/网络开关/调用上限。失败后禁止静默换另一家，完整配置见 references/DUAL_SEARCH_SETUP.md。
+**输出/退出：** 实际来源/材料/判断引用和持久化处置，返回调用方阶段Skill；阶段是否可推进由marketops_next的结构检查和后续证据验收共同决定。统一数据合同见 [WORKFLOW_CONTRACT](../../references/WORKFLOW_CONTRACT.md)。
