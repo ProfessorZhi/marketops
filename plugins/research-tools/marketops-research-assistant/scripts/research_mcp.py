@@ -2,6 +2,7 @@
 """Bounded 5-provider Lite Research MCP. Candidate-only, local, human-initiated."""
 from __future__ import annotations
 
+import functools
 import hashlib
 import importlib.util
 import json
@@ -162,35 +163,59 @@ def handoff(run_id, operation_id):
         raise ValueError("HANDOFF_PARTIAL_OR_FAILED: inspect immutable output files and journal") from None
 
 
+def _guarded(fn):
+    """Return an anticipated domain refusal as a readable MCP tool failure.
+
+    ``research_delivery.main`` and the store already render a designed refusal as
+    ``{"status": "BLOCKED", "reason": ...}``. Escaping the tool as a bare
+    exception loses that reason: the client sees only ``Error executing tool
+    <name>``. ``ToolError`` is the SDK's mechanism for a failure the server saw
+    coming, and is delivered as ``is_error=True`` with the reason in ``content``.
+    Unexpected exception types are deliberately left to crash loudly.
+    """
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except (ValueError, OSError) as exc:
+            from mcp.server.mcpserver.exceptions import ToolError
+            raise ToolError(json.dumps({"status": "BLOCKED", "tool": fn.__name__,
+                                        "reason": str(exc)}, ensure_ascii=False)) from exc
+    return wrapper
+
+
 def build_server():
     from mcp.server import MCPServer
-    mcp = MCPServer("MarketOps Lite Research")
+    mcp = MCPServer("MarketOps Lite Research", version="0.4.0")
 
-    @mcp.tool()
+    def tool(fn):
+        return mcp.tool()(_guarded(fn))
+
+    @tool
     def marketops_capabilities() -> dict:
         """Show local provider configuration and operation limits without charging."""
         return capabilities()
 
-    @mcp.tool()
+    @tool
     def marketops_start(run_id: str, scope: str, objective: str, rule_version: str) -> dict:
         """Start/resume a human-initiated research Run; not an automatic schedule."""
         return start(run_id, scope, objective, rule_version)
 
-    @mcp.tool()
+    @tool
     def marketops_search(provider: str, query: str, country: str, language: str,
                          run_id: str, operation_id: str, mode: str = "web",
                          limit: int = 10) -> dict:
         """SerpApi OR Serper, explicit one-provider discovery, without fact promotion."""
         return search(provider, query, country, language, run_id, operation_id, mode, limit)
 
-    @mcp.tool()
+    @tool
     def marketops_crawl(run_id: str, operation_id: str, url: str,
                         implementation: str = "local") -> dict:
         """Crawl4AI local open-source crawler or approved Cloud API."""
         actions = {"local": "crawl4ai_local", "cloud": "crawl4ai_cloud"}
         return invoke(actions.get(implementation, "unsupported"), run_id, operation_id, url=url)
 
-    @mcp.tool()
+    @tool
     def marketops_tinyfish(run_id: str, operation_id: str,
                            task: str = "search", query: str = "", url: str = "") -> dict:
         """TinyFish official search/fetch APIs; browser Agent via official connector."""
@@ -198,50 +223,50 @@ def build_server():
         return invoke(actions.get(task, "unsupported"), run_id, operation_id,
                       url=url, query=query)
 
-    @mcp.tool()
+    @tool
     def marketops_jev_choice(run_id: str, operation_id: str, source_excerpt: str,
                              question: str, options: list[str]) -> dict:
         """Jev Choice over bounded source excerpt; not a formal SOP decision."""
         return invoke("jev_choice", run_id, operation_id, document=source_excerpt,
                       question=question, options=options)
 
-    @mcp.tool()
+    @tool
     def marketops_propose(run_id: str, record_id: str, stage: str,
                           kind: str, entity_key: str, facts: dict,
                           artifact_ids: list[str] | None = None) -> dict:
         """Write staged venue/organization/role/contact/review proposals only."""
         return propose(run_id, record_id, stage, kind, entity_key, facts, artifact_ids)
 
-    @mcp.tool()
+    @tool
     def marketops_status(run_id: str, limit: int = 300) -> dict:
         """Read persistent research candidates and material refs."""
         return store.list_run(root(), run_id, limit)
 
-    @mcp.tool()
+    @tool
     def marketops_events(run_id: str) -> dict:
         """Inspect saved operation events and failures."""
         rows = read_events(root(), run_id)
         return {"count": len(rows), "events": rows[-100:]}
 
-    @mcp.tool()
+    @tool
     def marketops_export(run_id: str, output_path: str) -> dict:
         """Export local candidate-only CSV; no contact/outreach authorization."""
         return export(run_id, output_path)
 
-    @mcp.tool()
+    @tool
     def marketops_export_xlsx(run_id: str, delivery_id: str) -> dict:
-        """Write real 8-sheet evidence-audited XLSX + CSV from this Run's Lite store.
+        """Write real 9-sheet evidence-audited XLSX + CSV from this Run's Lite store.
 
         All contacts remain CANDIDATE_NOT_APPROVED; no A/B/C/D or send authority.
         """
         return delivery.write_delivery(root(), run_id, delivery_id)
 
-    @mcp.tool()
+    @tool
     def marketops_handoff(run_id: str, operation_id: str) -> dict:
         """Write both candidate research CSV and experience incident draft in one review handoff."""
         return handoff(run_id, operation_id)
 
-    @mcp.tool()
+    @tool
     def marketops_experience_draft(run_id: str, scope: str, rule_version: str,
                                    output_path: str) -> dict:
         """Create unapproved incident draft from actual event receipts."""
