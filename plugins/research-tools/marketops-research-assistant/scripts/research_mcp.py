@@ -7,6 +7,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import sys
 from pathlib import Path
 
 import dual_search_mcp
@@ -65,6 +66,37 @@ def configured(name):
     return bool(value) and not value.startswith("$" + "{")
 
 
+def _local_browser_cache_hint() -> dict:
+    """Cheap preflight HINT only; neither SDK presence nor cache proves launch."""
+    explicit = os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "").strip()
+    if explicit == "0":
+        return {"status": "SYSTEM_BROWSER_MODE_NOT_PROBED", "verified": False}
+    if explicit.startswith("$" + "{"):
+        return {"status": "BROWSER_PATH_PLACEHOLDER_UNRESOLVED", "verified": False}
+    if explicit:
+        folder = Path(explicit).expanduser()
+        source = "operator_environment"
+    elif sys.platform == "win32":
+        folder = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "ms-playwright"
+        source = "platform_default"
+    elif sys.platform == "darwin":
+        folder = Path.home() / "Library" / "Caches" / "ms-playwright"
+        source = "platform_default"
+    else:
+        folder = Path.home() / ".cache" / "ms-playwright"
+        source = "platform_default"
+    try:
+        present = folder.is_dir() and any(
+            child.is_dir() and child.name.startswith(("chromium-", "chromium_headless_shell-"))
+            for child in folder.iterdir()
+        )
+    except OSError:
+        present = False
+    return {"status": ("CHROMIUM_CACHE_PRESENT_NOT_LAUNCH_VERIFIED" if present
+                       else "CHROMIUM_CACHE_MISSING_OR_INCOMPLETE"),
+            "verified": False, "source": source}
+
+
 def capabilities():
     search = dual_search_mcp._configuration()
     return {
@@ -74,6 +106,7 @@ def capabilities():
             "serpapi": {"transport": "REST through local MCP", **search["serpapi"]},
             "serper": {"transport": "REST through local MCP", **search["serper"]},
             "crawl4ai": {"local_installed": importlib.util.find_spec("crawl4ai") is not None,
+                         "browser_cache_hint": _local_browser_cache_hint(),
                          "cloud_key": configured("CRAWL4AI_API_KEY"),
                          "modes": ["local", "cloud"]},
             "tinyfish": {"key": configured("TINYFISH_API_KEY"),
