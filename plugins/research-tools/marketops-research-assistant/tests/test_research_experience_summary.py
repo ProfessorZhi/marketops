@@ -237,24 +237,26 @@ class NoteTests(unittest.TestCase):
                 columns = {row[1] for row in db.execute("PRAGMA table_info(research_notes)")}
             self.assertEqual(set(journal.NOTE_FIELDS), columns)
 
-    def test_an_omitted_evidence_ref_is_allowed_but_an_invalid_one_is_not(self):
-        # The journal now treats evidence_ref as optional: a short automatic note
-        # (for example the delivery-time evidence-gap note) may omit it. What must
-        # still be refused is a *non-empty* ref that is not a usable opaque ID.
+    def test_a_note_must_carry_a_usable_evidence_witness(self):
+        # evidence_ref stays mandatory: every note must point at a stable opaque
+        # witness (the delivery-time gap note uses "snapshot-<snapshot>", which is
+        # stable across deliveries of the same snapshot). A missing or non-opaque
+        # reference is refused, so no note can be filed without a witness.
         with tempfile.TemporaryDirectory() as tmp:
             data, _ = paths(tmp)
             seed_run(data, "run-a")
-            omitted = journal.append_note(data, run_id="run-a", note_id="note-ok",
-                                          stage="review", category="other", problem="p",
-                                          action_taken="a", observed_result="o",
-                                          evidence_ref="")
-            self.assertEqual("RECORDED", omitted["result"])
-            with self.assertRaises(ValueError) as ctx:
-                journal.append_note(data, run_id="run-a", note_id="note-x",
-                                    stage="review", category="other", problem="p",
-                                    action_taken="a", observed_result="o",
-                                    evidence_ref="https://example.org/page")
-            self.assertIn("evidence_ref", str(ctx.exception))
+            for ref in ("", "https://example.org/page"):
+                with self.assertRaises(ValueError) as ctx:
+                    journal.append_note(data, run_id="run-a", note_id="note-" + str(len(ref)),
+                                        stage="review", category="other", problem="p",
+                                        action_taken="a", observed_result="o",
+                                        evidence_ref=ref)
+                self.assertIn("evidence_ref", str(ctx.exception))
+            ok = journal.append_note(data, run_id="run-a", note_id="note-ok",
+                                     stage="review", category="other", problem="p",
+                                     action_taken="a", observed_result="o",
+                                     evidence_ref="snapshot-3f3cec48f77f7bc1f80ab5be")
+            self.assertEqual("RECORDED", ok["result"])
 
     def test_notes_appear_in_the_refreshed_summary(self):
         with tempfile.TemporaryDirectory() as tmp:
