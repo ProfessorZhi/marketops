@@ -47,6 +47,8 @@ class LocalInstallTests(unittest.TestCase):
             self.assertEqual("mcp", wmeta["type"])
             self.assertEqual("token", wmeta["auth_mode"])
             self.assertTrue((connector / "scripts" / "research_mcp.py").exists())
+            self.assertTrue((connector / "scripts" / "build_client_bundles.py").exists(),
+                            "Packaged setup_clients must not reference an absent builder")
             token = json.loads((connector / "token-schema.json").read_text(encoding="utf-8"))
             keys = {x["key"] for x in token["fields"]}
             for key in ("SERPAPI_API_KEY", "SERPER_API_KEY", "CRAWL4AI_API_KEY",
