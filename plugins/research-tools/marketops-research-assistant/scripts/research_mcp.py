@@ -154,63 +154,65 @@ def export(run_id, output_path):
     return result
 
 
-
 def handoff(run_id, operation_id):
-    """The primary candidate delivery: one workbook snapshot plus the experience pair.
+    """One audited workbook snapshot plus experience artifacts and an honest receipt.
 
-    Exactly one research snapshot is taken — the workbook — and the experience JSON
-    is derived from the same Run. The legacy `candidate_csv` field still exists but
-    now names this workbook's audit CSV, so no second CSV snapshot is generated.
-
-    A workbook that was really written is always reported even when the experience
-    side fails; the status then says PARTIAL instead of claiming a clean handoff.
+    Counts come from the workbook manifest, not a preceding status query. A child
+    delivery's partial failure may never disappear at this orchestration boundary.
+    Final experience refresh happens after the handoff event, including failures.
     """
     r = root()
     store._id(run_id, "run_id")
     store._id(operation_id, "operation_id")
-    # Validate the Run and read its true totals. This deliberately does NOT reuse
-    # the legacy 500-row list_run cap: delivery itself reads every record and its
-    # own ROW_LIMIT is the authoritative size guard, so a capped pre-check would
-    # refuse a handoff that would in fact have been complete.
+    # Run metadata is immutable; counts are not. Use this read only to validate
+    # existence and obtain scope/policy for the experience draft.
     head = workflow.page(r, run_id, 1)
-    snapshot = {"scope": head["scope"], "rule_version": head["rule_version"],
-                "record_count": head["record_count"], "artifact_count": head["artifact_count"]}
     experiences = r / "experience" / run_id
     experiences.mkdir(parents=True, exist_ok=True)
     experience_path = experiences / (operation_id + "-experience.json")
-
     try:
         workbook = delivery.write_delivery(r, run_id, operation_id)
     except Exception as exc:
-        append_event(r, run_id=run_id, operation_id=operation_id,
-                     stage="handoff", kind="handoff", status="hold",
-                     provider="local", reason_code="handoff_delivery_failed")
-        # Immutable path conflicts and refused snapshots stay errors.
+        try:
+            append_event(r, run_id=run_id, operation_id=operation_id,
+                         stage="handoff", kind="handoff", status="hold",
+                         provider="local", reason_code="handoff_delivery_failed")
+        except Exception:
+            pass  # Do not replace the real export refusal with a journal error.
         raise ValueError(f"HANDOFF_PARTIAL_OR_FAILED: {type(exc).__name__}: {exc}") from None
 
     result = {
         "status": "CANDIDATE_HANDOFF_NOT_BUSINESS_VERIFIED",
         "run_id": run_id,
-        "records": snapshot["record_count"],
-        "artifacts": snapshot["artifact_count"],
+        "records": workbook["input_record_count"],
+        "artifacts": workbook["saved_artifact_count"],
         "workbook_xlsx": workbook["xlsx_path"],
         "workbook_directory": workbook["directory"],
         "candidate_csv": str(Path(workbook["directory"]) / "候选数据审计.csv"),
         "candidate_csv_schema": "audit_csv_from_this_workbook_not_a_second_snapshot",
         "goal_assessment": workbook.get("goal_assessment"),
         "goal_gap_record": workbook.get("goal_gap_record"),
+        "workbook_delivery_completeness": workbook.get("delivery_completeness"),
+        "workbook_experience_refresh": workbook.get("experience_refresh"),
         "unresolved_business_review": True,
-        "warning": "Candidate workbook plus its audit CSV; NOT ready contacts, "
-                   "not an XLSX-only claim and not a formal A/B/C/D route.",
-        "experience_file": workbook.get("experience_file"),
-        "experience_refresh": workbook.get("experience_refresh"),
+        "warning": "Candidate workbook plus its audit CSV; NOT ready contacts or a formal A/B/C/D route.",
     }
-    reasons = []
-    refresh = workbook.get("experience_refresh") or {}
+    reasons = list(workbook.get("partial_reasons") or [])
+    if workbook.get("delivery_completeness") == "PARTIAL" and not reasons:
+        reasons.append("WORKBOOK_DELIVERY_PARTIAL")
+    if (workbook.get("goal_gap_record") or {}).get("status") == "FAILED":
+        if "GOAL_GAP_RECORD_FAILED" not in reasons:
+            reasons.append("GOAL_GAP_RECORD_FAILED")
+    initial_refresh = workbook.get("experience_refresh") or {}
+    if initial_refresh.get("status") != "REFRESHED":
+        reason = "EXPERIENCE_REFRESH_" + str(initial_refresh.get("reason_code")
+                                             or initial_refresh.get("status") or "FAILED")
+        if reason not in reasons:
+            reasons.append(reason)
     try:
         experience_result = draft_experience(
-            r, run_id=run_id, scope=snapshot["scope"],
-            rule_version=snapshot["rule_version"], skill_version="0.4.0",
+            r, run_id=run_id, scope=head["scope"],
+            rule_version=head["rule_version"], skill_version="0.4.0",
             output=experience_path)
         result["experience_candidate"] = str(experience_path)
         result["experience_incidents"] = experience_result["incidents"]
@@ -218,20 +220,35 @@ def handoff(run_id, operation_id):
         result["experience_candidate"] = None
         result["experience_incidents"] = None
         reasons.append("EXPERIENCE_DRAFT_FAILED_" + type(exc).__name__)
+
+    try:
+        append_event(r, run_id=run_id, operation_id=operation_id,
+                     stage="handoff", kind="handoff", status="hold" if reasons else "succeeded",
+                     provider="local", reason_code="partial_handoff" if reasons else "")
+    except Exception as exc:
+        reasons.append("HANDOFF_EVENT_FAILED_" + type(exc).__name__)
+    # Include the final handoff event in the user's collectable file, not just
+    # the earlier export. A successful earlier refresh cannot mask a later one.
+    try:
+        refresh = refresh_summary(data_root=r)
+    except Exception as exc:
+        refresh = {"status": "FAILED", "reason_code": type(exc).__name__}
+    result["experience_file"] = refresh.get("experience_file") or workbook.get("experience_file")
+    result["experience_refresh"] = refresh
     if refresh.get("status") != "REFRESHED":
-        reasons.append("EXPERIENCE_REFRESH_" + str(refresh.get("reason_code")
-                                                   or refresh.get("status") or "FAILED"))
+        reasons.append("FINAL_EXPERIENCE_REFRESH_" + str(refresh.get("reason_code")
+                                                        or refresh.get("status") or "FAILED"))
+        try:
+            append_event(r, run_id=run_id, operation_id=operation_id,
+                         stage="handoff", kind="handoff", status="hold",
+                         provider="local", reason_code="partial_handoff")
+        except Exception as exc:
+            reasons.append("FINAL_HOLD_EVENT_FAILED_" + type(exc).__name__)
+    reasons = list(dict.fromkeys(reasons))
+    result["delivery_completeness"] = "PARTIAL" if reasons else "COMPLETE"
+    result["partial_reasons"] = reasons
     if reasons:
-        # The workbook is real and stays reported; the handoff is not clean.
         result["status"] = "PARTIAL_HANDOFF_" + reasons[0]
-        result["partial_reasons"] = reasons
-        append_event(r, run_id=run_id, operation_id=operation_id,
-                     stage="handoff", kind="handoff", status="hold",
-                     provider="local", reason_code="partial_handoff")
-    else:
-        append_event(r, run_id=run_id, operation_id=operation_id,
-                     stage="handoff", kind="handoff", status="succeeded",
-                     provider="local")
     return result
 
 
@@ -360,7 +377,7 @@ def build_server():
 
     @tool
     def marketops_handoff(run_id: str, operation_id: str) -> dict:
-        """Write both candidate research CSV and experience incident draft in one review handoff."""
+        """Deliver one audited candidate XLSX/CSV snapshot and experience artifacts with partial failures visible."""
         return handoff(run_id, operation_id)
 
     @tool
