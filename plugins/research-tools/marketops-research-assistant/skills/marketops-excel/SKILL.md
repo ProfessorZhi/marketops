@@ -21,7 +21,7 @@ You are an Excel specialist *within* MarketOps. You do not decide who qualifies,
 
 Input may be existing XLSX, CSV exports, or the portable research pack. First preserve existing file, column/ID semantics, formulas, number formats and source links; create an edited copy unless explicitly told to overwrite.
 
-The workbook should have at minimum: Instructions, Summary, SourceHits, Evidence, VenueCandidates, Venues, Organizations, VenueOrgLinks, AccountAssessments, People, ContactPoints, ContactRoutes, ReviewQueue. Clearly distinguish *candidate* from *verified/ready*. Leave `unknown` visible.
+For the **current Lite candidate delivery**, expect exactly nine worksheets: 客户总表, 联系人路线, 排除与待确认, 证据索引, 本轮说明, 场地与资产, 人员岗位, 来源与查询, 候选数据审计. For a **future canonical formal audit export**, the separate thirteen-sheet layout in WORKBOOK_SPEC may be used after the MarketOps domain and human verification layer is connected. Never claim the current tool produced thirteen sheets. Clearly distinguish *candidate* from *verified/ready*; leave UNKNOWN visible.
 
 **Do before delivery:**
 - validate the research pack using `scripts/research_pack.py validate` and report blocking errors without silently repairing unsupported data;
