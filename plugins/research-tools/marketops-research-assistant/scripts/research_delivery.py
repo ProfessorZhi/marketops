@@ -207,8 +207,8 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
             if supported and channel == "email":
                 single = evidence.audit_records([candidate], assets, result_limit=1)
                 problems = single["gap_counts"]
-                if "EMAIL_NOT_IN_RENDERED_HTML" in problems:
-                    validation = "HOLD_EMAIL_NOT_IN_RENDERED_HTML"
+                if "EMAIL_NOT_IN_PRIMARY_MATERIAL" in problems:
+                    validation = "HOLD_EMAIL_NOT_IN_PRIMARY_MATERIAL"
                 elif "NO_EXCERPT" in problems or "CLAIMS_INVALID" in problems:
                     validation = "HOLD_EMAIL_NO_SOURCE_QUOTE"
                 elif "EXCERPT_NOT_FOUND" in problems:
