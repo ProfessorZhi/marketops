@@ -8,8 +8,11 @@ the original HTTP response, or a formal SOP decision. No model/network calls.
 from __future__ import annotations
 
 import html
+import hashlib
 import json
 import re
+from contextlib import closing
+from pathlib import Path
 from collections import Counter
 
 KEY = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
@@ -153,3 +156,70 @@ def audit_records(records: list[dict], artifacts: dict[str, dict],
             "sample_limit": result_limit, "samples": samples,
             "facts_verified": False, "formal_sop_approved": False,
             "warning": "Even rendered HTML is not raw HTTP; excerpt matching is not semantic verification."}
+
+
+def excerpts(root: Path | str, run_id: str, artifact_ids: list[str],
+             queries: list[str] | None = None) -> dict:
+    """Read only tiny local evidence snippets, no full docs in model context.
+
+    Grounded on SHA-checked saved bytes. Up to 3 artifacts, 3 short queries,
+    2 hits per query and at most 1200 visible characters across the response.
+    """
+    import research_lite_store as store
+    from research_event_journal import _root
+
+    store._id(run_id, "run_id")
+    if (not isinstance(artifact_ids, list) or not 1 <= len(artifact_ids) <= 3
+            or any(not isinstance(a, str) for a in artifact_ids)
+            or len(artifact_ids) != len(set(artifact_ids))):
+        raise ValueError("EXCERPT_ARTIFACT_LIMIT")
+    queries = queries or []
+    if (not isinstance(queries, list) or len(queries) > 3
+            or any(not isinstance(q, str) or not 2 <= len(q) <= 60 for q in queries)):
+        raise ValueError("EXCERPT_QUERY_LIMIT")
+    base = _root(root)
+    outputs, remaining = [], 1200
+    with closing(store._connection(base)) as db:
+        for aid in artifact_ids:
+            store._id(aid, "artifact_id")
+            row = db.execute(
+                "SELECT material_kind,content_sha256,relative_path FROM artifacts "
+                "WHERE run_id=? AND artifact_id=?", (run_id, aid)
+            ).fetchone()
+            if row is None:
+                raise ValueError("EXCERPT_ARTIFACT_NOT_IN_RUN")
+            target = (base / row[2]).resolve()
+            if not target.is_relative_to((base / "artifacts").resolve()):
+                raise ValueError("EXCERPT_PATH_OUTSIDE_ROOT")
+            source = target.read_bytes()
+            if hashlib.sha256(source).hexdigest() != row[1]:
+                raise ValueError("EXCERPT_SOURCE_HASH_MISMATCH")
+            text = source.decode("utf-8", errors="replace")
+            if row[0] == "provider_extracted":
+                try:
+                    parsed = json.loads(text)
+                    if isinstance(parsed, dict):
+                        text = parsed.get("markdown", text)
+                except ValueError:
+                    pass
+            if row[0] == "rendered_html":
+                text = html.unescape(re.sub(r"<[^>]+>", " ", text))
+            text = " ".join(text.split())
+            clips = []
+            for query in queries or [""]:
+                start = 0
+                for _ in range(2 if query else 1):
+                    pos = text.casefold().find(query.casefold(), start) if query else 0
+                    if pos < 0 or remaining <= 0:
+                        break
+                    left, right = max(0, pos - 100), min(len(text), pos + max(180, len(query) + 100))
+                    clip = text[left:right][:remaining]
+                    clips.append(clip)
+                    remaining -= len(clip)
+                    start = pos + max(1, len(query))
+            outputs.append({"artifact_id": aid, "material_kind": row[0],
+                            "sha256": row[1], "snippets": clips,
+                            "query_hits": len(clips)})
+    return {"status": "SAVED_MATERIAL_EXCERPTS_NOT_FACT_VERIFIED",
+            "results": outputs, "total_char_limit": 1200,
+            "untrusted_source_content": True}
