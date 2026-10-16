@@ -27,6 +27,11 @@ KINDS = {"run", "tool", "source", "evidence", "entity", "decision",
          "route", "export", "review", "handoff", "correction"}
 STATUSES = {"started", "succeeded", "failed", "blocked", "hold", "unknown"}
 
+#: The statuses that mean something actually went wrong or was held back. The
+#: summary imports this tuple rather than keeping its own copy, so the two can
+#: never disagree about which events are bottlenecks.
+BUMP_STATUSES = ("failed", "blocked", "hold", "unknown")
+
 #: A bottleneck the agent actually hit, in Member-A's own audit vocabulary. A closed
 #: set so the summary can group by mechanism instead of by similar wording.
 NOTE_CATEGORIES = (
@@ -166,7 +171,24 @@ def append_event(data_root: str | Path | None, *, run_id: str, operation_id: str
              datetime.now(timezone.utc).isoformat(), digest, encoded),
         )
         db.commit()
-        return {"result": "RECORDED", "sequence": cursor.lastrowid, "payload_sha256": digest}
+        outcome = {"result": "RECORDED", "sequence": cursor.lastrowid, "payload_sha256": digest}
+    if status in BUMP_STATUSES:
+        # A real bottleneck is exactly when the user's one summary file must move.
+        outcome["experience_refresh"] = _refresh_summary_quietly(root)
+    return outcome
+
+
+def _refresh_summary_quietly(root: Path) -> dict:
+    """Refresh the collectable summary without ever failing the journaling call.
+
+    The refresh reports its own status either way, so a delivery receipt can show
+    that the summary did not move instead of implying it did.
+    """
+    try:
+        from research_experience_summary import refresh_quietly
+        return refresh_quietly(data_root=root)
+    except Exception as exc:  # noqa: BLE001 - journaling must not depend on the view
+        return {"status": "FAILED", "reason_code": type(exc).__name__, "experience_file": None}
 
 
 def read_events(data_root: str | Path | None, run_id: str) -> list[dict]:

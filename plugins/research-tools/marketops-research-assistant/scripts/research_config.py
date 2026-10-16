@@ -157,10 +157,12 @@ def status(env: dict | None = None, platform: str = sys.platform,
 
 
 def _redact(text: str, env: dict) -> str:
-    for name in ("HOME", "USERPROFILE", "APPDATA"):
-        home = (env.get(name) or "").strip()
-        if home and text.startswith(home):
-            return "~" + text[len(home):]
+    # XDG_CONFIG_HOME is included so an agent-facing summary shows "~" rather than
+    # whatever local layout this machine happens to use.
+    for name in ("HOME", "USERPROFILE", "APPDATA", "XDG_CONFIG_HOME"):
+        base = (env.get(name) or "").strip()
+        if base and text.startswith(base):
+            return "~" + text[len(base):]
     return text
 
 

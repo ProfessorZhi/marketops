@@ -25,6 +25,7 @@ from xml.etree import ElementTree as ET
 
 import research_lite_store as store
 from research_event_journal import _root, append_event
+from research_experience_summary import refresh_quietly as refresh_summary
 from _xlsx import Sheet, render_workbook
 
 VERSION = "0.4.0-plus-xlsx-candidate"
@@ -344,8 +345,13 @@ def write_delivery(data_root: Path | str | None, run_id: str, delivery_id: str) 
     append_event(root, run_id=run_id, operation_id=delivery_id,
                  stage="export", kind="export", status="succeeded",
                  provider="local", receipt_ref=delivery_id)
+    # The workbook and the collectable summary are two artifacts. Report both, so
+    # a summary that could not be refreshed is visible instead of implied.
+    refresh = refresh_summary(data_root=root)
     return {**receipt, "directory": str(destination),
-            "xlsx_path": str(destination / "Research_Result.xlsx")}
+            "xlsx_path": str(destination / "Research_Result.xlsx"),
+            "experience_file": refresh.get("experience_file"),
+            "experience_refresh": refresh}
 
 
 def main(argv=None) -> int:

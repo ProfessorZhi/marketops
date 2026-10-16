@@ -10,10 +10,34 @@ import os
 from pathlib import Path
 
 import dual_search_mcp
+import research_config
 import research_lite_store as store
 import research_provider_extensions as extra
 import research_delivery as delivery
-from research_event_journal import _root, append_event, draft_experience, read_events
+from research_event_journal import (_root, append_event, append_note, draft_experience,
+                                    read_events)
+from research_experience_summary import refresh_quietly as refresh_summary
+
+
+def setup_status():
+    """Are the two first-use paths chosen? Read-only, redacted, never creates anything."""
+    return research_config.status(redact=True)
+
+
+def setup_configure(data_root, experience_file, confirm=False):
+    """Persist the two paths the user answered once at first use."""
+    return research_config.configure(data_root, experience_file, confirm=confirm)
+
+
+def note(run_id, note_id, stage, category, problem, action_taken, observed_result,
+         hypothesis="", evidence_ref=""):
+    """Record a real bottleneck and refresh the user's one summary file."""
+    r = root()
+    recorded = append_note(r, run_id=run_id, note_id=note_id, stage=stage,
+                           category=category, problem=problem, action_taken=action_taken,
+                           observed_result=observed_result, hypothesis=hypothesis,
+                           evidence_ref=evidence_ref)
+    return {"note": recorded, "summary": refresh_summary(data_root=r)}
 
 
 def root():
@@ -145,6 +169,8 @@ def handoff(run_id, operation_id):
         append_event(r, run_id=run_id, operation_id=operation_id,
                      stage="handoff", kind="handoff", status="succeeded",
                      provider="local")
+        # The handoff artifacts are real regardless; report the summary separately.
+        refresh = refresh_summary(data_root=r)
         return {
             "status": "CANDIDATE_HANDOFF_NOT_BUSINESS_VERIFIED",
             "run_id": run_id,
@@ -155,6 +181,8 @@ def handoff(run_id, operation_id):
             "experience_incidents": experience_result["incidents"],
             "unresolved_business_review": True,
             "warning": "CSV is NOT XLSX and staged candidates are NOT ready contacts.",
+            "experience_file": refresh.get("experience_file"),
+            "experience_refresh": refresh,
         }
     except Exception:
         append_event(r, run_id=run_id, operation_id=operation_id,
@@ -190,6 +218,25 @@ def build_server():
 
     def tool(fn):
         return mcp.tool()(_guarded(fn))
+
+    @tool
+    def marketops_setup_status() -> dict:
+        """Read-only: are the two first-use paths chosen? Never creates or changes anything."""
+        return setup_status()
+
+    @tool
+    def marketops_setup_configure(data_root: str, experience_file: str,
+                                  confirm: bool = False) -> dict:
+        """Persist the two paths the user answered once: research data dir, experience file."""
+        return setup_configure(data_root, experience_file, confirm=confirm)
+
+    @tool
+    def marketops_note(run_id: str, note_id: str, stage: str, category: str,
+                       problem: str, action_taken: str, observed_result: str,
+                       hypothesis: str = "", evidence_ref: str = "") -> dict:
+        """Record one real bottleneck the agent met, with what it tried and what happened."""
+        return note(run_id, note_id, stage, category, problem, action_taken,
+                    observed_result, hypothesis, evidence_ref)
 
     @tool
     def marketops_capabilities() -> dict:

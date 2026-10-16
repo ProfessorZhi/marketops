@@ -38,7 +38,7 @@ import research_event_journal as journal
 
 SNAPSHOT_VERSION = 1
 HEADER_FIELDS = ("events", "notes", "runs", "bump_events")
-BUMP_STATUSES = ("failed", "blocked", "hold", "unknown")
+BUMP_STATUSES = journal.BUMP_STATUSES   # one definition, in the journal's own vocabulary
 _HEADER_RE = re.compile(r"^<!--\s*marketops:research-experience\s+v(\d+)\s+([^>]*?)-->\s*$")
 _NOT_RECORDED = "—"
 _NO_ROOT_CAUSE = "待人工确认（未推断根因）"
@@ -211,7 +211,12 @@ def refresh(*, data_root: str | Path | None = None,
             db.execute("BEGIN IMMEDIATE")
             try:
                 events = journal.read_all_events(db)
-                notes = journal.read_notes(root)
+                # Read the notes on the *same* handle: the whole read-render-write
+                # stays inside one transaction, so no writer can slip between them.
+                note_rows = db.execute(
+                    "SELECT " + ", ".join(journal.NOTE_FIELDS) +
+                    " FROM research_notes ORDER BY sequence").fetchall()
+                notes = [dict(zip(journal.NOTE_FIELDS, row)) for row in note_rows]
                 header = {"events": len(events), "notes": len(notes),
                           "runs": len({e["run_id"] for e in events} | {n["run_id"] for n in notes}),
                           "bump_events": len([e for e in events if e["status"] in BUMP_STATUSES])}
