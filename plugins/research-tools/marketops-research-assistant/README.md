@@ -69,13 +69,45 @@ After local authorization to install files and PyPI dependencies, use --apply --
 
 Default external access is OFF: MARKETOPS_SEARCH_ALLOW_NETWORK=0, MARKETOPS_SEARCH_MAX_CALLS=0, MARKETOPS_RESEARCH_ALLOW_NETWORK=0, MARKETOPS_RESEARCH_MAX_EXTERNAL_CALLS=0. Each actual request requires a bounded Run, deliberate host/domain allowlist (for fetched pages), selected provider and user-controlled credentials.
 
+## First use — exactly two questions, then never again
+
+The first time the unified `marketops-research` MCP starts for a user, the agent calls the
+read-only tool `marketops_setup_status`. If it answers `CONFIG_REQUIRED`, the user is asked
+two things and nothing else:
+
+1. **Where should research data be stored?** (an absolute directory)
+2. **Where should the experience/bottleneck summary file live?** — an absolute path such as `Research_Experience.md`
+
+The answers are persisted as a versioned JSON config under the user's own config directory
+(or wherever `MARKETOPS_RESEARCH_CONFIG` points) by `marketops_setup_configure`. Later starts
+read the summary and stop asking. Changing either path needs an explicit instruction plus
+`confirm=true`; the plugin refuses otherwise and leaves the old paths intact.
+
+There is deliberately **no default path**: the plugin will not drop a customer's research into
+its own installation directory, and `marketops_setup_status` reports no `data_root` at all
+until it is configured. The experience file must sit *outside* the data directory so it stays
+collectable on its own. Neither location may be inside a Git checkout, and an existing
+non-MarketOps file is never overwritten. Windows and Unix absolute paths are both accepted.
+
+Compatibility: an explicit `MARKETOPS_RESEARCH_DATA_ROOT` still wins over the stored config for
+existing test/deployment setups. Resolution order is environment variable → config file →
+structured `CONFIG_REQUIRED`.
+
+**The user collects one file.** `Research_Experience.md` accumulates across every Run, grouped by
+stage and problem type: when each bottleneck happened, in which Run, which tool/reason code, what
+was tried, the evidence ref and the candidate lesson. It refreshes automatically on a real
+block/failure/HOLD/human correction and at the end of every export or handoff, and the delivery
+receipt carries `experience_file` plus an `experience_refresh` status — a refresh that failed is
+reported with its reason code rather than being called a clean handoff. The per-Run
+`experience.json` and the research workbook stay as the audit originals.
+
 ## What about the Fengjiang model gateway and Crawl4AI?
 
 Crawl4AI executes HTTP/Chromium retrieval. The company LiteLLM model gateway cannot replace the browser. Once crawler output exists, an approved and OpenAI-chat-compatible gateway may later supply a model to Crawl4AI's optional LLMConfig(provider, base_url, api_token). Its concrete internal URL/model/Key have not been confirmed and are **not bundled or enabled**. First pilot may use Crawl4AI Cloud for fast client setup or local Crawl4AI for sensitive customer data after Chromium setup. Read [MEMBER_A_INSTALL](references/MEMBER_A_INSTALL.md).
 
 ## Verification, test status and next release gate
 
-**Authored:** offline synthetic tests for dual-search, provider bridge, Lite store, event journal, installation scripts, source-vendor separation and rules rejecting false promotion. **Not yet run on an authorized Python runner as a full suite:** tests; not yet live-tested in Codex/WorkBuddy or billed Provider endpoints. Underlying PR may have unrelated failing CI; never treat source readback as passing an execution test.
+**Authored:** offline synthetic tests for dual-search, provider bridge, Lite store, event journal, first-use configuration, the collectable experience summary, installation scripts, source-vendor separation and rules rejecting false promotion. **Run for real on an authorized isolated runner (Python 3.12.14, `mcp==2.3.0`):** the offline suite is green. **Still not done:** a real Codex/WorkBuddy handshake and billed Provider endpoints. The underlying PR's GitHub Actions are red for an account-billing reason, not a Python one — never treat source readback, or that red X, as an execution test.
 
 **[AUDIT_STATUS_2026-10-16](references/AUDIT_STATUS_2026-10-16.md)** — 当前已写代码、兼容问题修复及发包阻断项。**[RELEASE_GATE](references/RELEASE_GATE.md)** must pass before preparing Member-A's versioned source ZIP. Specifically, the customer-facing promise of verified field contacts requires integrating the existing MarketOps business domain's human/SOP route promotion and proving end-to-end export; our local candidate tools do NOT currently do that.
 
@@ -84,13 +116,6 @@ We keep this PR Draft and do not deploy anything to Tokyo, change company LiteLL
 
 ## XLSX delivery and independent acceptance (new candidate extension)
 
-The local Lite MCP now exposes `marketops_export_xlsx`, backed by the existing MarketOps standard-library OOXML serializer technology. It creates a real 9-sheet candidate research workbook plus individually checkable CSVs and a SHA-256 manifest. Source artifacts are actually reread and hashed; contact values are checked for literal occurrence in their attributed material. All routes remain `RULES_UNKNOWN` and research-only: this is NOT the formal SOP-approved A/B/C/D business exporter.
+The local Lite MCP exposes `marketops_export_xlsx`, backed by the existing MarketOps standard-library OOXML serializer technology. From the Lite SQLite Run it produces `Research_Result.xlsx` — a real **9-sheet** candidate workbook — plus individually checkable CSVs and a SHA-256 manifest. Saved source materials are reread and hashed, the workbook is reopened at ZIP/XML level, and contact values must occur literally in their attributed material. All routes remain `RULES_UNKNOWN` and research-only: this is NOT the formal SOP-approved A/B/C/D business exporter, and no Lite Agent can grant a grade or outbound authorization.
 
-The `marketops-research-acceptance` Skill and [E2E_VERIFICATION](references/E2E_VERIFICATION.md) define the L0–L5 verification ladder. A live, read-only public-council source test exists behind `MARKETOPS_LIVE_PUBLIC_E2E=1`; official paid-provider and real Codex/WorkBuddy tests remain independent requirements.
-
-
-## Actual XLSX and independent acceptance (new candidate extension)
-
-`marketops_export_xlsx` generates `Research_Result.xlsx` (8 business/audit sheets), individual CSVs and SHA-256 manifest from the Lite SQLite Run. Real saved source materials are reread and hashed, the workbook is reopened at ZIP/XML level, and emails must occur literally in their attributed material. No Lite Agent can grant A/B/C/D or outbound authorization; unknown business policy remains `RULES_UNKNOWN`.
-
-The new `marketops-research-acceptance` Skill and [E2E_VERIFICATION](references/E2E_VERIFICATION.md) separate offline unit checks, real public source tests, billable provider E2E, formal business review and actual Codex/WorkBuddy E2E. No Member-A release can claim the last three without observed client/provider evidence.
+The `marketops-research-acceptance` Skill and [E2E_VERIFICATION](references/E2E_VERIFICATION.md) define the L0–L5 verification ladder. A live, read-only public-council source test exists behind `MARKETOPS_LIVE_PUBLIC_E2E=1`. Offline checks, real public-source tests, billable provider E2E, formal business review and actual Codex/WorkBuddy E2E are separate levels; no release may claim the last three without observed client/provider evidence.

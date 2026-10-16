@@ -9,7 +9,7 @@ description: Drive one Member-A-style human-reviewed public market research run 
 
 ## 在一个已授权的 Run 内连续推进
 
-1. 使用 marketops-setup 核对本机 MCP/Skills 是否真正可用，marketops_capabilities 显示实际配置。不能把 key_configured、SDK installed 或工具已列出等同真实API或业务通过。
+1. 使用 marketops-setup 核对本机 MCP/Skills 是否真正可用。**第一次开工先调 `marketops_setup_status`**：未配置就按 marketops-setup 问那两个路径问题，不要假装路径已存在；已配置则直接读摘要开工，不要再问。marketops_capabilities 显示实际配置。不能把 key_configured、SDK installed 或工具已列出等同真实API或业务通过。
 2. marketops-intake 固定目标场景、地理范围、客户资格、当前SOP版本和允许费用；marketops_start 创建 Run。已存在的 Run 先通过 marketops_status 读取记录，不能每次再从零爬。
 3. 发现阶段通过 marketops-provider-router 选择 SerpApi 或 Serper；也可按需用 TinyFish Search。每次明确 provider，禁止未经用户批准自动切换另一家收费路径。搜索摘要与 Google Place ID 只进入 source candidate，不能直接证明场地责任或邮箱。
 4. 采集阶段优先复用原始材料；按资源选择已安装 Crawl4AI 本地爬虫/Cloud、TinyFish Fetch。只有实际授权的公开 HTTPS 站点与读取动作允许访问；不绕登录墙、验证码或权限控制。材料需有真实出处、哈希和可回读 artifact_id。
@@ -24,10 +24,9 @@ description: Drive one Member-A-style human-reviewed public market research run 
 
 经验事件：每个受管工具调用的开始/结果及材料落地 → research-events SQLite → 失败/阻断/人工纠错 → experience.json候选 → holdout回放与人工采纳。统一五家Lite MCP内的调用自动记事件；**独立直连的官方TinyFish/Crawl4AI MCP不在本地自动记录范围内**。
 
+**用户只收一个文件。** 首次配置时选定的 `Research_Experience.md` 是跨所有 Run 累计的卡点汇总，由插件自动刷新：真实阻断/失败/HOLD/人工纠正发生时会刷，`marketops_export_xlsx` 与 `marketops_handoff` 结束时也会刷。交付回执里的 `experience_refresh` 会说明这次刷没刷成功——`FAILED` 时带着 reason code 如实报告，不要把它读成"一切正常"。自动表里的卡点**不推断根因**（写「待人工确认（未推断根因）」）；要留下真正的经验，用 `marketops_note` 明确写下来。
+
 不可把“工具调用成功”“保存一个JSON文件”“MCP启动成功”当成“完整市场任务已完成”。在真实业务E2E通过前，这是一份试用工作流，不是已交付成品。
 
 
-**Delivery note (v0.4 XLSX extension):** After a bounded Run reaches its review or stop point, invoke `marketops-research-acceptance`. Prefer `marketops_export_xlsx` for actual business/audit candidate workbook, then pair it with `marketops_experience_draft`; do not call the older CSV-only handoff a completed customer research E2E.
-
-
-**Current XLSX delivery:** after a bounded Run reaches its review or stop point, invoke `marketops-research-acceptance` and `marketops_export_xlsx` for the actual 8-sheet evidence-audited candidate workbook. Generate an experience draft separately. The older CSV-only handoff does not establish a customer-verified A/B/C/D contact route.
+**Delivery note:** after a bounded Run reaches its review or stop point, invoke `marketops-research-acceptance` and `marketops_export_xlsx` for the actual **9-sheet** evidence-audited candidate workbook; generate an experience draft separately. The delivery receipt also carries `experience_file` and `experience_refresh`, and the older CSV-only handoff does not establish a customer-verified A/B/C/D contact route.

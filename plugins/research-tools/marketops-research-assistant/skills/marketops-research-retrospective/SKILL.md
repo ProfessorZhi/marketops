@@ -9,7 +9,13 @@ description: Capture observable research bottlenecks, successful methods and cor
 
 ## 经验事件的持久化（v0.2.2）
 
-若当前使用本地插件模式，先明确客户选择的 MARKETOPS_RESEARCH_DATA_ROOT。每次关键阶段结束应检查 scripts/research_event_journal.py list 对本 Run 的事件；本地 init 与 Excel-safe CSV 导出已自动产生日志。已经直接调用的厂商 MCP 不会自动出现在日志里：若宿主可运行本地 CLI，按实际工具回执用 record 追加事件（只记非敏感 ID/状态）；否则**明确报告 event_not_captured**，不能假称自动保存成功。
+若当前使用本地插件模式，先确认插件已配置：`marketops_setup_status` 应为 `CONFIGURED`
+（未配置时先按 marketops-setup 问那两个路径问题，不要猜数据根）。每次关键阶段结束应检查
+`marketops_events` 对本 Run 的事件；本地 init 与 Excel-safe CSV 导出已自动产生日志。
+已经直接调用的厂商 MCP 不会自动出现在日志里：优先用 `marketops_note` 按实际工具回执补记
+（只记非敏感 ID/状态与简短文本）；否则**明确报告 event_not_captured**，不能假称自动保存成功。
+跨 Run 的阅读视图由插件自动维护在用户选定的 `Research_Experience.md`，不要再让用户逐目录去找
+`experience.json`；那份 JSON 仍是单 Run 的审计原件。
 
 在每次手动交接、暂停或研究完成时，使用 scripts/research_event_journal.py draft 生成**未审批** experience.json 初稿，并用 scripts/experience_pack.py validate 检查格式；只有掌握实际回执与证据时才能由Agent补充根因/经验假设，仍不得自行批准SOP/Skill更新。日志、经验初稿和阅读版都应落在客户数据根中，不在代码仓库。
 
@@ -19,7 +25,19 @@ description: Capture observable research bottlenecks, successful methods and cor
 
 ## 每次卡点如何记
 
-写事件id、阶段、对象、operation_ref、预期行为、实际行为、影响、尝试过什么及结果、可回读证据。分类按协议闭集；技术错误、业务规则不明和授权暂停不是同类。先写observation，再写hypothesis；没有复现或对照不得称根因已确认。
+在**阶段卡点、工具换路、人工纠正、暂停或完结**时，调用 `marketops_note` 写下一条记录：
+`run_id / note_id / stage / category / problem / action_taken / observed_result /
+hypothesis / evidence_ref`。这一步会自动刷新用户定期收取的那一个
+`Research_Experience.md`，所以卡点是"记下来"而不是"留在会话里"。
+
+`category` 是闭集，按协议枚举；技术错误、业务规则不明和授权暂停不是同类。常用几条：
+`contact_found_not_stored`（发现联系人但未入库）、`field_template_pollution`（字段模板污染）、
+`artifact_without_delivery`（只生成了文件未交付）、`source_blocked`、`provider_blocked`、
+`evidence_missing`、`human_correction`。先写 observation，再写 hypothesis；
+**没有复现或对照不得称根因已确认**，`hypothesis` 就是待验证的经验候选。
+
+只写脱敏 ID 和简短文本：`marketops_note` 会拒绝邮件、URL、Key/Token/cookie 字面值，
+也**没有**放隐藏思维链的字段。`evidence_ref` 必填，指向可回读的回执/资料。
 
 用一次事件更新代替每分钟重复记录。成功也记录，特别是合法换源、复用材料、修复抽取和回写校验。注明它是否独立样本，不把同一父任务的子Agent当多次验证。
 
