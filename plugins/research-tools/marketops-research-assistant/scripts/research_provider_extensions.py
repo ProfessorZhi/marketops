@@ -215,8 +215,7 @@ def _crawl4ai_local(url: str) -> dict:
             # Check for a challenge before treating crawler.success as decisive.
             # A blocked page may be served with HTTP 200 and success=False.
             probe = (rendered[:1800] + content[:1000]).casefold()
-            if any(word in probe for word in ("cf-chl-", "challenges.cloudflare.com",
-                                               "verify you are human", "captcha challenge",
+            if any(word in probe for word in ("cf-chl-", "verify you are human", "captcha challenge",
                                                "just a moment...", "checking your browser")):
                 raise ValueError("SOURCE_CHALLENGE_PAGE")
             if not result.success:
