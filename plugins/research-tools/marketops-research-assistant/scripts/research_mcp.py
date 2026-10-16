@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import functools
-from collections import Counter
 import hashlib
 import importlib.util
 import json
@@ -18,7 +17,7 @@ import research_delivery as delivery
 import research_workflow as workflow
 import research_evidence as evidence
 from research_event_journal import (_root, append_event, append_note, draft_experience,
-                                    read_events)
+                                    summarize_events)
 from research_experience_summary import refresh_quietly as refresh_summary
 
 
@@ -401,15 +400,7 @@ def build_server():
     @tool
     def marketops_events(run_id: str) -> dict:
         """Inspect saved operation events and failures."""
-        rows = read_events(root(), run_id)
-        # Summary is all-run; detailed events are recent and bounded to avoid
-        # filling the Agent's context with old operation history.
-        reasons = Counter(r["reason_code"] for r in rows
-                          if r["status"] in {"blocked", "failed", "hold", "unknown"}
-                          and r.get("reason_code"))
-        return {"count": len(rows), "events": rows[-20:],
-                "blocker_counts": dict(reasons.most_common(8)),
-                "detail_limit": 20, "summary_scope": "full_run"}
+        return summarize_events(root(), run_id, limit=20)
 
     @tool
     def marketops_export(run_id: str, output_path: str) -> dict:
