@@ -59,3 +59,11 @@ hypothesis / evidence_ref`。这一步会自动刷新用户定期收取的那一
 按模板生成 `experience.json`，运行 `scripts/experience_pack.py validate ...`；需要阅读版时运行 `render ... --output <Git外新文件>`。两者是候选知识/审查报告，不是执行系统。业务结果、未完成项和store snapshot仍按handoff单独交付。
 
 本版经验包的promotion固定candidate_only。测试回执可以附上，但自动验证只检查结构与引用，不证明事实或因果。人批准采纳后在独立维护PR里发布新Skill/规则版本，下一次同类任务加载已批准版本。即使API调用成功，若未落库/未交付，也必须记录business_incomplete。
+
+## 低成本观察：重复尝试、无进展与挑战页
+
+`marketops_events` 只返回**最近 20 条**事件与本 Run 的有限原因计数，不要加载 Agent 整段历史对话。建议在阶段或批次收口时读取一次；同一机制同一阶段留**一条**有依据的 `marketops_note`，标明尝试的公开资料类型、原因码、合法替代来源是否有用、最后状态和未确认根因。不要记录隐藏推理链、全文、个人联系数据或未经测量的效率收益。
+
+`DUPLICATE_SEARCH_SAME_RUN` / `DUPLICATE_RESEARCH_ATTEMPT_SAME_RUN` 表示重复请求被账本拦截（即使换了ID），不是又一个需去抓的来源；`HOST_PREVIOUSLY_BLOCKED_SAME_RUN` 表示同一站点之前返回访问墙或挑战，应改调查**另一个有授权的公开来源**或 HOLD，不要尝试绕过 CAPTCHA。若一次操作后 `marketops_next(previous_snapshot_id=<上次快照>, after_attempt=true)` 返回 `NO_NEW_PERSISTED_RECORD_AFTER_ATTEMPT`，只记一次无进展，改对象或方法，结束该路径。拒绝/失败不能自动刷新费用预算，也不能声称服务商未计费。
+
+经验区分“实际观测”“处理动作”“结果”“原因假设”；用户定期只需取唯一 `Research_Experience.md`。日志是少量诊断元数据而非全文工作轨迹；无真实耗时或 Token 统计时用 UNKNOWN。
