@@ -79,7 +79,7 @@ def build(output: Path, *, with_search_mcp: bool = False,
     (target / "scripts").mkdir()
     for name in ("research_pack.py", "export_excel_safe_csv.py", "experience_pack.py",
                  "research_event_journal.py", "research_config.py",
-                 "research_experience_summary.py",
+                 "research_experience_summary.py", "research_workflow.py",
                  "dual_search_mcp.py", "compare_search_receipts.py", "research_lite_store.py",
                  "research_provider_extensions.py", "research_mcp.py",
                  "research_delivery.py", "_xlsx.py", "preflight.py", "setup_clients.py"):
@@ -115,10 +115,19 @@ def build(output: Path, *, with_search_mcp: bool = False,
         }}}
         (target / "mcp.json").write_text(
             json.dumps(search_config, indent=2) + "\n", encoding="utf-8")
+        # The unified Research MCP is configured in-product at first use, so the data
+        # root is an advanced override here, not a required onboarding field. Never
+        # inject a default directory: a blank value must stay unconfigured.
+        data_root_field = (
+            ("MARKETOPS_RESEARCH_DATA_ROOT",
+             "Optional advanced override: absolute research data directory "
+             "(leave empty to use the first-use configuration)",
+             "text", False, "") if with_research_mcp else
+            ("MARKETOPS_RESEARCH_DATA_ROOT", "Private absolute data directory", "text", True, ""))
         field_data = [
             ("SERPAPI_API_KEY", "SerpApi API Key (optional)", "password", False, ""),
             ("SERPER_API_KEY", "Serper API Key (optional)", "password", False, ""),
-            ("MARKETOPS_RESEARCH_DATA_ROOT", "Private absolute data directory", "text", True, ""),
+            data_root_field,
             ("MARKETOPS_RESEARCH_CONFIG", "Optional: path to a different first-use config JSON", "text", False, ""),
             ("MARKETOPS_SEARCH_ALLOW_NETWORK", "Enable billable search: enter 1, otherwise 0", "text", True, "0"),
             ("MARKETOPS_SEARCH_MAX_CALLS", "Cumulative reserved call limit", "text", True, "0"),

@@ -21,7 +21,7 @@ EXPECTED_TOOLS = {
     "marketops_capabilities", "marketops_start", "marketops_search", "marketops_crawl",
     "marketops_tinyfish", "marketops_jev_choice", "marketops_propose", "marketops_status",
     "marketops_events", "marketops_export", "marketops_export_xlsx", "marketops_handoff",
-    "marketops_experience_draft",
+    "marketops_experience_draft", "marketops_next",
 }
 
 

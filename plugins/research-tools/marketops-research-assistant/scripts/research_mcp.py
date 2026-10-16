@@ -14,9 +14,24 @@ import research_config
 import research_lite_store as store
 import research_provider_extensions as extra
 import research_delivery as delivery
+import research_workflow as workflow
 from research_event_journal import (_root, append_event, append_note, draft_experience,
                                     read_events)
 from research_experience_summary import refresh_quietly as refresh_summary
+
+
+def next_step(run_id, limit=25):
+    """Bounded structural next-step batch for one Run; never a spending authority."""
+    return workflow.next_step(root(), run_id, limit)
+
+
+def status(run_id, limit=300, cursor="", kind="", entity_key=""):
+    """Persisted candidates through the workflow page contract.
+
+    A page fixes a row high-water mark; later appends land in a new query, and a
+    cursor belongs to its Run and filters.
+    """
+    return workflow.page(root(), run_id, limit, cursor, kind, entity_key)
 
 
 def setup_status():
@@ -141,54 +156,80 @@ def export(run_id, output_path):
 
 
 def handoff(run_id, operation_id):
-    """One human-initiated, candidate-only research+experience handoff.
+    """The primary candidate delivery: one workbook snapshot plus the experience pair.
 
-    Both outputs are immutable and live under this customer's data root.
-    An incomplete second write remains a visible HOLD, never a green result.
+    Exactly one research snapshot is taken — the workbook — and the experience JSON
+    is derived from the same Run. The legacy `candidate_csv` field still exists but
+    now names this workbook's audit CSV, so no second CSV snapshot is generated.
+
+    A workbook that was really written is always reported even when the experience
+    side fails; the status then says PARTIAL instead of claiming a clean handoff.
     """
     r = root()
     store._id(run_id, "run_id")
     store._id(operation_id, "operation_id")
-    # Validate Run exists before creating user-visible artifacts.
+    # Validate the Run and the bounded-snapshot invariant before writing anything.
     snapshot = store.list_run(r, run_id, limit=500)
     if snapshot["record_count"] > snapshot["returned"]:
         raise ValueError("HANDOFF_REQUIRES_COMPLETE_SNAPSHOT")
-    exports = r / "exports" / run_id
     experiences = r / "experience" / run_id
-    exports.mkdir(parents=True, exist_ok=True)
     experiences.mkdir(parents=True, exist_ok=True)
-    csv_path = exports / (operation_id + "-candidates.csv")
     experience_path = experiences / (operation_id + "-experience.json")
-    # Partial success is not a completed handoff.
+
     try:
-        export_result = export(run_id, str(csv_path))
+        workbook = delivery.write_delivery(r, run_id, operation_id)
+    except Exception as exc:
+        append_event(r, run_id=run_id, operation_id=operation_id,
+                     stage="handoff", kind="handoff", status="hold",
+                     provider="local", reason_code="handoff_delivery_failed")
+        # Immutable path conflicts and refused snapshots stay errors.
+        raise ValueError(f"HANDOFF_PARTIAL_OR_FAILED: {type(exc).__name__}: {exc}") from None
+
+    result = {
+        "status": "CANDIDATE_HANDOFF_NOT_BUSINESS_VERIFIED",
+        "run_id": run_id,
+        "records": snapshot["record_count"],
+        "artifacts": snapshot["artifact_count"],
+        "workbook_xlsx": workbook["xlsx_path"],
+        "workbook_directory": workbook["directory"],
+        "candidate_csv": str(Path(workbook["directory"]) / "候选数据审计.csv"),
+        "candidate_csv_schema": "audit_csv_from_this_workbook_not_a_second_snapshot",
+        "goal_assessment": workbook.get("goal_assessment"),
+        "goal_gap_record": workbook.get("goal_gap_record"),
+        "unresolved_business_review": True,
+        "warning": "Candidate workbook plus its audit CSV; NOT ready contacts, "
+                   "not an XLSX-only claim and not a formal A/B/C/D route.",
+        "experience_file": workbook.get("experience_file"),
+        "experience_refresh": workbook.get("experience_refresh"),
+    }
+    reasons = []
+    refresh = workbook.get("experience_refresh") or {}
+    try:
         experience_result = draft_experience(
             r, run_id=run_id, scope=snapshot["scope"],
             rule_version=snapshot["rule_version"], skill_version="0.4.0",
             output=experience_path)
+        result["experience_candidate"] = str(experience_path)
+        result["experience_incidents"] = experience_result["incidents"]
+    except Exception as exc:
+        result["experience_candidate"] = None
+        result["experience_incidents"] = None
+        reasons.append("EXPERIENCE_DRAFT_FAILED_" + type(exc).__name__)
+    if refresh.get("status") != "REFRESHED":
+        reasons.append("EXPERIENCE_REFRESH_" + str(refresh.get("reason_code")
+                                                   or refresh.get("status") or "FAILED"))
+    if reasons:
+        # The workbook is real and stays reported; the handoff is not clean.
+        result["status"] = "PARTIAL_HANDOFF_" + reasons[0]
+        result["partial_reasons"] = reasons
+        append_event(r, run_id=run_id, operation_id=operation_id,
+                     stage="handoff", kind="handoff", status="hold",
+                     provider="local", reason_code="partial_handoff")
+    else:
         append_event(r, run_id=run_id, operation_id=operation_id,
                      stage="handoff", kind="handoff", status="succeeded",
                      provider="local")
-        # The handoff artifacts are real regardless; report the summary separately.
-        refresh = refresh_summary(data_root=r)
-        return {
-            "status": "CANDIDATE_HANDOFF_NOT_BUSINESS_VERIFIED",
-            "run_id": run_id,
-            "records": snapshot["record_count"],
-            "artifacts": snapshot["artifact_count"],
-            "candidate_csv": str(csv_path),
-            "experience_candidate": str(experience_path),
-            "experience_incidents": experience_result["incidents"],
-            "unresolved_business_review": True,
-            "warning": "CSV is NOT XLSX and staged candidates are NOT ready contacts.",
-            "experience_file": refresh.get("experience_file"),
-            "experience_refresh": refresh,
-        }
-    except Exception:
-        append_event(r, run_id=run_id, operation_id=operation_id,
-                     stage="handoff", kind="handoff", status="hold",
-                     provider="local", reason_code="partial_handoff_or_file_conflict")
-        raise ValueError("HANDOFF_PARTIAL_OR_FAILED: inspect immutable output files and journal") from None
+    return result
 
 
 def _guarded(fn):
@@ -285,9 +326,15 @@ def build_server():
         return propose(run_id, record_id, stage, kind, entity_key, facts, artifact_ids)
 
     @tool
-    def marketops_status(run_id: str, limit: int = 300) -> dict:
-        """Read persistent research candidates and material refs."""
-        return store.list_run(root(), run_id, limit)
+    def marketops_status(run_id: str, limit: int = 300, cursor: str = "",
+                         kind: str = "", entity_key: str = "") -> dict:
+        """Read persistent candidates; iterate next_cursor for a full audit, or filter."""
+        return status(run_id, limit, cursor, kind, entity_key)
+
+    @tool
+    def marketops_next(run_id: str, limit: int = 25) -> dict:
+        """Bounded structural next-step batch for this Run; recommends, never authorizes."""
+        return next_step(run_id, limit)
 
     @tool
     def marketops_events(run_id: str) -> dict:

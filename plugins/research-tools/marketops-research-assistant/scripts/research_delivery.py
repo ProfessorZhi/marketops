@@ -24,6 +24,7 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 
 import research_lite_store as store
+import research_workflow as workflow
 from research_event_journal import _root, append_event
 from research_experience_summary import refresh_quietly as refresh_summary
 from _xlsx import Sheet, render_workbook
@@ -80,22 +81,32 @@ def _table(name: str, rows: list[tuple]) -> Sheet:
 def _read_snapshot(root: Path, run_id: str) -> tuple[dict, list[dict], list[dict]]:
     store._id(run_id, "run_id")
     with closing(store._connection(root)) as db:
-        run = db.execute(
-            "SELECT scope,objective,rule_version,created_at FROM runs WHERE run_id=?",
-            (run_id,),
-        ).fetchone()
-        if run is None:
-            raise ValueError("UNKNOWN_RUN")
-        db_records = db.execute(
-            "SELECT record_id,stage,kind,status,entity_key,payload_json,artifact_ids_json "
-            "FROM records WHERE run_id=? ORDER BY created_at,record_id",
-            (run_id,),
-        ).fetchall()
-        db_artifacts = db.execute(
-            "SELECT artifact_id,provider,origin_url,material_kind,content_sha256,relative_path,acquired_at "
-            "FROM artifacts WHERE run_id=? ORDER BY artifact_id",
-            (run_id,),
-        ).fetchall()
+        # One explicit transaction: the run row, the record set and the artifact set
+        # must describe a single snapshot. Without this, a concurrent append could
+        # land between the SELECTs and the workbook would describe a run that never
+        # existed at any one instant.
+        db.execute("BEGIN")
+        try:
+            run = db.execute(
+                "SELECT scope,objective,rule_version,created_at FROM runs WHERE run_id=?",
+                (run_id,),
+            ).fetchone()
+            if run is None:
+                raise ValueError("UNKNOWN_RUN")
+            db_records = db.execute(
+                "SELECT record_id,stage,kind,status,entity_key,payload_json,artifact_ids_json "
+                "FROM records WHERE run_id=? ORDER BY created_at,record_id",
+                (run_id,),
+            ).fetchall()
+            db_artifacts = db.execute(
+                "SELECT artifact_id,provider,origin_url,material_kind,content_sha256,relative_path,acquired_at "
+                "FROM artifacts WHERE run_id=? ORDER BY artifact_id",
+                (run_id,),
+            ).fetchall()
+        except BaseException:
+            db.rollback()
+            raise
+        db.commit()
     if len(db_records) > ROW_LIMIT:
         raise ValueError("LITE_EXPORT_TOO_MANY_RECORDS")
     records = []
@@ -132,6 +143,10 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
     run, records, artifacts = _read_snapshot(root, run_id)
     if not records or not artifacts:
         raise ValueError("NO_RESEARCH_ROWS_OR_SOURCE_ARTIFACTS: not a successful E2E")
+    # Assess exactly this snapshot: the same records that produced the workbook, so
+    # the manifest, the notes sheet and the recorded gaps all describe one instant.
+    # This is a structural check only — not semantic, not SOP and not coverage.
+    goal = workflow.assess_records(run_id, records)
     assets = {x["artifact_id"]: x for x in artifacts}
     by_kind: dict[str, list[dict]] = defaultdict(list)
     for record in records:
@@ -262,6 +277,11 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
         ("收费 Provider 额度与价格", "UNKNOWN_NOT_IN_LITE_STORE"),
         ("联系路线评级", "RULES_UNKNOWN; no A/B/C/D assigned by Agent"),
         ("发送授权", "FALSE: research-only; no outreach"),
+        ("结构目标状态", goal["status"]),
+        ("结构目标满足", str(goal["goal_satisfied"])),
+        ("结构检查范围", goal["assessment_scope"]),
+        ("缺口统计", json.dumps(goal["gap_counts"], ensure_ascii=False, sort_keys=True)),
+        ("推荐下一步 Skill", goal.get("recommended_skill", "UNKNOWN")),
     ]
     audit_rows = [(
         x["record_id"], x["stage"], x["kind"], x["entity_key"], x["status"],
@@ -283,6 +303,7 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
         "input_record_count": len(records), "saved_artifact_count": len(artifacts),
         "evidence_hash_readback": "ALL_OK", "business_verification": "NOT_PERFORMED",
         "send_authorized": False,
+        "goal_assessment": goal,
     }
 
 
@@ -345,13 +366,28 @@ def write_delivery(data_root: Path | str | None, run_id: str, delivery_id: str) 
     append_event(root, run_id=run_id, operation_id=delivery_id,
                  stage="export", kind="export", status="succeeded",
                  provider="local", receipt_ref=delivery_id)
-    # The workbook and the collectable summary are two artifacts. Report both, so
-    # a summary that could not be refreshed is visible instead of implied.
+    # The workbook is published; now persist the structural goal gaps read from the
+    # very same snapshot, and only then refresh the collectable summary.
+    try:
+        gap_record = workflow.record_goal_gaps(root, run_id, manifest["goal_assessment"])
+    except Exception as exc:
+        gap_record = {"status": "FAILED", "reason_code": type(exc).__name__, "detail": str(exc)}
     refresh = refresh_summary(data_root=root)
+    # Two artifacts, two honest reports: a workbook that was really written is never
+    # retracted, but neither is a partial delivery dressed up as a complete one.
+    partial_reasons = []
+    if gap_record.get("status") == "FAILED":
+        partial_reasons.append("GOAL_GAP_RECORD_FAILED")
+    if refresh.get("status") != "REFRESHED":
+        partial_reasons.append("EXPERIENCE_REFRESH_"
+                               + str(refresh.get("reason_code") or refresh.get("status")))
     return {**receipt, "directory": str(destination),
             "xlsx_path": str(destination / "Research_Result.xlsx"),
+            "goal_gap_record": gap_record,
             "experience_file": refresh.get("experience_file"),
-            "experience_refresh": refresh}
+            "experience_refresh": refresh,
+            "delivery_completeness": "COMPLETE" if not partial_reasons else "PARTIAL",
+            "partial_reasons": partial_reasons}
 
 
 def main(argv=None) -> int:

@@ -211,8 +211,8 @@ class SurfaceTests(unittest.TestCase):
     def test_the_setup_and_note_tools_are_registered(self):
         names = set(mcp.build_server()._tool_manager._tools)  # noqa: SLF001
         self.assertLessEqual({"marketops_setup_status", "marketops_setup_configure",
-                              "marketops_note"}, names)
-        self.assertEqual(16, len(names))
+                              "marketops_note", "marketops_next"}, names)
+        self.assertEqual(17, len(names))
 
     def test_setup_status_is_safe_for_an_agent_to_call_anytime(self):
         with tempfile.TemporaryDirectory() as tmp, isolated_env(tmp):

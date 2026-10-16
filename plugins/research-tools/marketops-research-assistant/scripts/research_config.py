@@ -45,6 +45,28 @@ QUESTIONS = (
 
 _WIN_DRIVE = re.compile(r"^[A-Za-z]:[\\/]")
 _WIN_UNC = re.compile(r"^\\\\[^\\]+\\")
+#: An unexpanded template a client substituted nowhere, e.g. "${MARKETOPS_...}".
+_PLACEHOLDER = re.compile(r"^\$\{?[A-Za-z_][A-Za-z0-9_]*\}?$")
+
+
+def is_unset_config_value(value: object) -> bool:
+    """True for absent, blank, or an unreplaced ``${VAR}`` template.
+
+    A connector form that leaves a field empty, or hands us the raw template
+    because the variable was never substituted, must read as "not configured".
+    Treating either as a path would create a literal ``${VAR}`` directory and
+    silently put a customer's research somewhere nobody chose.
+
+    An already-constructed ``Path`` is a caller-supplied value, never a template.
+    """
+    if value is None:
+        return True
+    if isinstance(value, Path):
+        return not str(value).strip()
+    if not isinstance(value, str):
+        return True
+    text = value.strip()
+    return not text or bool(_PLACEHOLDER.match(text))
 
 
 class ConfigError(ValueError):
@@ -107,8 +129,8 @@ def load(env: dict | None = None, platform: str = sys.platform) -> dict | None:
 
 
 def _sources(env: dict, platform: str) -> tuple[str | None, str | None]:
-    env_root = (env.get(DATA_ROOT_ENV) or "").strip()
-    data_root_source = "env" if env_root else None
+    env_root = env.get(DATA_ROOT_ENV)
+    data_root_source = None if is_unset_config_value(env_root) else "env"
     experience_source = None
     try:
         stored = load(env, platform)
@@ -130,10 +152,11 @@ def status(env: dict | None = None, platform: str = sys.platform,
         invalid = None
     except ConfigError as exc:
         stored, invalid = None, exc.code
-    env_root = (env.get(DATA_ROOT_ENV) or "").strip()
-    data_root_source = "env" if env_root else ("config" if stored else None)
+    env_root = env.get(DATA_ROOT_ENV)
+    env_root_usable = not is_unset_config_value(env_root)
+    data_root_source = "env" if env_root_usable else ("config" if stored else None)
     experience_source = "config" if stored else None
-    data_root_value = env_root or (stored or {}).get("data_root")
+    data_root_value = (env_root.strip() if env_root_usable else None) or (stored or {}).get("data_root")
     experience_value = (stored or {}).get("experience_file")
     configured = bool(data_root_value and experience_value) and invalid is None
     result: dict = {
@@ -259,9 +282,9 @@ def _atomic_write(path: Path, text: str) -> None:
 def data_root(env: dict | None = None, platform: str = sys.platform) -> Path:
     """Resolve the research data root, or refuse with CONFIG_REQUIRED."""
     env = os.environ if env is None else env
-    explicit = (env.get(DATA_ROOT_ENV) or "").strip()
-    if explicit:
-        return Path(explicit).expanduser().resolve()
+    explicit = env.get(DATA_ROOT_ENV)
+    if not is_unset_config_value(explicit):
+        return Path(explicit.strip()).expanduser().resolve()
     stored = load(env, platform)
     if stored:
         return Path(stored["data_root"]).expanduser().resolve()

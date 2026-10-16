@@ -162,20 +162,33 @@ class LiteTests(unittest.TestCase):
                 self.assertTrue(answer["record"]["artifact_ids"])
 
     def test_one_handoff_creates_candidate_result_and_experience(self):
-        mcp.propose("run-001", "venue-001", "entities", "venue",
-                    "asset-001", {"name": "Synthetic Ground"})
-        result = mcp.handoff("run-001", "handoff-001")
-        self.assertEqual("CANDIDATE_HANDOFF_NOT_BUSINESS_VERIFIED", result["status"])
-        self.assertTrue(Path(result["candidate_csv"]).exists())
-        self.assertTrue(Path(result["experience_candidate"]).exists())
-        with open(result["experience_candidate"], encoding="utf-8") as fh:
-            experience = json.load(fh)
-        self.assertEqual("candidate_only", experience["promotion"])
-        self.assertTrue(result["unresolved_business_review"])
-        with self.assertRaisesRegex(ValueError, "HANDOFF_PARTIAL_OR_FAILED"):
-            mcp.handoff("run-001", "handoff-001")
-        statuses = [(row["kind"], row["status"]) for row in read_events(self.root, "run-001")]
-        self.assertIn(("handoff", "hold"), statuses)
+        # The primary delivery path is the evidence-audited workbook, so this fixture
+        # needs real saved material and a configured collectable summary file: a
+        # CSV-only handoff is no longer the main chain.
+        experience_file = Path(self.temp.name) / "Research_Experience.md"
+        config_file = Path(self.temp.name) / "config.json"
+        with patch.dict(os.environ, {"MARKETOPS_RESEARCH_CONFIG": str(config_file)}):
+            mcp.setup_configure(str(self.root), str(experience_file))
+            store.save_artifact(self.root, "run-001", "artifact-handoff", "crawl4ai_local",
+                                "https://example.org/page", b"synthetic public material",
+                                "provider_extracted")
+            mcp.propose("run-001", "venue-001", "entities", "venue",
+                        "asset-001", {"name": "Synthetic Ground"}, ["artifact-handoff"])
+            result = mcp.handoff("run-001", "handoff-001")
+            self.assertEqual("CANDIDATE_HANDOFF_NOT_BUSINESS_VERIFIED", result["status"])
+            self.assertTrue(Path(result["workbook_xlsx"]).is_file())
+            # the legacy field now names this workbook's audit CSV, not a second CSV
+            self.assertEqual("候选数据审计.csv", Path(result["candidate_csv"]).name)
+            self.assertTrue(Path(result["candidate_csv"]).is_file())
+            self.assertTrue(Path(result["experience_candidate"]).is_file())
+            with open(result["experience_candidate"], encoding="utf-8") as fh:
+                experience = json.load(fh)
+            self.assertEqual("candidate_only", experience["promotion"])
+            self.assertTrue(result["unresolved_business_review"])
+            with self.assertRaisesRegex(ValueError, "HANDOFF_PARTIAL_OR_FAILED"):
+                mcp.handoff("run-001", "handoff-001")
+            statuses = [(row["kind"], row["status"]) for row in read_events(self.root, "run-001")]
+            self.assertIn(("handoff", "hold"), statuses)
 
     def test_cross_run_ids_are_not_implicitly_shared(self):
         store.start_run(self.root, "run-002", "GB-other", "Second synthetic run", "policy-1")

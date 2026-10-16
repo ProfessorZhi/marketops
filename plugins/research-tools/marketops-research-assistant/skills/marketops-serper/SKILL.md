@@ -5,7 +5,7 @@ description: Use authorized Serper Search, Maps and Places to discover market so
 
 # Serper：从需求找对来源
 
-MarketOps自编使用Skill。官方API：https://serper.dev/；账号/Key申请见上级providers/serper.md。入口须已配置为官方API、受管MarketOps工具或经审核社区MCP，不能把本Skill当安装器。
+MarketOps自编使用Skill。官方API：https://serper.dev/；账号/Key申请见包内 [serper 手册](../../references/providers/serper.md)（规范来源在插件目录之外，不进包）。入口须已配置为官方API、受管MarketOps工具或经审核社区MCP，不能把本Skill当安装器。
 
 输入：Brief、国家/语言/子区域、来源类型、存量索引、可消费额度。
 

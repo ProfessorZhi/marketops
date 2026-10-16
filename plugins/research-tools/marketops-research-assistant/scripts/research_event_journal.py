@@ -75,8 +75,10 @@ def _identifier(value: str, field: str, optional: bool = False) -> str:
 
 
 def _root(value: str | Path | None) -> Path:
-    configured = value or os.environ.get("MARKETOPS_RESEARCH_DATA_ROOT")
-    if not configured:
+    configured = value if value is not None else os.environ.get("MARKETOPS_RESEARCH_DATA_ROOT")
+    # A blank or unreplaced `${VAR}` override is "not configured", never a path:
+    # treating it as one would create a literal directory named after the template.
+    if research_config.is_unset_config_value(configured):
         # The first-use config is the normal path now; the env var stays as an
         # explicit per-process override for existing test/deployment setups.
         try:
@@ -84,7 +86,7 @@ def _root(value: str | Path | None) -> Path:
         except research_config.ConfigError as exc:
             raise ValueError(f"{exc.code}: {exc.message}") from None
     else:
-        root = Path(configured)
+        root = Path(str(configured).strip())
     root = root.expanduser().resolve()
     if root == HERE or HERE in root.parents:
         raise ValueError("Runtime/customer data must not be inside plugin source")
@@ -99,7 +101,7 @@ def _root(value: str | Path | None) -> Path:
 def data_root_for_pack(pack_dir: str | Path) -> str | Path:
     """Use an explicit runtime root, otherwise the parent of a named run directory."""
     configured = os.environ.get("MARKETOPS_RESEARCH_DATA_ROOT")
-    if configured:
+    if not research_config.is_unset_config_value(configured):
         return configured
     parent = Path(pack_dir).expanduser().resolve().parent
     return parent.parent if parent.name == "runs" else parent
