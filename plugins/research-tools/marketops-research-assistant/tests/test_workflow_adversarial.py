@@ -17,7 +17,8 @@ def record(rid, kind, key, data, refs=True):
 def fixture():
     return [
         record("b", "observation", "brief", {"record_type": "research_brief", "target_kind": "organization",
-            "goal": "contacts", "minimum_targets": 1, "require_named_person": True}, False),
+            "goal": "contacts", "minimum_targets": 1, "minimum_targets_unit": "organization",
+            "require_named_person": True}, False),
         record("o", "organization", "org", {"name": "Synthetic Org"}),
         record("p", "person", "person", {"organization_id": "org", "name": "Synthetic Person"}),
         record("r", "role", "role", {"organization_id": "org", "person_id": "person", "role_title": "Synthetic Role"}),

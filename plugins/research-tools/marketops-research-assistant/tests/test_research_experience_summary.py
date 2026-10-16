@@ -237,15 +237,23 @@ class NoteTests(unittest.TestCase):
                 columns = {row[1] for row in db.execute("PRAGMA table_info(research_notes)")}
             self.assertEqual(set(journal.NOTE_FIELDS), columns)
 
-    def test_a_note_must_reference_something_readable(self):
+    def test_an_omitted_evidence_ref_is_allowed_but_an_invalid_one_is_not(self):
+        # The journal now treats evidence_ref as optional: a short automatic note
+        # (for example the delivery-time evidence-gap note) may omit it. What must
+        # still be refused is a *non-empty* ref that is not a usable opaque ID.
         with tempfile.TemporaryDirectory() as tmp:
             data, _ = paths(tmp)
             seed_run(data, "run-a")
+            omitted = journal.append_note(data, run_id="run-a", note_id="note-ok",
+                                          stage="review", category="other", problem="p",
+                                          action_taken="a", observed_result="o",
+                                          evidence_ref="")
+            self.assertEqual("RECORDED", omitted["result"])
             with self.assertRaises(ValueError) as ctx:
                 journal.append_note(data, run_id="run-a", note_id="note-x",
                                     stage="review", category="other", problem="p",
                                     action_taken="a", observed_result="o",
-                                    evidence_ref="")
+                                    evidence_ref="https://example.org/page")
             self.assertIn("evidence_ref", str(ctx.exception))
 
     def test_notes_appear_in_the_refreshed_summary(self):

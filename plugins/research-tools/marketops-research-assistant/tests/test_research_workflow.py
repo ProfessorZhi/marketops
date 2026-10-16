@@ -26,7 +26,8 @@ class WorkflowTests(unittest.TestCase):
     def brief(self, named=True, goal="contacts", minimum=1, kind="organization"):
         self.put("brief", "observation", "brief", {
             "record_type": "research_brief", "target_kind": kind, "goal": goal,
-            "minimum_targets": minimum, "require_named_person": named})
+            "minimum_targets": minimum, "minimum_targets_unit": kind,
+            "require_named_person": named})
 
     def organization(self):
         self.put("org-r", "organization", "org", {"name": "Synthetic Organization"}, ["a1"])

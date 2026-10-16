@@ -27,7 +27,8 @@ import research_mcp as mcp                 # noqa: E402
 import research_workflow as workflow       # noqa: E402
 
 BRIEF = {"record_type": "research_brief", "target_kind": "venue", "goal": "pool",
-         "minimum_targets": 2, "require_named_person": False}
+         "minimum_targets": 2, "minimum_targets_unit": "venue",
+         "require_named_person": False}
 
 
 @contextlib.contextmanager
@@ -69,7 +70,7 @@ class ToolSurfaceTests(unittest.TestCase):
     def test_next_is_registered_and_the_surface_is_seventeen(self):
         names = set(mcp.build_server()._tool_manager._tools)  # noqa: SLF001
         self.assertIn("marketops_next", names)
-        self.assertEqual(17, len(names))
+        self.assertEqual(20, len(names))
 
     def test_status_exposes_the_contract_parameters(self):
         schema = mcp.build_server()._tool_manager._tools["marketops_status"].parameters  # noqa: SLF001

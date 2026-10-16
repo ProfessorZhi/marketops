@@ -70,7 +70,11 @@ class CandidateDeliveryE2E(unittest.TestCase):
         with (workbook.parent / "联系人路线.csv").open(encoding="utf-8-sig", newline="") as f:
             row = next(csv.DictReader(f))
         self.assertEqual("grounds@example.org", row["公开字面值"])
-        self.assertEqual("LITERAL_IN_SAVED_MATERIAL", row["来源字面校验"])
+        # This fixture saves raw_response material, not the browser-rendered DOM.
+        # An email literal in non-rendered material is now an explicit evidence HOLD:
+        # the row stays visible and candidate-only, it is simply not treated as an
+        # anchored proof. A rendered_html fixture is what reaches the positive tier.
+        self.assertEqual("HOLD_EMAIL_NOT_IN_RENDERED_HTML", row["来源字面校验"])
         self.assertEqual("RULES_UNKNOWN", row["研究评级"])
         self.assertEqual("CANDIDATE_NOT_APPROVED", row["业务状态"])
         receipt = json.loads((workbook.parent / "MANIFEST.json").read_text(encoding="utf-8"))
