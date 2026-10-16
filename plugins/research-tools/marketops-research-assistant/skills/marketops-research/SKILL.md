@@ -28,3 +28,6 @@ description: Drive one Member-A-style human-reviewed public market research run 
 
 
 **Delivery note (v0.4 XLSX extension):** After a bounded Run reaches its review or stop point, invoke `marketops-research-acceptance`. Prefer `marketops_export_xlsx` for actual business/audit candidate workbook, then pair it with `marketops_experience_draft`; do not call the older CSV-only handoff a completed customer research E2E.
+
+
+**Current XLSX delivery:** after a bounded Run reaches its review or stop point, invoke `marketops-research-acceptance` and `marketops_export_xlsx` for the actual 8-sheet evidence-audited candidate workbook. Generate an experience draft separately. The older CSV-only handoff does not establish a customer-verified A/B/C/D contact route.
