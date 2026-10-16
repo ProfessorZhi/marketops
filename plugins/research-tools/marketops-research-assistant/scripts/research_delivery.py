@@ -416,7 +416,7 @@ def write_delivery(data_root: Path | str | None, run_id: str, delivery_id: str) 
                 action_taken="Retained candidate status and listed evidence holds in workbook review",
                 observed_result="gap_types=" + str(len(evidence_codes)) +
                                 " codes=" + short_codes,
-                hypothesis="", evidence_ref=delivery_id)
+                hypothesis="", evidence_ref="snapshot-" + manifest["goal_assessment"]["snapshot_id"][:24])
         except Exception as exc:
             evidence_note = {"status": "FAILED", "reason_code": type(exc).__name__}
     refresh = refresh_summary(data_root=root)
