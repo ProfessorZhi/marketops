@@ -17,6 +17,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+import research_config
+
 HERE = Path(__file__).resolve().parents[1]
 ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,95}$")
 STAGES = {"intake", "discovery", "acquisition", "entities", "qualification",
@@ -24,6 +26,39 @@ STAGES = {"intake", "discovery", "acquisition", "entities", "qualification",
 KINDS = {"run", "tool", "source", "evidence", "entity", "decision",
          "route", "export", "review", "handoff", "correction"}
 STATUSES = {"started", "succeeded", "failed", "blocked", "hold", "unknown"}
+
+#: A bottleneck the agent actually hit, in Member-A's own audit vocabulary. A closed
+#: set so the summary can group by mechanism instead of by similar wording.
+NOTE_CATEGORIES = (
+    "contact_found_not_stored",     # 发现联系人但未入库
+    "field_template_pollution",     # 字段模板污染：一条记录混了两个对象
+    "artifact_without_delivery",    # 只生成了文件，没有真正交付
+    "source_blocked",               # 官方来源拒绝抓取或改版
+    "provider_blocked",             # 收费 Provider 未授权/额度/凭据前置件
+    "evidence_missing",             # 结论拿不到可回读证据
+    "human_correction",             # 人工纠正了模型判断
+    "other",
+)
+
+#: The exact column set of `research_notes`. There is deliberately **nowhere** to
+#: put a hidden reasoning trace: the table cannot store one, so no validation
+#: heuristic has to guess.
+NOTE_FIELDS = ("sequence", "run_id", "note_id", "stage", "category", "problem",
+               "action_taken", "observed_result", "hypothesis", "evidence_ref",
+               "recorded_at", "note_sha256")
+
+#: Refused anywhere in a note. Deliberately broad and value-blind: the error
+#: never echoes what it matched.
+_REDACT_PATTERNS = (
+    ("email", re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")),
+    ("url", re.compile(r"(?i)\b(?:https?://|www\.|ftp://|://)")),
+    ("key_or_token", re.compile(r"(?i)\b(?:sk-[A-Za-z0-9_-]{12,}|bearer\s|api[_-]?key|"
+                                r"access[_-]?token|refresh[_-]?token|client[_-]?secret|"
+                                r"password\s*[:=]|token\s*[:=]|secret\s*[:=]|"
+                                r"eyJ[A-Za-z0-9_-]{10,}|session\s*[:=])")),
+    ("cookie", re.compile(r"(?i)\bcookie\b")),
+)
+NOTE_TEXT_LIMIT = 600
 
 
 def _identifier(value: str, field: str, optional: bool = False) -> str:
@@ -37,8 +72,15 @@ def _identifier(value: str, field: str, optional: bool = False) -> str:
 def _root(value: str | Path | None) -> Path:
     configured = value or os.environ.get("MARKETOPS_RESEARCH_DATA_ROOT")
     if not configured:
-        raise ValueError("Specify --data-root or MARKETOPS_RESEARCH_DATA_ROOT")
-    root = Path(configured).expanduser().resolve()
+        # The first-use config is the normal path now; the env var stays as an
+        # explicit per-process override for existing test/deployment setups.
+        try:
+            root = research_config.data_root()
+        except research_config.ConfigError as exc:
+            raise ValueError(f"{exc.code}: {exc.message}") from None
+    else:
+        root = Path(configured)
+    root = root.expanduser().resolve()
     if root == HERE or HERE in root.parents:
         raise ValueError("Runtime/customer data must not be inside plugin source")
     # A sibling directory inside a cloned Git checkout is also unsafe:
@@ -71,6 +113,18 @@ def _connect(root: Path) -> sqlite3.Connection:
         recorded_at TEXT NOT NULL, payload_sha256 TEXT NOT NULL,
         payload_json TEXT NOT NULL,
         UNIQUE(run_id, operation_id, kind, status)
+    )""")
+    # Free-text bottleneck notes the agent writes deliberately. Same file, same
+    # append-only discipline; nothing here is inferred from a status code.
+    db.execute("""CREATE TABLE IF NOT EXISTS research_notes (
+        sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+        run_id TEXT NOT NULL, note_id TEXT NOT NULL,
+        stage TEXT NOT NULL, category TEXT NOT NULL,
+        problem TEXT NOT NULL, action_taken TEXT NOT NULL,
+        observed_result TEXT NOT NULL, hypothesis TEXT NOT NULL,
+        evidence_ref TEXT NOT NULL,
+        recorded_at TEXT NOT NULL, note_sha256 TEXT NOT NULL,
+        UNIQUE(run_id, note_id)
     )""")
     return db
 
@@ -123,6 +177,97 @@ def read_events(data_root: str | Path | None, run_id: str) -> list[dict]:
                           (run_id,)).fetchall()
     return [{**json.loads(r[3]), "sequence": r[0], "recorded_at": r[1],
              "payload_sha256": r[2]} for r in rows]
+
+
+def sanitize_note_text(value: str, field: str) -> str:
+    """Short, de-identified text only.
+
+    The refusal never echoes the match: a message that quoted the offending
+    substring would leak exactly what it refused into the log the user reads.
+    """
+    if not isinstance(value, str):
+        raise ValueError(f"{field}: must be text")
+    text = value.strip()
+    if len(text) > NOTE_TEXT_LIMIT:
+        raise ValueError(f"{field}: too long (limit {NOTE_TEXT_LIMIT} characters)")
+    for label, pattern in _REDACT_PATTERNS:
+        if pattern.search(text):
+            raise ValueError(
+                f"NOTE_REJECTED_CONTAINS_{label.upper()}: {field} must not carry an "
+                "email, URL, key/token or cookie value; keep only short de-identified text")
+    return text
+
+
+def append_note(data_root: str | Path | None, *, run_id: str, note_id: str, stage: str,
+                category: str, problem: str, action_taken: str, observed_result: str,
+                hypothesis: str = "", evidence_ref: str = "", **extra) -> dict:
+    """Record one real bottleneck the agent met, with what it tried and what happened.
+
+    No root cause is inferred here — ``hypothesis`` is the agent's own candidate
+    wording, and a status code alone is never promoted into a cause.
+    """
+    if extra:
+        raise ValueError("NOTE_UNKNOWN_FIELD: " + ",".join(sorted(extra)) +
+                         " (a note has no field for hidden reasoning)")
+    run_id = _identifier(run_id, "run_id")
+    note_id = _identifier(note_id, "note_id")
+    if stage not in STAGES:
+        raise ValueError("Unsupported note stage")
+    if category not in NOTE_CATEGORIES:
+        raise ValueError("Unsupported note category")
+    evidence_ref = _identifier(evidence_ref, "evidence_ref")
+    fields = {
+        "run_id": run_id, "note_id": note_id, "stage": stage, "category": category,
+        "problem": sanitize_note_text(problem, "problem"),
+        "action_taken": sanitize_note_text(action_taken, "action_taken"),
+        "observed_result": sanitize_note_text(observed_result, "observed_result"),
+        "hypothesis": sanitize_note_text(hypothesis, "hypothesis"),
+        "evidence_ref": evidence_ref,
+    }
+    encoded = json.dumps(fields, sort_keys=True, ensure_ascii=True, separators=(",", ":"))
+    digest = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+    root = _root(data_root)
+    with closing(_connect(root)) as db:
+        db.execute("BEGIN IMMEDIATE")
+        existing = db.execute(
+            "SELECT sequence,note_sha256 FROM research_notes WHERE run_id=? AND note_id=?",
+            (run_id, note_id)).fetchone()
+        if existing:
+            if existing[1] != digest:
+                raise ValueError("Conflicting replay of an existing note")
+            db.commit()
+            return {"result": "IDEMPOTENT", "sequence": existing[0], "note_sha256": digest}
+        cursor = db.execute(
+            "INSERT INTO research_notes (run_id,note_id,stage,category,problem,"
+            "action_taken,observed_result,hypothesis,evidence_ref,recorded_at,note_sha256) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (run_id, note_id, stage, category, fields["problem"], fields["action_taken"],
+             fields["observed_result"], fields["hypothesis"], evidence_ref,
+             datetime.now(timezone.utc).isoformat(), digest))
+        db.commit()
+        return {"result": "RECORDED", "sequence": cursor.lastrowid, "note_sha256": digest}
+
+
+def read_notes(data_root: str | Path | None, run_id: str | None = None) -> list[dict]:
+    """Notes for one Run, or every Run when run_id is None (summary view)."""
+    columns = ", ".join(NOTE_FIELDS)
+    with closing(_connect(_root(data_root))) as db:
+        if run_id is None:
+            rows = db.execute(f"SELECT {columns} FROM research_notes ORDER BY sequence").fetchall()
+        else:
+            _identifier(run_id, "run_id")
+            rows = db.execute(f"SELECT {columns} FROM research_notes WHERE run_id=? "
+                              "ORDER BY sequence", (run_id,)).fetchall()
+    return [dict(zip(NOTE_FIELDS, row)) for row in rows]
+
+
+def read_all_events(db) -> list[dict]:
+    """Every event across every Run, for the cross-Run summary."""
+    rows = db.execute("SELECT sequence,run_id,operation_id,stage,kind,status,recorded_at,"
+                      "payload_sha256,payload_json FROM experience_events ORDER BY sequence").fetchall()
+    return [{"sequence": r[0], "run_id": r[1], "operation_id": r[2], "stage": r[3],
+             "kind": r[4], "status": r[5], "recorded_at": r[6], "payload_sha256": r[7],
+             **json.loads(r[8])} for r in rows]
 
 
 def draft_experience(data_root: str | Path | None, *, run_id: str, scope: str,
