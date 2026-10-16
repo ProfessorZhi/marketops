@@ -21,9 +21,9 @@ from research_event_journal import (_root, append_event, append_note, draft_expe
 from research_experience_summary import refresh_quietly as refresh_summary
 
 
-def next_step(run_id, limit=10):
-    """Bounded structural next-step batch for one Run; never a spending authority."""
-    return workflow.next_step(root(), run_id, limit)
+def next_step(run_id, limit=10, previous_snapshot_id="", after_attempt=False):
+    """Bounded tasks; an unchanged snapshot after work triggers a stop/switch hint."""
+    return workflow.next_step(root(), run_id, limit, previous_snapshot_id, after_attempt)
 
 
 def status(run_id, limit=20, cursor="", kind="", entity_key=""):
@@ -392,9 +392,10 @@ def build_server():
         return status(run_id, limit, cursor, kind, entity_key)
 
     @tool
-    def marketops_next(run_id: str, limit: int = 10) -> dict:
-        """Bounded structural next-step batch for this Run; recommends, never authorizes."""
-        return next_step(run_id, limit)
+    def marketops_next(run_id: str, limit: int = 10,
+                       previous_snapshot_id: str = "", after_attempt: bool = False) -> dict:
+        """Bounded task batch; after_attempt+prior snapshot detects lack of durable progress."""
+        return next_step(run_id, limit, previous_snapshot_id, after_attempt)
 
     @tool
     def marketops_events(run_id: str) -> dict:
