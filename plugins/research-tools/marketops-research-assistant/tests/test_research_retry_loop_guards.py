@@ -143,6 +143,24 @@ class CrawlChallengeClassificationTests(unittest.TestCase):
                 ext._crawl4ai_local("https://public.example.org/info")
 
 
+    def test_embedded_turnstile_on_readable_page_is_not_a_full_challenge(self):
+        async def _enter(self):
+            return self
+        async def _exit(self, exc_type, exc, tb):
+            return None
+        async def _arun(self, *, url):
+            return types.SimpleNamespace(
+                success=True, status_code=200, response_headers={},
+                markdown="A readable public catalogue of community facilities.",
+                html="<h1>Community Facilities</h1><script src='https://"
+                     "challenges.cloudflare.com/turnstile/v0/api.js'></script>")
+        fake = type("FakeCrawler", (), {
+            "__aenter__": _enter, "__aexit__": _exit, "arun": _arun})
+        with patch.dict(sys.modules, {"crawl4ai": types.SimpleNamespace(AsyncWebCrawler=fake)}):
+            result = ext._crawl4ai_local("https://public.example.org/catalogue")
+        self.assertIn("community facilities", result["markdown"].casefold())
+
+
 class SnapshotAndEventTests(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
