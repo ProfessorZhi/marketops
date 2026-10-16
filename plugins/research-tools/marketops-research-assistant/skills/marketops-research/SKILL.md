@@ -25,3 +25,6 @@ description: Drive one Member-A-style human-reviewed public market research run 
 经验事件：每个受管工具调用的开始/结果及材料落地 → research-events SQLite → 失败/阻断/人工纠错 → experience.json候选 → holdout回放与人工采纳。统一五家Lite MCP内的调用自动记事件；**独立直连的官方TinyFish/Crawl4AI MCP不在本地自动记录范围内**。
 
 不可把“工具调用成功”“保存一个JSON文件”“MCP启动成功”当成“完整市场任务已完成”。在真实业务E2E通过前，这是一份试用工作流，不是已交付成品。
+
+
+**Delivery note (v0.4 XLSX extension):** After a bounded Run reaches its review or stop point, invoke `marketops-research-acceptance`. Prefer `marketops_export_xlsx` for actual business/audit candidate workbook, then pair it with `marketops_experience_draft`; do not call the older CSV-only handoff a completed customer research E2E.
