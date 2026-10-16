@@ -4,9 +4,9 @@ MarketOps has two deliverables: (1) this human-led, MCP+Skills market research p
 
 **This is a GitHub review candidate, not an installation-ready ZIP.** Do not give Member-A an archive claiming full success before running RELEASE_GATE on local Codex + WorkBuddy. No credentials or paid provider calls were made while preparing this branch.
 
-## What the 16 Skills cover
+## What the 17 Skills cover
 
-- **8 Member-A business Skills**: one research entry, intake/Scene, source discovery, venues/organizations and their responsibilities, people/roles, Evidence, Excel, human-review handoff.
+- **9 Member-A business Skills**: one research entry, intake/Scene, source discovery, venues/organizations and their responsibilities, people/roles, Evidence, Excel, human-review handoff.
 - **6 provider Skills**: a tool router plus SerpApi, Serper, Crawl4AI, TinyFish and Jev. A live provider is optional per task; five vendors are not five mandatory sequential steps.
 - **1 retrospective Skill**: record real bottlenecks, successful methods, wrong assumptions and corrections; generate candidate experience lessons with provenance, replay and human approval.
 - **1 setup Skill**: onboard Codex or WorkBuddy in the customer's chosen local directory without silently enabling any paid calls.
@@ -80,3 +80,10 @@ Crawl4AI executes HTTP/Chromium retrieval. The company LiteLLM model gateway can
 **[AUDIT_STATUS_2026-10-16](references/AUDIT_STATUS_2026-10-16.md)** — 当前已写代码、兼容问题修复及发包阻断项。**[RELEASE_GATE](references/RELEASE_GATE.md)** must pass before preparing Member-A's versioned source ZIP. Specifically, the customer-facing promise of verified field contacts requires integrating the existing MarketOps business domain's human/SOP route promotion and proving end-to-end export; our local candidate tools do NOT currently do that.
 
 We keep this PR Draft and do not deploy anything to Tokyo, change company LiteLLM gateway settings, buy credits, store API keys or send emails. Member-A's actual credentials and Windows client install remain owned by Member-A.
+
+
+## XLSX delivery and independent acceptance (new candidate extension)
+
+The local Lite MCP now exposes `marketops_export_xlsx`, backed by the existing MarketOps standard-library OOXML serializer technology. It creates a real 8-sheet candidate research workbook plus individually checkable CSVs and a SHA-256 manifest. Source artifacts are actually reread and hashed; contact values are checked for literal occurrence in their attributed material. All routes remain `RULES_UNKNOWN` and research-only: this is NOT the formal SOP-approved A/B/C/D business exporter.
+
+The `marketops-research-acceptance` Skill and [E2E_VERIFICATION](references/E2E_VERIFICATION.md) define the L0–L5 verification ladder. A live, read-only public-council source test exists behind `MARKETOPS_LIVE_PUBLIC_E2E=1`; official paid-provider and real Codex/WorkBuddy tests remain independent requirements.
