@@ -180,9 +180,12 @@ class BatchAndExcerptTests(unittest.TestCase):
                 "MARKETOPS_RESEARCH_ALLOW_NETWORK": "1",
                 "MARKETOPS_RESEARCH_MAX_EXTERNAL_CALLS": "2",
                 "MARKETOPS_FETCH_ALLOWED_DOMAINS": "public.example.org"}, clear=False):
-                receipt = provider.invoke("crawl4ai_local", run_id="run-1",
-                                          operation_id="op-1",
-                                          url="https://public.example.org/source")
+                # This unit test never installs or launches a browser; the
+                # injected crawler result is the controlled source fixture.
+                with patch.object(provider.importlib.util, "find_spec", return_value=object()):
+                    receipt = provider.invoke("crawl4ai_local", run_id="run-1",
+                                              operation_id="op-1",
+                                              url="https://public.example.org/source")
         self.assertEqual("rendered_html", receipt["rendered_artifact"]["material_kind"])
         self.assertNotIn("<html>", receipt["preview"])
         self.assertEqual(2, len(receipt["record"]["artifact_ids"]))
