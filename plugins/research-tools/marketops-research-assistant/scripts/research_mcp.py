@@ -15,17 +15,18 @@ import research_lite_store as store
 import research_provider_extensions as extra
 import research_delivery as delivery
 import research_workflow as workflow
+import research_evidence as evidence
 from research_event_journal import (_root, append_event, append_note, draft_experience,
                                     read_events)
 from research_experience_summary import refresh_quietly as refresh_summary
 
 
-def next_step(run_id, limit=25):
+def next_step(run_id, limit=10):
     """Bounded structural next-step batch for one Run; never a spending authority."""
     return workflow.next_step(root(), run_id, limit)
 
 
-def status(run_id, limit=300, cursor="", kind="", entity_key=""):
+def status(run_id, limit=20, cursor="", kind="", entity_key=""):
     """Persisted candidates through the workflow page contract.
 
     A page fixes a row high-water mark; later appends land in a new query, and a
@@ -140,6 +141,28 @@ def propose(run_id, record_id, stage, kind, entity_key, facts, artifact_ids=None
     append_event(r, run_id=run_id, operation_id=record_id, stage=stage,
                  kind="entity", status="succeeded", provider="local")
     return result
+
+
+def propose_batch(run_id, items):
+    """Atomic append-only candidates, at most 20 per transaction/tool call."""
+    r = root()
+    result = store.put_candidates_batch(r, run_id, items)
+    operation_id = "batch-" + hashlib.sha256(
+        json.dumps([item["record_id"] for item in items], sort_keys=True).encode()).hexdigest()[:24]
+    append_event(r, run_id=run_id, operation_id=operation_id,
+                 stage="entities", kind="entity", status="succeeded", provider="local")
+    return result
+
+
+def material_excerpt(run_id, artifact_ids, queries=None):
+    return evidence.excerpts(root(), run_id, artifact_ids, queries)
+
+
+def evidence_audit(run_id, limit=12):
+    r = root()
+    _, records, artifacts = delivery._read_snapshot(r, run_id)
+    return evidence.audit_records(records, {a["artifact_id"]: a for a in artifacts},
+                                  result_limit=limit)
 
 
 def export(run_id, output_path):
@@ -346,13 +369,29 @@ def build_server():
         return propose(run_id, record_id, stage, kind, entity_key, facts, artifact_ids)
 
     @tool
-    def marketops_status(run_id: str, limit: int = 300, cursor: str = "",
+    def marketops_propose_batch(run_id: str, items: list[dict]) -> dict:
+        """One atomic batch of 1–20 candidates; same checks as marketops_propose."""
+        return propose_batch(run_id, items)
+
+    @tool
+    def marketops_material_excerpt(run_id: str, artifact_ids: list[str],
+                                   queries: list[str] | None = None) -> dict:
+        """Get SHA-checked source snippets capped at 1200 chars; no full-page dump."""
+        return material_excerpt(run_id, artifact_ids, queries)
+
+    @tool
+    def marketops_evidence_audit(run_id: str, limit: int = 12) -> dict:
+        """Compact, generic claim-to-source mismatch report, not a fact certification."""
+        return evidence_audit(run_id, limit)
+
+    @tool
+    def marketops_status(run_id: str, limit: int = 20, cursor: str = "",
                          kind: str = "", entity_key: str = "") -> dict:
         """Read persistent candidates; iterate next_cursor for a full audit, or filter."""
         return status(run_id, limit, cursor, kind, entity_key)
 
     @tool
-    def marketops_next(run_id: str, limit: int = 25) -> dict:
+    def marketops_next(run_id: str, limit: int = 10) -> dict:
         """Bounded structural next-step batch for this Run; recommends, never authorizes."""
         return next_step(run_id, limit)
 
