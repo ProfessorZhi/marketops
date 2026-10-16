@@ -88,7 +88,7 @@ class EvidenceTests(unittest.TestCase):
                      **source("rendered", "<span>Contact Member-A on</span><a "
                              "href='mailto:events@club.example'>events@club.example</a>", "rendered_html")}
         report = evidence.audit_records([point], artifacts)
-        self.assertIn("EMAIL_NOT_IN_RENDERED_HTML", report["gap_counts"])
+        self.assertIn("EMAIL_NOT_IN_PRIMARY_MATERIAL", report["gap_counts"])
         self.assertIn("DERIVED_EXCERPT_ONLY", report["gap_counts"])
 
     def test_correct_rendered_email_still_is_not_approval(self):
@@ -99,7 +99,7 @@ class EvidenceTests(unittest.TestCase):
             ["rendered"])
         artifacts = source("rendered", "<p>Contact Member-A on events@club.example</p>", "rendered_html")
         report = evidence.audit_records([point], artifacts)
-        self.assertNotIn("EMAIL_NOT_IN_RENDERED_HTML", report["gap_counts"])
+        self.assertNotIn("EMAIL_NOT_IN_PRIMARY_MATERIAL", report["gap_counts"])
         self.assertFalse(report["formal_sop_approved"])
 
     def test_decision_is_not_an_authoritative_source(self):
