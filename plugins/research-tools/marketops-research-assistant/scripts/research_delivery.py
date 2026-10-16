@@ -149,7 +149,10 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
     # This is a structural check only — not semantic, not SOP and not coverage.
     goal = workflow.assess_records(run_id, records)
     assets = {x["artifact_id"]: x for x in artifacts}
-    audit = evidence.audit_records(records, assets, result_limit=8)
+    audit_all = evidence.audit_records(records, assets, result_limit=100)
+    # A workbook can list many held records. Keep the MCP/manifest receipt tiny
+    # while carrying individual record IDs in the human-review worksheet.
+    audit = {**audit_all, "samples": audit_all["samples"][:8], "sample_limit": 8}
     by_kind: dict[str, list[dict]] = defaultdict(list)
     for record in records:
         by_kind[record["kind"]].append(record)
@@ -158,7 +161,7 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
     issues: list[tuple] = []
     # Missing excerpts and mismatched source links are review items, not
     # automatically certified venue types, ownership or hard exclusions.
-    for sample in audit["samples"]:
+    for sample in audit_all["samples"]:
         issues.append(("来源声明未核实", sample["record_id"],
                        ", ".join(sample["reason_codes"]),
                        "回到同一资料的具体引文；禁止据附件ID本身晋升事实"))
