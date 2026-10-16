@@ -102,6 +102,29 @@ class EvidenceTests(unittest.TestCase):
         self.assertNotIn("EMAIL_NOT_IN_PRIMARY_MATERIAL", report["gap_counts"])
         self.assertFalse(report["formal_sop_approved"])
 
+    def test_first_party_raw_bytes_can_supply_literal_without_html_browser(self):
+        point = candidate("cp", "contact_point", {
+            "type": "email", "value": "team@acme.example",
+            "claims": [{"field": "email", "artifact_id": "wire",
+                        "quote": "Contact the Acme team at team@acme.example"}]},
+            ["wire"])
+        receipt = evidence.audit_records([point], source(
+            "wire", "Contact the Acme team at team@acme.example", "raw_response"))
+        self.assertNotIn("EMAIL_NOT_IN_PRIMARY_MATERIAL", receipt["gap_counts"])
+        self.assertNotIn("NO_EXCERPT", receipt["gap_counts"])
+        self.assertFalse(receipt["facts_verified"])
+
+    def test_script_only_mailbox_is_not_a_contact_source(self):
+        point = candidate("cp", "contact_point", {
+            "type": "email", "value": "staff@acme.example",
+            "claims": [{"field": "email", "artifact_id": "dom",
+                        "quote": "contact staff at acme"}]},
+            ["dom"])
+        receipt = evidence.audit_records([point], source(
+            "dom", "<script>var mailbox='staff@acme.example';</script>"
+                   "<p>contact staff at acme</p>", "rendered_html"))
+        self.assertIn("EMAIL_NOT_IN_PRIMARY_MATERIAL", receipt["gap_counts"])
+
     def test_decision_is_not_an_authoritative_source(self):
         org = candidate("org", "organization", {"name": "Target Ltd",
             "claims": [{"field": "identity", "artifact_id": "a",
