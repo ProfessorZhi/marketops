@@ -207,5 +207,21 @@ class SnapshotAndEventTests(unittest.TestCase):
         self.assertEqual("full_run", summary["summary_scope"])
 
 
+class BrowserPreflightHintTests(unittest.TestCase):
+    def test_missing_then_present_browser_cache_is_a_hint_never_verification(self):
+        from research_mcp import _local_browser_cache_hint
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = Path(tmp) / "playwright-cache"
+            cache.mkdir()
+            with patch.dict(os.environ, {"PLAYWRIGHT_BROWSERS_PATH": str(cache)}):
+                initial = _local_browser_cache_hint()
+                self.assertEqual("CHROMIUM_CACHE_MISSING_OR_INCOMPLETE", initial["status"])
+                self.assertFalse(initial["verified"])
+                (cache / "chromium-1234").mkdir()
+                later = _local_browser_cache_hint()
+                self.assertEqual("CHROMIUM_CACHE_PRESENT_NOT_LAUNCH_VERIFIED", later["status"])
+                self.assertFalse(later["verified"])
+
+
 if __name__ == "__main__":
     unittest.main()
