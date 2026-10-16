@@ -42,3 +42,16 @@
 首先在用户批准的测试机只执行静态与mock测试；随后对五家各做获准的最小真实调用，检查同一个Run的来源发现→材料取证→候选实体→回读对账→人工裁决→CSV/真实XLSX→经验草稿。再在Codex和WorkBuddy各测试解包与安装，执行 references/RELEASE_GATE.md 的所有适用条目，记录产品版本、Python版本、Commit SHA、Provider响应ID、费用及失败。
 
 通过后才从锁定的Git Commit生成不含任何客户数据和Key的源码ZIP、记录SHA256和回滚步骤。**今天不提前生成声称可交付的压缩包。**
+
+
+## 2026-10-16 additional implementation and test evidence — no false E2E green
+
+**New code in PR #64, 2026-10-16:** `scripts/_xlsx.py` is a provenance-marked copy of the existing tested integration-branch OOXML serializer; `scripts/research_delivery.py` projects one Lite SQLite Run into a real **9-sheet** candidate workbook, per-sheet CSV files and SHA-256 manifest. It refuses an empty research Run, wrong-run source references, corrupted source material bytes and overwritten delivery ID. It checks public emails' literal occurrence in saved material, but **does not** promote the contact routes to approved A/B/C/D. `research_mcp.py` now exposes `marketops_export_xlsx`. The 17th Skill is `marketops-research-acceptance`.
+
+**Tests authored:** `tests/test_research_delivery.py` checks SQLite→XLSX/CSV readback, actual source bytes tampering, unsupported email HOLD and immutable repeated delivery. `tests/test_research_live_e2e.py` is an opt-in actual read-only public HTTPS source test against the official City of Lincoln Council page; it checks source content and produces a real candidate research workbook. The dedicated GitHub Actions workflow `.github/workflows/research-plugin-e2e.yml` runs offline and live-source jobs independently.
+
+**Test verdict:** As of this update, GitHub Actions jobs have returned `failure` with **no visible step summaries**, and downloading job logs returns `404 BlobNotFound`. Therefore neither the newly authored Python tests nor the live-source code can be declared `PASS`; precise CI failure cause is **UNKNOWN**, not automatically attributed to code or runner billing. This branch remains **Draft, NOT RELEASE READY**. No real Serper/SerpApi, Crawl4AI, TinyFish, Jev billable requests, Codex/WorkBuddy client handshake or formal SOP-graded research were executed by this PR.
+
+**Separate demonstrator, not plugin E2E:** A manually researched three-source public-sector sample was rendered as a nine-sheet workbook with `artifact_tool` in the current ChatGPT execution environment. It contains four organization candidates, three venue candidates, five public work contact candidates and five review issues. Formula-based summary counts, XLSX ZIP inspection and worksheet re-import were observed. The source materials in that demonstration are **web-retrieved text extracts**, not the original HTTP response bytes; it must not be claimed as verifying the plugin's artifact hash functionality, external Provider integration or real Agent flow.
+
+**Next blocked gate:** Run the exact plugin test suite on an authorized Python runner with logs, and then use a customer-approved small-scope live Provider trial with proper credentials/SOP and reviewer. An approved human business verdict is still required before route promotion. Never treat the separate demonstration workbook as a formal client research release.
