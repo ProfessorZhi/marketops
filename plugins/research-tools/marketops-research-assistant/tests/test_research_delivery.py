@@ -74,7 +74,7 @@ class CandidateDeliveryE2E(unittest.TestCase):
         # An email literal in non-rendered material is now an explicit evidence HOLD:
         # the row stays visible and candidate-only, it is simply not treated as an
         # anchored proof. A rendered_html fixture is what reaches the positive tier.
-        self.assertEqual("RENDERED_EMAIL_LITERAL_NOT_BUSINESS_VERIFIED", row["来源字面校验"])
+        self.assertEqual("HOLD_EMAIL_NO_SOURCE_QUOTE", row["来源字面校验"])
         self.assertEqual("RULES_UNKNOWN", row["研究评级"])
         self.assertEqual("CANDIDATE_NOT_APPROVED", row["业务状态"])
         receipt = json.loads((workbook.parent / "MANIFEST.json").read_text(encoding="utf-8"))
