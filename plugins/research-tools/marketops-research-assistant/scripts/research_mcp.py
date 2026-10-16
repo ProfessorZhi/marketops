@@ -168,10 +168,13 @@ def handoff(run_id, operation_id):
     r = root()
     store._id(run_id, "run_id")
     store._id(operation_id, "operation_id")
-    # Validate the Run and the bounded-snapshot invariant before writing anything.
-    snapshot = store.list_run(r, run_id, limit=500)
-    if snapshot["record_count"] > snapshot["returned"]:
-        raise ValueError("HANDOFF_REQUIRES_COMPLETE_SNAPSHOT")
+    # Validate the Run and read its true totals. This deliberately does NOT reuse
+    # the legacy 500-row list_run cap: delivery itself reads every record and its
+    # own ROW_LIMIT is the authoritative size guard, so a capped pre-check would
+    # refuse a handoff that would in fact have been complete.
+    head = workflow.page(r, run_id, 1)
+    snapshot = {"scope": head["scope"], "rule_version": head["rule_version"],
+                "record_count": head["record_count"], "artifact_count": head["artifact_count"]}
     experiences = r / "experience" / run_id
     experiences.mkdir(parents=True, exist_ok=True)
     experience_path = experiences / (operation_id + "-experience.json")

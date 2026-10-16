@@ -292,6 +292,54 @@ class HandoffIsTheMainPathTests(unittest.TestCase):
             self.assertTrue(Path(result["experience_candidate"]).is_file())
 
 
+class LargeRunTests(unittest.TestCase):
+    """Above the legacy 500-row status cap the main path must still work."""
+
+    @staticmethod
+    def _big(data: Path, run_id: str, extra: int = 501) -> None:
+        seed(data, run_id, venues=2)
+        for i in range(extra):
+            mcp.propose(run_id, f"bulk-{i:04d}", "entities", "venue", f"bulk-venue-{i:04d}",
+                        {"name": f"Bulk Venue {i}", "organization_id": "org-x"})
+
+    def test_next_is_bounded_and_still_reports_the_whole_record_count(self):
+        with tempfile.TemporaryDirectory() as tmp, isolated(tmp) as (data, _exp):
+            self._big(data, "run-a")
+            result = mcp.next_step("run-a", 25)
+            self.assertGreater(result["record_count"], 500)
+            self.assertLessEqual(len(result["targets"]), 25)
+            self.assertIn("gap_counts", result)
+
+    def test_a_run_beyond_five_hundred_records_still_reaches_a_nine_sheet_workbook(self):
+        from xml.etree import ElementTree as ET
+        ns = {"x": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+        with tempfile.TemporaryDirectory() as tmp, isolated(tmp) as (data, exp):
+            self._big(data, "run-a")
+            result = mcp.handoff("run-a", "op-big")
+            self.assertEqual("CANDIDATE_HANDOFF_NOT_BUSINESS_VERIFIED", result["status"])
+            self.assertGreater(result["records"], 500)
+            xlsx = Path(result["workbook_xlsx"])
+            self.assertTrue(xlsx.is_file())
+            with zipfile.ZipFile(xlsx) as z:
+                self.assertIsNone(z.testzip())
+                wb = ET.fromstring(z.read("xl/workbook.xml"))
+            self.assertEqual(9, len(wb.findall(".//x:sheets/x:sheet", ns)))
+            self.assertTrue(exp.is_file())
+
+    def test_status_pages_past_five_hundred_records(self):
+        with tempfile.TemporaryDirectory() as tmp, isolated(tmp) as (data, _exp):
+            self._big(data, "run-a", extra=120)
+            first = mcp.status("run-a", limit=100)
+            seen, cursor, pages = first["returned"], first["next_cursor"], 1
+            while cursor and pages <= 20:
+                page = mcp.status("run-a", limit=100, cursor=cursor)
+                seen += page["returned"]
+                pages += 1
+                cursor = page["next_cursor"]
+            self.assertGreater(first["record_count"], 100)
+            self.assertEqual(first["record_count"], seen, "paging must cover every record")
+
+
 class BundleTests(unittest.TestCase):
     def test_the_research_bundle_ships_the_workflow_core(self):
         import build_client_bundles as bundles
