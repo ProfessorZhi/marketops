@@ -99,10 +99,12 @@ class TestDualSearch(unittest.TestCase):
 
     def test_persistent_budget_cap_across_replay(self):
         fake = lambda req, timeout: Response({"organic": []})
-        self.call(operation="op-01", opener=fake)
-        self.call(operation="op-02", opener=fake)
+        self.call(operation="op-01", opener=fake, mode="web")
+        # Distinct modes are distinct authorized attempts. Repeating the same
+        # query with a renamed ID now refuses *before* reaching the budget cap.
+        self.call(operation="op-02", opener=fake, mode="maps")
         with self.assertRaisesRegex(ValueError, "SEARCH_BUDGET_EXHAUSTED"):
-            self.call(operation="op-03", opener=fake)
+            self.call(operation="op-03", opener=fake, provider="serpapi")
         with self.assertRaisesRegex(ValueError, "ALREADY_RESERVED"):
             self.call(operation="op-01", opener=fake)
 
