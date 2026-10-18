@@ -1,0 +1,42 @@
+# ============================================================
+# Demo 账号清单 —— 骨架（**当前为空**）
+#
+# 这里是 §10 要求的三类账号清单的落点：
+#     10 个 known-success（历史上成功拿到过核心邮箱）
+#     10 个 accessible-but-no-core-email（站点可访问，但拿不到核心邮箱）
+#     10 个 previously blocked/failed
+#
+# ⚠️ 本文件刻意**不含任何账号**。
+#    真实清单必须由使用者提供：凭空写的示例账号会被误当成真实结果，
+#    那比没有清单更糟。
+#
+# 填好后用 `marketops run-demo --accounts tests/fixtures/accounts.yaml` 运行，
+# 或先 `--dry-run` 校验队列构成是否符合 10/10/10。
+#
+# 注意：
+#   * 不要在这里写 secret、cookie、登录态或任何非公开信息；
+#   * account_id 会被用作运行数据的文件名，不得含 / \ : * ? " < > |；
+#   * notes 字段仅用于人类备注，会进运行数据目录，不进 Git 的只有本文件本身。
+# ============================================================
+
+accounts: []
+
+# --- 填写示例（取消注释并替换为真实账号）---
+#
+# accounts:
+#   - account_id: coat-001
+#     organisation: Example Coatings Ltd
+#     cohort: known_success
+#     domain: example.co.uk
+#     notes: ""
+#
+#   - account_id: trade-002
+#     organisation: Another Trade Merchant
+#     cohort: accessible_no_core_email
+#     domain: another.co.uk
+#
+#   - account_id: blocked-003
+#     organisation: Third Distributor
+#     cohort: previously_blocked
+#     domain: third.co.uk
+#     notes: "上次被 WAF challenge 拦下；本次不改走绕过，只看其他公开来源"

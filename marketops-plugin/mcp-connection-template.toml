@@ -1,0 +1,29 @@
+# MarketOps MCP — connection template.
+#
+# A template, not a configured connection. It carries no credential, shows no
+# credential-shaped value, and names no place one is kept. Fill in the endpoint
+# for your deployment; let your client resolve the credential through its own
+# managed configuration. How your deployment issues a token is the deployment's
+# business, not this package's, and nothing here describes it.
+#
+# Shape measured on codex-cli 0.153.4 (`codex mcp add` / `codex mcp get --json`);
+# the same two fields are what a Codex plugin's `mcpServers` entry carries.
+#
+# The server speaks Streamable HTTP (MCP protocol version 2025-06-18). It takes
+# no --host/--port/--tokens flags: every value comes from its own environment.
+#
+# One deployment fact worth knowing before you point a client at it: the token
+# audience is the resource identifier the server derives from its bind address.
+# That is why an endpoint reached on a different address or port is refused —
+# by design, not by misconfiguration — and why the endpoint below must be the
+# one the client will actually use.
+
+[mcp_servers.marketops]
+# The Streamable HTTP endpoint of your deployment, e.g.
+#   url = "http://127.0.0.1:<port>/mcp"
+url = "<marketops-mcp-endpoint>"
+
+# The NAME of the environment variable your client reads the bearer token from.
+# The value is never written here. This package does not say where it is kept,
+# and does not tell you how to obtain it.
+bearer_token_env_var = "MARKETOPS_MCP_TOKEN"

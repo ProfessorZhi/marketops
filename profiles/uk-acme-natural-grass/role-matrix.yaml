@@ -1,0 +1,275 @@
+# Role matrix — UK · AcmeCorp Pro · Outdoor Natural Grass Sports Venues
+#
+# 来源：sources/party-group/sop/uk-natural-grass-acme-sop-v1.md
+# 角色清单取自 SOP L79（优先角色）与 L126（B 级点名的例子）；排除类别取自 L129
+# 与 L131。本文件是那份 SOP 的编译产物 —— 改之前先看 SOP 是不是这么说的。
+#
+# 角色匹配是**完全数据驱动**的：核心系统 (marketops/domain/) 只消费本文件，
+# 不含任何具体角色名。新增/修改角色只改这里，不改 Python。
+#
+# 匹配语义：
+#   match:  子串匹配（大小写不敏感），命中任意一条即算命中该 role_group
+#   weight: 该组对「这个账号值得联系」的贡献权重（仅排序，不参与定级）
+#   class:  decision | influencer | operational | gatekeeper | excluded
+#           这个岗位在**路线**里扮什么角色 —— 不是他有多重要。
+#   business_function: 这个岗位落在哪个业务口径上。
+#           与 class 是**两个独立的业务事实**：grounds leadership 是
+#           decision + grounds，venue manager 是 influencer + operations，
+#           finance 是 excluded + finance。压成一个字段，
+#           C 级「与场地业务口径绑定」这条规则就没法表达。
+#
+# 为什么 class 里没有「降权」这一档：权重可以被下一次调参改回去，
+# 而 SOP L129/L131 说的是「不得进入有效主池」—— 那是类别判定。
+# 旧 profile 的 negative_roles（weight 为负）表达的正是这件事，
+# 但它没有任何消费者，于是「降权」实际等于「没发生」。
+
+schema: marketops/role-matrix.v2
+profile: uk-acme-natural-grass
+
+# 大小写与标点归一化规则。核心系统按此归一化后再匹配，
+# 避免 "Head Groundskeeper" 与 "head  groundskeeper." 匹配不上。
+normalization:
+  casefold: true
+  collapse_whitespace: true
+  strip_punctuation: [".", ",", ";", ":"]
+  # 英式/美式与同义写法差异
+  synonyms:
+    groundsman: groundskeeper
+    groundsmen: groundskeeper
+    groundskeeper: groundskeeper
+    greenkeeper: groundskeeper
+    turf: grass
+
+# ---- A 侧：关键决策 / demo 推进职能（SOP L125）----
+# 头衔里带 head / director 的场地与设施负责人。SOP L126 点名的是
+# Supervisor / Manager 这一档（在下面 operational 里），
+# 因此这里刻意只放决策层头衔，不放 "groundskeeper" 这类通行岗位名 ——
+# 「groundskeeper」是「head groundskeeper」的子串，两边都放会让同一段文本
+# 同时命中两个 class，而引擎只能给一个。装载层会拒绝这种重叠。
+role_groups:
+
+  - id: grounds_leadership
+    class: decision
+    business_function: grounds
+    weight: 1.0
+    rationale: >
+      场地维护的最高负责人，对划线材料有采购决定权或建议权（SOP L79）。
+    match:
+      - head groundskeeper
+      - head groundsman
+      - head of grounds
+      - director of grounds
+      - grounds director
+      - head of sports turf
+      - head of turf
+
+  - id: facilities_estates_leadership
+    class: decision
+    business_function: facilities
+    weight: 0.9
+    rationale: >
+      设施与地产口径的负责人，场地相关采购常在此归口（SOP L79 的
+      Facilities/Estates）。
+    match:
+      - head of estates
+      - estates director
+      - head of facilities
+      - facilities director
+      - head of property
+      - property director
+
+# ---- B 侧：关键一线运营 / 维护角色（SOP L126）----
+  - id: grounds_operations
+    class: operational
+    business_function: grounds
+    weight: 0.8
+    rationale: >
+      SOP L126 点名的 B 级例子：Grounds Supervisor / Grounds Manager /
+      Sports Turf Manager / Pitch Manager。他们是实际使用产品的人。
+    match:
+      - grounds supervisor
+      - grounds manager
+      - sports turf manager
+      - turf manager
+      - pitch manager
+      - stadium grounds manager
+      - grounds team leader
+      - grounds foreman
+
+  - id: facilities_maintenance_operations
+    class: operational
+    business_function: maintenance
+    weight: 0.7
+    rationale: >
+      SOP L126 的 Facilities/Maintenance Supervisor；SOP L79 的
+      Maintenance。执行维护的人，通常不拍板。
+    match:
+      - facilities supervisor
+      - facilities manager
+      - estates manager
+      - estate manager
+      - site manager
+      - site supervisor
+      - maintenance supervisor
+      - maintenance manager
+      - maintenance technician
+      - head caretaker
+      - caretaker
+
+# ---- 场馆运营口径：能推进 demo，但不直接负责场地维护 ----
+  - id: venue_operations
+    class: influencer
+    business_function: operations
+    weight: 0.8
+    rationale: >
+      SOP L79 的 Operations / Venue / Facility Manager。场馆运营口径知道谁在
+      维护场地，常常是转介节点；能推动 demo，但不由他们决定技术选型，
+      因此归 influencer（SOP L125 的「关键决策**或** demo 推进职能」）。
+    match:
+      - operations manager
+      - director of operations
+      - operations director
+      - venue manager
+      - venue operations
+      - facilities operations
+      - stadium manager
+      - general manager
+      - club manager
+
+# ---- 业务入口：场地预约 / 场地租赁（SOP L127 的 bookings 口径）----
+  - id: venue_hire_bookings
+    class: gatekeeper
+    business_function: bookings
+    weight: 0.6
+    rationale: >
+      SOP L131：Bookings 只有在**明确是场地预约、场馆运营或设施团队入口**时
+      进 C。因此这里只收场地语境的预约词 —— 「ticket office / box office /
+      会员秘书」是票务与会员，与场地使用无关，在下面 excluded 里。
+    match:
+      - venue hire
+      - pitch hire
+      - ground hire
+      - facility hire
+      - bookings manager
+      - bookings officer
+      - bookings team
+
+  - id: procurement
+    class: gatekeeper
+    business_function: procurement
+    weight: 0.6
+    rationale: >
+      SOP L79 的 Procurement。采购归口有流程价值，但对技术选型的影响通常小于
+      grounds leadership。
+      **`finance director` 已从这里移除**：SOP L129 把财务放进 X，
+      而旧 profile 把 finance director 列在 procurement 组里 ——
+      一条把「财务」读成「采购归口」的正面规则。财务不是采购角色。
+    match:
+      - procurement
+      - purchasing
+      - buyer
+      - commercial manager
+
+# ---- X 侧：不得进入有效路线（SOP L129 / L131）----
+#
+# 以「岗位」为单位列出，是因为这里判定的主语是**路线上的角色**。
+# 注意这与官方泛化邮箱（如 info@）无关：那条路线没有具名岗位，
+# entry_kind 是 generic_official，按 SOP L128 是 D 级，不在本表范围内 ——
+# 「一般客服岗位」与「泛化官方邮箱」是两件事。
+excluded_roles:
+
+  - id: finance_and_accounts
+    business_function: finance
+    rationale: >
+      SOP L129 明确把财务列入 X。财务不是采购归口 ——
+      旧 profile 把 finance director 放进 procurement 组，是一处正面反转。
+    match:
+      - finance
+      - financial
+      - accounts
+      - payroll
+      - treasurer
+      - credit control
+
+  - id: admissions
+    business_function: admissions
+    rationale: SOP L129：招生不进入有效主池。
+    match:
+      - admissions
+      - enrolment
+      - enrollment
+
+  - id: human_resources
+    business_function: hr
+    rationale: SOP L129：HR 不进入有效主池。
+    match:
+      - human resources
+      - human resource
+      - hr manager
+      - hr officer
+      - hr department
+      - people team
+      - personnel
+      - recruitment
+
+  - id: teaching
+    business_function: teaching
+    rationale: SOP L129：教学不进入有效主池（学校/大学的学术侧）。
+    match:
+      - teacher
+      - teaching
+      - headteacher
+      - head teacher
+      - lecturer
+      - curriculum
+      - faculty
+
+  - id: general_administration
+    business_function: administration
+    rationale: >
+      SOP L129：一般行政。SOP L131 补了一句要害的话 ——
+      行政即使公开也**不能**因「可能转发」进入有效主池。
+    match:
+      - administration
+      - administrator
+      - admin office
+      - office manager
+      - receptionist
+      - general enquiries
+
+  - id: customer_service_and_ticketing
+    business_function: customer_service
+    rationale: >
+      SOP L131：无场地关联的客服/预订进 X。票务、会员、餐饮与前台属这一类。
+    match:
+      - customer service
+      - customer support
+      - helpdesk
+      - help desk
+      - front of house
+      - box office
+      - ticket office
+      - membership secretary
+      - hospitality
+      - catering
+
+  - id: non_grounds_roles
+    business_function: unknown
+    rationale: >
+      SOP L131：岗位/职能必须与产品场景强绑定。市场、传播、赞助、筹款
+      出现在 staff page 上说明不了场地维护这件事。
+    match:
+      - marketing
+      - communications
+      - social media
+      - sponsorship
+      - fundraising
+      - media relations
+      - press office
+
+# 抓取页面的优先级与结果排序，与 role_groups.weight 正交。
+# 这是「先看谁」，不是「谁重要」。
+priority:
+  class_order: [decision, influencer, operational, gatekeeper]
+  # 排除类不参与排序 —— 它们不进入候选集。
+  excluded: [excluded]

@@ -1,0 +1,136 @@
+{
+  "additionalProperties": false,
+  "description": "一条**候选账号**：从公开网络发现、尚未物化成 ``AccountRecord`` 的一行。\n\n链路「公共网络 → 候选场馆/资产 → 场地表面与环境证据 → 责任实体 → 官方域名 →\n符合条件的账号」到这里止于候选，本轮**不产出** ``AccountRecord``。\n这一层必须独立存在的理由是硬的：``Cohort``（``marketops/domain/enums.py``）\n是**闭集**（``known_success`` / ``accessible_no_core_email`` /\n``previously_blocked``），``contracts/account-record.schema.json`` 的\n``required`` 含 ``cohort``，``marketops/application/cohorts.py`` 断言总数 ==\n``plan.total``，``tests/test_cohorts.py`` 钉死 10/10/10。发现出来的账号\n**没有** cohort，也没有诚实的值可填 —— 所以本模型里**没有** ``cohort`` 字段，\n也没有一个本轮恒为 ``None`` 的 ``account_id`` 槽位。\n\n**三个 id 空间分开，不缝成一个：**\n\n* ``candidate_id`` —— **发现期身份**。它必须满足规范形式\n  （``slugify(id, max_length=FILENAME_ID_MAX_LENGTH) == id``）：发现期的证据会\n  经由同一个 ``LocalEvidenceStore`` 落盘，``Evidence.account_id`` 现在就要求\n  这个形式，候选 id 将来就是它。**从 URL 直接派生 candidate_id 会炸** ——\n  ``util._UNSAFE_ID_CHARS`` 含 ``:`` 与 ``/``，任何带 scheme 或路径的串都会被拒。\n  这不是不便：这条 id 会被当作 ``<id>.jsonl`` 的文件名，而 ``slugify`` 会把\n  两个不同的 id 映射到同一个文件 —— store 不报错，两个候选的证据被静默合并。\n  界复用 ``FILENAME_ID_MAX_LENGTH`` 而不是另写一个 60：两处各写一个字面量\n  必然会漂移，而漂移的那一次会让「校验通过的 id」在落盘时被截断。\n* ``pairing_key`` —— 两支臂的**配对单位**，canonical host。\n  **允许为空**：没有官网的候选没有配对身份，它**不参与配对**，而不是配到一个\n  空串上。空串与「非空但不规范」是两条不同的路 —— 后者直接报错，\n  不会被悄悄改写成空串（那会让「这个候选没有官网」与「它的官网写错了」\n  在数据上长得一样）。规范形式在此同样必要：同一台主机的两种拼写\n  会让配对被拆成互不相干的两组，而报告上只是「多了几行」。\n* ``account_id`` —— **本层不存在**。晋级由下一轮定义，届时由\n  :class:`~marketops.domain.evidence.AccountRecord` 自己的 validator 重新校验\n  （两个 id 空间在那时才发生一次受控的、可审计的映射）。在这里留一个\n  恒为 ``None`` 的槽位是臆造：它会读成「这个候选的账号 id 还没填」，\n  而事实是「本轮不产生账号记录」；将来真去填它的那一行，\n  会绕开 ``AccountRecord`` 的校验。\n\n**没有 snippet 字段，这是刻意的。** ``marketops/application/pipeline.py`` 的\n``_scan_snippet`` 靠「SERP 里出现过邮箱、绑定被拒绝」这个计数证明那条不变量\n还在被考验。让它进来，等于允许一个绕过检索工具的邮箱从旁路进入发现层 ——\n那条计数器就开始说谎，而说谎的方向恰好是「一切正常」。\n\n**不得内联大段原文。** 证据是**指针 + 哈希**（``evidence_ids`` /\n``surface_evidence_ids`` / ``domain_evidence_ids`` 指向 ``Evidence.evidence_id``），\n不是正文：一行候选读得懂，不依赖证据还能不能读到；而证据一旦被删掉，\n依赖它的判定必须**降级**，不是照旧成立。\n\n**事实名的绑定规则**（下游把候选投影成引擎准入事实时必须遵守）。\n投影是**字面量、没有中间映射**：``organisation_kind`` / ``venue_environment`` /\n``surface_class`` / ``surface_evidence_confirmed`` 直接取字段，\n``exclusions_hit`` 由同名列表投影，``any_page_fetched`` / ``any_page_blocked``\n由两个计数投影。字段名与事实名逐字同名，是为了让「投影取错了哪个字段」\n在命名上无处可藏。**投影本身不在这里** —— 它在\n``marketops/application/qualify.py::candidate_facts``，与判定循环\n（``application/grading.py::account_outcome_from_facts``）分开：投影是\n「这一行有什么值」，循环是「这些值按 ``grading.yaml`` 判成什么」。\n\n**生产者请走 :func:`new_candidate`，不要直接构造** —— 它的 ``method`` 参数收\n一个 ``SourceMethod`` 注册表成员并由它派生 ``source_method_id``，因此「写一个\n未注册的来源 id」在类型层面就写不出来。本模型自己仍然收字符串，因为它是**契约**的\n形状（导出的 schema 里那一栏是 ``string``）：契约说值长什么样，不说它的出处。\n来源注册表只覆盖**引擎自己能产出**的发现方法；SOP L82 的「每个来源有独立\n``source_method_id``」指的是具体来源（某个目录、某个登记册），那些属于\n``profiles/*/`` 一侧的市场知识，两者今天没有对齐 —— 这一条是**未决项**，\n记录在 ``marketops/domain/sources.py`` 的「一层不在这里的东西」一节，\n这里不扩注册表。",
+  "properties": {
+    "candidate_id": {
+      "title": "Candidate Id",
+      "type": "string"
+    },
+    "country": {
+      "default": "unknown",
+      "title": "Country",
+      "type": "string"
+    },
+    "discovered_host": {
+      "default": "",
+      "title": "Discovered Host",
+      "type": "string"
+    },
+    "domain_evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Domain Evidence Ids",
+      "type": "array"
+    },
+    "evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "exclusions_hit": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Exclusions Hit",
+      "type": "array"
+    },
+    "official_domain": {
+      "default": "",
+      "title": "Official Domain",
+      "type": "string"
+    },
+    "organisation": {
+      "title": "Organisation",
+      "type": "string"
+    },
+    "organisation_kind": {
+      "default": "unknown",
+      "title": "Organisation Kind",
+      "type": "string"
+    },
+    "pages_blocked": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Pages Blocked"
+    },
+    "pages_fetched": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Pages Fetched"
+    },
+    "pairing_key": {
+      "default": "",
+      "title": "Pairing Key",
+      "type": "string"
+    },
+    "source_method_id": {
+      "title": "Source Method Id",
+      "type": "string"
+    },
+    "surface_class": {
+      "default": "unknown",
+      "title": "Surface Class",
+      "type": "string"
+    },
+    "surface_evidence_confirmed": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Surface Evidence Confirmed"
+    },
+    "surface_evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Surface Evidence Ids",
+      "type": "array"
+    },
+    "venue_category": {
+      "default": "",
+      "title": "Venue Category",
+      "type": "string"
+    },
+    "venue_environment": {
+      "default": "unknown",
+      "title": "Venue Environment",
+      "type": "string"
+    },
+    "venue_name": {
+      "title": "Venue Name",
+      "type": "string"
+    }
+  },
+  "required": [
+    "candidate_id",
+    "organisation",
+    "venue_name",
+    "source_method_id"
+  ],
+  "title": "AccountCandidate",
+  "type": "object"
+}

@@ -1,0 +1,30 @@
+{
+  "additionalProperties": false,
+  "description": "一个**具名**的自然人。\n\n人没有自己的 A/B/C/D/X —— 等级挂在路线上。同一个人可以有多条路线\n（工作邮箱、部门邮箱），它们各自的强度与语境不同。",
+  "properties": {
+    "account_id": {
+      "default": "",
+      "title": "Account Id",
+      "type": "string"
+    },
+    "full_name": {
+      "title": "Full Name",
+      "type": "string"
+    },
+    "notes": {
+      "default": "",
+      "title": "Notes",
+      "type": "string"
+    },
+    "person_id": {
+      "title": "Person Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "person_id",
+    "full_name"
+  ],
+  "title": "Person",
+  "type": "object"
+}

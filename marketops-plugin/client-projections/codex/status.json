@@ -1,0 +1,71 @@
+{
+  "client": "codex",
+  "client_version": "0.153.4",
+  "client_info": {
+    "name": "codex-mcp-client",
+    "title": "Codex",
+    "version": "0.153.4"
+  },
+  "protocol_version": "2025-06-18",
+  "transport": "streamable-http",
+  "tested_at": "2026-09-29",
+  "build": "marketops 0.1.0 (serverInfo reported by the deployment under test)",
+  "measured_under": {
+    "note": "the client was run against a dedicated MarketOps MCP server on an unused loopback port, with an isolated CODEX_HOME; the exchange was captured at the byte level by a local TCP relay",
+    "evidence": "RECEIPT.md"
+  },
+  "fields": {
+    "installed_projection": {
+      "state": "not_verified",
+      "reason": "the package was installed and enabled (see plugin_install_verified), but no client session was observed loading the Skill from the installed location. Copying onto disk is not reading; the two are recorded separately for that reason"
+    },
+    "mcp_connected": {
+      "state": "verified",
+      "evidence": "RECEIPT.md#mcp-connected",
+      "detail": "initialize and notifications/initialized completed; tools/list returned a catalog"
+    },
+    "auth_verified": {
+      "state": "verified",
+      "evidence": "RECEIPT.md#auth-verified",
+      "detail": "the client's own auth path succeeded and the same request with a wrong token was refused with 401, with no session created"
+    },
+    "tool_catalog_verified": {
+      "state": "verified",
+      "evidence": "RECEIPT.md#tool-catalog-verified",
+      "detail": "the names the client received were compared against the deployment's catalog: the difference in one direction was empty, and the withheld set was explained by role and by absent capability"
+    },
+    "read_flow_verified": {
+      "state": "not_verified",
+      "reason": "the client's model turn could not be completed in this environment, so no read use case was really invoked by the client; the MCP handshake was already complete when the turn failed, and only the handshake is claimed here"
+    },
+    "write_flow_verified": {
+      "state": "not_verified",
+      "reason": "same as read_flow_verified: not attempted in this run"
+    },
+    "durable_job_disconnect_verified": {
+      "state": "not_verified",
+      "reason": "not attempted in this run"
+    },
+    "reconnect_verified": {
+      "state": "not_verified",
+      "reason": "not attempted in this run"
+    },
+    "multi_session_isolation_verified": {
+      "state": "not_verified",
+      "reason": "not attempted in this run"
+    },
+    "notification_pull_verified": {
+      "state": "not_verified",
+      "reason": "not attempted in this run"
+    },
+    "notification_push_verified": {
+      "state": "not_verified",
+      "reason": "not attempted in this run; this is a client-side capability question that a handshake does not answer"
+    },
+    "plugin_install_verified": {
+      "state": "verified",
+      "evidence": "RECEIPT.md#plugin-install-verified",
+      "detail": "the client's own marketplace-add and plugin-add path installed the package into an isolated client home; the installed copy was then compared against the source file by file, and the difference was empty"
+    }
+  }
+}

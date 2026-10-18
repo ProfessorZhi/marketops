@@ -1,0 +1,28 @@
+{
+  "name": "marketops",
+  "version": "0.1.0",
+  "description": "MarketOps business workflow Skill — routes market, pool, follow-up, draft and diagnostics requests to the MarketOps MCP server, which is the only source of business facts.",
+  "author": {
+    "name": "ProfessorZhi"
+  },
+  "skills": "./skills/",
+  "license": "MIT",
+  "interface": {
+    "displayName": "MarketOps",
+    "shortDescription": "Find and contact organisations in a market",
+    "longDescription": "The canonical MarketOps Skill. It holds no business fact of its own: every account, count, budget and permission it reports is read from the MarketOps MCP server at the moment of use. It decides which server use case a request belongs to and how to present what comes back.",
+    "developerName": "ProfessorZhi",
+    "category": "Productivity",
+    "capabilities": [
+      "Skills",
+      "Market research workflow",
+      "Follow-up and review"
+    ],
+    "defaultPrompt": [
+      "Continue the last market and add more accounts of the same kind.",
+      "What changed in this pool since I last looked?",
+      "Draft something for this organisation and show me what it rests on."
+    ]
+  },
+  "mcpServers": "./.codex-mcp.json"
+}

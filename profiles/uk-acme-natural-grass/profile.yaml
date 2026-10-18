@@ -1,0 +1,639 @@
+# Profile: UK · EXD AcmeCorp Pro · Outdoor Natural Grass Sports Venues
+#
+# 这是 MarketOps 的**第一个** profile，不是它的定义。
+# 本文件之外，不得有任何地方硬编码 UK / AcmeCorp / 天然草坪 的知识。
+#
+# 来源：sources/party-group/sop/uk-natural-grass-acme-sop-v1.md
+# 排除项取自 SOP L26 的硬排除行；参数化输入取自 L21–L27。
+# 本文件与 grading.yaml / role-matrix.yaml 都是那份 SOP 的编译产物。
+
+schema: marketops/profile.v2
+name: uk-acme-natural-grass
+display_name: "UK — AcmeCorp Pro — Outdoor Natural Grass Sports Venues"
+country: GB
+
+product:
+  name: AcmeCorp Pro
+  # 用于生成搜索词与判断目标组织相关性，不做硬编码判断依据。
+  category: sports-surface-line-marking-paint
+  value_proposition: >
+    户外天然草坪运动场馆的场地划线。面向需要自行维护场地标线的场馆运营方。
+
+# 目标账号：什么样的组织算一个 account
+target_accounts:
+  kind: sports-venue
+  attributes:
+    surface: natural-grass        # 天然草坪
+    environment: outdoor          # 户外
+    access: any                   # 公共/私有/会员制均可，只要信息是公开的
+    ownership: any                # 市政 / 学校 / 俱乐部 / 商业运营均可
+  # 这些是「为什么我们要找这个组织」，会被写进搜索词生成与相关性判断。
+  rationale: >
+    天然草坪场馆需要定期重新划线，且通常由场馆自有团队维护，
+    因此 Grounds/Facilities 类岗位是真实存在的决策与执行节点。
+
+# 搜索面：生成 query 的原料。具体 query 模板见 query_templates。
+search:
+  # 一个账号的检索额度上限。**改这里就是改预算** —— 它是一份版本化的声明，
+  # 而不是一个环境变量（§8：调用方不得静默扩大上限，见 application/budget.py）。
+  max_queries: 20
+  locales: [en-GB]
+  # 只用于发现 URL。snippet 里的邮箱永不直接入库（见 docs/SOP_MAPPING.md）。
+  query_templates:
+    - "{role} {venue_type} {region}"
+    - "{venue_type} {region} contact"
+    - "{venue_type} {region} staff"
+    - "{venue_type} {region} grounds team"
+  venue_types:
+    - cricket club
+    - rugby club
+    - football club
+    - sports club
+    - sports ground
+    - athletics track
+    - county cricket ground
+    - university sports ground
+    - school sports ground
+    - council sports pitch
+  # **`{region}` 不读这一栏。** 它由实验 manifest 的 `geographic_scope` 冻结
+  # （一次实验绑一个值，两条臂传同一个），见 application/openweb.py 的模块文档。
+  #
+  # 这一栏今天**没有消费者**，而它该是什么意思也还没定：它躺在 venue_types 旁边、
+  # 名字又正是 `{region}` 要的那个，很容易被读成「检索式里的地区词表」——但它装的是
+  # 四个构成国名。两种读法要做的事完全不同（「在范围内的国家」vs「地区词表」），
+  # 而这是一个 SOP 业务定义问题，不是引擎能替它决定的。**留在这里是因为删掉它等于
+  # 替 SOP 回答那个问题**；在它被回答之前，任何消费者都不许猜。
+  #
+  # 历史上这一栏曾经出现两次（另有一行 `regions: [GB]`，PyYAML 保留最后一个，
+  # 那一行是死声明）。死键已在 95c102e 里删掉，剩下的就是这四个。
+  regions:
+    - England
+    - Scotland
+    - Wales
+    - Northern Ireland
+
+# 抓取面：复核一格过期事实时最多抓几份文档。
+fetch:
+  # **一个主体在一次复核里**最多抓几份文档（BudgetLine.DOCUMENT）。改这里就是改
+  # 预算 —— 与 search.max_queries 同一条纪律：上限来自版本化的声明，不来自环境
+  # 变量（§8：调用方不得静默扩大上限，见 application/budget.py）。
+  #
+  # 它管的不是「一个主体一辈子能抓几份」，而是「一次复核最多看几页」：一个页数
+  # 超过它的主体，多出来的那些页这一次不看，而**没看的那几页会被复核记录逐条
+  # 报出来**（见 application/refresh.py::RecheckRecord），不假装看过。
+  #
+  # **这个数字未标定** —— 它不是业务事实，是一组让系统能运转的起点（与
+  # domain/maintenance.py 里那三个未标定的复核周期同一条纪律）。
+  max_documents: 12
+
+# 排除项：命中的组织不进候选集。
+# 注意：exclusions 是**判定输入**，不是关键词黑名单 —— 见 grading.yaml 的 x_rules。
+exclusions:
+  - id: golf
+    description: 高尔夫球场（含 golf club / golf course）
+  - id: footgolf
+    description: 足球高尔夫
+  - id: artificial_grass
+    description: 人造草坪场地
+  - id: three_g
+    description: 3G 场地
+  - id: four_g
+    description: 4G 场地
+  - id: five_g
+    description: 5G 场地
+  - id: hybrid_without_natural_grass_evidence
+    description: >
+      混合草坪，且**没有独立的天然草坪证据**。若该组织另有明确
+      天然草坪场地证据，则不因本项排除。
+  - id: indoor
+    description: 室内场馆
+  - id: muga
+    description: MUGA（Multi-Use Games Area，多功能运动区）
+
+# 分类词表 —— 「candidate URL → 抓取 → 抽取资产事实 → 场地资产」那一步读的就是这一块。
+#
+# **为什么住在 profile**：取值是市场知识，核心代码不认识任何一个
+# （tests/test_no_hardcoded_market_knowledge.py 对 marketops/ 做 AST 扫描，
+# 标识符与字符串字面量一起查 —— 把 natural_grass 写进分类器会立刻变红）。
+# 分类器只认识四条轴**的名字**，而那四个名字同时是事实名
+# （marketops/domain/facts.py 的 CANDIDATE_FACT_NAMES）。
+#
+# **判据是确定性的，不是模型**：小写化 → 非字母数字折成单空格 → 按词边界匹配
+# （marketops/application/classification.py）。三条规则要一起读：
+#
+#   1. 一条轴上**没有任何取值命中** ⇒ 该轴 `unknown`（「没查出来」）。
+#   2. 一条轴上**恰好一个取值命中** ⇒ 就是它。
+#   3. 一条轴上**两个以上不同取值命中** ⇒ 仍是 `unknown`，理由里写出是哪几个。
+#
+# 第 3 条是保守的方向：`unknown` 不决定任何子句（规则进 unchecked、判词
+# unresolve_facts、账号停在 discovered），也就是**留给人看**，不是丢掉。
+# 本仓的纪律是「没有证据就丢弃账号，比留着它危险得多」。代价写下来：
+# 一页同时说「3G 场地」和「草地场地」时判 unknown —— 而那正是 SOP 里
+# hybrid 的例外条款（另有真草证据则不排除）今天没有被判出来的原因。
+#
+# **`excludes` 只在第 2 条成立时生效**：歧义不排除任何人。
+#
+# **`unknown` 是正式结论**，不是空值。空串在规则方言里读作「记了，是空」——
+# 那是**已确认**，会被取反、会让排除规则确定地不命中。两者在报告里长得一样，
+# 做出来的事完全相反，所以候选行上的这四格拒绝空串（见 domain/candidate.py）。
+classification:
+  axes:
+
+    # ---- 场地环境 ----------------------------------------------------------
+    venue_environment:
+      # 户外的判据分成两半，理由不同：
+      #   * 显式词（outdoor / 露天）—— 页面自己说的；
+      #   * search.venue_types 里的场地类型 —— 这一条是**声明**，不是推断：
+      #     本文件 target_accounts.attributes.environment 已经声明了这一场景要的
+      #     环境是 outdoor，而 venue_types 是同一段声明里的场地类型。一块「板球俱乐部」
+      #     的场地按 SOP L21 就是户外天然草场地。写在这里是为了让这条声明**可审计** ——
+      #     它没有藏进核心代码。
+      - value: outdoor
+        phrases:
+          - outdoor
+          - outdoors
+          - open air
+          - playing field
+          - playing fields
+          - sports field
+          - recreation ground
+          - cricket club
+          - rugby club
+          - football club
+          - sports club
+          - sports ground
+          - athletics track
+          - county cricket ground
+          - university sports ground
+          - school sports ground
+          - council sports pitch
+      # **判据全部是「场馆级」的说法**，这一条是刻意的，代价也写下来：
+      #
+      #   * 裸词 `indoor` **不收**。英国基层俱乐部的页面极常出现「indoor nets」
+      #     （冬季室内训练网）—— 那是户外场地里的一处设施，不是「这块场地在室内」。
+      #   * 「indoor centre」**也不收**。它是同一个形状：一块草地场地上盖一间
+      #     室内馆，是这类俱乐部的常态，而那一句说的是「我们有一间室内馆」。
+      #
+      # 收这两条会把大量**户外**俱乐部判成两值相撞（`cricket club` 与 `indoor`），
+      # 从而整批落进 hold —— 而 hold 是要人来收的，不是免费的保守。
+      # 收在这里的每一条都在说「**这座场馆本身**在室内」：它是一类场馆的名字，
+      # 不是一处设施的补充说明。
+      - value: indoor
+        phrases:
+          - indoor sports centre
+          - indoor sports center
+          - indoor cricket centre
+          - indoor cricket center
+          - indoor cricket school
+          - sports hall
+          - indoor sports hall
+          - leisure centre
+          - leisure center
+          - indoor arena
+          - indoor bowls centre
+          - indoor bowls center
+        # SOP L26 硬排除：室内场馆。
+        excludes: [indoor]
+
+    # ---- 组织形态（责任实体的类型）------------------------------------------
+    # 引擎里读这一格的规则只有 venue_is_muga 一条；其余取值的用处是让 muga 那条
+    # 有一个**确定的反面**（判成 club 就是「确认不是 MUGA」，规则不命中且不进
+    # unchecked），以及 §2 要求的「组织形态有真实生产者」。
+    #
+    # **`park` 与裸词 `venue` 刻意不在这里。** SOP L27 的责任实体里有「公园」与
+    # 「场馆」，但页面上的 `park` 绝大多数是「car park」，而 `venue` 在「venue hire」
+    # 里指的是出租业务不是主体 —— 一条会大量误命中的取值，代价是把真正命中的那些
+    # 一起拖进两值相撞。宁可留 unknown。
+    organisation_kind:
+      - value: muga
+        phrases:
+          - muga
+          - multi use games area
+          - multi use games areas
+        excludes: [muga]
+      # golf / footgolf 是 SOP L26 的硬排除，判据要的是「这一页就是一个高尔夫球场」，
+      # 所以只收球场级的说法 —— 一条只写着 `golf` 的词会命中「golf society」
+      # （很多板球俱乐部里挂着一个），那是一次凭空的排除。
+      - value: golf_club
+        phrases:
+          - golf club
+          - golf course
+          - golf centre
+          - golf center
+          - pitch and putt
+          - footgolf
+          - foot golf
+        excludes: [golf, footgolf]
+      - value: school
+        phrases:
+          - school
+          - primary school
+          - secondary school
+          - high school
+          - prep school
+          - academy
+          - sixth form
+          - college
+          - academy trust
+      - value: university
+        phrases:
+          - university
+          - universities
+          - students union
+          - sports union
+      - value: council
+        phrases:
+          - council
+          - borough council
+          - county council
+          - city council
+          - district council
+          - parish council
+          - town council
+          - local authority
+          - municipal
+      - value: club
+        phrases:
+          - cricket club
+          - rugby club
+          - football club
+          - sports club
+          - athletic club
+          - athletics club
+          - bowls club
+          - hockey club
+          - tennis club
+          - netball club
+          - badminton club
+          - croquet club
+          - rugby union
+          - rugby league
+          - amateur club
+          - community club
+      - value: operator
+        phrases:
+          - leisure trust
+          - charitable trust
+          - sports trust
+          - community trust
+          - facilities management
+          - grounds maintenance
+          - community interest company
+          - social enterprise
+          - leisure operator
+      - value: venue
+        phrases:
+          - stadium
+          - sports centre
+          - sports center
+          - sports complex
+          - sports park
+          - sports village
+          - arena
+
+    # ---- 表面类别 -----------------------------------------------------------
+    # 引擎里读这一格的规则是 artificial_surface_only，它的第一个子句是
+    # `surface_class in [artificial_grass, 3g, 4g, 5g]`。判成 natural_grass 就是
+    # 「确认**不是**人造表面」—— 那条规则不命中且不进 unchecked。判成 unknown 时
+    # 规则进 unchecked、账号停在 discovered：**没有表面证据时不放行**，这正是
+    # SOP L21「合格资产 = 有公开证据的真草坪」那句话在引擎里的形状。
+    surface_class:
+      - value: natural_grass
+        phrases:
+          - grass
+          - natural grass
+          - natural turf
+          - grass pitch
+          - grass pitches
+          - grass field
+          - grass fields
+          - grass surface
+          - grass wicket
+          - grass square
+          - grass track
+          - real grass
+          - sports turf
+          - turf pitch
+      # SOP L26 硬排除：人工草。`excludes` 在这里不是多余的一条 ——
+      # artificial_surface_only 那条规则要求 `surface_evidence_confirmed == false`
+      # （「确认没有独立真草证据」），而发现期**推不出**那句否定：一页写着「3G 场地」
+      # 不等于「这个组织没有草地场地」。所以人工表面走的是 exclusions_hit 那条路
+      # （excluded_segment），而那条路要的证据是「这一页说的是什么表面」，发现期有。
+      - value: artificial_grass
+        phrases:
+          - artificial grass
+          - artificial turf
+          - artificial pitch
+          - artificial pitches
+          - artificial surface
+          - artificial grass pitch
+          - astroturf
+          - astro turf
+          - astro
+          - synthetic turf
+          - synthetic pitch
+          - synthetic surface
+          - sand dressed
+          - sand filled
+        excludes: [artificial_grass]
+      # 裸词 3g / 4g 收，裸词 5g **不收**。词边界挡得住 `5GHz`（归一化后是
+      # `5ghz`，`5g` 后面跟的是字母，不是边界），但挡不住 `5G mobile` ——
+      # 而 3G/4G 的移动网络写法在 2026 年的场馆页面上已基本绝迹，5G 没有。
+      # 所以 5g 只收与场地同现的说法。
+      - value: three_g
+        phrases: [3g]
+        excludes: [three_g]
+      - value: four_g
+        phrases: [4g]
+        excludes: [four_g]
+      - value: five_g
+        phrases:
+          - 5g pitch
+          - 5g pitches
+          - 5g surface
+          - 5g astro
+          - 5g astroturf
+          - 5g football
+          - 5g rugby
+          - 5g hockey
+          - 5g facility
+        excludes: [five_g]
+      # **hybrid 不带 excludes。** SOP L26 的 hybrid 排除是**带例外**的：
+      # 「hybrid（无独立真草证据）」—— 没有真草证据才排除。而发现期推不出
+      # 「这个组织没有真草场地」这句否定（页面只说了一部分）。所以 hybrid 只产出一个
+      # 表面读数，排除留给读到真草证据的那一侧去决定。它与真草证据同现时，
+      # 两值相撞 ⇒ unknown ⇒ hold，正好是「这件事没判」。
+      - value: hybrid
+        phrases:
+          - hybrid grass
+          - hybrid pitch
+          - hybrid pitches
+          - hybrid turf
+          - hybrid surface
+          - reinforced grass
+          - stitched grass
+          - grassmaster
+
+    # ---- 国家 / 地区 --------------------------------------------------------
+    # 取值只有**在范围内**这一个。这不是「只查英国」——是不**枚举**世界：
+    # 一份把两百个国家写进来的词表会立刻过期，而它过期的方式是静默的
+    # （新国家名没人加，于是那些页面恒判 unknown）。
+    #
+    # 越界因此不会被判成 out_of_region，而是 unknown ⇒ 那条规则进 unchecked。
+    # 这与 §2 的要求一致：unknown 可以保留，但不得自动通过资格。
+    #
+    # **主机后缀是判据，而且是可引用的那一种**：.uk 的注册由 Nominet 管，
+    # 要求注册人有英国地址；.scot / .wales / .cymru / .london 同理是英国的地理 TLD。
+    # 页面上出现构成国名是另一条独立的判据（正文自己说的）。
+    country:
+      - value: gb
+        phrases:
+          - england
+          - scotland
+          - wales
+          - northern ireland
+          - united kingdom
+          - great britain
+          - britain
+          - uk
+          - united kingdom of great britain and northern ireland
+        host_suffixes:
+          - uk
+          - scot
+          - wales
+          - cymru
+          - london
+
+# 官方域名归属：判定「一台主机是不是这个组织的官网」所需的**全部市场知识**。
+#
+# SOP L103 逐字：「确认官方入口公开可访问，最终域名与责任实体关系可解释；
+# 第三方目录和社媒不能直接当官网。」判据本身住在
+# `marketops/domain/domain_attribution.py`，它不认识任何一个具体域名 ——
+# 与 `classification` 的四条轴同一条纪律。把 `facebook` 写进核心代码会立刻让
+# `tests/test_no_hardcoded_market_knowledge.py` 变红，那正是这一块存在的理由。
+#
+# 缺这一块的后果是**安全**的：没有名单 ⇒ 没有任何主机因此被排除 ⇒ 读不出官网的
+# 账号仍然只是 unknown。所以整块可以不写；写了就必须是能过装载期校验的形状。
+official_domain:
+  # 不可能是某个组织官网的主机。**按标签边界匹配**：`facebook.com` 命中
+  # `www.facebook.com` 与 `m.facebook.com`，**不**命中 `notfacebook.com` ——
+  # 子串匹配会把一家 `myfacebook.com` 的自有站点静默排掉，而在报告上，
+  # 「被排掉了」与「读不出来」长得一模一样。
+  #
+  # 只有在「我们敢说它永远不是任何一个场馆组织的官网」时才写进来。名单宽一点，
+  # 代价是**漏**（被排掉的主机不会进 CONFIRMED，只会留在 unknown 里）；名单窄
+  # 一点，代价是**错**（一台目录站被认成官网）。两害相权取窄：宁可漏，不可错。
+  #
+  # 因此**不收托管平台**（`wordpress.com` / `blogspot.com` / `sites.google.com`
+  # 之类）：一家俱乐部的官网真的可以住在 `something.wordpress.com` 上，
+  # 而按标签边界匹配会连它的子域一起排掉。收这类主机是把「平台不是官网」
+  # 与「平台上的租户不是官网」两句话混成一句。
+  third_party_hosts:
+    # 社媒与视频平台
+    - facebook.com
+    - instagram.com
+    - youtube.com
+    - twitter.com
+    - x.com
+    - linkedin.com
+    - tiktok.com
+    - pinterest.com
+    # 通用目录 / 聚合 / 百科 / 赛事与运动员名录
+    - wikipedia.org
+    - worldathletics.org
+    - client40.example.org
+    - client02.example.org
+    # 第三方票务与场地预订平台（SOP L103 的「第三方目录」一类）
+    - eventbrite.com
+    - eventbrite.co.uk
+
+  # 组织名里**不承重**的词。它们的危害不是占位，是**凑数**：判据数的是
+  # 「主机名里能读出组织名的几个实词」，而 `the` / `and` 这类词几乎出现在每一台
+  # 主机的名字里 —— 拿它们凑够两个，判据就废了。
+  #
+  # 三个字符以下的词（`of` / `at` / `in` / `to` / `a` / `an`）由词表切分的长度下限
+  # 直接丢掉，写在这里只是把这件事显性化。**`club` / `academy` / `athletic`
+  # 这些不收**：它们正是场馆组织的名字里承重的那部分，去掉它们会让真实官网读不出来。
+  #
+  # **一律加引号，这不是排版。** YAML 1.1 的裸词表里 `on` / `off` / `yes` / `no`
+  # / `true` / `false` 是**布尔值**：不引号的 `- on` 会被读成 `True`，而词表里就
+  # 少了一个词、多了一个 `True`，装载期才报得出来（`_load_official_domain` 挡的
+  # 正是这一条）。引号让「写的是哪个词」与「读到的是哪个词」逐字相同。
+  name_stopwords:
+    - "the"
+    - "and"
+    - "for"
+    - "our"
+    - "your"
+    - "are"
+    - "its"
+    - "with"
+    - "of"
+    - "at"
+    - "in"
+    - "on"
+    - "to"
+    - "a"
+    - "an"
+
+  # 判据的两个界。**调低它们是放宽判据**，那要一次明确的批准，不是一次
+  # 「让数字好看一点」的改动。
+  #
+  # `2` 与 `4` 是在本 profile 的真实读数上量出来的：
+  #   * 一个实词匹配太宽 —— 一条新闻页的主机名里就写着 `example-village`，
+  #     而它显然不是 Example Village 的官网；
+  #   * 两个不重复的实词已经要求主机名基本写出了组织的名字
+  #     （`clientorg01` ⇒ north + devon；`client-athletics-academy` ⇒ athletics + academy）；
+  #   * 长度下限 4 挡的是 `uk` / `scot` / `cymru` 这类后缀词凑数 ——
+  #     它们出现在**别人**的主机名里，而不是在组织自己的名字里。
+  min_name_matches: 2
+  min_word_length: 4
+
+# 页面发现提示：抓取时决定先抓哪些页面。
+#
+# **这不是 P1/P2/P3。** 旧 profile 把这张 URL glob 表叫作 P1/P2/P3，
+# 而 P1–P4 在 SOP L105 里是**记录块绑定语义**（邮箱与角色是否在同一 record
+# block 内）—— 两件不同的事共用一个名字，读的人会把「先抓 contact 页」
+# 当成「contact 页出来的邮箱就是 P1」。P1–P4 现在只在 grading.yaml 里定义。
+#
+# 与 SOP L104 的对应：Grounds / Sports Turf / Facilities / Estates /
+# Maintenance / Operations / Procurement / Team-Staff / Venue Hire-Bookings /
+# Projects / Contact / sitemap / 公开 PDF。
+page_discovery_hints:
+  high:   # 最可能在同一记录块里给出「人 + 岗位 + 邮箱」
+    - "*/contact*"
+    - "*/staff*"
+    - "*/team*"
+    - "*/grounds*"
+    - "*/grounds-team*"
+    - "*/sports-turf*"
+  medium:
+    - "*/facilities*"
+    - "*/estates*"
+    - "*/maintenance*"
+    - "*/operations*"
+    - "*/procurement*"
+    - "*/venue-hire*"
+    - "*/bookings*"
+    - "*/projects*"
+    - "*/about*"
+  low:
+    - "*/"          # 首页
+    - "*/sitemap*"
+    - "*/news*"
+    - "*/documents*"
+    - "*/policies*"
+
+# 决策题面 —— **服务端持有**。调用方拿到的是一份编译好的 DecisionSpec
+# （application/decision_specs.py），没有「自己造一个题面」的入口。
+#
+# 三个 task 与 docs/REQUIREMENTS_DISCOVERY.md §9 Experiment 3 的三族冻结样本
+# 一一对应，不多不少。每道题的选项 key **必须逐字等于本 profile 的一个闭集取值**，
+# 编译期会断言，不等就红：
+#
+#   page_triage             → page_discovery_hints 的档位（本文件上面那份）
+#   responsibility_relation → SOP L27 的五种责任关系（VenueRelation 的成员）
+#   role_function           → role-matrix 实际用到的 business_function
+#
+# 这条对齐不是形式。role-matrix 里新增一个 business_function 而这里没跟上，
+# 判定就会答出一个闭集之外的取值 —— 而那条记录看起来完全正常。
+#
+# **描述里刻意没有 match 词，也没有 URL glob。** 把匹配规则抄进题面，后端做的事
+# 就从「判断」退化成「复述规则」，而规则做不到的那部分（没见过的新写法）恰恰是
+# 这一族样本要量出来的东西。判据见 tests/test_decision_specs.py。
+decisions:
+
+  page_triage:
+    # SOP L104 列了优先规划的页面类别，L105 给出了 P1–P4 的绑定语义。三档是那份
+    # 清单按 **P1 那条性质**（人 + 岗位 + 邮箱落在同一记录块里）排出来的 ——
+    # 不是按 URL 路径排的，所以下面三句说的是那条性质，不是页面的名字。
+    #
+    # 这一点是刻意的：写出「contact / staff / team 页算 high」就等于把
+    # page_discovery_hints 的那张 glob 表换个说法抄进题面，而后端照着念出来的
+    # 是规则，不是判断。判据见 tests/test_decision_specs.py。
+    instructions: >
+      One page of an organisation's public website is described below.
+      Classify how likely this page is to name a person, that person's role,
+      and a contact address within the same record block.
+    options:
+      high: >
+        Most likely to name a person, that person's role and a contact address
+        within the same record block.
+      medium: >
+        May name a role, a team or a department, but usually not a person and
+        not an address.
+      low: >
+        Unlikely to carry contact detail at all: general landing pages, site
+        maps and published documents.
+
+  responsibility_relation:
+    # SOP L27：「拥有、运营、维护、预约控制或采购该资产的学校、大学、俱乐部、
+    # 市政、公园、场馆或运营承包方」。五种关系逐字对应 VenueRelation 的五个成员。
+    instructions: >
+      Public text about a venue is quoted below. Classify how the organisation
+      it describes relates to that venue.
+    options:
+      owns: The organisation owns the venue.
+      operates: The organisation operates the venue.
+      maintains: The organisation maintains the venue.
+      booking_control: The organisation controls bookings for the venue.
+      procures: The organisation procures for the venue.
+
+  role_function:
+    # 口径取自 SOP L129/L131（X 侧）与 role-matrix 的 role_groups。这里只给每个
+    # 口径一句向模型说的话 —— key 集由 role-matrix 决定，不在这里重复声明。
+    # 与 role-matrix 的 rationale 不是同一件东西：那个说的是「为什么这一组是这样」
+    # （给作者与审计读），这个说的是「怎么向模型描述这个口径」（进题面）。
+    instructions: >
+      The title of a role found on an organisation's public website is quoted
+      below. Classify which business function this role sits in.
+    options:
+      grounds: >
+        Grounds and sports turf: the people who maintain the playing surface.
+      facilities: >
+        Facilities and estates: the premises and property function.
+      maintenance: >
+        Maintenance: repairs and upkeep of the site, usually not the playing
+        surface itself.
+      operations: >
+        Venue operations and management: running the site rather than the surface.
+      bookings: >
+        Venue hire and bookings: letting the site out.
+      procurement: Procurement and purchasing.
+      finance: Finance, accounts and payroll.
+      admissions: Admissions and enrolment.
+      hr: Human resources and personnel.
+      teaching: Teaching and academic staff.
+      administration: General administration and office management.
+      customer_service: >
+        Customer service, ticketing, membership and hospitality, with no link
+        to the venue itself.
+      unknown: The role cannot be placed in any of the above.
+
+# 新鲜度：一条公开页面上的事实**多久之后不能再当作当前**。
+#
+# 与 `search.max_queries` 同一条纪律：它是**业务口径**，所以住在版本化的声明里，
+# 不是一个环境变量、也不是代码里的常量。改这里会出现在 diff 里。
+#
+# 两个阈值而不是一个：「还能用」与「需要重新核一遍」不是同一条线。超过
+# current_within_days 的断言会被判成 stale（要重核），而它并不因此变成假的。
+#
+# **下面这三个数没有标定过。** 它们是一组明确标注为「未标定」的起点，让系统在
+# 拿到获批口径之前也能运转，并且每一行产出上都带着 policy_calibrated=false ——
+# 读的人能自己看出来这些 currentness 是按一份没人认过的口径算的。批准之后把
+# calibrated 改成 true 并换一个 policy_version（改口径要换版本号）。
+freshness:
+  policy_version: uncalibrated-v1
+  # 来源发布在 180 天内 → 仍算 current。
+  current_within_days: 180
+  # 超过 730 天 → 连「也许还成立」都不成立。
+  historical_after_days: 730
+  calibrated: false
+
+# 合规：本 profile 允许的抓取行为。任何条目都不得越过架构层的硬约束。
+compliance:
+  public_pages_only: true
+  login: false
+  captcha_bypass: false
+  access_control_bypass: false
+  respect_robots_txt: true

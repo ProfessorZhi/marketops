@@ -1,0 +1,324 @@
+# MarketOps 业务原始材料 —— 冻结快照的 provenance 清单
+#
+# 本文件回答的唯一问题：sources/ 里每一个字节是从哪里来的、选了多少、怎么选出来的。
+#
+# 三条不变量（由 tests/test_business_sources.py 守着）：
+#   1. 每条快照消息都是上游对应行的**逐字节**副本 —— 不做重写、不补字段、不删字段。
+#   2. 三人群是**完整**复制：快照 sha256 必须等于上游 blob 的 sha256。
+#   3. 私聊是**选择**复制：选中的 message_id 必须逐条列出，未列入的不在快照里。
+#
+# refresh 规则：本文件只允许**追加**新的 snapshot 记录，不允许原地改写已有条目的
+# upstream_blob_sha / snapshot_sha256 / message_ids。历史 provenance 一旦写下就是事实，
+# 覆盖它等于把「我们当时读的是哪一版」这件事删掉。
+#
+# 上游 commit 的解析是**逐条目**的：条目自己带 source_repository_commit 就用它自己那个，
+# 没有才回退到顶层那个值（sources/README.md §8 第 2 条要求「新条目的
+# source_repository_commit 记下当时 upstream-records 的 HEAD」）。顶层那个值是**第一条快照
+# 的 pin 与回退值**，不是「所有条目共用一条上游」——后者会把后来追加的条目拿去和一条
+# 更早的上游比，届时报文说「blob 已变」，而真实的处置是「这条 pin 没写」。
+#
+# 已测事实（2026-09-23）：顶层 b81eb776… **不被 records 的任何 ref 指向**（records 的
+# main 在 2026-09-22 被重写过）。对象仍可读，所以按 pin 取字节的老条目照常校验；
+# 但「这个 commit 在上游仓库里能被人 checkout 到」这件事对它不成立，这是本次追加
+# 新条目时改用逐条目 pin 的第二个理由。此处不改写那个值 —— 它是历史事实。
+#
+# 已测事实（2026-09-23，第二条）：4 条 member-c 条目的 pin **已从
+# e9ce8b749bd453dbf392d5cc45037c02e3234905 移到 e6c8c81c0ff512bb087ec9f346fb3b8d876d6fd5**。
+# 旧值当时的处境与新值的关系，逐条记在这里，因为它是事实而不是笔误：
+#
+#   * e9ce8b7 是**当时** records 的 HEAD（本文件的天条：条目记自己那一版的上游），
+#     本仓读它读到的字节没有错。它被改写**不是**因为本仓读错了。
+#   * e9ce8b7 **从未被推出过任何远端**。records 2026-09-23 做发布面投影时把它改写为
+#     e6c8c81c：同一个 parent（2e61200）、author 与 message 原样，只是树里去掉了那一个
+#     blob（`744a0e86…`，向日葵远控面板截图）。改写未推出的提交不是 force-push，
+#     也不覆盖任何人的工作；原对象仍留在 records 本机
+#     `refs/preserve/member-c-deep-archive-e9ce8b7` 上。
+#   * 所以旧 pin 的毛病与 b81eb776 是**同一类**：对象在本机可读，出了本机取不到。
+#     区别是这次能修而不用牺牲准确性 —— 本仓引用的四个路径
+#     （`messages.jsonl` 与三个附件 `8d585d65…` / `00e5d6cf…` / `5f6ae258…`）
+#     在新旧两个提交的树里**逐字节相同**（实测），且新值在 records 的远端可达。
+#     留旧值等于让一个指不到东西、且指向一个含被排除字节的版本的 pin 继续存在。
+#   * 迁移后**旧值仍然记在这里**（上一段就是这个记录）。移 pin 不是「改写历史」，
+#     是把「当时读的是哪一版」从机器字段（会 dangle）挪到散文（不会）——
+#     §8 第 1 条禁改的是 upstream_blob_sha / snapshot_sha256 / message_ids，不含 pin。
+#   * 执行器：tests/test_sources_snapshot.py 的
+#     `test_entry_level_pins_are_reachable_from_the_upstream_remote`。
+
+schema: marketops/business-source-snapshot.v1
+
+source_repository: ProfessorZhi/upstream-records
+source_repository_commit: b81eb7760e6c93b3a361c1e300a908095cbfeebc
+snapshot_date: 2026-09-20
+snapshot_branch: marketops/repository-convergence
+
+# 长期原始档案权威是 source_repository。本仓库的 sources/ 是**项目自包含的冻结快照**：
+# 它让 canonical repo 能脱离 upstream-records 检出独立理解与独立测试（见 docs/SOURCES.md）。
+snapshot_root: sources/
+
+# 唯一 approved business channels。不在这个列表里的来源不得进入 sources/。
+#
+# **这份列表是通道集合的定义点。** docs/SOURCES.md 与 tests/test_business_sources.py
+# 都从它读，不各自另立一份 —— 两份定义会漂移，而漂移的那份是没人看的那份。
+# 加一条通道 = 改这里（并给它一份快照），不是改测试里的元组。
+#
+#   chat_id      飞书会话 id，用于核对条目确实来自这条通道
+#   channel_root records 里该通道的**目录**前缀。docs 引用的 source_ref 必须落在这里面；
+#                 与 chat_id 是两级：channel_root 是通道目录，chat_id 是它下面的会话目录。
+approved_channels:
+  - id: member-a-private
+    label: Member-A 私聊
+    chat_id: oc_00000000000000000000000000000001
+    channel_root: information/raw/feishu/chats/people/member-a/
+  - id: member-d-private
+    label: Member-D 私聊
+    chat_id: oc_00000000000000000000000000000003
+    channel_root: information/raw/feishu/chats/people/member-d/
+  - id: member-c-private
+    label: Member-C 私聊
+    chat_id: oc_00000000000000000000000000000002
+    channel_root: information/raw/feishu/chats/people/member-c/
+  - id: party-group
+    label: Member-A / Member-B / Member-D 三人群
+    chat_id: oc_00000000000000000000000000000004
+    channel_root: information/raw/feishu/chats/groups/party-group/
+
+# 刻意未采用的重复导航：records 里 groups/party-group/oc_00000000000000000000000000000004/
+# 与上面的三人群是同一个 chat 的第二份目录（messages.jsonl 逐字节相同）。canonical 取
+# groups/party-group/，那份不作来源，也不进快照 —— 两份都收会让「一个 chat 两条来源」。
+duplicate_navigation_not_used:
+  - groups/party-group/oc_00000000000000000000000000000004/
+
+sources:
+
+  # ---------------------------------------------------------------- 私聊（选择复制）
+  - id: member-a-private
+    type: feishu-p2p-chat
+    chat_id: oc_00000000000000000000000000000001
+    upstream_path: information/raw/feishu/chats/people/member-a/oc_00000000000000000000000000000001/messages.jsonl
+    upstream_blob_sha: 0ad426a18915edb764ce78af6ea9268af227e245
+    upstream_message_count: 20
+    selection: keyword-relevant
+    selection_note: >
+      上游 20 条**全部**与 MarketOps 直接相关，因此选中的 20 条构成整份私聊 ——
+      快照 sha256 与上游 blob 的内容 sha256 相同是这个原因，不是「整份无脑复制」。
+      逐条判读过，没有一条是私人话题。
+    selection_criteria:
+      - MarketOps / AcmeCorp Pro / 英国天然草坪调研
+      - 目标账号 / 责任实体 / 公开邮箱调研 / 批量抓取
+      - 开发信 / 回复监控 / Serper / 搜索 API / Crawl4AI / MinerU
+      - DSH / DeepSeekHarness / 调研自动化 / 现有调研链性能与瓶颈
+    message_ids:
+    - om_00000000000000000000000000000075
+    - om_00000000000000000000000000000080
+    - om_00000000000000000000000000000076
+    - om_00000000000000000000000000000077
+    - om_00000000000000000000000000000078
+    - om_00000000000000000000000000000079
+    - om_00000000000000000000000000000081
+    - om_00000000000000000000000000000087
+    - om_00000000000000000000000000000085
+    - om_00000000000000000000000000000086
+    - om_00000000000000000000000000000088
+    - om_00000000000000000000000000000084
+    - om_00000000000000000000000000000083
+    - om_00000000000000000000000000000082
+    - om_00000000000000000000000000000074
+    - om_00000000000000000000000000000089
+    - om_00000000000000000000000000000091
+    - om_00000000000000000000000000000092
+    - om_00000000000000000000000000000090
+    - om_00000000000000000000000000000093
+    snapshot_path: sources/member-a-private/marketops-messages.jsonl
+    snapshot_message_count: 20
+    snapshot_sha256: 206420c655ebc0e1548c5262c757ddda0c0ab716c37222089c2878b1556baefe
+
+  - id: member-d-private
+    type: feishu-p2p-chat
+    chat_id: oc_00000000000000000000000000000003
+    upstream_path: information/raw/feishu/chats/people/member-d/oc_00000000000000000000000000000003/messages.jsonl
+    upstream_blob_sha: 85ac620fc5538ae7a30e6e1c6e76e881c48151b4
+    upstream_message_count: 376
+    selection: none-matched
+    selection_note: >
+      上游 376 条按同一套关键词全量扫描，**0 条**命中 MarketOps 主题。
+      这份私聊的实际内容是 LiteLLM / Codex / DeepSeek / ccswitch / WorkBuddy / 企业 GPT 账号
+      / 服务器申请 —— 是另一条业务线（litellm-support）的上下文，不是本项目。
+      唯一形似命中是 2026-09-10 的 "dsh 也能看缓存命中和消耗 token"，
+      但该句在讲 LiteLLM 的缓存命中率与消费核算，不是 MarketOps 的调研链。
+      Member-D 对本项目的输入**全部**在三人群里（见 party-group 条目）。
+      因此快照是**零字节**：不是遗漏，是查过之后的结果。
+    selection_criteria: []   # 同 member-a-private 的关键词集
+    message_ids: []
+    snapshot_path: sources/member-d-private/marketops-messages.jsonl
+    snapshot_message_count: 0
+    snapshot_sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+
+  - id: member-c-private
+    type: feishu-p2p-chat
+    chat_id: oc_00000000000000000000000000000002
+    # 本条自己 pin 当时的上游 HEAD（sources/README.md §8 第 2 条）。顶层那个值
+    # 是第一条快照的 pin，不是所有条目共用的 —— 见文件头的「逐条目」一段。
+    source_repository_commit: e6c8c81c0ff512bb087ec9f346fb3b8d876d6fd5
+    upstream_path: information/raw/feishu/chats/people/member-c/oc_00000000000000000000000000000002/messages.jsonl
+    upstream_blob_sha: bbfb2022e1499342a66035ddead522456f5eb9d9
+    upstream_message_count: 92
+    selection: segment-relevant
+    selection_note: >
+      上游 92 条按**时间分段**取 2026-09-20 00:00 起的**整段**（pos 25..91，共 67 条），
+      不做逐条主题判断。这条私聊的实际形状是三段：
+      (a) 2026-09-11（pos 0..24，25 条）**工具支持** —— 她换了大模型渠道、请 Member-B 远程帮
+      配 Codex / ccswitch，走向日葵远程、客户端重、机器卡死、没配成。它与本项目是**两条
+      业务线**（上游那条线是 litellm-support 的上下文），故不入选；
+      (b) 2026-09-20（pos 25..37）**业务对接**：Member-B 开场、她讲清自己的产线
+      （OSM 出名单 → codex/dsh 出联系人邮箱，逐字「人工在 python 里面爬取」）；
+      (c) 2026-09-23（pos 38..91）**业务深化 + 她也在按同一份 SOP 自建 MCP**。
+      (b) 与 (c) 之间还有一段 2 天间隔（09-20 19:18 → 09-23 11:25），但**不另切一刀**：
+      切点如果按「话题转换」判，就得逐条读，而那个判断不可复现 —— 只有 (a)/(b) 之间
+      这条边界是**可机械判定**的（日期），所以段只切在那一处。
+      段内包含寒暄与确认（「好的」「收到」这类），这是**取整段的代价，不是漏判** ——
+      段的可复现性比「只留干货」重要：按主题挑会用「什么算干货」这个隐式判据把
+      67 条行挑成我当时觉得重要的那些，而下一个读的人没法复算我的判断。
+      因此这里的 selection **不是** keyword-relevant：判据是日期边界，不是关键词词表。
+    selection_criteria:
+      - create_time >= 2026-09-20 00:00 的全部消息（取整段，非逐条主题判断）
+    message_ids:
+    - om_00000000000000000000000000000098
+    - om_00000000000000000000000000000109
+    - om_00000000000000000000000000000101
+    - om_00000000000000000000000000000100
+    - om_00000000000000000000000000000099
+    - om_00000000000000000000000000000105
+    - om_00000000000000000000000000000107
+    - om_00000000000000000000000000000106
+    - om_00000000000000000000000000000104
+    - om_00000000000000000000000000000103
+    - om_00000000000000000000000000000102
+    - om_00000000000000000000000000000108
+    - om_00000000000000000000000000000097
+    - om_00000000000000000000000000000002
+    - om_00000000000000000000000000000001
+    - om_00000000000000000000000000000004
+    - om_00000000000000000000000000000006
+    - om_00000000000000000000000000000007
+    - om_00000000000000000000000000000005
+    - om_00000000000000000000000000000003
+    - om_00000000000000000000000000000031
+    - om_00000000000000000000000000000029
+    - om_00000000000000000000000000000030
+    - om_00000000000000000000000000000028
+    - om_00000000000000000000000000000027
+    - om_00000000000000000000000000000043
+    - om_00000000000000000000000000000040
+    - om_00000000000000000000000000000042
+    - om_00000000000000000000000000000041
+    - om_00000000000000000000000000000039
+    - om_00000000000000000000000000000037
+    - om_00000000000000000000000000000036
+    - om_00000000000000000000000000000038
+    - om_00000000000000000000000000000035
+    - om_00000000000000000000000000000034
+    - om_00000000000000000000000000000033
+    - om_00000000000000000000000000000032
+    - om_00000000000000000000000000000049
+    - om_00000000000000000000000000000048
+    - om_00000000000000000000000000000047
+    - om_00000000000000000000000000000046
+    - om_00000000000000000000000000000045
+    - om_00000000000000000000000000000044
+    - om_00000000000000000000000000000054
+    - om_00000000000000000000000000000053
+    - om_00000000000000000000000000000052
+    - om_00000000000000000000000000000051
+    - om_00000000000000000000000000000050
+    - om_00000000000000000000000000000011
+    - om_00000000000000000000000000000010
+    - om_00000000000000000000000000000009
+    - om_00000000000000000000000000000008
+    - om_00000000000000000000000000000016
+    - om_00000000000000000000000000000015
+    - om_00000000000000000000000000000014
+    - om_00000000000000000000000000000012
+    - om_00000000000000000000000000000013
+    - om_00000000000000000000000000000020
+    - om_00000000000000000000000000000019
+    - om_00000000000000000000000000000018
+    - om_00000000000000000000000000000017
+    - om_00000000000000000000000000000026
+    - om_00000000000000000000000000000025
+    - om_00000000000000000000000000000024
+    - om_00000000000000000000000000000023
+    - om_00000000000000000000000000000021
+    - om_00000000000000000000000000000022
+    snapshot_path: sources/member-c-private/marketops-messages.jsonl
+    snapshot_message_count: 67
+    snapshot_sha256: a594f1b7dca225e016a51930dde1d9d05fa12795b1dc3e362679b872acb7c8a4
+    # 与本段同期的两个 .docx 与一张 .png 见下方「私聊附件」一节。09-11 那天的那张 jpg
+    # 不在这里：它属于被排除的那一段，且带凭据形状（上游已占位）—— 排除段与排除附件
+    # 是同一个决定，所以这份快照里没有凭据形状的附件。
+
+  - id: party-group
+    type: feishu-group-chat
+    chat_id: oc_00000000000000000000000000000004
+    upstream_path: information/raw/feishu/chats/groups/party-group/oc_00000000000000000000000000000004/messages.jsonl
+    upstream_blob_sha: 1e80142ba3e1507ac26bf09d1e3d79051593b675
+    upstream_message_count: 22
+    selection: complete-chat
+    selection_note: >
+      三人群本身就是本项目上下文（2026-09-10 建群即为了这件事），因此完整复制，
+      不做任何筛选。快照 sha256 必须等于上游 blob 的内容 sha256，
+      这条等式由 tests/test_business_sources.py 断言。
+    message_ids: []          # complete-chat 不列 id：清单本身就是「全部」
+    snapshot_path: sources/party-group/messages.jsonl
+    snapshot_message_count: 22
+    snapshot_sha256: 6c7102da5ab5821fac06cd8ca0bdf97213373ffea266f46f425dc9b871404821
+
+  # ---------------------------------------------------------------- SOP（原样复制）
+  - id: sop-uk-natural-grass-acme-v1
+    type: feishu-docx
+    chat_id: oc_00000000000000000000000000000004
+    title: 英国天然草坪｜AcmeCorp Pro｜自动调研、开发信与有效回复监控 SOP v1
+    version: v1.0
+    doc_date: 2026-09-10
+    # 上游自己的 links manifest 记录的就是这条消息与这个 URL —— 本条目不是另立说法。
+    source_message_id: om_00000000000000000000000000000096
+    docx_url: https://example.feishu.cn/docx/TOKEN140674
+    upstream_path: information/raw/feishu/chats/groups/party-group/oc_00000000000000000000000000000004/links/docx-research-outreach-sop/content.md
+    upstream_blob_sha: 372f4f20f8ae571ba8d7392a121304252f00f0f1
+    # 上游 links manifest.json 里的 content_sha256。它与本快照的 snapshot_sha256
+    # **逐字符相同** —— 两条独立计算路径得到同一个值，说明这份 SOP 自 2026-09-15
+    # 抓取以来没有被上游改过，快照也没有被我改过。
+    upstream_content_sha256: 7d9c602c6e8cca0eceaaaac47ac9e41c559e9d007c2cd41b88a5a89bc59628ec
+    upstream_fetched_at: 2026-09-15
+    selection: complete-document
+    selection_note: >
+      SOP 原文一字不改。它是本项目所有业务规则的 Source of Truth ——
+      profiles/ 下的三份 yaml 是它的**编译产物**，不是它的替代品。
+      正文里的飞书链接与「当前暂停」状态属于原文，不得为了整洁而修掉。
+    snapshot_path: sources/party-group/sop/uk-natural-grass-acme-sop-v1.md
+    snapshot_sha256: 7d9c602c6e8cca0eceaaaac47ac9e41c559e9d007c2cd41b88a5a89bc59628ec
+
+  # ---------------------------------------------------------------- 图片（原样复制）
+  - id: member-c-scene-email-pool-sheet
+    type: feishu-sheet
+    introduced_by_message_id: om_00000000000000000000000000000020
+    locator: https://example.feishu.cn/sheets/TOKEN977994?sheet=0Jpbjq
+    provenance: >
+      Member-C 在 2026-09-23 11:57 给出，逐字「这是我现在维护的一个表格，没有单独标注
+      member-a 做的部分都是我填上的，你可以参考一下！」—— 即**表里未标注的部分是她本人
+      手工填的**，其余是 Member-A 的。这条 provenance 是她自己给的，不是我们推的。
+    why_not_captured: >
+      ①**它不是一份冻结材料**：飞书 sheets 是活文档，今天抓下来的字节明天就不是同一个
+      东西了，而本文件的每一条都靠「sha256 等于当时那一版」立论。要收就得先定**抓取
+      时点与冻结方式**（导出的格式、导哪几个 sheet、行序是否稳定），这是 records 侧的
+      一次归档设计，不是一个复制动作。
+      ②**它的内容很可能是联系方式**：这是一份按场景组织的邮箱池。本仓库对「联系方式」
+      的现有边界是**只记 locator、正文不入库**（见
+      records/information/understanding/projects/uk-acme-natural-grass.md 的注）。
+      收进来会直接改变那条边界，而改变它要先回答「这些邮箱的来源与授权状态」——
+      她本人给不出（她说这是她手工填的，没说填的来源）。
+      ③本仓库已有 SOP 冻结快照（`sop-uk-natural-grass-acme-v1`）。表格与 SOP 是
+      两份**并列**的材料，不是 SOP 的替代或补充版本；在①没有答案之前收它，会让
+      `sources/` 里同时存在「冻结的规则」与「不冻结的数据」，而两者在这份 manifest 里
+      长得一模一样。
+    next_step: 需要一次显式决定（谁在什么时候、以什么格式冻结它，以及正文入库还是只记
+      locator）。在此之前它停在 locator 上是被记录的状态，不是遗漏。

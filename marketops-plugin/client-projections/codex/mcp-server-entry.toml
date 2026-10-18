@@ -1,0 +1,11 @@
+# Codex MCP entry for MarketOps — the two fields this client's own
+# configuration carries. Shape measured on codex-cli 0.153.4.
+#
+# Copy into the client's MCP configuration, or declare it through the client's
+# own `mcp add` path. Nothing here is a credential: the second field is the NAME
+# of an environment variable, and the value behind it is not part of this
+# package.
+
+[mcp_servers.marketops]
+url = "<marketops-mcp-endpoint>"
+bearer_token_env_var = "MARKETOPS_MCP_TOKEN"

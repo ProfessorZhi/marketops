@@ -1,0 +1,75 @@
+{
+  "client": "muc-hosting",
+  "client_version": null,
+  "protocol_version": null,
+  "transport": null,
+  "tested_at": "2026-09-29",
+  "build": "marketops 0.1.0 (the deployment used for the Codex run; no MUC/Hosting session was opened)",
+  "state": "blocked_external",
+  "measured_absence": {
+    "checked": [
+      "no executable named muc or muc-hosting on PATH",
+      "no ~/.muc or ~/.config/muc directory",
+      "no MUC/Hosting entry in the client MCP configuration on this node",
+      "no reachable hosting endpoint declared anywhere in this node's client configuration"
+    ],
+    "found": "nothing — MUC/Hosting is a target rather than a client present on this node",
+    "conclusion": "not one field of the compatibility contract could be exercised"
+  },
+  "note": "MUC/Hosting is a designed long-term Steward entry point, not a client with historical use behind it. The design document says as much; that is exactly why its status has to be a measurement rather than an assumption, and why nothing here is written as supported.",
+  "unblock": {
+    "condition": "a MUC/Hosting instance reachable from the machine running the verification, with a way to establish the principal mapping for it",
+    "then": "run the same contract as the other clients, plus the two things this entry point specifically claims: policy decision and notification pull",
+    "what_must_not_be_done_instead": "recording the fields from the design document. The design says what is intended, not what has run"
+  },
+  "fields": {
+    "installed_projection": {
+      "state": "blocked_external",
+      "unblock": "the instance, reachable"
+    },
+    "mcp_connected": {
+      "state": "blocked_external",
+      "unblock": "the instance, reachable, pointed at a deployment"
+    },
+    "auth_verified": {
+      "state": "blocked_external",
+      "unblock": "a session that authenticates, plus a refused negative control with the principal mapping in place"
+    },
+    "tool_catalog_verified": {
+      "state": "blocked_external",
+      "unblock": "a connected session whose received tool names can be compared against the deployment's catalog"
+    },
+    "read_flow_verified": {
+      "state": "blocked_external",
+      "unblock": "a connected session that can really invoke a read use case"
+    },
+    "write_flow_verified": {
+      "state": "blocked_external",
+      "unblock": "a connected session that can really invoke a write use case, through admission"
+    },
+    "durable_job_disconnect_verified": {
+      "state": "blocked_external",
+      "unblock": "a connected session that can be disconnected while a durable job runs"
+    },
+    "reconnect_verified": {
+      "state": "blocked_external",
+      "unblock": "a connected session that can be closed and reopened"
+    },
+    "multi_session_isolation_verified": {
+      "state": "blocked_external",
+      "unblock": "two concurrently running sessions"
+    },
+    "notification_pull_verified": {
+      "state": "blocked_external",
+      "unblock": "a connected session that can read events and their delivery receipts"
+    },
+    "notification_push_verified": {
+      "state": "blocked_external",
+      "unblock": "a reachable instance this deployment can be made to push to"
+    },
+    "plugin_install_verified": {
+      "state": "blocked_external",
+      "unblock": "the instance's own install path"
+    }
+  }
+}

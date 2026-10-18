@@ -1,0 +1,47 @@
+{
+  "additionalProperties": false,
+  "description": "一个**拥有 / 运营 / 维护 / 预约控制 / 采购**场地资产的责任组织。\n\n``entity_id`` 与 ``AccountRecord.account_id`` 是**同一空间里的同一个标识**：\n被研究的目标组织在这里是责任实体，在名单里是账号。分成两个模型是刻意的 ——\n「谁负责这块场地」这件事可能超出当前名单，而名单里的组织也可能一块场地都不负责。",
+  "properties": {
+    "country": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Country"
+    },
+    "domain": {
+      "default": "",
+      "title": "Domain",
+      "type": "string"
+    },
+    "entity_id": {
+      "title": "Entity Id",
+      "type": "string"
+    },
+    "entity_type": {
+      "default": "",
+      "title": "Entity Type",
+      "type": "string"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "notes": {
+      "default": "",
+      "title": "Notes",
+      "type": "string"
+    }
+  },
+  "required": [
+    "entity_id",
+    "name"
+  ],
+  "title": "ResponsibleEntity",
+  "type": "object"
+}

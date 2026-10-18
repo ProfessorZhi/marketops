@@ -1,0 +1,75 @@
+{
+  "$defs": {
+    "BusinessFunction": {
+      "description": "一条路线落在哪个业务口径上。\n\nSOP v1 L131：``bookings`` 只有在**明确是场地预约 / 场馆运营 / 设施团队入口**时\n才算业务入口；与场地无关的客服 / 预订走 :attr:`CUSTOMER_SERVICE` → X。\n因此 ``bookings`` 与 ``customer_service`` 是**两个**取值，不是一个。",
+      "enum": [
+        "grounds",
+        "facilities",
+        "estates",
+        "venue",
+        "operations",
+        "maintenance",
+        "bookings",
+        "procurement",
+        "finance",
+        "admissions",
+        "hr",
+        "teaching",
+        "administration",
+        "customer_service",
+        "unknown"
+      ],
+      "title": "BusinessFunction",
+      "type": "string"
+    },
+    "RoleClass": {
+      "description": "一个岗位在**路线**里扮什么角色。\n\n取值与 ``role-matrix.yaml`` 的 ``tier`` 逐字相同 —— 业务侧只声明一次，\nprofile 装载层把 term → class 编译出来，引擎只做集合判定。\n\n:attr:`EXCLUDED` 不是「降权」，是「不得进入有效路线」：SOP v1 L129 把财务\n放进 X，L131 把无场地关联的客服/预订放进 X，招生 / HR / 教学 / 一般行政同理。\n这是一条**类别**判定，不是权重判定 —— 权重可以被下一次调参改回去。",
+      "enum": [
+        "decision",
+        "influencer",
+        "operational",
+        "gatekeeper",
+        "excluded",
+        "unknown"
+      ],
+      "title": "RoleClass",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "一个**字面岗位**，带它在路线里扮的角色与业务口径。\n\n``role_class`` / ``business_function`` 由 profile 的 role matrix 编译而来\n（见 ``marketops/adapters/profile_loader.py``）—— 引擎不认识 ``grounds supervisor``，\n它只认识 ``RoleClass.DECISION``。业务词因此留在 ``profiles/`` 里。",
+  "properties": {
+    "account_id": {
+      "default": "",
+      "title": "Account Id",
+      "type": "string"
+    },
+    "business_function": {
+      "$ref": "#/$defs/BusinessFunction",
+      "default": "unknown"
+    },
+    "person_id": {
+      "default": "",
+      "title": "Person Id",
+      "type": "string"
+    },
+    "role_class": {
+      "$ref": "#/$defs/RoleClass",
+      "default": "unknown"
+    },
+    "role_id": {
+      "title": "Role Id",
+      "type": "string"
+    },
+    "title": {
+      "title": "Title",
+      "type": "string"
+    }
+  },
+  "required": [
+    "role_id",
+    "title"
+  ],
+  "title": "Role",
+  "type": "object"
+}

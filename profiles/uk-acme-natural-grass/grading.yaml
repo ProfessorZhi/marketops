@@ -1,0 +1,286 @@
+# Grading — UK · AcmeCorp Pro · Outdoor Natural Grass Sports Venues
+#
+# 来源：sources/party-group/sop/uk-natural-grass-acme-sop-v1.md
+# 本文件是那份 SOP 的**编译产物**，不是它的替代品。SOP 说要改，改 SOP 再重编；
+# 不要只改这里 —— 那会让被冻结的业务原文和实际执行的规则分头演化。
+#
+# ---------------------------------------------------------------------------
+# subject: contact-route
+# ---------------------------------------------------------------------------
+# 定级的主语是**一条联系路线**：Account + Person/Department + Role/Business
+# Function + literal public Email + Evidence（SOP L125–L129）。
+#
+# 它不是账号。账号有账号自己的状态机（SOP L188 左侧），两者正交：
+# 「组织对、人不对」（账号 eligible、这条路线 X）是最常见的情形之一。
+# 把等级挂在账号上，这种情形就表达不出来。
+#
+# 装载层会拒绝别的 subject 取值。
+#
+# ---------------------------------------------------------------------------
+# 求值语义（engine 只做求值，不含任何业务词）
+# ---------------------------------------------------------------------------
+# 1. 路线事实投影 → 逐个等级按 A→B→C→D 顺序求值 requires，全部满足即得该级。
+# 2. 冲突证据 / 无合格证据 / 排除类别 → 短路为 X（各自带 reason）。
+# 3. 没有任何一级匹配 → X + RULES_UNKNOWN（fail closed）。
+#    **没有 fallback_grade**：A/B/C/D 四条都是正面定义，SOP 里没有兜底级；
+#    「信息不足 / 抓不到」按 SOP L119 走 blocked/no_route，不伪装成等级。
+# 4. 子句方言：fact / !fact / fact==value / fact in [a, b, c]
+#    写错事实名会在装载期失败，而不是静默变成「这条规则永不命中」。
+#
+# x_rules **不是** X 级的定义，它是**账号准入**规则（SOP L99 的
+# eligible / hold / irrelevant / duplicate）。它决定 AccountStatus，与等级正交。
+# 旧 profile 把两者混在 x_rules 里，于是「账号不合格」和「路线是 X」成了同一件事。
+
+schema: marketops/grading.v2
+profile: uk-acme-natural-grass
+subject: contact-route
+
+# ---- 路线等级：SOP L125–L129 逐条编译 ----
+grades:
+
+  A:
+    label: "关键决策 / demo 推进职能 + literal 公开业务邮箱 + 强绑定"
+    sop_reference: "SOP L125"
+    description: >
+      关键决策或 demo 推进职能，配真实公开业务邮箱且强绑定。
+      influencer 与 decision 同属本级：L125 的措辞是「关键决策**或** demo 推进职能」，
+      场馆运营/项目推进口径能推动 demo，因此不降为 B。
+    requires:
+      - "has_literal_email"
+      - "binding==strong"
+      - "role_class in [decision, influencer]"
+
+  B:
+    label: "关键一线运营 / 维护角色 + literal 公开邮箱 + 强绑定"
+    sop_reference: "SOP L126"
+    description: >
+      关键一线运营/维护角色，配真实公开邮箱且强绑定。
+      L126 点名的例子：Grounds Supervisor、Grounds Manager、Sports Turf Manager、
+      Pitch Manager、Facilities/Maintenance Supervisor —— 全部是 operational。
+    requires:
+      - "has_literal_email"
+      - "binding==strong"
+      - "role_class==operational"
+
+  C:
+    label: "目标账号绑定 + grounds/facilities/venue/bookings/operations 业务语境的官方入口"
+    sop_reference: "SOP L127"
+    description: >
+      与目标账号绑定、且带场地业务语境的官方入口（业务入口，可请求转交负责人）。
+      business_function 的取值集**逐字取自 L127**，没有加 procurement ——
+      采购归口能与账号强绑定，但 L127 的口径列表里没有它，加进去就是替 SOP 扩权。
+    requires:
+      - "has_literal_email"
+      - "binding==account"
+      - "entry_kind==official_business_entry"
+      - "business_function in [grounds, facilities, venue, bookings, operations]"
+
+  D:
+    label: "目标账号绑定的公开真实泛化官方邮箱"
+    sop_reference: "SOP L128"
+    description: >
+      低优先触达储备，单独统计（L213：通用 contact/目录页会造成 D 虚高，
+      C/D 可保留但不得包装成关键 demo 联系人）。
+    requires:
+      - "has_literal_email"
+      - "binding==account"
+      - "entry_kind==generic_official"
+
+  X:
+    label: "未判定 / 排除类别"
+    sop_reference: "SOP L129"
+    description: >
+      不进入有效主池。三种来源：无关岗位与非目标绑定（L129）、
+      无场地关联的客服/预订（L131）、以及本实现里的 fail-closed 情形
+      （规则未知、无合格证据、证据冲突）—— 后者带各自的 reason 码，
+      与「业务上判定为排除」在审计上是两件事。
+    # 显式空条件 = 恒真。X 是**收尾级**，不需要事实。
+    requires: []
+
+# 已知缺口（写出来，而不是替 SOP 补一条规则）
+known_gaps:
+  - id: strongly_bound_named_procurement_role
+    detail: >
+      SOP L79 把 Procurement 列为优先角色，但 L125（A）要求「关键决策或 demo
+      推进职能」、L126（B）要求「关键一线运营/维护角色」、L127（C）与 L128（D）
+      都要求官方入口。于是一个**强绑定的具名采购角色 + literal 邮箱**四条都不满足，
+      引擎返回 X + RULES_UNKNOWN。
+      这是刻意留着的缺口：把它塞进 A 会让 A 覆盖几乎所有正面角色、失去分辨力；
+      塞进 C 则要用「具名角色」去满足「官方入口」的定义。正确修法是回 SOP 确认
+      采购归口属于哪一级，然后重编本文件。
+
+# ---- 账号准入规则（SOP L99：eligible / hold / irrelevant / duplicate）----
+#
+# 每条规则回答的是「这个**组织**值不值得研究」，不是「这条路线能不能联系」。
+# `when` 是 SOP 原文的表达式，保留给审计看；`requires` 是引擎子句，用于求值。
+# 两者都缺的规则装载层会拒绝。
+#
+# 当前状态：6 条都有 `requires`。其中 5 条引用的是**候选事实**
+# （场地环境 / 组织形态 / 表面类别 / 抓取统计），本仓还没有生产者 ——
+# 引擎对它们一律取 `None`，即**未确认**。未确认的子句在任何极性下都**不决定**
+# 该子句（取反也翻不动它），所以这些规则不命中，并逐条落进
+# `AccountOutcome.unchecked`：没有证据就丢弃账号，比留着它危险得多。
+# 账号因此停在 discovered，判词是 `unresolved_facts` —— **不是**
+# `no_rule_fired`。后者是**唯一**能说「核对过，确实没有」的判词，本仓今天
+# 还说不出口：一条都没核对过。这不是「排除规则没写完」，是「事实生产者还没接」。
+#
+# 这几句讲的是**引擎语义**，不是 SOP 内容 —— SOP 原文对引擎怎么求值一个字都
+# 没说，所以它无从「从源重编」。重编本文件时必须原样带过去，否则一次重编会把
+# 引擎语义的说明悄悄退回旧行为（见 docs/SOP_MAPPING.md §5 第 1 条）。
+x_rules:
+
+  - id: excluded_segment
+    status: irrelevant
+    description: 命中了 profile.exclusions 中任一排除项（golf / 人造草 / 3G-5G / 室内 / MUGA / hybrid 且无独立真草证据）。
+    when: "account.exclusions_hit is not empty"
+    requires:
+      - "exclusions_hit"
+
+  # SOP 原文是一行 `环境 == indoor or 组织形态 == muga`。本引擎的 `requires`
+  # 是**合取**（AND，任一子句不满足即整条不命中），表达不了那个 OR，
+  # 因此拆为两条，语义等价：任一条命中即 irrelevant。
+  # 拆开也让判词能说清是哪一半命中的 —— 合成一条时，命中理由只说得出
+  # 「室内**或** MUGA」，读审计的人分不清是哪一半。
+  - id: venue_is_indoor
+    status: irrelevant
+    description: 室内场馆，不属于目标场景（SOP L26 硬排除）。
+    when: "account.attributes.environment == 'indoor'"
+    requires:
+      - "venue_environment==indoor"
+
+  - id: venue_is_muga
+    status: irrelevant
+    description: 多功能运动区，不属于目标场景（SOP L26 硬排除）。
+    when: "account.kind == 'muga'"
+    requires:
+      - "organisation_kind==muga"
+
+  - id: artificial_surface_only
+    status: irrelevant
+    description: >
+      场地为人造表面（3G/4G/5G/artificial），且无独立天然草坪证据。
+      注意结尾条件：SOP L26 的 hybrid 排除是带例外的 ——
+      该组织另有明确真草证据时**不**排除。
+    when: >
+      account.attributes.primary_surface in ['artificial_grass', '3g', '4g', '5g']
+      and account.evidence.natural_grass.verified == false
+    # 两个子句都取候选事实：第一个问「场地是什么表面」，第二个问
+    # 「真草证据确认过了吗」。第二个写成 `== false`（对那个具体取值的正面断言），
+    # 不写成 `!` 取反：两者在**未确认**（None）与**确认为假**（False）上今天同判，
+    # 但在**已确认的空值**上不同 —— `!surface_evidence_confirmed` 对 `""` 为真，
+    # 会把「记了，是空白」读成「确认没有真草证据」，从而排除掉一条本该留着的账号。
+    #
+    # 历史：`!` 曾经在未确认时也为真，把「还没查」读成「确认没有」。引擎已修
+    # （未确认的子句在任何极性下都不决定，见 marketops/application/grading.py 的
+    # `evaluate_clause`）。保留这个写法的理由**不再是**防那个 bug，而是它不依赖
+    # 引擎对极性的处置：判据写成正面断言，读的人不必去查引擎怎么处理取反。
+    requires:
+      - "surface_class in [artificial_grass, 3g, 4g, 5g]"
+      - "surface_evidence_confirmed == false"
+
+  - id: out_of_region
+    status: irrelevant
+    description: 不在 profile 声明的区域内。
+    when: "account.country not in ['GB']"
+    # 这条用**账号自身字段**：country 是 AccountRecord 上的字段，有真生产者。
+    # 取值集合写成 GB 与 UK 两种拼写，因为它们是同一个国家的两种写法
+    # （ISO 3166-1 是 GB；UK 是它的通行英文名，不是另一个国家），
+    # 而来源记录里两种都出现过。这不是放宽区域，是不把拼写差异当成越界。
+    requires:
+      - "!country in [gb, uk]"
+
+  - id: no_public_presence
+    status: hold
+    description: >
+      无法找到任何公开页面（域名不可达 / 全部 blocked）。
+      **不是 irrelevant**：SOP L119 把「抓不到」归入 blocked/no_route ——
+      那是「我们没看到」，不是「它不相关」。停在 hold 等人工判断。
+    when: "account.pages.fetched_success == 0 and account.pages.blocked > 0"
+    # SOP 原话的 `fetched_success == 0` 是「一个页面都没抓到」，
+    # 对应 `!any_page_fetched`（不是 `any_page_fetched == 0` ——
+    # 后者在未确认时会拿 None 去比较，读起来像「抓到了 0 个」）。
+    # 两个子句都未确认时：两条**都不决定**，整条因此不命中，并落进 `unchecked`。
+    # 这是对的：没有抓取证据时不进 hold —— 但也**不装作核对过**。判词是
+    # `unresolved_facts`，要等抓取统计接上之后才会变成确切的答案。
+    # （改动前这里是「`!any_page_fetched` → 真，`any_page_blocked` → 假」：
+    # 结论同为不命中，但机制描述的是取反把未确认翻成真的旧行为。）
+    requires:
+      - "!any_page_fetched"
+      - "any_page_blocked"
+
+# ---- P1–P4：记录块绑定语义（SOP L105）----
+#
+# 这不是 URL 路径分级。URL 侧「先抓哪些页面」在 profile.yaml 的
+# page_discovery_hints 里 —— 旧 profile 把两件事都叫 P1/P2/P3，是这次拆开的
+# 一个真实混淆：一份 URL glob 表和一套邮箱归属语义，共享了同一个名字。
+page_priorities:
+  P1: "相关人 / 岗位 / 邮箱在同一 record block 内 —— 归属可以确认。"
+  P2: "相关岗位或部门与邮箱绑定（同块，但块内没有具名人）。"
+  P3: "有场地与责任关系证据，但没有邮箱 —— 只可能出现在 RouteOpportunity 上，不会出现在路线上。"
+  P4: "官方通用 contact / booking 兜底，每账号最多一条。"
+
+# ---- 邮箱 local part 的业务词表 ----
+#
+# 绑定层不认识任何业务词，它只查这两张表。放在这里而不是 Python 里，
+# 是因为「grounds@ 算不算业务入口」是 SOP 的判断，不是引擎的判断。
+#
+# business_entry_locals：local part 里出现这些词元 → C 级说的「官方业务入口」。
+#   用**词元精确匹配**（按 . _ - + 切分），不做子串匹配 ——
+#   子串匹配会让 personnel@ 里偶然出现的片段误判成业务口径。
+business_entry_locals:
+  grounds: grounds
+  ground: grounds
+  groundstaff: grounds
+  pitch: grounds
+  turf: grounds
+  facilities: facilities
+  facility: facilities
+  estates: estates
+  estate: estates
+  maintenance: maintenance
+  operations: operations
+  venue: venue
+  venuehire: venue
+  bookings: bookings
+  booking: bookings
+
+# generic_mailbox_locals：泛化官方邮箱 → D 级（SOP L128）。
+#   注意这只和**邮箱本身**有关，与岗位无关：一个写着「Finance」的 info@
+#   仍然按岗位判定为排除类别（见 entities/bind.py 的优先级）。
+generic_mailbox_locals:
+  - info
+  - enquiries
+  - enquiry
+  - contact
+  - hello
+  - admin
+  - office
+  - reception
+  - mail
+  - general
+
+# ---- 连续分：仅排序与人工复核，**不参与定级** ----
+#
+# 定级是规则的，不是分数的。分数会让人去调阈值；规则会让人去讨论「什么算 A」。
+# 后者才是这个产品要沉淀的东西。
+scoring:
+  weights:
+    target_match: 0.35
+    natural_grass_evidence: 0.20
+    decision_role_present: 0.20
+    literal_email_present: 0.15
+    page_parse_quality: 0.10
+  penalties:
+    blocked_pages: -0.15                    # 有被挡住的页面 → 看到的不是全貌
+    parse_partial: -0.10                    # 解析不完整 → 可能漏掉邮箱
+    ambiguous_person_email_pairing: -0.30   # 疑似串号，需要人工看
+
+# ---- 与证据的联动 ----
+#
+# 被 blocked 的页面不产生证据，但会留下记录（SOP L119）。
+# 注意这里没有「blocked 页面 → X」这条规则：那是 L119 明确禁止的读法，
+# 也不是 grade 能表达的东西 —— 抓取失败在 FetchOutcome / BlockReason 里。
+evidence_rules:
+  blocked_page_disqualifies_grade_a: true
+  partial_parse_disqualifies_grade_a: true
+  name_email_mismatch_action: reject_candidate   # 串号校验失败 → 拒绝该候选

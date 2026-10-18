@@ -1,0 +1,60 @@
+# 独立 CI —— 本仓库必须能在**没有 upstream-records 检出**的情况下跑完全套测试。
+#
+# 这不是一条工程偏好，是这次收敛的验收标准之一。一个必须旁边摆着另一个仓库
+# 才能跑的仓库，不是一个独立可理解的仓库；而「隔壁没检出所以默认失败」这种
+# 失败模式最坏的地方在于：它会把真实的失败埋在一堆本来就红的用例里。
+#
+# 因此这里刻意**不** checkout 任何别的仓库，也不注入任何 secret：
+# 所有需要上游检出的断言都必须是 skip 而不是 fail（见
+# tests/test_sources_snapshot.py 的 upstream_root fixture 与
+# tests/test_business_sources.py 的 records_root fixture），
+# 而所有需要凭据的路径都有显式的「未配置」分支。
+#
+# 本仓库是 research-only 且 send_authorized=false：CI 里没有任何发送步骤，
+# 也不应该出现。
+
+name: ci
+
+on:
+  push:
+    branches: ["main", "marketops/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install
+        # 不装 browser / mineru extra：核心链路必须在不装它们时也能跑完
+        # （见 marketops/application/escalation.py 的 browser_available 分支）。
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Assert no upstream checkout is present
+        # 这条断言让「本 job 是独立跑通的」变成可观测的事实，而不是一句声明。
+        # 如果哪天有人往 workflow 里加了第二个 checkout，这里会先失败。
+        run: |
+          test ! -d ../upstream-records || (echo "CI 里出现了 upstream-records 检出 —— 本 job 必须独立" && exit 1)
+
+      - name: Test
+        run: python -m pytest
+
+      - name: Lint
+        # ruff 来自 dev extra（版本范围在 pyproject.toml 里锁着），
+        # 不在这里单独装：两个地方写版本就等于两处会漂。
+        run: python -m ruff check .

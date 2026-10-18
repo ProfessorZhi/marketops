@@ -1,0 +1,143 @@
+{
+  "$defs": {
+    "DomainVerdict": {
+      "description": "一块场地/资产的**官网问题**被查到了哪一步。\n\n三值，因为可行的答案有三个，而其中两个今天在盘上长得一样：\n\n* ``UNKNOWN`` —— **还没查**。这一格不许被读成「没有官网」：没查过的东西\n  排除掉，是把「我们没做」写成「它不存在」。\n* ``CONFIRMED`` —— 查到了，某个域名是这个组织的官网（要证据）。\n* ``ABSENT`` —— **查过，确实没有**（要证据）。它与 ``UNKNOWN`` 的区别正是\n  「确认不存在」与「没查」的区别；这一格存在的理由就是不让前者冒充后者。\n\n枚举里没有第四个「空」成员：空串不是这个问题的答案，它是**另一个字段的缺省**\n（:attr:`~marketops.domain.entities.VenueAsset.verified_official_domain` 的 ``\"\"``），\n而把空串当作一个判定结果，就是本仓反复写下的那台「伪造证据的机器」。",
+      "enum": [
+        "unknown",
+        "confirmed",
+        "absent"
+      ],
+      "title": "DomainVerdict",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "一块**场地 / 资产**：一个 pitch、一片 ground、一处 facility。\n\n场地**不是**账号。一个 Council 可以拥有一整个城市的场地，一个 Trust 可以\n运营其中几块，一家承包商可以维护另一些。把场地名当账号键，正是 SOP v1 L78\n要求拆开的那件事。\n\n## 来源身份不是账号身份（本模型最容易读错的一处）\n\n:attr:`source_identity` 的形状是 ``<namespace>:<value>``，与\n``domain/receipt.py`` 里母池行的来源标识**同一个约定**：一份 OSM 导出给出的\n是 ``osm:node/123``，一次检索给出的是 ``site:<主机>``。它回答的是「这一行是\n从哪儿认出来的」，**不回答**「它是谁的资产」。\n\n``osm_type`` / ``osm_id``（也就是那一段里的 ``node`` 与 ``123``）在\n:meth:`source_parts` 上，与其余来源一视同仁地只是**上游的编号**。它的\n诱惑在于它稳定、唯一、好当键 —— 而它认的是**一块场地**：同一个 Council 的\n两百块场地会给出两百个这样的编号。拿它当账号键，就是 SOP v1 L72 明令拆开的\n「账号是实体，不是单个 pitch」被原样缝回去。因此本模型**没有**一个叫\n``account_id`` 的槽位，也不提供从 ``source_identity`` 推账号 id 的函数。\n\n**它是可选的原因**：母池的行来自登记册（有来源编号），而一次检索发现的主机\n只有它自己的域名 —— 那一行的来源编号是空的，而空在这里是诚实的「这个来源\n没有给出编号」，不是「编号是空串」。两者由 ``\"\"`` 与「非空但不合形状」分开：\n后者直接报错，不会被悄悄改写成空串。\n\n## 域名这件事上的四个格子，以及它们为什么不能合并\n\n审计里那条「``official_domain`` 是 SERP 抓回来的主机，却被读成『这是它的官网』」\n被拆成四个格子。前三个是**我们的**三种认知阶段，第四个是上游的说法：\n\n* :attr:`claimed_official_domain` —— **上游这一行说的**官网是什么。它来自\n  登记册/导出的那一列（``RowDisposition.claimed_official_domain``），是别人写下来的\n  一句话，不是我们看到的任何东西。留它是因为：丢掉之后，一次「这一格有值、\n  但我们从没验过」的状态就表达不出来，而下游（域名核验那一步）要么重新去读\n  原始工件，要么把这些行当成「根本没有域名线索」跳过。\n* :attr:`discovered_url` —— 我们在**哪儿**看到的这一行。它是一次指路的\n  观察，不主张任何归属；同一块场地会有很多条。\n* :attr:`candidate_domain` —— 从那个 URL 折出来的主机（``www.`` 与小写已\n  归一）。它是**待验证的候选**：一台聚合站、一份目录页、一个托管商都会给出\n  一个主机，而它们都不是「这个组织的官网」。\n* :attr:`verified_official_domains` —— **只有拿到域名证据的那一步才填**，\n  并且由 :attr:`domain_verdict` 与 :attr:`domain_evidence_ids` 一起构成\n  一个说得清的判定：``CONFIRMED`` 要求域名集合与证据都在，``ABSENT`` 要求\n  「查过、没有」的证据在而域名集合为空，``UNKNOWN`` 要求一格都没有。这几格由\n  ``_domain_verdict_agrees_with_the_fields`` 在校验期绑死 —— 一个「域名填了\n  但判定是 UNKNOWN」的行在盘上写不出来。\n  :attr:`verified_official_domain` 是那个集合在**恰好一个**元素时的读法，\n  不是一个独立的格子（同上那条校验器绑死两格之间的一致性）。\n\n``candidate_domain`` 与 ``verified_official_domain`` 都非空而**不相等**是合法\n且常见的一行（在目录页上看到它，官网在别处），它读作「候选被推翻过」。因此\n不许把前者当成后者的缺省值 —— 那是把一次没做过的验证写成一个做过的。\n\n**:attr:`claimed_official_domain` 与 :attr:`candidate_domain` 是两格而不是一格**，\n尽管两者的「还没验过」程度一样，理由只有一个但足够：它们回答的是**谁说的**。\n``candidate_domain`` 的取值来自 ``discovered_url``，所以它自带一条我们能重放的\n观察（那条 URL）；上游那一列没有 URL，它在盘上就是一句话。把后者写进前者，\n会让「这一格是从哪儿来的」变成一句读不出来答案的话 —— 一个 ``candidate_domain``\n有值而 ``discovered_url`` 为空的行，看起来像一条写坏了的观察。\n\n``claimed_official_domain`` 也**不是** ``verified_official_domain`` 的候选：\n合并规则（``application/pool.py``）不会把它提升成后者，无论两者是否相等。理由是\n「确认官网」这一步的全部价值在于**证据**，而这一格是别人写下的一句话 ——\n一句对的话与一次验证过的结论，在审计里不是同一件事。",
+  "properties": {
+    "address": {
+      "default": "",
+      "title": "Address",
+      "type": "string"
+    },
+    "candidate_domain": {
+      "default": "",
+      "title": "Candidate Domain",
+      "type": "string"
+    },
+    "claimed_official_domain": {
+      "default": "",
+      "title": "Claimed Official Domain",
+      "type": "string"
+    },
+    "country": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Country"
+    },
+    "discovered_url": {
+      "default": "",
+      "title": "Discovered Url",
+      "type": "string"
+    },
+    "domain_evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Domain Evidence Ids",
+      "type": "array"
+    },
+    "domain_verdict": {
+      "$ref": "#/$defs/DomainVerdict",
+      "default": "unknown"
+    },
+    "evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "first_seen_at": {
+      "format": "date-time",
+      "title": "First Seen At",
+      "type": "string"
+    },
+    "last_verified_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Verified At"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "notes": {
+      "default": "",
+      "title": "Notes",
+      "type": "string"
+    },
+    "source_identity": {
+      "default": "",
+      "title": "Source Identity",
+      "type": "string"
+    },
+    "surface": {
+      "default": "",
+      "title": "Surface",
+      "type": "string"
+    },
+    "venue_asset_id": {
+      "title": "Venue Asset Id",
+      "type": "string"
+    },
+    "venue_environment": {
+      "default": "",
+      "title": "Venue Environment",
+      "type": "string"
+    },
+    "venue_type": {
+      "default": "",
+      "title": "Venue Type",
+      "type": "string"
+    },
+    "verified_official_domain": {
+      "default": "",
+      "title": "Verified Official Domain",
+      "type": "string"
+    },
+    "verified_official_domains": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Verified Official Domains",
+      "type": "array"
+    },
+    "workspace": {
+      "title": "Workspace",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace",
+    "venue_asset_id",
+    "name",
+    "first_seen_at"
+  ],
+  "title": "VenueAsset",
+  "type": "object"
+}

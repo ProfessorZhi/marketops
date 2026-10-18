@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "marketops": {
+      "url": "<marketops-mcp-endpoint>",
+      "bearer_token_env_var": "MARKETOPS_MCP_TOKEN"
+    }
+  }
+}

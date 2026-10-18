@@ -1,0 +1,78 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "marketops"
+version = "0.1.0"
+description = "MarketOps — known-account contact research pipeline (research-only; platform-independent)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+
+# 运行依赖刻意保持轻薄：任何一个装不上都不应该阻塞整条链路。
+#
+# **这张表与代码的一致性由 ``tests/test_declared_dependencies.py`` 执行**，两个方向
+# 都有：这里声明了却没被 import 的，与 import 了却没声明的，都会红。在那条判据
+# 出现之前，这张表有过两个真实的错 —— ``mcp`` 漏了（服务面 import 不到）、
+# ``beautifulsoup4`` 留着（全仓没有一处用它抽正文）。
+#
+# ``mcp`` 在**运行依赖**里而不是一个 extra 里，因为它不是一项可选能力 ——
+# 它是本仓对外的**接口**。``packages = ["marketops"]`` 会把
+# ``marketops/adapters/mcp_server/`` 一起装出去，缺了 SDK 时那是一个装得上、
+# import 不了的包，而症状是一次 ``ImportError``。pin 的来历见
+# ``docs/MVP_MIGRATION_PLAN.md`` §4 的 D1：SDK v2 把 FastMCP 改名为 MCPServer，
+# 不设上限时下一次大版本升级会以「一整棵依赖树装上了、服务端起不来」的样子坏掉。
+dependencies = [
+    "httpx>=0.27",
+    "mcp>=2.2,<3",
+    "pypdf>=4.2",
+    "pydantic>=2.7",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+# 浏览器渲染。缺失时 pipeline 自动降级为纯 HTTP（见 docs/ARCHITECTURE.md）。
+browser = ["crawl4ai>=0.6"]
+# 复杂 layout / 扫描件 PDF。本轮**不安装**，有真实样本后再启用。
+mineru = ["mineru>=2.0"]
+# 决策后端（``ports.decisions``）。两个 extra **互相独立**，因为它们不是同一件事：
+# 本地权重与托管 API 的取舍不同（一个花磁盘与进程，一个花网络与钱）。
+#
+# ``decisions-laya`` 只装**库**，不装**权重** —— 权重几百 MB 且要落在 DATA_ROOT 下
+# （宿主策略禁止在 HOME 下建大缓存），由部署决定放在哪。装了库但没有权重时
+# ``LayaDecisionProvider.ready`` 是假，理由是缺哪几样文件，而不是一条模糊的失败。
+decisions-laya = ["laya>=0.3"]
+# ``decisions-jev`` 装了 SDK 之后还需要一把 ``TYPESAFE_API_KEY``（在 vault 里，
+# 不进仓也不进环境文件的模板值）。§20：缺凭据不得写 PASS —— 这条由
+# ``JevDecisionProvider.ready`` 执行，缺 key 时它报 unavailable 而不是「跑过了」。
+decisions-jev = ["typesafe-sdk>=0.7"]
+# ruff 带上限：lint 规则集随版本变化，一个不锁版本的 lint 步骤会在某个
+# 无关的周二把 CI 变红，而那次红与这次改动无关 —— 那种红最后总是被忽略。
+dev = ["pytest>=8.0", "jsonschema>=4.22", "ruff>=0.15,<0.16"]
+
+[project.scripts]
+marketops = "marketops.interfaces.cli:main"
+# §B21 的那个受管唤醒入口。**它是第二个入口而不是 ``marketops`` 的一条子命令**：
+# 它要能作为一个独立进程被 systemd / supervisor 拉起来（「关掉聊天仍续下一批」的
+# 那一半就在这个进程里），而一个子命令的调用者默认是「一个人手工跑一次」——
+# 两者的生命周期与退出码语义都不一样（``--once`` 拿不到归属时退 3）。
+marketops-controller = "marketops.interfaces.controller:main"
+
+[tool.hatch.build.targets.wheel]
+# 只装 ``marketops``。``services/`` 已经不在了：它最后剩下的两个占位目录
+# 连同「为什么留空」一起搬进了 ``docs/NOT_BUILT.md``，所以今天顶层没有任何
+# 平级的、可执行的包需要声明。
+packages = ["marketops"]
+
+[tool.pytest.ini_options]
+# 不依赖 editable install：测试直接从仓库根导入。
+# 这样在公司网络下少一步 pip install -e . 的失败面。
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = ["error::DeprecationWarning:marketops.*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

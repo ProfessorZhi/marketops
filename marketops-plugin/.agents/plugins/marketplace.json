@@ -1,0 +1,20 @@
+{
+  "name": "marketops-local",
+  "interface": {
+    "displayName": "MarketOps Local"
+  },
+  "plugins": [
+    {
+      "name": "marketops",
+      "source": {
+        "source": "local",
+        "path": "./"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "additionalProperties": false,
+  "description": "一次研究运行的元数据。落盘后成为可复现记录的一部分。",
+  "properties": {
+    "accounts_completed": {
+      "default": 0,
+      "title": "Accounts Completed",
+      "type": "integer"
+    },
+    "accounts_total": {
+      "default": 0,
+      "title": "Accounts Total",
+      "type": "integer"
+    },
+    "finished_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Finished At"
+    },
+    "profile": {
+      "title": "Profile",
+      "type": "string"
+    },
+    "research_only": {
+      "const": true,
+      "default": true,
+      "title": "Research Only",
+      "type": "boolean"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "send_authorized": {
+      "const": false,
+      "default": false,
+      "title": "Send Authorized",
+      "type": "boolean"
+    },
+    "started_at": {
+      "format": "date-time",
+      "title": "Started At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "run_id",
+    "profile",
+    "started_at"
+  ],
+  "title": "ResearchRun",
+  "type": "object"
+}

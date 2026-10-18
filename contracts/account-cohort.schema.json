@@ -1,0 +1,169 @@
+{
+  "$defs": {
+    "AccountStatus": {
+      "description": "**账号**的准入状态 —— SOP v1 L188 左侧状态机。\n\n账号的单位是「拥有 / 运营 / 维护 / 预约控制 / 采购某个场地资产的责任实体」，\n不是单个 pitch，也不是一个场地名。因此它与 :class:`Grade` **正交**：\n\n* 本枚举回答「这个组织值不值得研究」；\n* :class:`Grade` 回答「已经拿到的那条联系路线属于哪一级」。\n\n把两者合成一个枚举，就没法表达「账号 eligible，但已经拿到的路线是 X」\n这种真实且常见的情形（组织对，人不对）。合并不省事，只是把信息删掉。",
+      "enum": [
+        "discovered",
+        "eligible",
+        "hold",
+        "irrelevant",
+        "duplicate",
+        "researched",
+        "archived"
+      ],
+      "title": "AccountStatus",
+      "type": "string"
+    },
+    "CohortExclusion": {
+      "additionalProperties": false,
+      "description": "池子里有、但**没有**进这一份名单的一行，以及为什么。\n\n带有 ``organisation`` 与 ``status`` 是刻意的：只有 ``account_id`` 的话，读的人\n要为了「这个 id 是谁」去查一次池子，而池子已经变了 —— 他查到的名字不是当时那个。",
+      "properties": {
+        "account_id": {
+          "title": "Account Id",
+          "type": "string"
+        },
+        "code": {
+          "$ref": "#/$defs/CohortExclusionCode"
+        },
+        "organisation": {
+          "title": "Organisation",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/AccountStatus"
+        }
+      },
+      "required": [
+        "account_id",
+        "organisation",
+        "status",
+        "code",
+        "reason"
+      ],
+      "title": "CohortExclusion",
+      "type": "object"
+    },
+    "CohortExclusionCode": {
+      "description": "一个账号**没有**进这一份名单的原因。闭集。\n\n每个成员对应一个 ``status``，理由是那一条的处置**不一样** —— 把它折成一句\n「不在名单里」会让「下一轮就轮到它」（``OVER_LIMIT``）与「它被判成不相关」\n（``NOT_RELEVANT``）在报告上同形。\n\n``OVER_LIMIT`` 是唯一一个**不由** ``status`` 推出的成员：它说的是这一轮的\n上限砍到了它，下一轮（或者更大的上限）它就在名单里。把它与另外几个混在一起，\n读的人会把一次配置截断当成一次业务结论。",
+      "enum": [
+        "on_hold",
+        "not_relevant",
+        "duplicate",
+        "archived",
+        "status_not_selected",
+        "over_limit"
+      ],
+      "title": "CohortExclusionCode",
+      "type": "string"
+    },
+    "CohortMember": {
+      "additionalProperties": false,
+      "description": "名单里的一行。**它的依据就是那一格 ``status``。**\n\n这里没有分数、没有权重、没有排序理由 —— 一个「综合评分」会把「它为什么在名单\n里」变成一句没人能复核的话，而池子里今天没有一列算得出它。顺序由池子给（见模块\ndocstring 第 1 条），不由这里判。",
+      "properties": {
+        "account_id": {
+          "title": "Account Id",
+          "type": "string"
+        },
+        "organisation": {
+          "title": "Organisation",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/AccountStatus"
+        }
+      },
+      "required": [
+        "account_id",
+        "organisation",
+        "status"
+      ],
+      "title": "CohortMember",
+      "type": "object"
+    },
+    "CohortSelection": {
+      "additionalProperties": false,
+      "description": "形成这套冻结成员的那条规则。**它是这套名单的一半身份。**\n\n它进 :func:`cohort_id_for` 的原像，所以「同一个池子、同一条规则」算出来的是\n同一个 id（重放不产生第二份名单）；而规则改一个字就是另一套名单，旧的还在盘上\n可读 —— 那正是「每批可回读」这句话要的形状。\n\n:attr:`limit` 是 ``None`` 表示不封顶。**负数不是一个「很小的上限」**，它是算错\n了，所以在这里就拒（与 ``application/caps.py::apply_cap`` 逐字同一条）——\n静默当成不封顶会让一次配置错误在报告上长得像「没设上限」。",
+      "properties": {
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Limit"
+        },
+        "statuses": {
+          "default": [
+            "discovered",
+            "eligible",
+            "researched"
+          ],
+          "items": {
+            "$ref": "#/$defs/AccountStatus"
+          },
+          "title": "Statuses",
+          "type": "array"
+        }
+      },
+      "title": "CohortSelection",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "一个 Scene 手上**某一刻**的成员名单。内容寻址，冻结不可变。\n\n## ``cohort_id`` 覆盖到什么、不覆盖到什么\n\n原像里是：``workspace`` / ``scene_id`` / ``selection`` / 成员的 ``account_id``\n序列 / 每一个被排除者的 ``(account_id, code)``。于是：\n\n* **重放不产生第二份名单** —— 同一个池子、同一条规则，算出来是同一个 id，\n  ``put_cohort`` 是一次覆盖写。这是 §B21「重放事件不重复昂贵工作」在主体这一\n  侧的前提。\n* **新增账号会产生另一份名单** —— 成员序列变了，id 就变了，而旧的那一份还在\n  盘上读得回来。于是「这一批当时研究的是谁」永远答得出来。\n* **措辞不进原像** —— ``reason`` 那一格改了不会换 id。见 :class:`CohortExclusion`。\n\n## ``created_at`` 只往早走\n\n它是「我们第一次把这份读数冻下来」的时刻，与 ``VenueAsset.first_seen_at`` /\n``MarketAccount.first_seen_at`` 逐字同一条纪律：重放一份旧名单不该把它推后 ——\n推后之后，一份早就冻好的名单会声称自己是刚冻的，而 §B22 的复用判定正是看这个\n时刻。",
+  "properties": {
+    "cohort_id": {
+      "title": "Cohort Id",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "exclusions": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/CohortExclusion"
+      },
+      "title": "Exclusions",
+      "type": "array"
+    },
+    "members": {
+      "items": {
+        "$ref": "#/$defs/CohortMember"
+      },
+      "title": "Members",
+      "type": "array"
+    },
+    "scene_id": {
+      "title": "Scene Id",
+      "type": "string"
+    },
+    "selection": {
+      "$ref": "#/$defs/CohortSelection"
+    },
+    "workspace": {
+      "title": "Workspace",
+      "type": "string"
+    }
+  },
+  "required": [
+    "cohort_id",
+    "workspace",
+    "scene_id",
+    "selection",
+    "members",
+    "created_at"
+  ],
+  "title": "AccountCohort",
+  "type": "object"
+}

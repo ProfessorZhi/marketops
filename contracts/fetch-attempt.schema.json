@@ -1,0 +1,248 @@
+{
+  "$defs": {
+    "ActionTaken": {
+      "description": "**这一次我们做了什么**。与根因分开，因为同一个根因的处置会随 policy 变。\n\n设计 §4 那张表的第三列（「不应做」）不是这里的取值 —— 那是一组**不存在**的\n动作（求解 CAPTCHA、指纹伪装、暗换出口、换 IP），它们在本产品里没有实现，\n因此也没有名字。有名字的只有做过的。",
+      "enum": [
+        "proceeded",
+        "escalated_to_browser",
+        "deferred_backoff",
+        "circuit_opened",
+        "half_open_probe",
+        "stopped_method",
+        "refused_unsafe_target",
+        "withhold_body",
+        "review_requested"
+      ],
+      "title": "ActionTaken",
+      "type": "string"
+    },
+    "BodyKind": {
+      "description": "这一次拿到的正文**是什么**。\n\n``NONE`` 与 ``UNKNOWN`` 分开：前者是「我们没有得到任何正文」（被拒绝、\n超时、判据拦下），后者是「得到了正文但我们没能归类它」（例如一个没有\n``Content-Type`` 且不是 HTML/PDF/JSON 的字节流）。把两者合成一个「空」，\n会让「这次没有正文」与「这次有个奇怪的东西」在报告上同形。",
+      "enum": [
+        "none",
+        "html",
+        "pdf",
+        "text",
+        "json",
+        "xml",
+        "unknown"
+      ],
+      "title": "BodyKind",
+      "type": "string"
+    },
+    "MaterialProvenance": {
+      "description": "这一次抓取拿到的**材料是从哪来的**。\n\n``LIVE`` —— 正文来自一个真实的第三方公开页面，是那次抓取真的从网上取回来的。\n``SYNTHETIC`` —— 正文是**我们自己造的**（一个受控夹具、一个本机立起来的靶子、\n或者一份被重放的录制件）。\n\n这一格的存在理由是 ``docs/MCP_SERVICE.md`` §8.C.2 逐字那两句：Crawl4AI 的渲染\n覆盖可以是「a normal public JS page」也可以是「a clearly labeled supplemental\ncontrolled fixture」，而紧接着的一句是「**Both kinds must be labeled.**」，\n再一句是「A controlled fixture proves integration behavior only and **cannot\ncount as market yield or real-site improvement**」。\n\n也就是说：两种材料**都**是合法的验收输入，而它们能证明的东西**不同** ——\n一份受控夹具证明的是「这条集成链路是通的」，它证明不了「我们真的能从现场\n拿到东西」。报告上把两者混起来，读的人会把一次自造页面的成功读成一次现场\n覆盖，而那正是本仓反复要消灭的那类读数。\n\n## 为什么缺省是 ``SYNTHETIC``\n\n因为 ``LIVE`` 是一条**肯定声明**，而这一格的消费者是一个**覆盖率**。\n「没有被声明为 live 的行不算 live 覆盖」是这一格的意思本身，不是一次猜测：\n缺省值在这里**收回**一个主张，而不是**编造**一个事实。\n\n这条区分是它与 ``AccountRecord.country`` 那个著名的缺省（曾经是 ``\"UK\"``）\n的关键差别 —— 那一个把「没人查过」变成一个**喂给规则求值的事实**，于是\n``out_of_region`` 对它静默不触发，报告上的读法是「这个账号在区域内」。\n这里没有第二条规则读这一格：它只被数，而数错的**方向是可选的**。\n缺省成 ``SYNTHETIC`` 时，一次忘了声明的现场抓取会被读成「自造材料」——\n覆盖率被**低报**，有人会去看；缺省成 ``LIVE`` 时，一次自造页面会被读成现场\n覆盖 —— 而那正是这一格要挡的那句话。所以缺省取前者。\n\n## 为什么是两个成员，不是三个\n\n第三个成员只能是「没有记录」。而这一格的读者问的是一道**二选一**的题\n（这次渲染算不算现场覆盖），给一个「不知道」的档会让每一处读它的人各自\n决定怎么处置它 —— 而那些决定会不一致。旧行（这一格出现之前写下的）\n因此读成 ``SYNTHETIC``：**低报**，与上面同一条方向。",
+      "enum": [
+        "live",
+        "synthetic"
+      ],
+      "title": "MaterialProvenance",
+      "type": "string"
+    },
+    "MethodKind": {
+      "description": "这次访问用的方法。\n\n闭集，且**只有本产品真的会用的三种**（设计 §5 的推荐顺序里那三种获取手段；\n「已批准结构化来源」不经过本模型，它是一次导入而不是一次抓取尝试）。",
+      "enum": [
+        "http",
+        "browser",
+        "approved_api"
+      ],
+      "title": "MethodKind",
+      "type": "string"
+    },
+    "SettlementState": {
+      "description": "预算那一格的状态。**不是** ``ReservationState`` 的别名。\n\n``ReservationState`` 说的是账本上那条预留走到了哪一步；本枚举说的是\n**这次尝试**与那份预留的关系：这次调用没花过钱（``NOT_APPLICABLE``）、\n预留了但还没结算（``RESERVED``）、已结算（``SETTLED``）、或\n**外部用量未知需要事后对账**（``UNKNOWN_PENDING_RECONCILIATION``）。\n\n最后一个成员是这一格存在的理由：设计 §9 与 §4 都要求「未知计费先对账」，\n而它既不是「已结算」也不是「未预留」—— 需要一个人拿供应商账单回来核。",
+      "enum": [
+        "not_applicable",
+        "reserved",
+        "settled",
+        "unknown_pending_reconciliation"
+      ],
+      "title": "SettlementState",
+      "type": "string"
+    },
+    "SuspectedCause": {
+      "description": "**疑似**根因的闭集。\n\n每一个成员对应采集设计 §4 那张表里的一行「诊断与默认动作」。取值的粒度就是\n那一行的粒度：多一个成员等于多一条没人写下来的处置，少一个成员会让两种不同\n的处置挤进同一格。\n\n刻意**没有** ``ip_banned`` / ``asn_blocked`` 这类「封禁边界」的取值 ——\n见模块 docstring。它们唯一合法的表达是 :attr:`IP_POLICY` 配证据引用，\n而 :attr:`IP_POLICY` 不由任何机器判定产出。",
+      "enum": [
+        "none",
+        "unknown",
+        "network_unknown",
+        "egress_denied",
+        "policy_blocked",
+        "auth_required",
+        "access_denied_unknown",
+        "waf_challenge",
+        "rate_limited",
+        "transient_or_unknown",
+        "source_gone",
+        "content_unusable",
+        "unsafe_target",
+        "ip_policy"
+      ],
+      "title": "SuspectedCause",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "一次访问的实测记录。**不可变。**",
+  "properties": {
+    "action_taken": {
+      "$ref": "#/$defs/ActionTaken",
+      "default": "proceeded"
+    },
+    "attempt_id": {
+      "title": "Attempt Id",
+      "type": "string"
+    },
+    "body_bytes": {
+      "default": 0,
+      "title": "Body Bytes",
+      "type": "integer"
+    },
+    "body_kind": {
+      "$ref": "#/$defs/BodyKind",
+      "default": "none"
+    },
+    "body_sha256": {
+      "default": "",
+      "title": "Body Sha256",
+      "type": "string"
+    },
+    "budget_reservation_id": {
+      "default": "",
+      "title": "Budget Reservation Id",
+      "type": "string"
+    },
+    "budget_settlement": {
+      "$ref": "#/$defs/SettlementState",
+      "default": "not_applicable"
+    },
+    "cause_evidence_ref": {
+      "default": "",
+      "title": "Cause Evidence Ref",
+      "type": "string"
+    },
+    "challenge_detected": {
+      "default": false,
+      "title": "Challenge Detected",
+      "type": "boolean"
+    },
+    "egress_profile": {
+      "default": "",
+      "title": "Egress Profile",
+      "type": "string"
+    },
+    "ended_at": {
+      "format": "date-time",
+      "title": "Ended At",
+      "type": "string"
+    },
+    "error_code": {
+      "default": "",
+      "title": "Error Code",
+      "type": "string"
+    },
+    "final_url": {
+      "default": "",
+      "title": "Final Url",
+      "type": "string"
+    },
+    "material": {
+      "$ref": "#/$defs/MaterialProvenance",
+      "default": "synthetic"
+    },
+    "method": {
+      "$ref": "#/$defs/MethodKind"
+    },
+    "observed_status": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Observed Status"
+    },
+    "parser_version": {
+      "default": "",
+      "title": "Parser Version",
+      "type": "string"
+    },
+    "redirect_trace": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Redirect Trace",
+      "type": "array"
+    },
+    "response_headers": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Response Headers",
+      "type": "object"
+    },
+    "retry_after_s": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Retry After S"
+    },
+    "run_id": {
+      "default": "",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "scope": {
+      "default": "",
+      "title": "Scope",
+      "type": "string"
+    },
+    "started_at": {
+      "format": "date-time",
+      "title": "Started At",
+      "type": "string"
+    },
+    "suspected_cause": {
+      "$ref": "#/$defs/SuspectedCause",
+      "default": "none"
+    },
+    "target_ref": {
+      "default": "",
+      "title": "Target Ref",
+      "type": "string"
+    },
+    "url": {
+      "title": "Url",
+      "type": "string"
+    },
+    "work_item_id": {
+      "default": "",
+      "title": "Work Item Id",
+      "type": "string"
+    },
+    "workspace": {
+      "title": "Workspace",
+      "type": "string"
+    }
+  },
+  "required": [
+    "attempt_id",
+    "workspace",
+    "method",
+    "url",
+    "started_at",
+    "ended_at"
+  ],
+  "title": "FetchAttempt",
+  "type": "object"
+}

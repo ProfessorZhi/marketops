@@ -1,0 +1,74 @@
+{
+  "client": "workbuddy",
+  "client_version": null,
+  "protocol_version": null,
+  "transport": null,
+  "tested_at": "2026-09-29",
+  "build": "marketops 0.1.0 (the deployment used for the Codex run; no WorkBuddy session was opened)",
+  "state": "blocked_external",
+  "measured_absence": {
+    "checked": [
+      "no executable named workbuddy / work-buddy / WorkBuddy on PATH",
+      "no ~/.workbuddy, ~/.config/workbuddy or ~/.config/WorkBuddy directory",
+      "no workbuddy entry in the client MCP configuration on this node",
+      "no listening endpoint on this node that identifies itself as WorkBuddy"
+    ],
+    "found": "nothing — the client is not installed here, and this node has no reachable instance of it",
+    "conclusion": "not one field of the compatibility contract could be exercised"
+  },
+  "unblock": {
+    "condition": "a WorkBuddy client reachable from the machine running the verification — or a documented configuration format for it, if the acceptance is to be automated against a stub",
+    "then": "install the projection, connect, and run the contract in the order listed in ../README.md; every field below becomes measurable in the same way the Codex fields were",
+    "what_must_not_be_done_instead": "writing any of these fields as verified because WorkBuddy is expected to speak MCP. Expected compatibility is not a measurement"
+  },
+  "fields": {
+    "installed_projection": {
+      "state": "blocked_external",
+      "unblock": "the client, installed"
+    },
+    "mcp_connected": {
+      "state": "blocked_external",
+      "unblock": "the client, installed, pointed at a deployment"
+    },
+    "auth_verified": {
+      "state": "blocked_external",
+      "unblock": "the client, installed; requires both a successful session and a refused negative control"
+    },
+    "tool_catalog_verified": {
+      "state": "blocked_external",
+      "unblock": "a connected session whose received tool names can be compared against the deployment's catalog"
+    },
+    "read_flow_verified": {
+      "state": "blocked_external",
+      "unblock": "a connected session that can really invoke a read use case"
+    },
+    "write_flow_verified": {
+      "state": "blocked_external",
+      "unblock": "a connected session that can really invoke a write use case, through admission"
+    },
+    "durable_job_disconnect_verified": {
+      "state": "blocked_external",
+      "unblock": "a connected session that can be disconnected while a durable job runs"
+    },
+    "reconnect_verified": {
+      "state": "blocked_external",
+      "unblock": "a connected session that can be closed and reopened"
+    },
+    "multi_session_isolation_verified": {
+      "state": "blocked_external",
+      "unblock": "two concurrently running sessions of this client"
+    },
+    "notification_pull_verified": {
+      "state": "blocked_external",
+      "unblock": "a connected session that can read events and their delivery receipts"
+    },
+    "notification_push_verified": {
+      "state": "blocked_external",
+      "unblock": "a connected session that this deployment can be made to push to; if the client turns out to have no push path, this becomes unsupported rather than blocked, and the degradation ladder in ../README.md applies"
+    },
+    "plugin_install_verified": {
+      "state": "blocked_external",
+      "unblock": "the client's own plugin-install path, which cannot be exercised without the client"
+    }
+  }
+}

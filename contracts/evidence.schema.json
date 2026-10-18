@@ -1,0 +1,130 @@
+{
+  "$defs": {
+    "ContactField": {
+      "description": "Contact 上可以被证据支持的最小字段集。",
+      "enum": [
+        "organisation",
+        "name",
+        "role",
+        "email"
+      ],
+      "title": "ContactField",
+      "type": "string"
+    },
+    "SourceKind": {
+      "description": "证据来源层级。决定它**能否**成为 Contact 的事实依据。",
+      "enum": [
+        "search_snippet",
+        "fetched_html",
+        "fetched_pdf",
+        "fetched_text"
+      ],
+      "title": "SourceKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "一条**字面**证据：在某个已抓取的公开文档中，某个字面片段支撑了某个字段。\n\n证据不是「结论」，是「结论的依据」。同一条证据可以支撑多个字段，\n但每次支撑都记一条 —— 这样 §10 的 false attribution 才能被逐条审计。",
+  "properties": {
+    "account_id": {
+      "title": "Account Id",
+      "type": "string"
+    },
+    "content_sha256": {
+      "title": "Content Sha256",
+      "type": "string"
+    },
+    "context": {
+      "default": "",
+      "title": "Context",
+      "type": "string"
+    },
+    "evidence_id": {
+      "title": "Evidence Id",
+      "type": "string"
+    },
+    "fetched_at": {
+      "format": "date-time",
+      "title": "Fetched At",
+      "type": "string"
+    },
+    "field": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ContactField"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "http_status": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Http Status"
+    },
+    "literal_value": {
+      "title": "Literal Value",
+      "type": "string"
+    },
+    "page_locator": {
+      "default": "",
+      "title": "Page Locator",
+      "type": "string"
+    },
+    "parser": {
+      "default": "",
+      "title": "Parser",
+      "type": "string"
+    },
+    "source_kind": {
+      "$ref": "#/$defs/SourceKind"
+    },
+    "source_published_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Published At"
+    },
+    "source_url": {
+      "title": "Source Url",
+      "type": "string"
+    },
+    "tier": {
+      "default": "",
+      "title": "Tier",
+      "type": "string"
+    },
+    "workspace": {
+      "title": "Workspace",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace",
+    "evidence_id",
+    "account_id",
+    "source_url",
+    "source_kind",
+    "literal_value",
+    "content_sha256",
+    "fetched_at"
+  ],
+  "title": "Evidence",
+  "type": "object"
+}

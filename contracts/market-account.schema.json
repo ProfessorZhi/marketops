@@ -1,0 +1,104 @@
+{
+  "$defs": {
+    "AccountStatus": {
+      "description": "**账号**的准入状态 —— SOP v1 L188 左侧状态机。\n\n账号的单位是「拥有 / 运营 / 维护 / 预约控制 / 采购某个场地资产的责任实体」，\n不是单个 pitch，也不是一个场地名。因此它与 :class:`Grade` **正交**：\n\n* 本枚举回答「这个组织值不值得研究」；\n* :class:`Grade` 回答「已经拿到的那条联系路线属于哪一级」。\n\n把两者合成一个枚举，就没法表达「账号 eligible，但已经拿到的路线是 X」\n这种真实且常见的情形（组织对，人不对）。合并不省事，只是把信息删掉。",
+      "enum": [
+        "discovered",
+        "eligible",
+        "hold",
+        "irrelevant",
+        "duplicate",
+        "researched",
+        "archived"
+      ],
+      "title": "AccountStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "这个市场里的一个账号：拥有 / 运营 / 维护 / 预约控制 / 采购某些场地的组织。\n\n``account_id`` 是账号键，与 ``AccountRecord`` / ``ResponsibleEntity``\n同一个 id 空间（都过 :func:`~marketops.domain.util.check_canonical_id`），\n因为它们是同一个东西在链路上的两个阶段 —— 一个 id 在清单里与在池子里必须是\n同一个字符串，否则「这个账号在池子里吗」这个问题没有答案。\n\n**场地名不是键**，理由写在 ``AccountRecord`` 的类文档里（一个 Council 管很多\n场地）。这一行与场地之间的每一条边都是 §5 关系表上的一行，因此**一个账号可以\n同时以多种身份对多块场地负责** —— 这一格里没有任何东西逼它选一个。",
+  "properties": {
+    "account_id": {
+      "title": "Account Id",
+      "type": "string"
+    },
+    "addresses": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Addresses",
+      "type": "array"
+    },
+    "aliases": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Aliases",
+      "type": "array"
+    },
+    "country": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Country"
+    },
+    "domains": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Domains",
+      "type": "array"
+    },
+    "evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "first_seen_at": {
+      "format": "date-time",
+      "title": "First Seen At",
+      "type": "string"
+    },
+    "last_verified_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Verified At"
+    },
+    "organisation": {
+      "title": "Organisation",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/AccountStatus",
+      "default": "discovered"
+    },
+    "workspace": {
+      "title": "Workspace",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace",
+    "account_id",
+    "organisation",
+    "first_seen_at"
+  ],
+  "title": "MarketAccount",
+  "type": "object"
+}

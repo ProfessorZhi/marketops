@@ -1,0 +1,290 @@
+{
+  "$defs": {
+    "BusinessFunction": {
+      "description": "一条路线落在哪个业务口径上。\n\nSOP v1 L131：``bookings`` 只有在**明确是场地预约 / 场馆运营 / 设施团队入口**时\n才算业务入口；与场地无关的客服 / 预订走 :attr:`CUSTOMER_SERVICE` → X。\n因此 ``bookings`` 与 ``customer_service`` 是**两个**取值，不是一个。",
+      "enum": [
+        "grounds",
+        "facilities",
+        "estates",
+        "venue",
+        "operations",
+        "maintenance",
+        "bookings",
+        "procurement",
+        "finance",
+        "admissions",
+        "hr",
+        "teaching",
+        "administration",
+        "customer_service",
+        "unknown"
+      ],
+      "title": "BusinessFunction",
+      "type": "string"
+    },
+    "Currentness": {
+      "description": "一条时间性断言**此刻**的有效性。\n\n:attr:`HISTORICAL` 与 :attr:`STALE` 的区别不是程度，是**原因**，也是下一步动作：\n\n* ``HISTORICAL`` —— **来源自己划定了这段时间的终点**。一份写明\n  「Jane 于 2018–2021 年任场地主管」的交接记录，是在说这段任职已经结束。\n  它是对的，不需要重新验证，只是需要按「那时」来读。\n* ``STALE`` —— **没人说过它什么时候结束**。一份 2021 年的页面只写\n  「场地主管：Jane」，没有终止日期。它曾经是当前的，但我们没有任何依据说\n  它今天还成立。它需要的不是历史解读，而是**重新验证**。\n\n这条界线决定了下游该做什么，所以合不成一个「旧」字。\n\n注意 ``HISTORICAL`` 的判据是**来源声明的区间**，不是谁给它贴的标签 ——\n否则本枚举的取值就会自我指认（见 :func:`evaluate_freshness` 的说明）。\n\n:attr:`NOT_SEEN` 是第三个方向，与上面两档都不同：**我们再去看了一次，\n那次没看到它**。``docs/DATA_MODEL.md`` 把它记作「no longer visible but not\nproven false」，本枚举照抄那句话。它既不是 ``HISTORICAL``（来源说了终点）\n也不是 ``STALE``（时间过去了而没人说终点），差别不在措辞而在**依据**：\n前两者的依据都在**材料**里，而它的依据是一次**观测**——观测失败的原因有\n很多种，它们与「这个人离开了」同形。所以它不支撑任何业务判定\n（:attr:`Freshness.is_actionable` 为假），只触发复查。",
+      "enum": [
+        "current",
+        "historical",
+        "stale",
+        "not_seen",
+        "conflicting",
+        "unknown",
+        "invalid_source_time"
+      ],
+      "title": "Currentness",
+      "type": "string"
+    },
+    "Freshness": {
+      "additionalProperties": false,
+      "description": "一次新鲜度评估的**结论**，连同它的依据。\n\n存下来而不是现算，是因为同一个问题在不同的策略版本下会有不同的答案。\n只留一个 ``currentness`` 字段，会让「当时按什么标准判的」永久丢失。",
+      "properties": {
+        "age_days": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Age Days"
+        },
+        "assertion_id": {
+          "title": "Assertion Id",
+          "type": "string"
+        },
+        "currentness": {
+          "$ref": "#/$defs/Currentness"
+        },
+        "evaluated_at": {
+          "format": "date-time",
+          "title": "Evaluated At",
+          "type": "string"
+        },
+        "policy_calibrated": {
+          "default": false,
+          "title": "Policy Calibrated",
+          "type": "boolean"
+        },
+        "policy_version": {
+          "title": "Policy Version",
+          "type": "string"
+        },
+        "reason": {
+          "$ref": "#/$defs/FreshnessReason"
+        }
+      },
+      "required": [
+        "assertion_id",
+        "currentness",
+        "reason",
+        "policy_version",
+        "evaluated_at"
+      ],
+      "title": "Freshness",
+      "type": "object"
+    },
+    "FreshnessReason": {
+      "description": "为什么算出这个 currentness。审计时比取值本身更重要。",
+      "enum": [
+        "within_policy_window",
+        "recently_reverified",
+        "beyond_policy_window",
+        "describes_a_past_state",
+        "contradicted",
+        "no_time_anchor",
+        "not_seen_on_recheck",
+        "invalid_source_time"
+      ],
+      "title": "FreshnessReason",
+      "type": "string"
+    },
+    "RecordBlockPriority": {
+      "description": "P1–P4 是**记录块绑定语义**，不是 URL 路径分级（SOP v1 L105）。\n\n旧 profile 把 ``*/contact*`` / ``*/staff*`` 这类 URL glob 叫作 P1/P2/P3 ——\n那是把「先抓哪个页面」和「邮箱怎么被绑定」两件事挤进了同一个词。\nURL 侧已改名为 ``page_discovery_hints``；这里恢复 P1–P4 的原义。",
+      "enum": [
+        "P1",
+        "P2",
+        "P3",
+        "P4"
+      ],
+      "title": "RecordBlockPriority",
+      "type": "string"
+    },
+    "RoleClass": {
+      "description": "一个岗位在**路线**里扮什么角色。\n\n取值与 ``role-matrix.yaml`` 的 ``tier`` 逐字相同 —— 业务侧只声明一次，\nprofile 装载层把 term → class 编译出来，引擎只做集合判定。\n\n:attr:`EXCLUDED` 不是「降权」，是「不得进入有效路线」：SOP v1 L129 把财务\n放进 X，L131 把无场地关联的客服/预订放进 X，招生 / HR / 教学 / 一般行政同理。\n这是一条**类别**判定，不是权重判定 —— 权重可以被下一次调参改回去。",
+      "enum": [
+        "decision",
+        "influencer",
+        "operational",
+        "gatekeeper",
+        "excluded",
+        "unknown"
+      ],
+      "title": "RoleClass",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "一条**尚未解决的路线机会**：有相关人/岗位证据，但没有字面邮箱。\n\n它**不是**一条 B 级路线。SOP v1 L126 要求 A 与 B 都带真实公开业务邮箱；\n没有邮箱的具名角色仍然是有价值的产出 —— 它告诉我们「这个账号上有个\n场地负责人」，下一步是去找他的公开邮箱 —— 但把它标成 B 就等于声称\n我们取得了一条可联系的路线，而我们没有。\n\n默认 ``block_priority=P3``，因为「有场地/责任关系证据但无邮箱」正是它的定义。",
+  "properties": {
+    "account_id": {
+      "title": "Account Id",
+      "type": "string"
+    },
+    "block_priority": {
+      "$ref": "#/$defs/RecordBlockPriority",
+      "default": "P3"
+    },
+    "business_function": {
+      "$ref": "#/$defs/BusinessFunction",
+      "default": "unknown"
+    },
+    "evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "first_seen_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "First Seen At"
+    },
+    "freshness": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Freshness"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "last_verified_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Verified At"
+    },
+    "organisation": {
+      "default": "",
+      "title": "Organisation",
+      "type": "string"
+    },
+    "person_id": {
+      "default": "",
+      "title": "Person Id",
+      "type": "string"
+    },
+    "person_name": {
+      "default": "",
+      "title": "Person Name",
+      "type": "string"
+    },
+    "reason": {
+      "default": "no_literal_email",
+      "title": "Reason",
+      "type": "string"
+    },
+    "research_only": {
+      "const": true,
+      "default": true,
+      "title": "Research Only",
+      "type": "boolean"
+    },
+    "role_class": {
+      "$ref": "#/$defs/RoleClass",
+      "default": "unknown"
+    },
+    "role_id": {
+      "default": "",
+      "title": "Role Id",
+      "type": "string"
+    },
+    "role_title": {
+      "default": "",
+      "title": "Role Title",
+      "type": "string"
+    },
+    "send_authorized": {
+      "const": false,
+      "default": false,
+      "title": "Send Authorized",
+      "type": "boolean"
+    },
+    "source_published_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Published At"
+    },
+    "valid_from": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Valid From"
+    },
+    "valid_to": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Valid To"
+    },
+    "venue_asset_id": {
+      "default": "",
+      "title": "Venue Asset Id",
+      "type": "string"
+    },
+    "workspace": {
+      "title": "Workspace",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace",
+    "account_id"
+  ],
+  "title": "RouteOpportunity",
+  "type": "object"
+}

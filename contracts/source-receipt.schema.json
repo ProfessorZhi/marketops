@@ -1,0 +1,225 @@
+{
+  "$defs": {
+    "Disposition": {
+      "description": "一行原始数据的**去向**。闭集，五个成员，没有第六个。\n\n``resolved``\n    变成了一个**可用于研究**的主体：这一行现在有一个人类可读的指称对象。\n    只有它会产出一个 subject，因而只有它会让一次检索发生。\n``merged``\n    它就是另一行的同一个东西（同一个来源标识，或同一个名字 + 同一个地点）。\n    它**没有消失** —— ``merged_into`` 指着那个赢家，于是「300 行进来的、\n    270 行出去」这件事在报告上答得出「少了的那 30 行去哪了」。\n``excluded``\n    按 ``profiles/*/exclusions`` 里**已声明**的某一个排除项被排除。\n    ``exclusion_ids`` 必填，而且由装载期校验它们确实是这个 profile 声明过的 id ——\n    引擎自己一条排除规则都不认识（``tests/test_no_hardcoded_market_knowledge.py``\n    对 ``marketops/`` 整包强制执行），所以「排除」这件事只能由来源行说、\n    由 profile 声明来核对。\n``pending``\n    **还处置不了**，而且理由说得出来：最常见的正是 Member-C 说的那种行 ——\n    只有来源标识、名字那一格是空的或就是把标识又写了一遍。它留在回执里、\n    带着理由，但**不产生 subject**：身份补全还没发生，所以一次检索都不该发。\n``failed``\n    读不出来（字段缺失、编码坏了、行本身畸形）。它与 ``pending`` 分得开：\n    ``pending`` 是「等一次补全」，``failed`` 是「这一行需要人看」。\n    两者在报告上都不算成功，也都**不静默消失**。\n\n**没有 ``dropped`` / ``skipped`` 之类的成员，这是刻意的。** 那种成员是\n「我把它丢了、而且我不打算说为什么」的形状；``reason`` 在这五个成员上都是\n必填的（``resolved`` 除外），所以「为什么」无处可逃。",
+      "enum": [
+        "resolved",
+        "merged",
+        "excluded",
+        "pending",
+        "failed"
+      ],
+      "title": "Disposition",
+      "type": "string"
+    },
+    "DomainVerdict": {
+      "description": "一块场地/资产的**官网问题**被查到了哪一步。\n\n三值，因为可行的答案有三个，而其中两个今天在盘上长得一样：\n\n* ``UNKNOWN`` —— **还没查**。这一格不许被读成「没有官网」：没查过的东西\n  排除掉，是把「我们没做」写成「它不存在」。\n* ``CONFIRMED`` —— 查到了，某个域名是这个组织的官网（要证据）。\n* ``ABSENT`` —— **查过，确实没有**（要证据）。它与 ``UNKNOWN`` 的区别正是\n  「确认不存在」与「没查」的区别；这一格存在的理由就是不让前者冒充后者。\n\n枚举里没有第四个「空」成员：空串不是这个问题的答案，它是**另一个字段的缺省**\n（:attr:`~marketops.domain.entities.VenueAsset.verified_official_domain` 的 ``\"\"``），\n而把空串当作一个判定结果，就是本仓反复写下的那台「伪造证据的机器」。",
+      "enum": [
+        "unknown",
+        "confirmed",
+        "absent"
+      ],
+      "title": "DomainVerdict",
+      "type": "string"
+    },
+    "RowDisposition": {
+      "additionalProperties": false,
+      "description": "一行原始数据的处置 —— **每一行都要有一个**，没有例外。\n\n五组字段按「这个处置需要什么才说得通」分：\n\n* 每个处置都要 :attr:`row_id` / :attr:`ordinal` / :attr:`source_identity`：\n  前两个把处置对回工件，第三个让「同一个上游对象出现了两次」看得见。\n* 非 ``resolved`` 的都要 :attr:`reason`：一条说不出理由的处置，与\n  「这一行被静默丢掉了」在报告上长得一样。\n* ``merged`` 要 :attr:`merged_into`，``excluded`` 要 :attr:`exclusion_ids`。\n* ``resolved`` 要 :attr:`resolved_name`，并且**只有它能带**那三个主体字段。\n\n那最后一条是本类存在的第二个理由（第一个是 ``reason``）：它让\n「处置是 pending、但名字那一格填着内容」**在构造期就写不出来**。\n一个这样的行会被下游读成「这是可以开工的主体」，而它的理由是「还缺身份」——\n两句话同时为真，读的人只会相信对自己方便的那一句。",
+      "properties": {
+        "claimed_official_domain": {
+          "default": "",
+          "title": "Claimed Official Domain",
+          "type": "string"
+        },
+        "country": {
+          "default": "",
+          "title": "Country",
+          "type": "string"
+        },
+        "discovered_host": {
+          "default": "",
+          "title": "Discovered Host",
+          "type": "string"
+        },
+        "discovered_url": {
+          "default": "",
+          "title": "Discovered Url",
+          "type": "string"
+        },
+        "disposition": {
+          "$ref": "#/$defs/Disposition"
+        },
+        "domain_evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Domain Evidence Ids",
+          "type": "array"
+        },
+        "domain_reason": {
+          "default": "",
+          "title": "Domain Reason",
+          "type": "string"
+        },
+        "domain_verdict": {
+          "$ref": "#/$defs/DomainVerdict",
+          "default": "unknown"
+        },
+        "exclusion_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Exclusion Ids",
+          "type": "array"
+        },
+        "merged_into": {
+          "default": "",
+          "title": "Merged Into",
+          "type": "string"
+        },
+        "ordinal": {
+          "minimum": 0,
+          "title": "Ordinal",
+          "type": "integer"
+        },
+        "organisation_kind": {
+          "default": "",
+          "title": "Organisation Kind",
+          "type": "string"
+        },
+        "reason": {
+          "default": "",
+          "title": "Reason",
+          "type": "string"
+        },
+        "resolved_location": {
+          "default": "",
+          "title": "Resolved Location",
+          "type": "string"
+        },
+        "resolved_name": {
+          "default": "",
+          "title": "Resolved Name",
+          "type": "string"
+        },
+        "row_id": {
+          "title": "Row Id",
+          "type": "string"
+        },
+        "source_identity": {
+          "default": "",
+          "title": "Source Identity",
+          "type": "string"
+        },
+        "surface_class": {
+          "default": "",
+          "title": "Surface Class",
+          "type": "string"
+        },
+        "venue_environment": {
+          "default": "",
+          "title": "Venue Environment",
+          "type": "string"
+        },
+        "verified_official_domain": {
+          "default": "",
+          "title": "Verified Official Domain",
+          "type": "string"
+        },
+        "verified_official_domains": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Verified Official Domains",
+          "type": "array"
+        }
+      },
+      "required": [
+        "row_id",
+        "ordinal",
+        "disposition"
+      ],
+      "title": "RowDisposition",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "一批母池行的回执 —— 「这一批读成了什么」的**唯一**权威。\n\n它是一份**可再投喂**的物件：写进 ``inputs_dir/<receipt_id>.receipt.json``，\n之后由 ``submit_research(input_kind=source_receipt, input_ref=<receipt_id>)``\n原样读回。所以它必须**自足** —— 一个需要另一份文件才能理解的回执，\n在另一份文件被删掉的那天变成不可读，而那一天正是要回答\n「这一批到底读成了什么」的那一天。\n\n``resolved`` 的行因此把补全出来的指称对象带在自己身上\n（:attr:`RowDisposition.resolved_name`），而不是只留一个指向别处的 id。\n\n## 字段\n\n``receipt_id``\n    :func:`receipt_id_for` 的产物。规范形式 —— 它会变成文件名片段\n    （``<receipt_id>.receipt.json``），而需要被规范化的 id 会与另一个 id\n    落到同一个文件上：两份不同的回执静默合并，报告上只是「这批行更多了」。\n\n``version``\n    形状版本（:data:`RECEIPT_VERSION`）。回执是会被后来者读回的物件，\n    形状变化必须有一栏说得出来，否则旧文件会以新形状被读，而差别看不出来。\n\n``source_method_id``\n    这一批怎么来的。**闭集校验**（``resolve_source_method``，失败关闭）：\n    一个未注册的 id 与一个拼错的已注册 id 在报告里长得一样，而前者会让\n    「来源族多样性」这项指标变成一句空话。SOP L82 逐字：「搜索结果、单页新闻或\n    单一 contact 页只能作补充证据，**不能当全量母池**」—— 每一行都带它，\n    这一批才不会被读成母池。\n\n``batch_id``\n    上游对这一批的称呼（一次导出、一次抓取运行的标签）。它**不**决定回执 id\n    的唯一性（那是 ``receipt_id`` 的事），它决定的是「这两份回执说的是不是\n    上游的同一次交付」——所以它只要求 slug-safe，不要求规范形式。\n\n``artifact_ref``\n    **原始工件的名字**，不是路径。与 ``input_ref`` 逐字同一条纪律：\n    收一个路径等于把「读哪个文件」交给调用方 —— 一次跨机器部署下，\n    那就是一条越权读盘的接口。路径由服务自己拼在 ``Settings.inputs_dir`` 下。\n    名字会变成文件名，因此必须是规范形式。\n\n``artifact_sha256``\n    那一份工件的字节摘要。**它是「读的是哪些字节」这个问题的全部答案** ——\n    文件同名而内容换过是两份工件，而差别（一个字符）在报告上看不出来。\n\n``created_at``\n    这一次判定的时刻。必须带时区：naive datetime 与全项目其余部分的约定不符，\n    而它在这一层的作用正是与 ``cutoff`` 比较 —— 一个不知道自己在哪个时区的\n    时刻在这种比较里没有意义。\n\n``scope`` / ``cutoff`` / ``cursor``\n    上游的范围、时点与续读游标。``\"\"`` 是**缺席**，不是「空的范围」：\n    一份手工导出的 CSV 没有查询范围可写，而写一个空串进去会让\n    「没有范围」与「范围是空的」在报告里长得一样。\n\n``profile_id``\n    这一批被读的时候，**哪一份 profile 的排除声明在生效**。它不参与判定\n    （引擎一条排除规则都不认识），它回答的是那个事后一定会被问的问题：\n    「这份回执里的 ``excluded`` 是按哪一版声明下的？」—— 与 ``receipt_id``\n    里的处置摘要合起来，「改了排除规则之后要重跑哪些」才有依据。\n\n``raw_row_count``\n    **上游交给了多少行。**它是这次读取的**分母**，也是那条不变量的另一半：\n    处置的序号必须恰好是 ``0..raw_row_count-1`` 的一个排列。\n    一个静默丢掉几行的实现，在这里是构造不出来回执的 —— 而不是\n    「报告上少了几行」。\n\n``dispositions``\n    每一行的去向，**按 ordinal**。计数由 :meth:`counts` 派生，不落第二份。",
+  "properties": {
+    "artifact_ref": {
+      "title": "Artifact Ref",
+      "type": "string"
+    },
+    "artifact_sha256": {
+      "title": "Artifact Sha256",
+      "type": "string"
+    },
+    "batch_id": {
+      "title": "Batch Id",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "cursor": {
+      "default": "",
+      "title": "Cursor",
+      "type": "string"
+    },
+    "cutoff": {
+      "default": "",
+      "title": "Cutoff",
+      "type": "string"
+    },
+    "dispositions": {
+      "items": {
+        "$ref": "#/$defs/RowDisposition"
+      },
+      "title": "Dispositions",
+      "type": "array"
+    },
+    "profile_id": {
+      "default": "",
+      "title": "Profile Id",
+      "type": "string"
+    },
+    "raw_row_count": {
+      "minimum": 1,
+      "title": "Raw Row Count",
+      "type": "integer"
+    },
+    "receipt_id": {
+      "title": "Receipt Id",
+      "type": "string"
+    },
+    "scope": {
+      "default": "",
+      "title": "Scope",
+      "type": "string"
+    },
+    "source_method_id": {
+      "title": "Source Method Id",
+      "type": "string"
+    },
+    "version": {
+      "default": "v1",
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "receipt_id",
+    "source_method_id",
+    "batch_id",
+    "artifact_ref",
+    "artifact_sha256",
+    "created_at",
+    "raw_row_count",
+    "dispositions"
+  ],
+  "title": "SourceReceipt",
+  "type": "object"
+}

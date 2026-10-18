@@ -1,0 +1,77 @@
+{
+  "$defs": {
+    "VenueRelation": {
+      "description": "责任实体与场地资产之间的关系（SOP v1 L78）。\n\n``UNRESOLVED`` 是第六个成员，而它与其他五个**不是同一类取值**：那五个说的是\n「已经判定出来的关系是哪种」，它说的是「这两者之间有关系，但关系还没定下来」。\n把这一维并进枚举，是因为它必须**和那五个共用同一个槽位** —— 一块场地与一个组织\n之间真正的关系只能有一个判定结果，分成两张表或两个字段的话，「两者都有值」\n就成了一种可表达的坏状态，而它读起来像一个额外的发现。\n\n它与「没有这一行」也**不是**同一件事：没有行 = 不知道这两个东西有没有关系；\n``UNRESOLVED`` = 知道它们有关系（例如组织页上写着它在管这块场地），但管的是\n维护还是预约控制没读出来。这两者的下一步不同（一个是去查，一个是去读已经\n拿到的那一页），所以不许悄悄合并成「没查过」。\n\n证据的要求对 ``UNRESOLVED`` 与对其余五个**一样严**：说得出「有关系」也是一个\n要凭据的判定，而它比其余五个更容易滑向「反正是个组织，先连上再说」。",
+      "enum": [
+        "owns",
+        "operates",
+        "maintains",
+        "booking_control",
+        "procures",
+        "unresolved"
+      ],
+      "title": "VenueRelation",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "「谁对哪块场地负什么责」的一条关系。\n\n## 键是四段，``workspace`` 那一段不是装饰\n\n键是 ``(workspace, account_id, venue_asset_id, relation)``。§5 要的是\n「Asset ↔ Account 的证据关系」，而一条责任关系是一个**判定**：同一块场地与\n同一个账号，在两个 Scene 下可以判出不同的关系（一个 Scene 在找场地运营方，\n另一个在找采购方，同一次抓取支持两条不同的结论）。少了 ``workspace`` 这\n一段，一个库里装着的行无法回答「这是哪个 Scene 判的」，写入路径也无从拒绝\n别的 Scene 的行 —— 与 :attr:`VenueAsset.workspace`、``Evidence.workspace``\n逐字同一条理由：**跨 Scene 的复用止于工作区边界**，而「缺省 = 当前 Scene」的\n默认值会把**没写血统**变成一次不留痕的放行。\n\n## ``workspace`` 挡得住跨 Scene，挡不住换版\n\n``region`` 或 ``profile_id`` 改了以后，``SCENE_IMPACT_RULES``\n（``domain/scene.py``）要求责任关系重判。而盘上**没有任何一格**能说明某一行是\n改之前判的。这一格故意没有在这一版里补上，理由有两半：\n\n* 它属于「什么该重做」那一层（§11 的 ``what_is_due(scene, now)``），今天\n  还没有读者 —— 一列谁都不读的字段在本仓叫死模型，而它读起来像做完了；\n* 资产池与账号池缺的是**同一格**，只给关系表加会让三张表各有一半，而半套\n  机制比没有更坏。\n\n所以当下这两格诚实的读法是：:attr:`first_seen_at` / :attr:`last_verified_at`\n说的是「我们什么时候看的」，**不是**「当时按哪一版规则判的」。这一格的去向\n写在 ``docs/DATA_MODEL.md`` 的那一节里。\n\n## 没有证据的关系写不出来\n\n``evidence_ids`` 至少一条，由\n:meth:`_a_relation_without_evidence_is_not_written` 在校验期挡。这不是一句\n自觉：``VenueRelation`` 的文档里写着「证据的要求对 ``UNRESOLVED`` 与对其余\n五个一样严」，而一条没有证据的关系行读起来是「我们查到了」，事实是「我们\n猜过」—— 这一格的错法与本仓那台伪造证据的机器是同一个。\n\n## 一个账号可以同时有多种责任，所以键里含 ``relation``\n\n``relation`` 不是「这对 (账号, 场地) 是什么关系」的**唯一**答案：同一个 Trust\n可以既 ``owns`` 又 ``maintains`` 一块场地，那就是两条行。反过来，\n``UNRESOLVED`` 说的不是「没关系」，而是「有关系、但关系还没定下来」——\n它与「没有这一行」是两件事，不许悄悄合并（那条理由写在 ``VenueRelation`` 上）。\n\n## 这一行指得出它是哪一次判定得出的\n\n``decision_record_ids`` 是 ``decision_record`` 的主键（在 ``decide`` 的回执里\n那一格叫 ``record_id``，在一次研究的产出里那一格叫 ``decision_id`` —— 三个名字\n是**同一个字符串空间**，这里用表名，因为列的是那张表的主键）。§3 要的是判定\n真的被下游消费，而上一轮真实验收量到的「被消费」只能按最弱的那条判据成立：\n关系的证据集合与某条判定的 ``evidence_refs`` 恰相同、答案取值也恰相同。\n\n那条判据不是因果证明 —— 同一个账号对同一批页面可以问出两个不同的问题，两条\n判定引用同一批证据、给出同一个取值，而**集合相等**分不出这两件事。所以连线\n从「推出来的」换成「写下来的」：这一行说得出产生它的那次调用，而那个 id 能\n直接读回来（``DecisionRecordStore.get_decision``）。\n\n## 为什么是复数、为什么取并集\n\n与 ``evidence_ids`` 逐字同一条：一条已经被判过的关系可以被**再判一次**（新的\n证据、更晚的一次研究），而第二次折进来时这一行的证据取并集。只留最新那一个\nid 的话，更早那次调用从结果上**反查不到**，而它带进来的证据还在这一行里 ——\n那是一条挂着无主证据的关系行。取并集之后仍然不是「完整因果证明」（一次判定\n里的推理过程不在盘上），但至少这一行指得出的每一次调用都真的发生过。\n\n## 空表在**这一层**是合法的，在研究那条路径上不是\n\n这一格与 ``evidence_ids`` 的严格程度不同：没有证据的关系行写不出来（校验期\n直接报错），而没有判定支撑的关系行**写得出来** —— ``remember_responsibility``\n那条手工路径就是人把结论交上来，它手里没有、也不该有判定台账。它的行如实\n带着空表，而那正是「这一行不是判出来的」的读法。\n\n研究那条路径上不允许空：``remember_researched_relations`` 的每一条结论本来\n就必须带 ``decision_id`` 并当场回库核对，核对不过的那一行根本不写。",
+  "properties": {
+    "account_id": {
+      "title": "Account Id",
+      "type": "string"
+    },
+    "decision_record_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Decision Record Ids",
+      "type": "array"
+    },
+    "evidence_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Evidence Ids",
+      "type": "array"
+    },
+    "first_seen_at": {
+      "format": "date-time",
+      "title": "First Seen At",
+      "type": "string"
+    },
+    "last_verified_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Verified At"
+    },
+    "relation": {
+      "$ref": "#/$defs/VenueRelation"
+    },
+    "venue_asset_id": {
+      "title": "Venue Asset Id",
+      "type": "string"
+    },
+    "workspace": {
+      "title": "Workspace",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workspace",
+    "account_id",
+    "venue_asset_id",
+    "relation",
+    "first_seen_at"
+  ],
+  "title": "AccountVenueRelation",
+  "type": "object"
+}

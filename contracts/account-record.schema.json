@@ -1,0 +1,76 @@
+{
+  "$defs": {
+    "AccountStatus": {
+      "description": "**账号**的准入状态 —— SOP v1 L188 左侧状态机。\n\n账号的单位是「拥有 / 运营 / 维护 / 预约控制 / 采购某个场地资产的责任实体」，\n不是单个 pitch，也不是一个场地名。因此它与 :class:`Grade` **正交**：\n\n* 本枚举回答「这个组织值不值得研究」；\n* :class:`Grade` 回答「已经拿到的那条联系路线属于哪一级」。\n\n把两者合成一个枚举，就没法表达「账号 eligible，但已经拿到的路线是 X」\n这种真实且常见的情形（组织对，人不对）。合并不省事，只是把信息删掉。",
+      "enum": [
+        "discovered",
+        "eligible",
+        "hold",
+        "irrelevant",
+        "duplicate",
+        "researched",
+        "archived"
+      ],
+      "title": "AccountStatus",
+      "type": "string"
+    },
+    "Cohort": {
+      "description": "§10 第一条 Demo 的三类账号。",
+      "enum": [
+        "known_success",
+        "accessible_no_core_email",
+        "previously_blocked"
+      ],
+      "title": "Cohort",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "名单里的一个待研究账号 —— 拥有 / 运营 / 维护 / 预约控制 / 采购场地的组织。\n\n``status`` 是**账号准入**状态（SOP v1 L188 左侧状态机），与路线等级正交：\n组织可以 eligible 而已拿到的路线是 X。判定它的规则在 ``grading.yaml`` 的\n``x_rules`` —— 见 ``marketops/application/grading.py`` 的 ``grade_account``。\n\n``x_rules`` 今天六条，六条都编译出了可求值的 ``requires``。但事实的**供给**\n分成两类，而两类今天落到同一个判词上：\n\n* **这张记录自己的字段** —— 只有 ``out_of_region`` 引用（``country``），\n  有真生产者，写出来就判得了；\n* **候选事实** —— 其余五条引用场地环境 / 组织形态 / 表面类别 / 抓取统计，\n  它们的载体是候选行（``marketops/domain/candidate.py``），在**这张记录**\n  上一个都没有，引擎手上的值是 ``None``。\n\n``None`` 是**未确认**，未确认的子句**在任何极性下都不决定**（包括取反），\n于是这两类都落进 ``unchecked``。判词是 ``unresolved_facts``，**不是**\n``no_rule_fired`` —— 后者留给「排到结论为止每一条都判了、一条都没命中」，\n是**唯一**能说「核对过，确实没有」的判词，本仓今天还说不出口。\n\n``country`` 自己那条也有未确认的形态：**它的缺省曾经是 ``\"UK\"``**，于是没写\n国家的记录带着一个没人做过的判定进了求值，``out_of_region`` 对它**静默不触发**\n—— 报告上的读法是「这个账号在区域内」。缺省改成 ``None`` 之后它落进\n``unchecked``，读成「没人查过」，而 ``unchecked`` 是能被看见的。\n\n``ProfileBundle.unknowns`` 与 ``DeclaredGrading.ungradeable`` 说的是**装载期**\n的「事实名缺失」，与这里的**运行期**「值未确认」是两件事，一个为空不代表\n另一个为空。\n\n``account_id`` 是账号键。**场地名不是键**：一个 Council 管很多场地，\n一个场地可能由别的组织运营维护，一个人可以对多个场地负责 ——\n这些关系在 ``AccountVenueRelation`` 里，不在这个字段里。",
+  "properties": {
+    "account_id": {
+      "title": "Account Id",
+      "type": "string"
+    },
+    "cohort": {
+      "$ref": "#/$defs/Cohort"
+    },
+    "country": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Country"
+    },
+    "domain": {
+      "default": "",
+      "title": "Domain",
+      "type": "string"
+    },
+    "notes": {
+      "default": "",
+      "title": "Notes",
+      "type": "string"
+    },
+    "organisation": {
+      "title": "Organisation",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/AccountStatus",
+      "default": "discovered"
+    }
+  },
+  "required": [
+    "account_id",
+    "organisation",
+    "cohort"
+  ],
+  "title": "AccountRecord",
+  "type": "object"
+}

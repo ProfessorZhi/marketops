@@ -1,0 +1,15 @@
+{
+  "_status": "unverified — no instance of this client is reachable from the machine where this file was written; see install.md and RECEIPT.md",
+  "_authority": "the client's own documentation",
+  "_required_facts": [
+    "the Streamable HTTP endpoint of your deployment",
+    "the credential, supplied by reference through the client's own managed configuration",
+    "the principal mapping for this deployment"
+  ],
+  "mcpServers": {
+    "marketops": {
+      "type": "http",
+      "url": "<marketops-mcp-endpoint>"
+    }
+  }
+}
