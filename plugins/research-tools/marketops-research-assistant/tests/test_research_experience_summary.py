@@ -210,7 +210,7 @@ class NoteTests(unittest.TestCase):
                 ("problem", "see https://example.org/team for the list"),
                 ("action_taken", "used key sk-abcdefghijklmnopqrstuvwxyz012345"),
                 ("observed_result", "got cookie session=abc123def456ghi789"),
-                ("hypothesis", "token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"),
+                ("hypothesis", "token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"),  # gitleaks:allow
             ]
             for field, value in bad:
                 payload = dict(run_id="run-a", note_id="note-" + field + str(len(value)),

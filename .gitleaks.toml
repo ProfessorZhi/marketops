@@ -1,0 +1,50 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "tests/test_application_workstream.py:88 generic-api-key (synthetic fixture or public-main baseline false positive)"
+paths = ['''^tests/test_application_workstream\.py$''']
+regexTarget = "match"
+regexes = ['''KEY = "launch-2026-09-29-natural-grass"''']
+
+[[allowlists]]
+description = "tests/test_domain_workstream.py:51 generic-api-key (synthetic fixture or public-main baseline false positive)"
+paths = ['''^tests/test_domain_workstream\.py$''']
+regexTarget = "match"
+regexes = ['''KEY = "launch-2026-09-29-natural-grass"''']
+
+[[allowlists]]
+description = "tests/test_mcp_product_loop.py:1175 generic-api-key (synthetic fixture or public-main baseline false positive)"
+paths = ['''^tests/test_mcp_product_loop\.py$''']
+regexTarget = "match"
+regexes = ['''key": "src-0123456789abcdef"''']
+
+[[allowlists]]
+description = "tests/test_mcp_responsibility_relations.py:209 generic-api-key (synthetic fixture or public-main baseline false positive)"
+paths = ['''^tests/test_mcp_responsibility_relations\.py$''']
+regexTarget = "match"
+regexes = ['''idempotency_key": "responsibility-relations-1"''']
+
+[[allowlists]]
+description = "tests/test_mcp_responsibility_relations.py:277 generic-api-key (synthetic fixture or public-main baseline false positive)"
+paths = ['''^tests/test_mcp_responsibility_relations\.py$''']
+regexTarget = "match"
+regexes = ['''idempotency_key": "responsibility-relations-2"''']
+
+[[allowlists]]
+description = "tests/test_plugin_skill_has_no_authority.py:210 generic-api-key (synthetic fixture or public-main baseline false positive)"
+paths = ['''^tests/test_plugin_skill_has_no_authority\.py$''']
+regexTarget = "match"
+regexes = ['''api_key = "abcdef123456"''']
+
+[[allowlists]]
+description = "tests/test_mcp_workspace.py:654 generic-api-key (synthetic fixture or public-main baseline false positive)"
+paths = ['''^tests/test_mcp_workspace\.py$''']
+regexTarget = "match"
+regexes = ['''idempotency_key="foreign-assignment-v1"''']
+
+[[allowlists]]
+description = "tests/test_workstream_store_contract.py:67 generic-api-key (synthetic fixture or public-main baseline false positive)"
+paths = ['''^tests/test_workstream_store_contract\.py$''']
+regexTarget = "match"
+regexes = ['''KEY = "launch-2026-09-29-natural-grass"''']

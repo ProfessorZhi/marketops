@@ -129,7 +129,7 @@ class LiteTests(unittest.TestCase):
         with patch.dict(os.environ, {
             "MARKETOPS_RESEARCH_ALLOW_NETWORK": "1",
             "MARKETOPS_RESEARCH_MAX_EXTERNAL_CALLS": "2",
-            "CRAWL4AI_API_KEY": "synthetic-secret-crawl4ai",
+            "CRAWL4AI_API_KEY": "synthetic-secret-crawl4ai",  # gitleaks:allow
         }):
             def response(request, timeout):
                 self.assertEqual("https://api.crawl4ai.com/scrape", request.full_url)
