@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "tinyfish": {
+      "type": "streamableHttp",
+      "url": "https://mcp.tinyfish.ai",
+      "timeout": 30000,
+      "disabledTools": [
+        "run_web_automation",
+        "create_monitor",
+        "run_monitor",
+        "resume_monitor",
+        "cancel_monitor",
+        "cancel_run",
+        "create_profile",
+        "start_profile_setup_session",
+        "save_profile_setup_session"
+      ]
+    }
+  }
+}

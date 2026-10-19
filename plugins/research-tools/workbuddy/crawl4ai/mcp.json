@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "crawl4ai": {
+      "type": "streamableHttp",
+      "url": "https://api.crawl4ai.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${CRAWL4AI_API_KEY}"
+      },
+      "timeout": 30000,
+      "disabledTools": [
+        "topup",
+        "recharge",
+        "spend_cap",
+        "report_issue"
+      ]
+    }
+  }
+}

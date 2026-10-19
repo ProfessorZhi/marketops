@@ -76,7 +76,7 @@ _REFUSED: tuple[tuple[str, TargetRefusal], ...] = (
     ("", TargetRefusal.SCHEME),
     # -- 凭据：URL 里带 userinfo 是典型的 SSRF 混淆手法 --
     ("https://trusted.example.com@evil.example.com/", TargetRefusal.USERINFO),
-    ("https://user:pass@example.co.uk/", TargetRefusal.USERINFO),
+    ("https://user:pass@example.co.uk/", TargetRefusal.USERINFO),  # trufflehog:ignore
     # -- 内网 / 环回 / 链路本地 / CGNAT：一律不属于「公开页面」 --
     ("http://127.0.0.1/", TargetRefusal.PRIVATE_TARGET),
     ("http://127.0.0.1:80/admin", TargetRefusal.PRIVATE_TARGET),

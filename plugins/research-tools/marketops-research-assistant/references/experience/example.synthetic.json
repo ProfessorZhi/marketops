@@ -1,0 +1,97 @@
+{
+  "schema_version": "marketops.experience.v1",
+  "run_id": "synthetic-run-001",
+  "scope": "synthetic public staff-page extraction; not an active business policy",
+  "store_ref": "synthetic-pack-001",
+  "rule_version": "synthetic-policy-v1",
+  "skill_version": "0.2.1",
+  "privacy": "sanitized_candidate",
+  "promotion": "candidate_only",
+  "evidence_manifest": [
+    {
+      "ref": "receipt-1",
+      "kind": "synthetic",
+      "locator": "fixtures/receipt-1.json",
+      "sha256": null
+    },
+    {
+      "ref": "train-1",
+      "kind": "synthetic",
+      "locator": "fixtures/train-1.html",
+      "sha256": null
+    },
+    {
+      "ref": "holdout-1",
+      "kind": "synthetic",
+      "locator": "fixtures/holdout-1.html",
+      "sha256": null
+    },
+    {
+      "ref": "result-1",
+      "kind": "test_result",
+      "locator": "fixtures/test-result-1.json",
+      "sha256": null
+    }
+  ],
+  "incidents": [
+    {
+      "id": "I-001",
+      "stage": "acquisition",
+      "category": "extraction",
+      "operation_ref": "op-001",
+      "expected": "Extract visible work-email links from the supplied synthetic HTML",
+      "observation": "Synthetic receipt reports the material is present but extracted contact rows are empty",
+      "impact": "Contacts remain candidates; no verified route promoted",
+      "hypothesis": "Text cleanup may discard mailto attributes",
+      "root_cause_status": "hypothesis",
+      "evidence_refs": [
+        "receipt-1"
+      ],
+      "validation_refs": [],
+      "next_action": "Inspect the existing HTML before making another provider request"
+    }
+  ],
+  "lessons": [
+    {
+      "id": "L-001",
+      "status": "draft",
+      "when": "Material is available but expected fields disappeared",
+      "do": "Compare material and extraction output before spending on another browser fetch",
+      "avoid": "Assume every empty extraction is a site-access failure",
+      "scope": "Same parser and declared HTML layout; not all websites",
+      "limitations": "Synthetic example only; no measured real-customer impact",
+      "proposed_change": "Evaluate a link-preserving parser path, not a policy relaxation",
+      "rollback": "Keep current parser and original data until representative tests pass",
+      "incident_ids": [
+        "I-001"
+      ],
+      "evidence_refs": [
+        "receipt-1"
+      ],
+      "counterexample_refs": [],
+      "replay": {
+        "baseline": "Existing extraction behavior",
+        "change": "Preserve link attributes",
+        "acceptance": "Recover literal fields without crossing staff-record boundaries",
+        "status": "not_run",
+        "training_cases": [
+          "train-1"
+        ],
+        "holdout_cases": [
+          "holdout-1"
+        ],
+        "result_refs": []
+      }
+    }
+  ],
+  "metrics": [
+    {
+      "name": "provider_spend",
+      "value": null,
+      "denominator": null,
+      "unit": "currency_unknown",
+      "population": "this synthetic run",
+      "evidence_refs": []
+    }
+  ]
+}

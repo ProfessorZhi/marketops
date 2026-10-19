@@ -2371,7 +2371,7 @@ def test_a_crawl_without_an_account_says_so_on_every_page(settings, researcher) 
 #: ``known_accounts`` 清单里身份那一格写着内部 id。右边那个只是把名字填对了，
 #: 别的每一格都一样 —— 两条判据之间**只差这一个变量**。
 SLUG = "kent-003"
-NAMED = "Example School One"
+NAMED = "example-school-one"
 NAMED_ORGANISATION = "Example School One"
 
 

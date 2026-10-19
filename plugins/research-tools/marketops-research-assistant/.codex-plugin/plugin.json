@@ -1,0 +1,7 @@
+{
+  "name": "marketops-research-assistant",
+  "version": "0.4.0",
+  "description": "Member-A-grounded Skills and one Lite Research MCP wrapping SerpApi/Serper search, Crawl4AI, TinyFish and Jev; candidate-only store and experience journal",
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json"
+}
