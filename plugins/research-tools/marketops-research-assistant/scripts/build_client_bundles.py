@@ -337,11 +337,13 @@ def build(output: Path, *, with_search_mcp: bool = False,
     }
 
 
-def build_source(output: Path) -> dict:
+def build_source(output: Path, qa_receipt: Path | None = None) -> dict:
     """Portable customer input, unlike an installed WorkBuddy connector.
 
     Contains no venv, browser binary, credentials or machine-specific host
     configuration. The customer runs the included platform installer locally.
+    QA is a separately produced artifact: never regenerate or manufacture it
+    here. Only a supplied receipt matching the copied bytes makes a release.
     """
     from setup_clients import source_files, source_digest
     output = output.expanduser().resolve()
@@ -351,21 +353,47 @@ def build_source(output: Path) -> dict:
     archive = output / f"marketops-research-assistant-v{META['version']}-source.zip"
     if target.exists() or archive.exists():
         raise FileExistsError("SOURCE_ARCHIVE_DESTINATION_EXISTS")
+    if qa_receipt is not None:
+        supplied = qa_receipt.expanduser()
+        if supplied.is_symlink():
+            raise ValueError("BUILD_QA_RECEIPT_MUST_BE_EXTERNAL_FILE")
+        qa_receipt = supplied.resolve()
+        if qa_receipt.is_relative_to(HERE):
+            raise ValueError("BUILD_QA_RECEIPT_MUST_BE_EXTERNAL_FILE")
+        if not qa_receipt.is_file():
+            raise FileNotFoundError("BUILD_QA_RECEIPT_MISSING")
     _verify_egress_slice(HERE / "scripts" / "marketops_safe_egress")
     target.mkdir(parents=True)
     for source in source_files():
+        if source.relative_to(HERE).as_posix() == "references/BUILD_QA.json":
+            # A stale generated receipt in a developer checkout must not turn
+            # a no-receipt preview into a misleading accepted package.
+            continue
         copied = target / source.relative_to(HERE)
         copied.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, copied)
+    qa_verified = False
+    qa_sha256 = None
+    if qa_receipt is not None:
+        receipt_copy = target / "references" / "BUILD_QA.json"
+        shutil.copy2(qa_receipt, receipt_copy)
+        from research_runtime_setup import verify_build_receipt
+        if not verify_build_receipt(target)["ok"]:
+            raise ValueError("BUILD_QA_STALE_OR_INVALID")
+        qa_verified = True
+        qa_sha256 = hashlib.sha256(receipt_copy.read_bytes()).hexdigest()
     manifest = {"schema": "marketops.source-package.v1", "version": META["version"],
                 "source_sha256": source_digest(), "portable": True,
+                "qa_verified": qa_verified, "qa_receipt_sha256": qa_sha256,
                 "files": {p.relative_to(target).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
                           for p in sorted(target.rglob("*")) if p.is_file()}}
     (target / "SOURCE_MANIFEST.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     make_zip(target, archive)
     sha = hashlib.sha256(archive.read_bytes()).hexdigest()
     (output / (archive.name + ".sha256")).write_text(f"{sha}  {archive.name}\n", encoding="ascii")
-    return {"status": "SOURCE_PACKAGE_BUILT", "portable": True, "directory": str(target),
+    return {"status": "SOURCE_PACKAGE_BUILT" if qa_verified else "SOURCE_PACKAGE_PREVIEW_BUILT",
+            "portable": True, "directory": str(target),
+            "qa_verified": qa_verified, "qa_receipt_sha256": qa_sha256,
             "zip": str(archive), "zip_sha256": sha,
             "source_sha256": manifest["source_sha256"],
             "supported_runtime": "Python 3.12; Windows/Linux x64",
@@ -376,6 +404,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True, help="explicit user-owned destination outside source")
     parser.add_argument("--source-package", action="store_true", help="build the portable source installer ZIP")
+    parser.add_argument("--qa-receipt", type=Path,
+                        help="external real BUILD_QA receipt; must match the copied source before release ZIP creation")
     parser.add_argument("--with-search-mcp", action="store_true", help="legacy dual-search local MCP")
     parser.add_argument("--with-research-mcp", action="store_true", help="one local MCP for all 5 provider integrations (beta)")
     parser.add_argument("--browser-cache", type=Path,
@@ -383,8 +413,10 @@ def main() -> int:
     args = parser.parse_args()
     if args.source_package and (args.with_search_mcp or args.with_research_mcp or args.browser_cache):
         parser.error("--source-package cannot bind this machine's MCP or browser paths")
+    if args.qa_receipt and not args.source_package:
+        parser.error("--qa-receipt requires --source-package")
     try:
-        result = build_source(args.output) if args.source_package else build(args.output, with_search_mcp=args.with_search_mcp,
+        result = build_source(args.output, qa_receipt=args.qa_receipt) if args.source_package else build(args.output, with_search_mcp=args.with_search_mcp,
                                with_research_mcp=args.with_research_mcp,
                                browser_cache=args.browser_cache)
         print(json.dumps(result, ensure_ascii=False, indent=2))

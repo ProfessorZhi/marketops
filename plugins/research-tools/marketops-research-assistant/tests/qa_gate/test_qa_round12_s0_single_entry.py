@@ -354,7 +354,16 @@ def test_a_t0_invocation_is_local_and_settles_at_zero(clean_env, data_root):
     policy = _require("research_policy", "policy module")
     ledger_module = _require("research_usage_ledger", "usage ledger")
 
-    ledger = ledger_module.for_root(data_root)
+    # This adapter is an explicitly local, no-socket test control. Give it an
+    # explicit zero-price fixture; the product's unverified credits-only USD
+    # placeholder cannot establish a zero charge for an actual vendor read.
+    local_pricing = ledger_module.PricingCatalog.from_entries([{
+        "provider": "tinyfish", "capability": "wallet_read", "unit_micros": 0,
+        "quota_unit": "requests", "quota_per_call": 1,
+        "source": "SYNTHETIC_LOCAL_CONTROL_NOT_VENDOR_RATE", "version": "test-1",
+        "observed_at": "2026-10-20T00:00:00+00:00", "verified": True, "free_tier": True,
+    }])
+    ledger = ledger_module.for_root(data_root, pricing=local_pricing)
     project = ledger_module.project_for_root(data_root)
     ledger.set_cap("run", f"{project}/r1", ceiling_calls=50, source="qa-fixture")
 
@@ -383,7 +392,7 @@ def test_a_t0_invocation_is_local_and_settles_at_zero(clean_env, data_root):
 
     adapter = LocalT0()
     built = wiring.build_gateway(
-        root=data_root, adapters={"tinyfish": adapter},
+        root=data_root, adapters={"tinyfish": adapter}, ledger=ledger,
         policy=policy.Policy(registry=registry.DEFAULT_REGISTRY, network_enabled=True))
 
     attempts = []

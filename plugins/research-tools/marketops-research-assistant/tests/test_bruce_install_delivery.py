@@ -56,6 +56,34 @@ class CredentialTests(unittest.TestCase):
 
 
 class DeliveryTests(unittest.TestCase):
+    def test_source_package_verifies_external_qa_receipt_before_creating_archive(self):
+        import research_runtime_setup as runtime
+        # Synthetic fixture exercises the hash contract only. It is never
+        # published or presented as actual release QA evidence.
+        receipt = {"schema": "marketops.build-qa.v1", "source_revision": "a" * 40,
+                   "files": runtime.source_manifest(ROOT), "unit_test_fixture": True,
+                   "test": {"returncode": 0, "tests_run": 1, "suite": "plugin-unittest-discovery",
+                            "log_sha256": "b" * 64}}
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            qa = base / "external-qa.json"
+            qa.write_text(json.dumps(receipt), encoding="utf-8")
+            result = build_client_bundles.build_source(base / "valid", qa_receipt=qa)
+            self.assertTrue(result["qa_verified"])
+            copied = Path(result["directory"]) / "references/BUILD_QA.json"
+            self.assertEqual(qa.read_bytes(), copied.read_bytes())
+            self.assertTrue(runtime.verify_build_receipt(Path(result["directory"]))["ok"])
+            receipt["files"][next(iter(receipt["files"]))] = "0" * 64
+            qa.write_text(json.dumps(receipt), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "BUILD_QA_STALE_OR_INVALID"):
+                build_client_bundles.build_source(base / "stale", qa_receipt=qa)
+            self.assertFalse(list((base / "stale").glob("*.zip")))
+            receipt["schema"] = "wrong"
+            qa.write_text(json.dumps(receipt), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "BUILD_QA_STALE_OR_INVALID"):
+                build_client_bundles.build_source(base / "wrong", qa_receipt=qa)
+            self.assertFalse(list((base / "wrong").glob("*.zip")))
+
     def test_existing_scope_amendment_displays_usage_and_requires_local_confirmation(self):
         import contextlib
         import io
@@ -85,6 +113,9 @@ class DeliveryTests(unittest.TestCase):
             for name in ("Install.cmd", "Install.ps1", "install.sh", "START_HERE.md", "scripts/research_credentials.py", "scripts/setup_clients.py", ".codex-plugin/plugin.json", ".mcp.json"):
                 self.assertTrue((package / name).is_file(), name)
             self.assertTrue(result["portable"])
+            self.assertFalse(result["qa_verified"])
+            self.assertEqual("SOURCE_PACKAGE_PREVIEW_BUILT", result["status"])
+            self.assertFalse((package / "references/BUILD_QA.json").exists())
             self.assertFalse((package / "tests").exists())
             self.assertNotIn(str(ROOT), (package / "mcp.json").read_text())
             self.assertTrue((package / "references/experience/method-seeds.json").is_file())
