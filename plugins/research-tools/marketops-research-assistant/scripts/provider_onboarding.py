@@ -63,7 +63,10 @@ def report(*, provider: str = "all", client: str = "claude",
     data = read_catalog(path)
     if provider != "all" and provider not in EXPECTED_IDS:
         raise ValueError("UNKNOWN_PROVIDER")
-    env = os.environ if environ is None else environ
+    env = dict(os.environ) if environ is None else environ
+    if environ is None:
+        from research_credentials import load_into_environment
+        load_into_environment(env)  # presence-only report; do not mutate the host environment
     selected = [p for p in data["providers"] if provider in ("all", p["id"])]
     package = {"mcp_python_sdk": _module_available("mcp"),
                "typesafe_python_sdk": _module_available("typesafe_sdk"),
@@ -96,12 +99,15 @@ def report(*, provider: str = "all", client: str = "claude",
             },
             "capabilities": entry["capabilities"],
             "separate_site_login": entry["separate_site_login"],
+            "account_required": entry.get("account_required", entry["id"] != "crawl4ai"),
+            "trial_offer": entry.get("trial_offer"),
             "os_keyring_oauth_tokens_present": (has_saved_tokens() if
                 entry["id"] == "tinyfish" else False),
         })
     return {
         "status": "GUIDE_ONLY_NO_NETWORK_OR_AUTH", "schema": data["schema"],
         "client": client, "provider_count": len(rows), "local_runtime": package,
+        "cloud_account_count": sum(p["account_required"] for p in rows),
         "providers": rows,
         "paid_calls_enabled": False,
         "host_mcp_registration_performed": False,
@@ -125,6 +131,7 @@ def format_text(data: dict) -> str:
                 "playwright_python_sdk"):
         out.append(f"- {key}: {'已发现' if installed[key] else '未发现（可选择安装）'}")
     out.append("- Chromium 启动状态：未在此工具验证")
+    out.append("- 需要四个云服务账户：Serper、SerpApi、TinyFish、TypeSafe；Crawl4AI 本地无需账户。")
     for p in data["providers"]:
         out.extend([
             "",
@@ -138,7 +145,13 @@ def format_text(data: dict) -> str:
             f"认证方式：{p['official_mcp']['auth'] or '未核实官方独立 MCP'}",
         ])
         for step in p["official_mcp"]["client_steps"]:
-            out.append(f"- 客户端待执行步骤（需用户批准）：{step}")
+            out.append(f"- 连接方式：{step}")
+        if p["trial_offer"]:
+            offer = p["trial_offer"]
+            out.extend([f"- 新用户额度（核查 {offer['checked_at']}）：{offer['summary']}",
+                        f"- 申请 Key：{offer['api_key_url']}",
+                        f"- 余额/有效期：{offer['balance_url']}（以自己账户为准）",
+                        f"- 官方活动依据：{offer['source_url']}"])
         if p["id"] == "tinyfish":
             out.append("- 可选：使用安装凭据所列的research_official_mcp_auth.py命令，由账号持有人在本机完成OAuth；OS Keyring中仅报告凭据有无（不是实际已认证）。")
             out.append("- TinyFish Agent收费功能默认禁用，不会因为OAuth成功自动开启。")
@@ -149,8 +162,8 @@ def format_text(data: dict) -> str:
     out.extend([
         "",
         "## 下一步",
-        "1. 仅选择实际需要的服务，到官网注册；不要求一次申请五个账号。",
-        "2. Lite REST/SDK 的 Key 在客户 OS Secret Store/环境或WorkBuddy密码输入中配置；不要输入聊天或提交到Git。",
+        "1. 到四家官网注册/登录现有账户，按官方条件领取新用户额度；Crawl4AI 本地无需第五个账号。",
+        "2. 运行安装回执 credentials_configure_argv 或 customer_setup_argv，在本地隐藏输入四个 Key，存入原生系统凭据库；不要输入聊天或提交到Git。",
         "3. TinyFish/SerpApi官方MCP客户端已内嵌；用户自行配置API Key或在本机用可选OAuth命令完成TinyFish登录，确认实际 tools/list 与账户额度。",
         "4. 先配置两条本地数据路径。网络与付费上限默认关闭；授权时明确项目、站点、调用次数与钱包。",
         "5. 先做不付费的tools/list与只读状态检查，再考虑小规模真实调研。",

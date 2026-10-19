@@ -306,7 +306,7 @@ class PolicyTests(unittest.TestCase):
         self.assertIs(verdict, contract.SchemaVerdict.ABSENT)
         registry_with_drift = registry().with_schema_verdicts({"serper.search": verdict})
         decision = self.policy(registry=registry_with_drift).evaluate(
-            request("serper.search", {"q": "venue"}))
+            request("serper.search", {"query": "venue"}))
         self.assertEqual(decision.reason_code, "CAPABILITY_SCHEMA_DRIFT")
 
     def test_an_unresolvable_grant_reference_is_not_a_grant(self):

@@ -11,10 +11,9 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT.parent / "tests"))
-import _s0_evidence_fixture as s0_fixture
 import research_official_mcp as official
-import research_provider_extensions as extra
 import research_mcp as mcp
+import _runtime_mcp_fixture as runtime_fixture
 
 BRIEF = {"record_type": "research_brief", "target_kind": "venue",
          "goal": "pool", "require_named_person": False, "minimum_targets": None}
@@ -34,7 +33,6 @@ import sys as _sys
 import pathlib as _pathlib
 
 _sys.path.insert(0, str(_pathlib.Path(__file__).resolve().parent))
-import wave1_grant_fixture
 import wave1_pricing_fixture
 
 wave1_pricing_fixture.install()
@@ -75,7 +73,7 @@ class EmbeddedMCPTests(unittest.TestCase):
         env.start()
         self.addCleanup(env.stop)
         mcp.start("embedded-run","example","test official clients","unverified",BRIEF)
-        s0_fixture.install(self.root)
+        runtime_fixture.install(self, self.root)
 
     def test_endpoints_are_actual_official_mcp_and_no_arbitrary_url(self):
         self.assertEqual("https://agent.tinyfish.ai/mcp",official.ENDPOINTS["tinyfish"])
@@ -108,83 +106,36 @@ class EmbeddedMCPTests(unittest.TestCase):
         self.assertFalse((self.root / "state" / "provider-reservations.sqlite3").exists())
 
     def test_mocked_but_real_marketops_provider_adapter_uses_mcp_and_saves_artifact(self):
-        response={"tool_result":{"title":"Official Public Venue",
-                                 "url":"https://public.example.org/p",
-                                 "summary":"A public venue sample"},
-                  "provider":"tinyfish", "mcp_tool":"search",
-                  "transport":"OFFICIAL_STREAMABLE_HTTP_MCP",
-                  "auth_mode":"PROVIDER_BEARER_KEY",
-                  "actual_charge_usd":None,"provider_charge_verified":False}
-        with patch.object(extra.official_mcp,"call",return_value=response) as fn:
-            item=mcp.invoke("tinyfish_mcp_search","embedded-run","mcp-s1",
-                            query="public venue")
-        fn.assert_called_once()
-        self.assertEqual("SAVED_MATERIAL_NOT_VERIFIED",item["status"])
-        self.assertEqual("EMBEDDED_OFFICIAL_MCP_HTTP",
-                         item["invocation"]["marketops_to_provider"])
+        calls = []
+        runtime_fixture.bind(self, self.root, calls=calls)
+        item = mcp.invoke("tinyfish_mcp_search", "embedded-run", "mcp-s1", query="public venue")
+        self.assertEqual(1, len(calls))
+        self.assertEqual("SAVED_MATERIAL_NOT_VERIFIED", item["status"])
+        self.assertEqual("EMBEDDED_OFFICIAL_MCP_HTTP", item["invocation"]["marketops_to_provider"])
         self.assertFalse(item["invocation"]["billing"]["charge_verified"])
-        self.assertEqual("SAVED_NOT_BUSINESS_VERIFIED",item["artifact"]["storage_status"])
-        self.assertEqual("tinyfish_mcp_search",item["provider"])
+        self.assertEqual("SAVED_NOT_BUSINESS_VERIFIED", item["artifact"]["storage_status"])
+        self.assertEqual("tinyfish", item["provider"])
 
     def test_serpapi_generic_engine_is_validated_and_preserved_as_material(self):
-        payload={"params":{"engine":"google_scholar","q":"public venue policy",
-                           "num":3},"mode":"compact"}
-        official._validate("serpapi","search",payload)
-        response={"tool_result":{"organic_results":[
-                    {"title":"A policy","link":"https://public.example.org/policy"}]},
-                  "provider":"serpapi","mcp_tool":"search",
-                  "transport":"OFFICIAL_STREAMABLE_HTTP_MCP"}
-        with patch.object(extra.official_mcp,"call",return_value=response) as fn:
-            result=mcp.invoke("serpapi_mcp_search","embedded-run","mcp-sa1",
-                              mcp_params=payload["params"])
-        self.assertEqual("SAVED_MATERIAL_NOT_VERIFIED",result["status"])
-        self.assertEqual(payload["params"],fn.call_args.args[2]["params"])
+        calls = []
+        runtime_fixture.bind(self, self.root, calls=calls)
+        result = mcp.invoke("serpapi_mcp_search", "embedded-run", "mcp-sa1",
+                            mcp_params={"engine": "google_scholar", "q": "public venue policy", "num": 3})
+        self.assertEqual("SAVED_MATERIAL_NOT_VERIFIED", result["status"])
+        self.assertEqual("google_scholar", calls[0][2]["params"]["engine"])
+        self.assertEqual("compact", calls[0][2]["mode"])
+        self.assertTrue(result["artifact_ids"])
 
-    def test_paid_agent_submission_requires_optin_and_wallet_capped_by_provider(self):
-        args={"url":"https://public.example.org/p","goal":"Review the published website",
-              "agent_config":{"max_steps":4,"max_duration_seconds":45}}
-        with self.assertRaisesRegex(ValueError,"TINYFISH_AGENT_PAID_NOT_AUTHORIZED"):
-            mcp.invoke("tinyfish_mcp_agent","embedded-run","agent1",
-                       url=args["url"],question=args["goal"],
-                       mcp_params=args["agent_config"],paid_limit_usd="0.1")
-        self.assertFalse((self.root / "state" / "provider-reservations.sqlite3").exists())
-        # The ledger closes T3 unless a grant verifies against an out-of-band key;
-        # this test is about the code *behind* that gate, so it presents one.
-        grant = wave1_grant_fixture.mint_for(
-            self.root, run_id="embedded-run", provider="tinyfish",
-            capability="agent_run", account_ref="tinyfish")
-        with patch.dict(os.environ,{"MARKETOPS_TINYFISH_AGENT_ALLOW_PAID":"1"}):
-            with patch.object(extra.official_mcp,"call",return_value={
-                      "tool_result":{"runId":"run-demo-id"},"agent_run_id":"run-demo-id",
-                      "provider":"tinyfish","mcp_tool":"run_web_automation"}):
-                result=mcp.invoke("tinyfish_mcp_agent","embedded-run","agent2",
-                                  url=args["url"],question=args["goal"],
-                                  mcp_params=args["agent_config"],paid_limit_usd="0.10",
-                                  ledger_grant=grant)
-            self.assertEqual("MCP_AGENT_SUBMITTED_NOT_TERMINAL",result["status"])
-            self.assertEqual("run-demo-id",
-                             json.loads(Path(self.root / "artifacts" / "embedded-run" /
-                                  (extra.store._safe_name(result["artifact"]["artifact_id"])+".bin")
-                             ).read_text(encoding="utf-8"))["agent_run_id"])
-            self.assertTrue(extra._owns_submitted_agent_run(
-                self.root,"embedded-run","agent2","run-demo-id"))
-            with patch.object(extra.official_mcp,"call",return_value={
-                    "tool_result":{"status":"running"},
-                    "agent_lifecycle":"running",
-                    "provider":"tinyfish","mcp_tool":"wait_for_run"}) as q:
-                output=mcp.invoke("tinyfish_mcp_wait","embedded-run","poll-1",
-                                  mcp_params={"agent_run_id":"run-demo-id",
-                                              "origin_operation_id":"agent2","poll_index":1})
-            self.assertEqual("MCP_AGENT_RUNNING_NOT_BUSINESS_VERIFIED",output["status"])
-            # W-C measured the vendor's catalog: the run-status tool is
-            # `get_run(id)`, not `wait_for_run(run_id)`. This assertion used to
-            # pin the bridge's own invented verb; patch 1 corrected the bridge,
-            # so the expectation moves with it.
-            q.assert_called_once_with("tinyfish","get_run",{"id":"run-demo-id"})
-        with self.assertRaisesRegex(ValueError,"TINYFISH_AGENT_NOT_OWNED_BY_THIS_RESEARCH_RUN"):
-            mcp.invoke("tinyfish_mcp_wait","embedded-run","poll-2",
-                       mcp_params={"agent_run_id":"someone-elses-run",
-                                   "origin_operation_id":"agent2","poll_index":2})
+    def test_initial_product_profile_never_submits_paid_agents(self):
+        calls = []
+        runtime_fixture.bind(self, self.root, calls=calls)
+        with patch.dict(os.environ, {"MARKETOPS_TINYFISH_AGENT_ALLOW_PAID": "1"}):
+            with self.assertRaisesRegex(ValueError, "CAPABILITY_NOT_AVAILABLE"):
+                mcp.invoke("tinyfish_mcp_agent", "embedded-run", "agent1",
+                    url="https://public.example.org/p", question="Review public page",
+                    mcp_params={"max_steps": 4, "max_duration_seconds": 45}, paid_limit_usd="0.10")
+        self.assertEqual([], calls)
+        self.assertFalse((self.root / "state" / "usage-ledger.sqlite3").exists())
 
     def test_serpapi_multi_engine_flight_params_do_not_need_google_q(self):
         flight = {"params": {"engine": "google_flights", "departure_id": "SIN",
@@ -207,7 +158,7 @@ class EmbeddedMCPTests(unittest.TestCase):
 
     def test_invalid_agent_usd_ceiling_refused_before_attempt_reservation(self):
         with patch.dict(os.environ, {"MARKETOPS_TINYFISH_AGENT_ALLOW_PAID": "1"}):
-            with self.assertRaisesRegex(ValueError, "TINYFISH_AGENT_MAX_CHARGE_INVALID"):
+            with self.assertRaisesRegex(ValueError, "CAPABILITY_NOT_AVAILABLE"):
                 mcp.invoke("tinyfish_mcp_agent", "embedded-run", "invalid-money",
                            url="https://public.example.org/p",
                            question="Review a public website carefully",
@@ -246,7 +197,7 @@ class EmbeddedMCPTests(unittest.TestCase):
         self.assertIn("marketops_serpapi_mcp_search",tools)
         self.assertIn("marketops_tinyfish_agent",tools)
         self.assertIn("marketops_tinyfish_agent_wait",tools)
-        self.assertEqual(25,len(tools))
+        self.assertEqual(30,len(tools))
 
 
 if __name__=="__main__":

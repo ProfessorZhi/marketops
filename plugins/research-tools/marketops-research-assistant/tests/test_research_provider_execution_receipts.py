@@ -16,10 +16,9 @@ from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/"scripts"))
 sys.path.insert(0,str(ROOT/"tests"))
-import _s0_evidence_fixture as s0_fixture
 
 import research_mcp as mcp
-import research_provider_extensions as ext
+import _runtime_mcp_fixture as runtime_fixture
 import research_provider_policy as policy
 
 
@@ -82,7 +81,7 @@ class RouteReceiptTests(unittest.TestCase):
         env.start()
         self.addCleanup(env.stop)
         mcp.start("route-run","generic region","venue research","unknown",BRIEF)
-        s0_fixture.install(self.root)
+        runtime_fixture.install(self, self.root)
 
     def test_lite_uses_mcp_outer_and_actual_vendor_rest_or_sdk_inner(self):
         scenarios={
@@ -117,57 +116,62 @@ class RouteReceiptTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,"UNKNOWN_OFFICIAL_MCP_PROVIDER"):
                 policy.official_mcp_route(name)
         caps=mcp.capabilities()
-        self.assertEqual(12,len(caps["lite_invocation_channels"]))
-        self.assertEqual({"crawl4ai"},
-                         set(caps["official_mcp_channels"]))
+        self.assertEqual("REQUEST_COUNT", caps["runtime"]["budget_mode"])
+        self.assertEqual("EMBEDDED_OFFICIAL_MCP", caps["providers"]["serpapi"]["transport"])
         self.assertEqual({"tinyfish","serpapi"},
                          set(caps["embedded_official_mcp"]))
-        self.assertEqual("X_API_KEY_HTTP_HEADER",
-                         caps["lite_invocation_channels"]["serper"]["credential_delivery"] )
-        self.assertEqual("API_KEY_HTTPS_QUERY_PARAMETER",
-                         caps["lite_invocation_channels"]["serpapi"]["credential_delivery"])
-        self.assertEqual("EMBEDDED_TINYFISH_SERPAPI_MCP_CLIENT_SHIPPED_AUTH_NOT_VERIFIED",
-                         caps["connection_state"])
+        self.assertFalse(caps["runtime"]["dollar_limit_enforced"])
+        self.assertIsNone(caps["budgets"]["managed"]["actual_usd"])
 
     def test_real_marketops_search_wrapper_receipt_is_not_invoice(self):
-        with patch.object(mcp.dual_search_mcp,"search",return_value={
-            "status":"DISCOVERED_NOT_VERIFIED","results":[],
-            "calls_reserved":1}) as method:
-            result=mcp.search("serper","test example","SG","en",
-                              "route-run","search1")
-        method.assert_called_once()
-        info=result["invocation"]
-        self.assertEqual("serper",info["provider"])
-        self.assertEqual("REST_HTTPS",info["marketops_to_provider"])
-        self.assertEqual("ONE_ATTEMPT_RESERVED_NOT_BILL_VERIFIED",
-                         info["billing"]["reservation"])
+        from contextlib import contextmanager
+        import io
+        calls = []
+        @contextmanager
+        def wire(request, timeout):
+            calls.append(request.full_url)
+            response = io.BytesIO(b'{"organic": []}')
+            response.status = 200
+            yield response
+        with patch.dict(os.environ, {"SERPER_API_KEY": "fixture-key"}), \
+                patch("research_runtime_transport.serper_transport", wire):
+            result = mcp.search("serper", "test example", "SG", "en", "route-run", "search1")
+        self.assertEqual(1, len(calls))
+        info = result["invocation"]
+        self.assertEqual("serper", info["provider"])
+        self.assertEqual("REST_HTTPS", info["marketops_to_provider"])
+        self.assertEqual("ONE_ATTEMPT_RESERVED_NOT_BILL_VERIFIED", info["billing"]["reservation"])
         self.assertIsNone(info["billing"]["actual_amount"])
 
     def test_local_crawler_receipt_and_event_show_sdk_not_cloud_api(self):
-        fake={"url":"https://public.example.org/about",
-              "markdown":"Public Example Museum operates this facility.",
-              "_rendered_html":"<main>Public Example Museum operates this facility.</main>",
-              "material_kind":"provider_extracted"}
-        with patch.object(ext,"_crawl4ai_local",return_value=fake):
-            with patch.object(ext.importlib.util,"find_spec",return_value=object()):
-                result=mcp.invoke("crawl4ai_local","route-run","crawl1",
-                                  url="https://public.example.org/about")
-        self.assertEqual("SAVED_MATERIAL_NOT_VERIFIED",result["status"])
-        self.assertEqual("LOCAL_PYTHON_SDK",
-                         result["invocation"]["marketops_to_provider"])
-        self.assertEqual("LOCAL_COMPUTE_AND_BROWSER",
-                         result["invocation"]["billing"]["unit"])
+        from contextlib import contextmanager
+        from types import SimpleNamespace
+        from crawl4ai_fixtures import FakeCrawl4AI, FakeCrawlerResult
+        import research_egress as egress
+        @contextmanager
+        def bound(**kwargs):
+            self.assertEqual(str(self.root / "cache" / "crawl4ai"),
+                             os.environ["CRAWL4_AI_BASE_DIRECTORY"])
+            yield SimpleNamespace(proxy=SimpleNamespace(url="http://127.0.0.1:9", decisions=[]),
+                gate=SimpleNamespace(check=lambda *a: SimpleNamespace(allowed=True, address="203.0.113.10")),
+                browser_config_kwargs=lambda: {"proxy_config": {"server": "http://127.0.0.1:9"},
+                    "extra_args": ["--proxy-bypass-list=<-loopback>", "--disable-quic"]})
+        sdk = FakeCrawl4AI(default=FakeCrawlerResult(
+            html="<main>Public Example Museum operates this facility.</main>"))
+        with patch.object(egress, "safe_browser_egress", bound), \
+                patch("research_adapter_crawl4ai.crawl4ai_available", return_value=True), \
+                patch("research_adapter_crawl4ai._crawl4ai_module", return_value=sdk), \
+                patch("research_runtime_setup.importlib.util.find_spec", return_value=object()):
+            result = mcp.invoke("crawl4ai_local", "route-run", "crawl1", url="https://public.example.org/about")
+        self.assertEqual("LOCAL_PYTHON_SDK", result["invocation"]["marketops_to_provider"])
         self.assertIsNone(result["invocation"]["billing"]["actual_amount"])
-        report=mcp.provider_events("route-run")
-        self.assertEqual("NOT_MONITORED_BY_LITE",report["external_official_mcp_activity"])
-        latest=report["latest_lite_provider_call"]
-        self.assertEqual("crawl4ai_local",latest["invocation"]["operation"])
-        self.assertEqual("LOCAL_PYTHON_SDK",
-                         latest["invocation"]["marketops_to_provider"])
-        self.assertEqual("succeeded",latest["status"])
+        self.assertTrue(result["primary_artifact_ids"])
+        self.assertEqual([str(self.root / "cache" / "crawl4ai")], sdk.base_directories)
+        report = mcp.provider_events("route-run")
+        latest = report["latest_lite_provider_call"]
+        self.assertEqual("crawl4ai_local", latest["invocation"]["operation"])
+        self.assertEqual("succeeded", latest["status"])
         self.assertFalse(latest["invocation"]["billing"]["charge_verified"])
-        self.assertTrue(any("invocation_route" in e for e in report["events"]
-                            if e.get("provider")=="crawl4ai_local"))
 
     def test_blocked_tool_response_retains_selected_meter_but_unknown_reservation(self):
         from mcp.server.mcpserver.exceptions import ToolError

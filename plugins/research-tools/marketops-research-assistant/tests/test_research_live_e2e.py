@@ -59,18 +59,38 @@ class LivePublicSourceResearchE2E(unittest.TestCase):
                 mcp.propose("live-lincoln-smoke", "city-lincoln", "entities", "organization",
                             "city-lincoln-council",
                             {"name": "City of Lincoln Council",
-                             "official_domain": "lincoln.gov.uk"}, ["lincoln-official-page"])
+                             "official_domain": "lincoln.gov.uk",
+                             "claims": [{"field": "identity",
+                                         "artifact_id": "lincoln-official-page",
+                                         "quote": "City of Lincoln Council"}]},
+                            ["lincoln-official-page"])
                 mcp.propose("live-lincoln-smoke", "venue-west-common", "entities", "venue",
                             "west-common-cricket",
                             {"name": "West Common Cricket Pitch",
-                             "organization_id": "city-lincoln-council"}, ["lincoln-official-page"])
+                             "organization_id": "city-lincoln-council",
+                             "claims": [{"field": "identity",
+                                         "artifact_id": "lincoln-official-page",
+                                         "quote": "West Common Cricket Pitch"},
+                                        {"field": "relationship",
+                                         "artifact_id": "lincoln-official-page",
+                                         "quote": "Currently we only provide a cricket pitch at the West Common."}]},
+                            ["lincoln-official-page"])
                 mcp.propose("live-lincoln-smoke", "lincoln-grounds-contact", "routes",
                             "contact_point", "city-lincoln-grounds-maintenance",
                             {"organization_id": "city-lincoln-council", "type": "email",
                              "value": "grounds.maintenance@lincoln.gov.uk",
                              "department": "Grounds Maintenance",
-                             "role_function": "Grounds maintenance"},
+                             "role_function": "Grounds maintenance",
+                             "claims": [{"field": "value",
+                                         "artifact_id": "lincoln-official-page",
+                                         "quote": "grounds.maintenance@lincoln.gov.uk"},
+                                        {"field": "role_function",
+                                         "artifact_id": "lincoln-official-page",
+                                         "quote": "Grounds Maintenance Email: grounds.maintenance@lincoln.gov.uk"}]},
                             ["lincoln-official-page"])
+                audit = mcp.evidence_audit("live-lincoln-smoke")
+                self.assertEqual({}, audit["gap_counts"])
+                self.assertFalse(audit["facts_verified"])
                 report = delivery.write_delivery(root, "live-lincoln-smoke", "real-web-e2e")
                 self.assertTrue(Path(report["xlsx_path"]).is_file())
                 self.assertEqual("ALL_OK", report["evidence_hash_readback"])
@@ -83,7 +103,8 @@ class LivePublicSourceResearchE2E(unittest.TestCase):
                     encoding="utf-8-sig", newline=""
                 ) as f:
                     contact = next(csv.DictReader(f))
-                self.assertEqual("LITERAL_IN_SAVED_MATERIAL", contact["来源字面校验"])
+                self.assertEqual("RENDERED_EMAIL_LITERAL_NOT_BUSINESS_VERIFIED",
+                                 contact["来源字面校验"])
                 self.assertEqual("RULES_UNKNOWN", contact["研究评级"])
 
 

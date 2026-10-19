@@ -23,7 +23,7 @@ META = {
     "description_en": "Research business workflow, five-provider routing and bounded evidence-first local MCP.",
     "source": "marketops-research-assistant-lite",
     "type": "skill-only",
-    "version": "0.4.0",
+    "version": "0.5.0",
     "minWorkbuddyVersion": "4.24.0",
     "examples_zh": [
         "调查指定地区的场地和运营组织，先列官方来源，将待核实项标为HOLD。",
@@ -61,6 +61,7 @@ def make_zip(folder: Path, output_zip: Path) -> None:
     """
     with zipfile.ZipFile(output_zip, "x", compression=zipfile.ZIP_DEFLATED) as archive:
         for root, dirs, files in os.walk(folder, followlinks=False):
+            dirs.sort()
             root_path = Path(root)
             for name in sorted(dirs):
                 if (root_path / name).is_symlink():
@@ -188,10 +189,30 @@ def build(output: Path, *, with_search_mcp: bool = False,
                     # It also makes the fixed-timestamp ZIP non-reproducible.
                     ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
     shutil.copy2(HERE / "README.md", target / "README.md")
-    for requirements_file in ("requirements-lite.txt", "requirements-crawl-local.txt",
-                              "requirements-lock-lite.txt",
-                              "requirements-lock-crawl-local.txt"):
-        shutil.copy2(HERE / requirements_file, target / requirements_file)
+    # This entry belongs to the generated connector, whose interpreter and
+    # script paths are bound to this machine. The source installer's entry
+    # instead tells another machine how to bootstrap a fresh installation.
+    start_here = (
+        "# MarketOps — WorkBuddy 本机连接器\n\n"
+        "此目录由安装器在当前电脑生成。请保留安装目录和其中的 Python 环境，"
+        "在 WorkBuddy 连接器管理中添加/导入这个目录（或同目录旁生成的 ZIP），启用后新建会话。\n\n"
+        "MCP 配置绑定当前电脑的路径；换电脑请下载 portable 源码安装包，"
+        "在目标电脑重新运行安装入口。此连接器不是跨电脑的一键安装源码包。\n\n"
+        "账号、Key 与额度见[四账户启动指南](references/FOUR_ACCOUNT_START.md)。"
+        "已在系统凭据库保存四个 Key 时，WorkBuddy 的密码字段可留空。"
+        "首次数据设置和宿主步骤见[客户快速开始](references/CUSTOMER_QUICKSTART.md)，"
+        "本机精确配置命令也在安装根目录的 START_HERE.md 中。\n\n"
+        "新会话先让 MarketOps 检查数据路径、凭据和已授权额度，再建立 Research Brief，"
+        "完成一小批公开研究、保存证据并导出 Excel。导入或工具可见不能代替真实任务验收。\n"
+        if with_research_mcp or with_search_mcp else
+        "# MarketOps — WorkBuddy Skills 包\n\n"
+        "此包只包含 Skills，不包含可启动的研究 MCP 配置。完整安装请使用 portable 源码安装包，"
+        "按[客户快速开始](references/CUSTOMER_QUICKSTART.md)在目标电脑运行安装器，"
+        "再导入该电脑生成的 Research MCP 连接器。\n"
+    )
+    (target / "START_HERE.md").write_text(start_here, encoding="utf-8")
+    for requirements_file in HERE.glob("requirements*.txt"):
+        shutil.copy2(requirements_file, target / requirements_file.name)
     # Every bundle (including skill-only archives) contains account signup URLs,
     # secure optional official MCP connection templates, and the read-only guide.
     # The CLI is stdlib-only and never logs into or calls any provider.
@@ -316,18 +337,57 @@ def build(output: Path, *, with_search_mcp: bool = False,
     }
 
 
+def build_source(output: Path) -> dict:
+    """Portable customer input, unlike an installed WorkBuddy connector.
+
+    Contains no venv, browser binary, credentials or machine-specific host
+    configuration. The customer runs the included platform installer locally.
+    """
+    from setup_clients import source_files, source_digest
+    output = output.expanduser().resolve()
+    if output.is_relative_to(HERE):
+        raise ValueError("SOURCE_ARCHIVE_OUTPUT_MUST_BE_OUTSIDE_PLUGIN")
+    target = output / "marketops-research-assistant"
+    archive = output / f"marketops-research-assistant-v{META['version']}-source.zip"
+    if target.exists() or archive.exists():
+        raise FileExistsError("SOURCE_ARCHIVE_DESTINATION_EXISTS")
+    _verify_egress_slice(HERE / "scripts" / "marketops_safe_egress")
+    target.mkdir(parents=True)
+    for source in source_files():
+        copied = target / source.relative_to(HERE)
+        copied.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, copied)
+    manifest = {"schema": "marketops.source-package.v1", "version": META["version"],
+                "source_sha256": source_digest(), "portable": True,
+                "files": {p.relative_to(target).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+                          for p in sorted(target.rglob("*")) if p.is_file()}}
+    (target / "SOURCE_MANIFEST.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    make_zip(target, archive)
+    sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+    (output / (archive.name + ".sha256")).write_text(f"{sha}  {archive.name}\n", encoding="ascii")
+    return {"status": "SOURCE_PACKAGE_BUILT", "portable": True, "directory": str(target),
+            "zip": str(archive), "zip_sha256": sha,
+            "source_sha256": manifest["source_sha256"],
+            "supported_runtime": "Python 3.12; Windows/Linux x64",
+            "customer_entrypoints": ["Install.cmd", "install.sh"]}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True, help="explicit user-owned destination outside source")
+    parser.add_argument("--source-package", action="store_true", help="build the portable source installer ZIP")
     parser.add_argument("--with-search-mcp", action="store_true", help="legacy dual-search local MCP")
     parser.add_argument("--with-research-mcp", action="store_true", help="one local MCP for all 5 provider integrations (beta)")
     parser.add_argument("--browser-cache", type=Path,
                         help="optional machine-local Chromium cache path from explicit installer")
     args = parser.parse_args()
+    if args.source_package and (args.with_search_mcp or args.with_research_mcp or args.browser_cache):
+        parser.error("--source-package cannot bind this machine's MCP or browser paths")
     try:
-        print(json.dumps(build(args.output, with_search_mcp=args.with_search_mcp,
+        result = build_source(args.output) if args.source_package else build(args.output, with_search_mcp=args.with_search_mcp,
                                with_research_mcp=args.with_research_mcp,
-                               browser_cache=args.browser_cache), ensure_ascii=False, indent=2))
+                               browser_cache=args.browser_cache)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
     except (OSError, ValueError) as exc:
         parser.exit(status=2, message=f"ERROR: {exc}\n")
     return 0

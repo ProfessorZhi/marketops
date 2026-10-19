@@ -1,0 +1,218 @@
+{
+  "schema": "marketops.test.vendor-schema.v1",
+  "observed_at": "2026-10-19T21:24:28.083862+00:00",
+  "source": "official MCP tools/list; zero tools/call",
+  "projection": "validation keywords; descriptions and examples omitted",
+  "providers": {
+    "tinyfish": {
+      "tools": [
+        {
+          "name": "search",
+          "inputSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              "purpose": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              "location": {
+                "type": "string"
+              },
+              "language": {
+                "type": "string"
+              },
+              "include_domains": {
+                "type": "string"
+              },
+              "exclude_domains": {
+                "type": "string"
+              },
+              "domain_type": {
+                "type": "string",
+                "enum": [
+                  "web",
+                  "news",
+                  "research_paper"
+                ]
+              },
+              "after_date": {
+                "type": "string"
+              },
+              "before_date": {
+                "type": "string"
+              },
+              "recency_minutes": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5256000
+              },
+              "pub_year_min": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9999
+              },
+              "pub_year_max": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9999
+              },
+              "page": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10
+              },
+              "include_thumbnail": {
+                "type": "string",
+                "enum": [
+                  "true",
+                  "false"
+                ]
+              },
+              "fetch": {
+                "type": "string",
+                "maxLength": 256
+              }
+            },
+            "required": [
+              "query"
+            ]
+          }
+        },
+        {
+          "name": "fetch_content",
+          "inputSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "urls": {
+                "minItems": 1,
+                "maxItems": 10,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              },
+              "purpose": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              "format": {
+                "default": "markdown",
+                "type": "string",
+                "enum": [
+                  "markdown",
+                  "html",
+                  "json"
+                ]
+              },
+              "links": {
+                "default": false,
+                "type": "boolean"
+              },
+              "image_links": {
+                "default": false,
+                "type": "boolean"
+              },
+              "iframe_links": {
+                "default": false,
+                "type": "boolean"
+              },
+              "page_metadata": {
+                "default": false,
+                "type": "boolean"
+              },
+              "ttl": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "per_url_timeout_ms": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 110000
+              },
+              "if_none_match": {
+                "type": "string",
+                "minLength": 1
+              },
+              "if_modified_since": {
+                "type": "string",
+                "minLength": 1
+              },
+              "include_etag_and_last_modified": {
+                "type": "boolean"
+              },
+              "include_selectors": {
+                "minItems": 1,
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1000
+                }
+              },
+              "exclude_selectors": {
+                "minItems": 1,
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1000
+                }
+              }
+            },
+            "required": [
+              "urls",
+              "format",
+              "links",
+              "image_links",
+              "iframe_links",
+              "page_metadata"
+            ],
+            "additionalProperties": false
+          }
+        }
+      ]
+    },
+    "serpapi": {
+      "tools": [
+        {
+          "name": "search",
+          "inputSchema": {
+            "properties": {
+              "params": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null
+              },
+              "mode": {
+                "default": "complete",
+                "type": "string"
+              }
+            },
+            "type": "object",
+            "additionalProperties": false
+          }
+        }
+      ]
+    }
+  }
+}

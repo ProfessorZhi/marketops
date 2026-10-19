@@ -170,6 +170,27 @@ def _construct_adapter(adapter_class, root):
     read one, and an adapter without one refuses before dispatch, which is the
     outcome that costs nothing.
     """
+    # The composition root owns process credentials and connection lifetimes;
+    # constructors remain network-free. Standalone adapter defaults stay inert.
+    import os
+    import research_runtime_transport as transport
+    name = adapter_class.__name__
+    if name == "SerperAdapter":
+        return adapter_class(api_key=os.environ.get("SERPER_API_KEY"),
+                             transport=transport.serper_transport)
+    if name == "JevAdapter":
+        return adapter_class(root=root, api_key=os.environ.get("TYPESAFE_API_KEY")
+                             or os.environ.get("JEV_API_KEY"))
+    if name == "SerpApiAdapter":
+        from serpapi_engine_catalog import EngineCatalog
+        from research_event_journal import _root
+        return adapter_class(session_factory=lambda: transport.serpapi_session(root),
+            catalog=(EngineCatalog(Path(_root(root)) / "state" / "serpapi-engine-cache.json")
+                     if root is not None else None))
+    if name == "Crawl4AIAdapter":
+        return transport.RuntimeCrawlAdapter(root)
+    if name == "TinyFishAdapter":
+        return adapter_class(runner=transport.tinyfish_runner(root))
     if root is None:
         return adapter_class()
     try:
@@ -382,7 +403,7 @@ def load_s0_evidence(root=None) -> dict:
     return loaded if isinstance(loaded, dict) else {}
 
 
-def s0_provider_entry(root=None) -> tuple[bool, str, tuple[str, ...]]:
+def s0_provider_entry(root=None, capability_id=None) -> tuple[bool, str, tuple[str, ...]]:
     """The one fail-closed S0 decision every provider-capable entry passes.
 
     Returns ``(allowed, reason_code, failed_gate_ids)`` and **never raises**. Its
@@ -400,6 +421,13 @@ def s0_provider_entry(root=None) -> tuple[bool, str, tuple[str, ...]]:
     the only thing that could authorise a provider call, so its absence cannot
     mean yes.
     """
+    import research_runtime_setup as runtime
+    if runtime.config(root):
+        if not capability_id:
+            return False, "CAPABILITY_NOT_AVAILABLE", ("CAPABILITY_REQUIRED",)
+        verdict = runtime.admission(root, capability_id)
+        return verdict["allowed"], verdict["reason_code"], (() if verdict["allowed"]
+                                                          else (verdict["detail"],))
     try:
         gate = _import_if_present("research_s0_preflight_gate")
     except Exception:  # noqa: BLE001 - fail closed on a broken import too
@@ -441,7 +469,32 @@ class _GatewayAfterTheGate:
 
     def invoke(self, **kwargs):
         if self._built is None:
-            self._built = build_gateway(root=self._root)
+            import research_runtime_setup as runtime
+            import research_policy
+            import research_capability_registry
+            settings = runtime.config(self._root)
+            if settings:
+                registry = research_capability_registry.DEFAULT_REGISTRY
+                policy = research_policy.Policy(registry=registry,
+                    network_enabled=settings.get("network_enabled") is True,
+                    allowed_domains=settings.get("allowed_domains", ()))
+                self._built = build_gateway(root=self._root, policy=policy,
+                    ledger=runtime.ledger_for(self._root, kwargs["account_ref"]))
+            else:
+                self._built = build_gateway(root=self._root)
+        import research_runtime_setup as runtime
+        settings = runtime.config(self._root)
+        if settings:
+            import research_usage_ledger as usage
+            project = usage.project_for_root(self._root)
+            ceiling = settings["max_calls"]
+            provider_ceiling = settings.get("provider_limits", {}).get(kwargs["account_ref"], ceiling)
+            for kind, key, limit in (("project", project, ceiling),
+                    ("run", f"{project}/{kwargs['run_id']}", ceiling),
+                    ("provider_account", f"{project}/{kwargs['account_ref']}/{kwargs['account_ref']}", provider_ceiling),
+                    ("operation", f"{project}/*", 1)):
+                self._built.ledger.set_cap(kind, key, ceiling_calls=limit,
+                                           source="LOCAL_REQUEST_COUNT_CONSENT")
         return self._built.invoke(**kwargs)
 
 
@@ -464,6 +517,20 @@ def managed_invoke(*, capability_id: str, params, run_id: str, operation_id: str
     gate = _import_if_present("research_s0_preflight_gate")
     if gate is None:
         raise gateway.WiringIncomplete(["research_s0_preflight_gate"])
+    import research_runtime_setup as runtime
+    if evidence is None and runtime.config(root):
+        verdict = runtime.admission(root, capability_id)
+        if not verdict["allowed"]:
+            return gate.GuardedOutcome(status="BLOCKED", reason_code=verdict["reason_code"],
+                capability_id=capability_id, gateway_invoked=False,
+                s0_failed=(verdict["detail"],))
+        runtime_gateway = gateway_object or _GatewayAfterTheGate(root=root)
+        result = runtime_gateway.invoke(capability_id=capability_id, params=params,
+            run_id=run_id, operation_id=operation_id, account_ref=account_ref,
+            intent_fingerprint=intent_fingerprint, grant_ref=grant_ref)
+        return gate.GuardedOutcome(status=result.status, reason_code=result.reason_code,
+            capability_id=capability_id, gateway_invoked=True, outcome=result,
+            caveats=("REQUEST_COUNT_ONLY_USD_AND_BALANCE_UNKNOWN",))
     if gateway_object is None:
         # A proxy, not a built gateway. `guarded_invoke` evaluates S0 first and
         # only calls `invoke` when it allows, so a refused gate never reaches the

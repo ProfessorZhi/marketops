@@ -34,7 +34,7 @@ def _text(artifact: dict) -> str:
                 text = parsed.get("markdown", text)
         except (ValueError, TypeError):
             pass
-    if artifact.get("kind") in {"rendered_html", "raw_response"}:
+    if artifact.get("kind") in {"rendered_html", "raw_response", "provider_html"}:
         # Rendered HTML is NOT the original on-the-wire HTTP response.
         text = re.sub(r"(?is)<(?:script|style)[^>]*>.*?</(?:script|style)>", " ", text)
         text = re.sub(r"<[^>]+>", " ", text)
@@ -77,7 +77,7 @@ def audit_records(records: list[dict], artifacts: dict[str, dict],
         raise ValueError("INVALID_AUDIT_LIMIT")
     required, invalid_rules = _brief_rules(records)
     reasons, samples = Counter(), []
-    checked = anchored_rendered = 0
+    checked = anchored_rendered = anchored_vendor_html = 0
     normalized_sources = {aid: _text(a) for aid, a in artifacts.items()}
     for rec in records:
         kind = rec["kind"]
@@ -120,6 +120,8 @@ def audit_records(records: list[dict], artifacts: dict[str, dict],
             matched_fields.add(field)
             if material.get("kind") in {"rendered_html", "raw_response"}:
                 anchored_rendered += 1
+            elif material.get("kind") == "provider_html":
+                anchored_vendor_html += 1
             else:
                 codes.add("DERIVED_EXCERPT_ONLY")
         mandatory = set(required.get(kind, set()))
@@ -138,7 +140,7 @@ def audit_records(records: list[dict], artifacts: dict[str, dict],
                 if not isinstance(value, str) or not EMAIL.fullmatch(value):
                     codes.add("EMAIL_INVALID")
                 elif not any(
-                    a in artifacts and artifacts[a].get("kind") in {"rendered_html", "raw_response"}
+                    a in artifacts and artifacts[a].get("kind") in {"rendered_html", "raw_response", "provider_html"}
                     and re.search(r"(?<![\w.+-])" + re.escape(value) + r"(?![\w.+-])",
                                   html.unescape(re.sub(
                                       r"(?is)<(?:script|style)[^>]*>.*?</(?:script|style)>",
@@ -155,6 +157,8 @@ def audit_records(records: list[dict], artifacts: dict[str, dict],
                             "reason_codes": sorted(codes)})
     return {"status": "EVIDENCE_GAPS" if reasons or invalid_rules else "QUOTES_PRESENT_NOT_FACT_VERIFIED",
             "record_count_checked": checked, "rendered_quote_matches": anchored_rendered,
+            "vendor_html_quote_matches": anchored_vendor_html,
+            "vendor_html_boundary": "Vendor-cleaned semantic HTML, not original HTTP, browser DOM or business verification.",
             "gap_counts": dict(sorted(reasons.items())),
             "invalid_brief_evidence_requirements": invalid_rules,
             "sample_limit": result_limit, "samples": samples,
@@ -206,7 +210,7 @@ def excerpts(root: Path | str, run_id: str, artifact_ids: list[str],
                         text = parsed.get("markdown", text)
                 except ValueError:
                     pass
-            if row[0] == "rendered_html":
+            if row[0] in {"rendered_html", "provider_html"}:
                 text = html.unescape(re.sub(r"<[^>]+>", " ", text))
             text = " ".join(text.split())
             clips = []

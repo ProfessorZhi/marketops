@@ -58,7 +58,17 @@
       ],
       "separate_site_login": true,
       "embedded_actual_mcp_client": true,
-      "embedded_mcp_script": "scripts/research_official_mcp.py"
+      "embedded_mcp_script": "scripts/research_official_mcp.py",
+      "account_required": true,
+      "trial_offer": {
+        "checked_at": "2026-10-20",
+        "summary": "注册页当前提供 $8 新用户 Wallet 赠金；Search/Fetch 免费。已有账号查看余额，不重复领取。",
+        "signup_url": "https://agent.tinyfish.ai/sign-up",
+        "api_key_url": "https://agent.tinyfish.ai/api-keys",
+        "balance_url": "https://agent.tinyfish.ai/",
+        "source_url": "https://agent.tinyfish.ai/sign-up",
+        "expiry": "UNKNOWN_CHECK_ACCOUNT"
+      }
     },
     {
       "id": "serpapi",
@@ -97,7 +107,17 @@
       ],
       "separate_site_login": false,
       "embedded_actual_mcp_client": true,
-      "embedded_mcp_script": "scripts/research_official_mcp.py"
+      "embedded_mcp_script": "scripts/research_official_mcp.py",
+      "account_required": true,
+      "trial_offer": {
+        "checked_at": "2026-10-20",
+        "summary": "Free 套餐当前 250 次/月、50 次/小时；实际余量和续期日在账户页查看。",
+        "signup_url": "https://serpapi.com/users/sign_up",
+        "api_key_url": "https://serpapi.com/manage-api-key",
+        "balance_url": "https://serpapi.com/dashboard",
+        "source_url": "https://serpapi.com/pricing",
+        "expiry": "MONTHLY_ACCOUNT_RENEWAL_DATE"
+      }
     },
     {
       "id": "serper",
@@ -122,7 +142,17 @@
           "cost": "SEARCH_CREDITS_ACCOUNT_DEPENDENT"
         }
       ],
-      "separate_site_login": false
+      "separate_site_login": false,
+      "account_required": true,
+      "trial_offer": {
+        "checked_at": "2026-10-20",
+        "summary": "新用户可领取 2,500 次免费查询，无需信用卡；不是每月重置承诺。",
+        "signup_url": "https://serper.dev/",
+        "api_key_url": "https://serper.dev/",
+        "balance_url": "https://serper.dev/",
+        "source_url": "https://serper.dev/",
+        "expiry": "UNKNOWN_CHECK_ACCOUNT"
+      }
     },
     {
       "id": "crawl4ai",
@@ -160,7 +190,8 @@
           "cost": "CLOUD_CREDITS_ACCOUNT_DEPENDENT"
         }
       ],
-      "separate_site_login": false
+      "separate_site_login": false,
+      "account_required": false
     },
     {
       "id": "jev",
@@ -197,7 +228,19 @@
           "cost": "MODEL_PROVIDER_USAGE_ACCOUNT_DEPENDENT"
         }
       ],
-      "separate_site_login": false
+      "separate_site_login": false,
+      "account_required": true,
+      "trial_offer": {
+        "checked_at": "2026-10-20",
+        "summary": "可在控制台注册；未核实统一新用户赠金金额。先查看组织 Settings → Billing → Available credits。",
+        "signup_url": "https://console.typesafe.ai/",
+        "api_key_url": "https://console.typesafe.ai/",
+        "balance_url": "https://console.typesafe.ai/",
+        "source_url": "https://help.typesafe.ai/articles/5505198974-what-s-a-402-error-and-how-can-i-add-more-credits",
+        "expiry": "UNKNOWN_CHECK_ACCOUNT"
+      }
     }
-  ]
+  ],
+  "checked_at": "2026-10-20",
+  "required_cloud_account_count": 4
 }

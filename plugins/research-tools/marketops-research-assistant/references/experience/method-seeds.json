@@ -1,0 +1,95 @@
+{
+  "schema_version": "marketops.method-seeds.v1",
+  "methods": [
+    {
+      "id": "bruce-source-first", "source_type": "historical_advisory",
+      "source_revision": "627ff430c64ebe5339ae15034343db4ff726fed6", "source_locator": "GOLDEN_PATTERNS:GP-08",
+      "stages": ["intake", "discovery", "acquisition"], "providers": [],
+      "when": "A public directory or source must be discovered.",
+      "do": "Inspect authorized complete directories, source indexes and actual links before guessing paths; reuse intact saved material.",
+      "avoid": "Repeated speculative requests without new persisted evidence.",
+      "limitations": "Generalized historical method; access permission, freshness and the current Brief still govern. No historical success rate is promised."
+    },
+    {
+      "id": "bruce-real-body", "source_type": "historical_advisory",
+      "source_revision": "627ff430c64ebe5339ae15034343db4ff726fed6", "source_locator": "GOLDEN_PATTERNS:GP-07,GP-11,GP-12",
+      "stages": ["acquisition", "review", "handoff"], "providers": [],
+      "when": "A tool reports success or an extraction returns zero.",
+      "do": "Read saved bytes and hashes; distinguish real source text, challenge pages, placeholders and missing values before deciding what was found.",
+      "avoid": "Treating a status flag, search snippet or empty parser result as verified business evidence.",
+      "limitations": "Intact bytes prove integrity only. Semantic meaning, source authority and business criteria still need assessment."
+    },
+    {
+      "id": "bruce-reconcile-delivery", "source_type": "historical_advisory",
+      "source_revision": "627ff430c64ebe5339ae15034343db4ff726fed6", "source_locator": "GOLDEN_PATTERNS:GP-13,GP-14;BRUCE_INTERVENTION_MAP:INT-042,INT-054",
+      "stages": ["entities", "review", "export", "handoff"], "providers": [],
+      "when": "Collected candidates are saved or delivered.",
+      "do": "Reconcile unique input objects with stored, held and rejected objects; reopen the actual export and its source references.",
+      "avoid": "Counting repeated rows as independent organizations or reporting file creation as delivered research.",
+      "limitations": "A complete export can contain unresolved candidates; report business completeness separately."
+    },
+    {
+      "id": "bruce-entity-role", "source_type": "historical_advisory",
+      "source_revision": "627ff430c64ebe5339ae15034343db4ff726fed6", "source_locator": "GOLDEN_PATTERNS:GP-17;BRUCE_INTERVENTION_MAP:INT-033,INT-052",
+      "stages": ["intake", "entities", "qualification", "people", "routes"], "providers": [],
+      "when": "A venue, organization, person or contact route is classified.",
+      "do": "Bind each relationship to source text and the current Brief. One organization may operate several venues; customers and equipment suppliers differ.",
+      "avoid": "Inferring a role from an address or applying a historic named-person requirement to every task.",
+      "limitations": "The current task defines target roles and whether a named person is required. This method cannot change those rules."
+    },
+    {
+      "id": "bruce-correct-and-stop", "source_type": "historical_advisory",
+      "source_revision": "627ff430c64ebe5339ae15034343db4ff726fed6", "source_locator": "GOLDEN_PATTERNS:GP-05,GP-06",
+      "stages": ["discovery", "acquisition", "review", "handoff"], "providers": [],
+      "when": "A method stops yielding evidence or a later observation contradicts prior advice.",
+      "do": "Append the correction and counterexample. Use the authorized finite budget and measured yield to stop or change the method.",
+      "avoid": "Rewriting historical evidence, treating UNKNOWN as zero, or expanding spend because a method failed.",
+      "limitations": "No fixed historical ROI threshold is adopted. Stop conditions come from current authorization and task criteria."
+    },
+    {
+      "id": "provider-serper", "source_type": "provider_advisory",
+      "source_revision": "fa9bc90fcdd4c4ca8b8f8d1379971d30acffe2cb", "source_locator": "references/providers/serper.md",
+      "stages": ["discovery"], "providers": ["serper"],
+      "when": "Search discovery is useful for the current task.",
+      "do": "Use bounded localized queries, retain discovery provenance, then acquire the actual source before asserting facts.",
+      "avoid": "Treating search snippets as source-page evidence or repeating equivalent searches.",
+      "limitations": "Account availability and costs are checked at runtime. Search success does not establish entity or contact quality."
+    },
+    {
+      "id": "provider-serpapi", "source_type": "provider_advisory",
+      "source_revision": "fa9bc90fcdd4c4ca8b8f8d1379971d30acffe2cb", "source_locator": "references/providers/serpapi.md",
+      "stages": ["discovery"], "providers": ["serpapi"],
+      "when": "A supported search engine or structured search mode fits discovery.",
+      "do": "Use the admitted engine schema and required parameters; persist returned source candidates before selecting pages to acquire.",
+      "avoid": "Guessing engine-specific parameters or assuming a successful search validates source claims.",
+      "limitations": "Available engines and account entitlements must be observed; this advice grants no extra calls."
+    },
+    {
+      "id": "provider-crawl4ai", "source_type": "provider_advisory",
+      "source_revision": "fa9bc90fcdd4c4ca8b8f8d1379971d30acffe2cb", "source_locator": "references/providers/crawl4ai.md",
+      "stages": ["acquisition"], "providers": ["crawl4ai"],
+      "when": "An authorized public page needs source acquisition.",
+      "do": "Check browser and restricted egress readiness, capture real source content, and persist its hash before extracting facts.",
+      "avoid": "Interpreting challenge or access-denied pages as empty business results.",
+      "limitations": "A failed site remains blocked; use another authorized source or HOLD, without bypassing access controls."
+    },
+    {
+      "id": "provider-tinyfish", "source_type": "provider_advisory",
+      "source_revision": "fa9bc90fcdd4c4ca8b8f8d1379971d30acffe2cb", "source_locator": "references/providers/tinyfish.md",
+      "stages": ["discovery", "acquisition"], "providers": ["tinyfish"],
+      "when": "A reviewed TinyFish capability fits a public research step.",
+      "do": "Use the embedded admitted MCP connection and the exact supported capability; retain source and operation references.",
+      "avoid": "Silently switching a bounded fetch to a paid browser-agent task.",
+      "limitations": "Provider-derived text remains candidate evidence. Runtime schema, credentials, budget and permission remain authoritative."
+    },
+    {
+      "id": "provider-jev", "source_type": "provider_advisory",
+      "source_revision": "fa9bc90fcdd4c4ca8b8f8d1379971d30acffe2cb", "source_locator": "references/providers/jev.md",
+      "stages": ["qualification", "people", "review"], "providers": ["jev", "jev_choice", "typesafe"],
+      "when": "A supported structured judgment can help interpret already saved evidence.",
+      "do": "Bind input to saved material and constrain the choice to the current task's criteria; persist the result as a candidate judgment.",
+      "avoid": "Treating model judgment as a new source or final business approval.",
+      "limitations": "Semantic validation is still required; a judgment cannot supply missing source facts, permission or budget."
+    }
+  ]
+}

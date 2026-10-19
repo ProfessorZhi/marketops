@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import importlib.util
 import json
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -12,24 +15,89 @@ import venv
 from pathlib import Path
 
 SOURCE = Path(__file__).resolve().parents[1]
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 CLIENTS = ("codex", "workbuddy", "both", "claude", "all")
+STATE_FILE = "INSTALL_STATE.json"
+STATE_OWNER = "marketops.setup_clients.v1"
+
+
+def source_files():
+    """Explicit distributable roots; private runtime directories never ship."""
+    roots = ("scripts", "references", "skills", ".claude-plugin", ".codex-plugin")
+    excluded = {"__pycache__", ".pytest_cache", ".venv", ".git", "data", "state",
+                "runs", "scratch", "artifacts", "exports", "tests"}
+    for root in roots:
+        directory = SOURCE / root
+        if directory.is_symlink():
+            raise ValueError("SYMLINK_IN_PACKAGE")
+        for folder, dirs, files in os.walk(directory, followlinks=False):
+            for name in list(dirs):
+                item = Path(folder) / name
+                if item.is_symlink():
+                    raise ValueError("SYMLINK_IN_PACKAGE")
+                if name in excluded:
+                    dirs.remove(name)
+            dirs.sort()
+            for name in sorted(files):
+                item = Path(folder) / name
+                if item.is_symlink():
+                    raise ValueError("SYMLINK_IN_PACKAGE")
+                if (name.startswith(".env") or item.suffix in {".pyc", ".zip", ".db", ".sqlite3", ".jsonl"}
+                        or name in {"credentials.json", "cc_host_probe.sh"}):
+                    continue
+                yield item
+    for name in ("README.md", "START_HERE.md", "plugin.json", "mcp.json", ".mcp.json",
+                 "Install.cmd", "Install.ps1", "install.sh"):
+        item = SOURCE / name
+        if item.is_symlink():
+            raise ValueError("SYMLINK_IN_PACKAGE")
+        if item.is_file():
+            yield item
+    for item in sorted(SOURCE.glob("requirements*.txt")):
+        if item.is_symlink():
+            raise ValueError("SYMLINK_IN_PACKAGE")
+        yield item
+
+
+def source_digest() -> str:
+    digest = hashlib.sha256()
+    for item in sorted(source_files()):
+        digest.update(item.relative_to(SOURCE).as_posix().encode())
+        digest.update(b"\0")
+        digest.update(item.read_bytes())
+    return digest.hexdigest()
+
+
+def _state_write(dest, state):
+    pending = dest / (STATE_FILE + ".pending")
+    pending.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+    pending.replace(dest / STATE_FILE)
 
 
 def _python(venv_path: Path) -> Path:
     return venv_path / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
 
 
-def plan(destination: Path, client: str) -> dict:
+def plan(destination: Path, client: str, *, resume: bool = False) -> dict:
     if client not in CLIENTS:
         raise ValueError("UNSUPPORTED_SETUP_CLIENT")
     dest = destination.expanduser().resolve()
     if dest == SOURCE or SOURCE in dest.parents or dest in SOURCE.parents:
         raise ValueError("Destination must not overwrite or nest within plugin checkout")
+    if sys.version_info[:2] != (3, 12):
+        raise ValueError("Requires Python 3.12 (64-bit)")
+    if sys.platform not in {"win32", "linux"} or platform.machine().lower() not in {"amd64", "x86_64"}:
+        raise ValueError("SUPPORTED_PLATFORM_WINDOWS_OR_LINUX_X64_REQUIRED")
+    if importlib.util.find_spec("ensurepip") is None:
+        raise ValueError("PYTHON_ENSUREPIP_UNAVAILABLE: install the Python 3.12 venv component")
     if dest.exists() and any(dest.iterdir()):
-        raise FileExistsError("Refusing to replace an existing install; select a new versioned destination")
-    if sys.version_info < (3, 11):
-        raise ValueError("Requires Python 3.11 or newer")
+        state_path = dest / STATE_FILE
+        if not resume or not state_path.is_file() or state_path.is_symlink():
+            raise FileExistsError("Refusing to replace an unowned or existing install; use --resume only for this installer")
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        if (state.get("owner") != STATE_OWNER or state.get("source_sha256") != source_digest()
+                or state.get("client") != client or state.get("destination") != str(dest)):
+            raise ValueError("INSTALL_RESUME_IDENTITY_MISMATCH")
     return {
         "version": VERSION, "client": client, "destination": str(dest),
         "plugin_copy": str(dest / "plugins" / "marketops-research-assistant"),
@@ -45,35 +113,48 @@ def plan(destination: Path, client: str) -> dict:
 
 def install(destination: Path, client: str, *, dependencies: bool,
             register_codex: bool, local_crawl: bool = False,
-            browser: bool = False) -> dict:
+            browser: bool = False, resume: bool = False) -> dict:
     # Validate all permissions before touching the install directory.
     if browser and not local_crawl:
         raise ValueError("BROWSER_REQUIRES_LOCAL_CRAWL")
     if local_crawl and not dependencies:
         raise ValueError("LOCAL_CRAWL_REQUIRES_RUNTIME_DEPENDENCIES")
-    result = plan(destination, client)
+    result = plan(destination, client, resume=resume)
     # Never install source with malformed manifests, Skills or Python syntax.
     from preflight import report as static_report
     outcome = static_report()
     if outcome["errors"]:
         raise ValueError("STATIC_PREFLIGHT_FAILED: review preflight.py results")
     dest = Path(result["destination"])
+    settings = dict(dependencies=dependencies, local_crawl=local_crawl,
+                    browser=browser, register_codex=register_codex)
+    state = {"owner": STATE_OWNER, "source_sha256": source_digest(),
+             "client": client, "destination": str(dest), "settings": settings,
+             "stage": "PREPARED"}
+    if (dest / STATE_FILE).is_file():
+        state = json.loads((dest / STATE_FILE).read_text(encoding="utf-8"))
+        if state.get("settings") != settings:
+            raise ValueError("INSTALL_RESUME_OPTIONS_MISMATCH")
+        if state.get("stage") == "COMPLETE":
+            return json.loads((dest / "INSTALL_RECEIPT.json").read_text(encoding="utf-8"))
+    dest.mkdir(parents=True, exist_ok=True)
+    _state_write(dest, state)
     target = dest / "plugins" / "marketops-research-assistant"
     target.parent.mkdir(parents=True, exist_ok=True)
     # Never package local customer data even if someone accidentally created it
     # under the source directory. The distributable is only code, Skills and docs.
-    shutil.copytree(SOURCE, target,
-                    ignore=shutil.ignore_patterns(
-                        "__pycache__", "*.pyc", ".pytest_cache", ".venv",
-                        "dist", "runs", "scratch", "data", "state", "artifacts",
-                        "exports", "experience", "search-receipts",
-                        "*.zip", "*.sqlite3", "*.sqlite3-*", "*.db",
-                        "*.jsonl", ".env", ".env.*", "credentials.json",
-                        # `tests/` is the plugin's own suite, not product: a
-                        # customer install must not ship our test tree (it also
-                        # carries fixtures and this repository's synthetic
-                        # credential literals).
-                        "tests", "htmlcov", ".coverage"))
+    for source in source_files():
+        copied = target / source.relative_to(SOURCE)
+        if copied.is_symlink() or any(p.is_symlink() for p in copied.parents if p != dest.parent):
+            raise ValueError("INSTALL_TARGET_SYMLINK")
+        copied.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, copied)
+    state["stage"] = "SOURCE_COPIED"
+    _state_write(dest, state)
+    from research_runtime_setup import verify_build_receipt
+    build_qa = verify_build_receipt(target)
+    if (target / "references" / "BUILD_QA.json").is_file() and not build_qa["ok"]:
+        raise ValueError("BUILD_QA_STALE_OR_INVALID")
     # Installation chooses code/toolchain locations only. Never create a data
     # directory or a new experience file before the user selects the two paths.
     # Existing configuration is read by the runtime, not modified by install.
@@ -90,24 +171,39 @@ def install(destination: Path, client: str, *, dependencies: bool,
                          ("requirements-crawl-local.txt", "requirements-lock-crawl-local.txt")):
         if not (dependencies if ranges.startswith("requirements-lite") else local_crawl):
             continue
+        if sys.platform == "win32":
+            lock = lock.replace(".txt", "-windows.txt")
         locked = (target / lock).is_file()
-        requirement = target / (lock if locked else ranges)
+        if not locked:
+            raise ValueError("PLATFORM_DEPENDENCY_LOCK_MISSING")
+        requirement = target / lock
         command = [str(py), "-m", "pip", "install"]
         if locked:
             command.append("--require-hashes")
         command += ["-r", str(requirement)]
         subprocess.run(command, check=True)
         dependency_sources.append({"file": requirement.name, "hash_pinned": locked})
+    if dependencies:
+        subprocess.run([str(py), "-m", "pip", "check"], check=True)
+    state["stage"] = "DEPENDENCIES_READY"
+    _state_write(dest, state)
     browser_root = dest / "browsers"
+    browser_verified = False
     if browser:
         # Keep Chromium inside the customer's versioned install directory.
         # This survives isolated HOME and cross-client launch differences.
         # The download is explicit, not a paid vendor API or site interaction.
-        browser_root.mkdir(mode=0o700)
+        browser_root.mkdir(mode=0o700, exist_ok=True)
         env = dict(os.environ)
         env["PLAYWRIGHT_BROWSERS_PATH"] = str(browser_root)
         subprocess.run([str(py), "-m", "playwright", "install", "chromium"],
                        check=True, env=env)
+        check = subprocess.run([str(py), "-c",
+            "from playwright.sync_api import sync_playwright; "
+            "p=sync_playwright().start(); b=p.chromium.launch(headless=True); "
+            "page=b.new_page(); page.goto('about:blank'); b.close(); p.stop()"],
+            env=env, capture_output=True, timeout=60)
+        browser_verified = check.returncode == 0
     # Bind the installed Codex plugin to this customer's venv instead of PATH.
     # No keys are written; env_vars remain inherited from the client process.
     for config_name in ("mcp.json", ".mcp.json"):
@@ -130,14 +226,19 @@ def install(destination: Path, client: str, *, dependencies: bool,
             if browser:
                 server.setdefault("env", {})["PLAYWRIGHT_BROWSERS_PATH"] = str(browser_root)
         config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
-    # Offline smoke probe over the tree that was just written. Static audits only:
-    # they need no third-party package, so this runs even without --install-deps.
+    # With dependencies, actually initialize the installed MCP over stdio.
+    # The isolated probe lists tools with networking off and no provider calls.
+    # Without dependencies, retain the useful static-only installation audit.
     # A failure is recorded, never raised: the install receipt must be able to say
     # "installed but not verified" rather than silently claiming success.
-    probe = subprocess.run(
-        [str(py), str(target / "scripts" / "client_install_probe.py"),
-         "--plugin-root", str(target), "--artifact", "installed", "--no-wire"],
-        text=True, capture_output=True)
+    probe_argv = [str(py), str(target / "scripts" / "client_install_probe.py"),
+                  "--plugin-root", str(target), "--artifact", "installed"]
+    if not dependencies:
+        probe_argv.append("--no-wire")
+    check_root = dest / "checks"
+    check_root.mkdir(exist_ok=True)
+    probe_env = dict(os.environ, TMPDIR=str(check_root), TEMP=str(check_root), TMP=str(check_root))
+    probe = subprocess.run(probe_argv, env=probe_env, text=True, capture_output=True, timeout=150)
     try:
         probe_report = json.loads(probe.stdout)
     except (TypeError, ValueError):
@@ -151,7 +252,7 @@ def install(destination: Path, client: str, *, dependencies: bool,
                "local_crawl_sdk_install_requested": local_crawl,
                "chromium_download_requested": browser,
                "browser_cache": str(browser_root) if browser else None,
-               "browser_launch_verified": False,
+               "browser_launch_verified": browser_verified,
                "provider_login_performed": False, "paid_provider_calls": 0,
                "external_official_mcp_registered": False,
                "provider_onboarding_commands": {
@@ -171,6 +272,13 @@ def install(destination: Path, client: str, *, dependencies: bool,
                    str(target / "scripts" / "research_official_mcp_auth.py"),
                    "login", "--provider", "tinyfish"],
                "tinyfish_oauth_ready": False}
+    results["source_sha256"] = state["source_sha256"]
+    results["build_qa"] = build_qa
+    results["credentials_configure_argv"] = [str(py), str(target / "scripts" / "research_credentials.py"), "configure"]
+    results["customer_setup_argv"] = [str(py), str(target / "scripts" / "customer_setup.py")]
+    validation_ok = bool(probe_report.get("ok")) and (not browser or browser_verified)
+    if dependencies:
+        results["status"] = "RUNTIME_READY_HOST_PENDING" if validation_ok else "INSTALL_VALIDATION_INCOMPLETE"
     if client in {"claude", "all"}:
         # Official vendor MCPs require the user's separate client OAuth/setup.
         results["claude_next_argv"] = ["claude", "--plugin-dir", str(target)]
@@ -191,12 +299,20 @@ def install(destination: Path, client: str, *, dependencies: bool,
         (root / "marketplace.json").write_text(json.dumps(marketplace, indent=2) + "\n",
                                                 encoding="utf-8")
         results["codex_marketplace"] = str(dest)
-        results["codex_next"] = "codex plugin marketplace add " + str(dest)
+        results["codex_next_argv"] = ["codex", "plugin", "marketplace", "add", str(dest)]
+        results["codex_install_argv"] = ["codex", "plugin", "add", "marketops-research-assistant@marketops-local", "--json"]
+        results["codex_next"] = subprocess.list2cmdline(results["codex_next_argv"])
         if register_codex:
             if shutil.which("codex") is None:
                 raise ValueError("CODEX_CLI_UNAVAILABLE: marketplace remains generated, not registered")
             subprocess.run(["codex", "plugin", "marketplace", "add", str(dest)], check=True)
             results["codex_marketplace_registered"] = True
+            support = subprocess.run(["codex", "plugin", "add", "--help"], capture_output=True)
+            if support.returncode == 0:
+                subprocess.run(results["codex_install_argv"], check=True)
+                results["codex_plugin_install_status"] = "INSTALLED_RESTART_HOST_TO_VERIFY"
+            else:
+                results["codex_plugin_install_status"] = "PENDING_HOST_INSTALL"
         else:
             results["codex_marketplace_registered"] = False
     if client in {"workbuddy", "both", "all"}:
@@ -206,25 +322,71 @@ def install(destination: Path, client: str, *, dependencies: bool,
                    "--output", str(dest / "connectors"), "--with-research-mcp"]
         if browser:
             command += ["--browser-cache", str(browser_root)]
-        completed = subprocess.run(command, check=True, text=True,
-                                   capture_output=True)
-        results["workbuddy_bundle"] = json.loads(completed.stdout)
-        results["workbuddy_import_status"] = "NOT_IMPORTED_USER_OR_AGENT_MUST_IMPORT_DIRECTORY"
+        bundle_receipt = dest / "WORKBUDDY_BUNDLE.json"
+        if bundle_receipt.is_file():
+            results["workbuddy_bundle"] = json.loads(bundle_receipt.read_text(encoding="utf-8"))
+        else:
+            # Each attempt has its own owned directory, so an interrupted zip
+            # never needs deletion and cannot block recovery of this install.
+            attempts = dest / "connectors"
+            build_output = attempts
+            if (attempts / "workbuddy").exists():
+                attempt = 2
+                while (attempts / f"attempt-{attempt}").exists():
+                    attempt += 1
+                build_output = attempts / f"attempt-{attempt}"
+            command[command.index("--output") + 1] = str(build_output)
+            completed = subprocess.run(command, check=True, text=True, capture_output=True)
+            results["workbuddy_bundle"] = json.loads(completed.stdout)
+            bundle_receipt.write_text(json.dumps(results["workbuddy_bundle"], indent=2) + "\n", encoding="utf-8")
+        results["workbuddy_import_status"] = "PENDING_HOST_IMPORT"
     starter = dest / "START_HERE.md"
-    starter.write_text(
-        "# MarketOps 安装后的账号与连接向导\n\n"
-        "插件代码已经复制到此目录，但厂商 OAuth/Key、额度和网页登录仍须用户授权。\n\n"
-        "1. 打开 [五家Provider第一次使用指南](plugins/marketops-research-assistant/references/CUSTOMER_QUICKSTART.md)。\n"
-        "2. 用 INSTALL_RECEIPT.json 的 provider_onboarding_command 检查当前安装，不会联网或输出Key。\n"
-        "3. 首次在市场研究 MCP 中填写两条客户自己选择的绝对数据路径。\n"
-        "4. TinyFish/SerpApi官方MCP已由MarketOps自身集成：用本地OS Keyring OAuth或API Key认证，不必额外安装它们的宿主插件。\n"
-        "5. 其他厂商按需连接，不默认启用付费Agent。\n\n"
-        "安装路径和状态见同目录 INSTALL_RECEIPT.json；未验证供应商登录或客户MCP真实启动。\n",
-        encoding="utf-8")
+    starter.write_text(_start_here(results), encoding="utf-8")
     results["start_here"] = str(starter)
     (dest / "INSTALL_RECEIPT.json").write_text(
         json.dumps(results, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    state["stage"] = "COMPLETE" if validation_ok else "VALIDATION_PENDING"
+    _state_write(dest, state)
     return results
+
+
+def _command(argv):
+    if sys.platform == "win32":
+        # PowerShell's call operator and single quotes preserve spaces and
+        # apostrophes in a customer path; never construct a shell to execute it.
+        return "& " + " ".join("'" + part.replace("'", "''") + "'" for part in argv)
+    import shlex
+    return shlex.join(argv)
+
+
+def _start_here(result):
+    lines = ["# MarketOps 安装后从这里开始", "",
+             "这是本机安装目录，请保留；其他电脑需要重新运行源码包的安装入口。",
+             "[四账户、申请 Key 与新用户额度](plugins/marketops-research-assistant/references/FOUR_ACCOUNT_START.md)", "",
+             "## 1. 本地账号与数据设置", "",
+             "在本机终端执行（不要在聊天中输入 Key）：", "", "```",
+             _command(result["customer_setup_argv"]), "```", "",
+             "配置保存后，新的宿主会话会读取系统凭据库。Crawl4AI 本地无需第五个账户。", ""]
+    if "codex_marketplace" in result:
+        lines.extend(["## 2. Codex", "", "安装器支持当前 CLI 时已执行下列两步；未执行时可在本机运行：", "", "```",
+                      _command(result["codex_next_argv"]), _command(result["codex_install_argv"]), "```", "",
+                      "完全退出并重开 Codex，打开 Plugins，选择 marketops-local → MarketOps Research Assistant；确认已安装且启用。",
+                      "旧版 CLI 没有 plugin add 时：在该 Plugins 来源打开插件详情，点击 Install 并启用，再新建会话。",
+                      f"安装状态：{result.get('codex_plugin_install_status', 'PENDING_HOST_INSTALL')}。", ""])
+    if "workbuddy_bundle" in result:
+        lines.extend(["## 3. WorkBuddy", "", "WorkBuddy 4.24.0+：连接器管理 → 添加/导入自定义连接器 → 选择本机生成目录：", "",
+                      "```", result["workbuddy_bundle"]["directory"], "```", "",
+                      "导入后启用连接器，新建会话。四个 Key 已保存在系统凭据库时，密码字段可留空。",
+                      "若该客户端提供的是选择 ZIP，请选择同目录生成的 ZIP；两种方式均只能用于这台机器。",
+                      "界面名称随 WorkBuddy 版本可能变化；安装回执保持 PENDING_HOST_IMPORT，直到在宿主看见并调用 MarketOps。", ""])
+    if "claude_next_argv" in result:
+        lines.extend(["## 4. Claude Code", "", "每次使用可从以下命令开启会话：", "", "```",
+                      _command(result["claude_next_argv"]), "```", ""])
+    lines.extend(["## 开始第一次调研", "",
+                  "> 使用 MarketOps，先检查数据路径、凭据、授权额度和供应商连接。按我的目标保存 Research Brief，先做 3 个候选；保存原文、事实引文和责任关系，无法核实的标 HOLD。导出 Excel，记录此次方法和卡点，并在下一批检索可复用经验。", "",
+                  "先确认宿主能列出 marketops_setup_status、marketops_capabilities 等工具，再检查真实服务。仅代码复制成功不等于宿主与账号验收通过。",
+                  "完整安装与实际检查状态见 INSTALL_RECEIPT.json；没有有效 BUILD_QA 的开发包只能诊断，不能据此启用真实调用。", ""])
+    return "\n".join(lines)
 
 
 def main() -> int:
@@ -233,6 +395,7 @@ def main() -> int:
                         help="new empty customer-owned directory outside repository")
     parser.add_argument("--client", choices=CLIENTS, required=True)
     parser.add_argument("--apply", action="store_true", help="actually create local files/venv")
+    parser.add_argument("--resume", action="store_true", help="resume this installer's same-source install; never overwrite an unknown directory")
     parser.add_argument("--install-deps", action="store_true",
                         help="explicit download of mcp and TypeSafe SDK dependencies into private venv")
     parser.add_argument("--install-local-crawl", action="store_true",
@@ -260,15 +423,19 @@ def main() -> int:
                       dependencies=args.install_deps or args.bootstrap_runtime,
                       register_codex=args.register_codex,
                       local_crawl=args.install_local_crawl or args.bootstrap_runtime,
-                      browser=args.install_crawl_browser or args.bootstrap_runtime
+                      browser=args.install_crawl_browser or args.bootstrap_runtime,
+                      resume=args.resume
                   ) if args.apply
                   else {"status": "DRY_RUN", **plan(args.destination, args.client)})
         print(json.dumps(result, ensure_ascii=False, indent=2))
-        return 0
+        return 2 if result.get("status") == "INSTALL_VALIDATION_INCOMPLETE" else 0
     except (OSError, ValueError, subprocess.CalledProcessError) as exc:
         # Error output deliberately excludes stdout/stderr from command execution.
+        code = str(exc).split(":", 1)[0] if isinstance(exc, ValueError) else "INSTALL_STEP_FAILED"
+        if not code or any(ch not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ_" for ch in code):
+            code = "INSTALL_CONFIGURATION_INVALID"
         print(json.dumps({"status": "INSTALL_BLOCKED",
-                          "reason_type": type(exc).__name__}), file=sys.stderr)
+                          "reason_type": type(exc).__name__, "code": code}), file=sys.stderr)
         return 2
 
 

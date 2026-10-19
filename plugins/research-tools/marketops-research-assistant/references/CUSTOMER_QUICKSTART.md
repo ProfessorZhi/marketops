@@ -1,90 +1,73 @@
-# MarketOps Research Assistant — 安装后从这里开始
+# MarketOps 安装与第一次调研
 
-**目标：** 一次安装 MarketOps 统一 MCP + 17 个 Skills + **真实内嵌的 TinyFish 与 SerpApi 官方 MCP Client** + Serper REST / Crawl4AI SDK / Jev SDK。只需为选用的供应商自行注册、在本机安全配置 API Key 或通过本插件进行 TinyFish OAuth，不需要另外在 Claude Code/Codex 安装两个厂商 MCP 插件。高级 Agent仍默认禁止、需独立付费授权。
+一次安装包含业务 Skills、一个 MarketOps MCP、内嵌 TinyFish/SerpApi 官方 MCP 客户端，以及 Serper REST、Crawl4AI 本地 SDK 和 TypeSafe Jev SDK。**不用再安装两家供应商插件。** 四家账户由自己注册；Crawl4AI 本地无需账号。
 
-> 安装程序不创建外部账户、不会拿到你的 OAuth、不会代你购买 Credits、不会写入真实密钥；安装依赖／Chromium 下载是明确选择的软件下载，不是调用供应商收费服务。不同操作系统仍须下载与该机器匹配的 Python Wheels/浏览器，不能将一个开发者的 venv/Chromium 打进跨系统ZIP后保证可运行。
+## 1. 安装源码包
 
-## 第一步：安装 MarketOps（选一条）
+支持 **Python 3.12、Windows x64 / Linux x64**。下载并解压完整的 `*-source.zip`，保留目录结构；若提供 SHA256，先按交付清单核对。
 
-将本插件目录作为下载或解压好的源码，在该目录下运行。**Python 3.11+**。
+Windows：双击根目录 `Install.cmd`。没有 Python 3.12 时会通过 winget 安装官方 Python；若机器无 winget，按提示从 [Python 官网](https://www.python.org/downloads/windows/)安装 3.12 x64 后重跑。选择固定安装目录；默认在当前用户 LocalAppData 的 MarketOps 版本目录。无需管理员权限；企业策略禁止下载时需由本机管理员处理。
 
-- 想一次性准备本地 MCP、Jev SDK、Crawl4AI 本地 SDK 和 Chromium 浏览器（会联网下载依赖，耗磁盘）：
-
-```bash
-python3 scripts/setup_clients.py --destination /YOUR/EMPTY/marketops-install --client all --apply --bootstrap-runtime
-```
-
-- 只准备 MarketOps + Jev 的核心 SDK，稍后再装大型浏览器：
+Linux：先有 Python 3.12，运行：
 
 ```bash
-python3 scripts/setup_clients.py --destination /YOUR/EMPTY/marketops-install --client both --apply --install-deps
+sh install.sh /绝对路径/MarketOps-Install both
 ```
 
-- **只查看计划，不动磁盘**：
+安装会下载 hash 锁定的依赖和 Chromium；这些软件下载不会消费研究服务额度。每个平台使用自己的 lock，结束运行 `pip check`。安装器生成带本机绝对 Python 路径的宿主配置，浏览器位于安装目录 `browsers/`，通过 `PLAYWRIGHT_BROWSERS_PATH` 绑定。目录存在不代表 Chromium 在该操作系统启动验收通过，查看安装回执和后续诊断。
+
+需要自选宿主或非交互安装时，在源码包根运行：
 
 ```bash
-python3 scripts/setup_clients.py --destination /YOUR/EMPTY/marketops-install --client all
+python scripts/setup_clients.py --destination /你的/安装目录 --client all --apply --bootstrap-runtime --resume
 ```
 
-选项：`--client claude` = Claude Code，`codex` = Codex，`workbuddy` = WorkBuddy，`both` = Codex + WorkBuddy，`all` = 三种环境。Windows 使用自己的Python启动器，并选择Windows绝对安装目录；平台的浏览器安装可能还需要额外系统依赖。
+Windows 用 `py -3.12` 代替 `python`，安装路径放在引号内，含空格的目录也必须完整加引号。`--client` 可选 `codex`、`workbuddy`、`both`（前两种）、`claude` 或 `all`。支持的 Codex CLI 可加 `--register-codex` 自动添加 marketplace 并安装插件。仅看计划则去掉 `--apply --bootstrap-runtime`；只装核心 SDK 可用 `--install-deps`，之后本地 Crawl4AI 仍需完整安装。
 
-安装后首先打开安装根目录自动生成的 **`START_HERE.md`**；运行 `INSTALL_RECEIPT.json` 里显示的 `provider_onboarding_command`（会自动包含正确的 venv Python、插件路径）。它只打印账号申请与连接状态，不联网。
+## 2. 四账户、赠金与本地 Key
 
-## 第二步：首次启动只配置两个本地路径
+查看[四账户启动指南](FOUR_ACCOUNT_START.md)，注册、按官方条件领取新用户额度、创建四个 API Key。已有账户直接使用。安装后的本地向导通过隐藏输入保存 Key 到系统凭据库，不写入插件目录。不要把密钥发给聊天中的助手。
 
-在受管 MarketOps MCP 中调用 `marketops_setup_status`。若 `CONFIG_REQUIRED`，用户**自己确定**：
+安装目录的 `INSTALL_RECEIPT.json` 包含 `customer_setup_argv` 和 `credentials_configure_argv`，根目录 `START_HERE.md` 已转换成可直接执行的本机命令。
 
-1. 研究数据根目录的绝对路径。
-2. 单独收取的 `Research_Experience.md` 文件绝对路径（不得存于研究数据根或 Git 内）。
-
-调用 `marketops_setup_configure` 后只问这一次，重启不会重新要求。这里**不需要提供五个 API Key**。
-
-## 第三步：按项目需要注册供应商
-
-安装包自带 `scripts/provider_onboarding.py` 和 `references/PROVIDER_CONNECTIONS.json`，可以选择一个或全部：
+可单独查看离线账号报告：
 
 ```bash
-python scripts/provider_onboarding.py --client claude --provider all
-python scripts/provider_onboarding.py --client codex --provider tinyfish --json
+python scripts/provider_onboarding.py --client codex --provider all
 ```
 
-如果从已安装包执行，应使用 `INSTALL_RECEIPT.json` 中的完整命令或用户选定 venv 的Python。CLI 本身**不存/不输出密钥**。
+请使用安装回执中的 venv Python；该报告只查本地线索，不进行真实认证，不显示 Key。`--client` 为 `claude|codex|workbuddy`，`--provider all` 显示五种能力，其中只有四家需云账户。
 
-注意参数轴不同：安装器 `--client all` 表示一次为三种宿主准备文件；本地账号向导 `--client` 只接受 `claude|codex|workbuddy`，而 `--provider all` 表示一次列出五家供应商。首次配置后可以在每个实际使用的宿主分别运行向导；**不能从一个宿主已登录推断另一个宿主的MCP也已连接**。
+## 3. 选择集中数据位置
 
-`--bootstrap-runtime` 下载的 Chromium 放在客户安装根下的 `browsers/` 专属目录，并在新安装MCP和WorkBuddy连接配置中绑定 `PLAYWRIGHT_BROWSERS_PATH`。这能避免隔离HOME导致浏览器丢失，但**仍需在该操作系统实际启动Chromium验收**，不要因为目录存在便报告浏览器可用。
+首次本地设置会询问：研究数据目录，以及单独收取的 `Research_Experience.md` 文件绝对路径。经验汇总文件放在研究目录之外；数据库、材料、证据、运行事件与导出集中于研究目录。保持它们在安装目录和 Git 仓库之外。已有配置不重复询问，也不被升级覆盖。
 
-| 厂商 | 注册／申请 | 默认适用通道 | 用户需要做什么 |
-|---|---|---|---|
-| TinyFish | https://agent.tinyfish.ai/ | **已内嵌官方MCP Client**（Search/Fetch；限额后Agent/原Run等待） | 安装后安全配置 `TINYFISH_API_KEY`，或在本机明确执行安装包内的 TinyFish OAuth登录命令；OS Keyring保管Token。目标网站Profile不随平台OAuth自动授权 |
-| SerpApi | https://serpapi.com/dashboard | **已内嵌官方MCP Client**，多引擎 `search(params=...)` | 官网取 `SERPAPI_API_KEY` 并在 MarketOps 的安全配置输入；由MarketOps Client向官方HTTPS MCP附加Bearer Header，不在URL中放Key，REST仅显式兼容 |
-| Serper | https://serper.dev/ | Lite内受管 REST | 官网申请 `SERPER_API_KEY`；未核实厂商官方MCP，不误装社区版 |
-| Crawl4AI | https://docs.crawl4ai.com/ | 已安装的本地Python SDK（无需云Key） | Chromium需安装在这台机器；只有用Cloud才去 https://crawl4ai.com/ 申请独立 `CRAWL4AI_API_KEY` |
-| TypeSafe Jev | https://console.typesafe.ai/ | 已安装Python SDK | 取得 `TYPESAFE_API_KEY`；Choice、Noul、Score按需收费，不能用作事实审批 |
+随后可选择本次研究服务、目标、允许域名和有限请求次数。默认不开启联网；本地设置调用统一运行时入口，不需要手改 S0 JSON。请求次数限制不是美元金额保证，未确认余额/费用会保留未知状态。TinyFish 付费 Agent/Browser 不属于首次验收。
 
-这些应用在“插件包内附带”的是**我们的Adapter代码、安装指引、连接模板和声明好的SDK安装步骤**；不是代替官方服务商签发API Key，更不是把官方远程MCP服务本体的代码或OAuth令牌私自复制到本地。
+已有任务时继续使用**同一研究数据目录**，重新运行本地 `customer_setup.py`。向导会显示原/新累计总上限、累计已用与预约/UNKNOWN 操作，输入 `AMEND` 后才续授权；已有 Run、材料、经验及消耗不会清零。例如原上限 20、已用 7，改为 30 表示总上限 30，而不是额外增加 30。高级命令为 `research_runtime_setup.py configure --data-root <已有目录> --provider <服务> --domains <域名> --max-calls <累计总上限> --task <目标> --amend --confirm`，须使用安装后的 Python；服务可重复指定，保留本次需要的全部服务。
 
-**重要**：TinyFish 的Search/Fetch若当前账户显示零费用，可单独使用；付费Web Agent/Browser要通过额度和授权检查。MCP存在或OAuth已完成不代表费用为零。
+## 4. 在宿主启用
 
-## 第四步：激活插件**已经内嵌**的两个官方MCP Client
+**Codex**：安装器检测到支持的 CLI 时执行 `codex plugin marketplace add <本机安装目录>` 与 `codex plugin add marketops-research-assistant@marketops-local --json`。旧版不支持 plugin add 时，在 Plugins → marketops-local → MarketOps Research Assistant 点击 Install/启用。完全退出重开，再建新会话。精确命令在生成的 START_HERE；不要使用不存在的 `codex plugin install/enable` 子命令。[官方本地插件说明](https://developers.openai.com/plugins/build/plugins)
 
-**你不用再额外安装 TinyFish 或 SerpApi 的宿主插件。** 市场研究插件自己会通过 `mcp` Python SDK 连接官方 `https://agent.tinyfish.ai/mcp`、`https://mcp.serpapi.com/mcp`，读取工具schema并执行一次受管请求；所有成功/失败、请求预约与素材存储归同一个MarketOps Run。
+**WorkBuddy 4.24.0+**：连接器管理 → 添加/导入自定义连接器，选择生成的 START_HERE 所列本机目录；若只支持 ZIP，则选该目录旁的 ZIP。启用后新建会话。不同版本界面名可能不同，导入状态在实测前保持 `PENDING_HOST_IMPORT`。已存系统凭据库时四 Key 表单可留空。**不能把本机生成的 WorkBuddy connector 给另一台电脑导入**；换机器运行 portable 源码包安装器。
 
-1. **TinyFish**：选其一即可。（a）在客户端安全凭据设置输入 `TINYFISH_API_KEY`，此值由MarketOps MCP Client以Bearer Header传给官方MCP（需真实鉴权验收）；（b）由账号主人**自行运行**安装凭据回执所给命令：`python scripts/research_official_mcp_auth.py login --provider tinyfish`，然后在浏览器里登录官方账号并把OAuth回调粘贴到本地隐藏输入提示。成功后令牌只保存在 OS Keyring，普通工具调用不会弹浏览器。若本机没有安全Keyring则拒绝持久化，改用API Key。平台OAuth≠其它网站Profile的登录。
-2. **SerpApi**：在 https://serpapi.com/dashboard 取得 `SERPAPI_API_KEY` 并由用户填入其客户端受保护的环境/Secret设置。内嵌官方MCP的通用 `search` 由 `marketops_serpapi_mcp_search(params={engine:'google_light',q:'...'})` 调用；不需另在Claude/Codex执行 `mcp add serpapi`。
-3. **TinyFish付费Agent**：`marketops_tinyfish_agent` 默认拒绝；用户须设置项目/进程 `MARKETOPS_TINYFISH_AGENT_ALLOW_PAID=1` 并每次指定最多50步、300秒和最多5美元（可进一步收紧）。实际调用前必须从同一MCP会话查询钱包、核实费率及供应商schema的硬限制；拿不到就不提交任务。成功提交后的 run ID 由 `marketops_tinyfish_agent_wait` 只查该任务状态；禁止超时重新启动新任务。**不能因此断言所有货币费用已完成对账。**
-4. Crawl4AI：默认本地SDK，无云端账号；官方Docker/Cloud MCP仅预留。Serper：受管REST。Jev：受管TypeSafe SDK。
-5. 若用户另外想把厂商工具独立装入Claude/Codex宿主（例如不经过MarketOps做网页工作），那属于**另一条不受MarketOps Lite预算和证据链自动追踪的直连路径**，不是正常安装步骤，不建议默认重复安装。
+**Claude Code**：按生成的 `claude_next_argv`，使用 `claude --plugin-dir <安装后的插件目录>` 打开会话。本包也保留 Claude manifest。
 
-完整的受管真实MCP客户端与OAuth/费用边界见 [EMBEDDED_OFFICIAL_MCP](EMBEDDED_OFFICIAL_MCP.md)。
-## 第五步：检查状态、再运行调研
+## 5. 启动任务与验收
 
-1. 先验证 MarketOps `tools/list` 中能看见受管工具，再调用 `marketops_capabilities()`；单纯“发现MCP工具名”不代表认证或余额通过。
-2. 检查供应商连接是否已成功、是否显示当前真实费用/配额、目标网站是否允许访问；`marketops_capabilities` 对宿主官方MCP只接收**未经认证的工具发现提示**。
-3. 由用户为单个项目打开相应网络开关和受管累计请求上限；默认都为0/禁用。付费功能每次还需费用边界和权限许可。
-4. TinyFish Agent/Browser预算未知或已耗尽，不影响已验证可用的零费Search/Fetch或本地Crawl4AI；不得换另一个Provider绕访问墙。
-5. Research Brief必须在任何外部消费之前持久化；真实来源保留引文及HASH、无法核实保留HOLD，最后产出9表Excel及经验汇总。
+新会话直接说：
 
-更多内容：[五家Provider及Key](PROVIDER_ONBOARDING.md)、[官方Skills/MCP来源](OFFICIAL_SKILLS_MCP_REGISTRY.md)、[真实通道／计费回执](PROVIDER_TRANSPORT_BILLING.md)、[完整发布验收清单](RELEASE_GATE.md)。
+> 使用 MarketOps。先检查安装、数据位置、账号和本次授权；按我的目标建立 Research Brief。先调查 3 个候选，确认场地、责任组织、相关岗位及有出处的公开联系路线。保存原文和逐字段引文，缺项标 HOLD，导出 Excel，并记录有效方法、卡点与纠正。下一批先检索这些经验。
 
-**交付等级说明**：本包把安装目录、代码、依赖和配置步骤封装好，但只有在 Member-A 实际机器上完成 Claude/Codex/WorkBuddy 启动、官方OAuth及单次真实只读验收后，才能称该客户环境“安装完成可用”。离线单测不能代替真实厂商账号与网页登录验收。
+工具列表应有 `marketops_setup_status`、`marketops_capabilities` 和研究工具。随后分别检查真实连接、材料保存、Excel 回读及经验复用。工具名出现、Key 存在、静态测试通过均不能代替这一验收。发布包需要实际测试生成的 `references/BUILD_QA.json`；缺失或过期的开发包只用于诊断。
+
+## 中断、升级与排障
+
+- 软件下载中断：保留目录，运行相同入口或原命令加 `--resume`。仅恢复同源码、同选项、本安装器拥有的目录；陌生目录绝不覆盖。
+- 换版本：使用新的安装目录，数据、系统凭据库和路径配置保持不变。源码变化导致 resume 拒绝时不要删除数据，选择新安装目录。
+- 401：重新核对对应服务 Key；402/额度不足：查看该账户余额，保留结果，不自动购买。
+- OS keyring 不可用：检查系统凭据服务；不使用明文文件代替。Linux 无桌面时由操作者给独立进程注入 Key。
+- Chromium 缺系统库：查看对应 Playwright 诊断，由本机管理员安装所需系统库；安装器不擅自改系统软件或其他浏览器配置。
+
+内嵌连接细节见 [EMBEDDED_OFFICIAL_MCP](EMBEDDED_OFFICIAL_MCP.md)，官方账户和活动来源集中在 [FOUR_ACCOUNT_START](FOUR_ACCOUNT_START.md)。

@@ -473,16 +473,14 @@ class ToolSurfaceTests(unittest.TestCase):
 
     CONTROL = ["marketops_setup_status", "marketops_status", "marketops_propose"]
 
-    def test_a_legacy_vendor_tool_beside_the_managed_entry_is_red(self):
+    def test_compatibility_names_share_the_managed_entry(self):
         report = probe.audit_tool_surface(
             [*self.CONTROL, probe.MANAGED_ENTRY_TOOL, "marketops_search",
              "marketops_tinyfish_agent"])
-        self.assertEqual("RED", report["severity"])
+        self.assertEqual("OK", report["severity"])
         self.assertTrue(report["managed_entry_present"])
-        self.assertEqual(["marketops_search", "marketops_tinyfish_agent"],
-                         report["legacy_vendor_tools"])
-        self.assertEqual(["LEGACY_VENDOR_TOOL_EXPOSED"],
-                         [f["kind"] for f in report["findings"]])
+        self.assertEqual([], report["legacy_vendor_tools"])
+        self.assertEqual([], report["findings"])
 
     def test_a_surface_without_legacy_vendor_tools_is_clean(self):
         report = probe.audit_tool_surface([*self.CONTROL, probe.MANAGED_ENTRY_TOOL])
@@ -490,21 +488,22 @@ class ToolSurfaceTests(unittest.TestCase):
         self.assertEqual([], report["legacy_vendor_tools"])
         self.assertEqual([], report["findings"])
 
-    def test_legacy_tools_with_no_managed_entry_are_reported_twice(self):
+    def test_compatibility_names_without_managed_entry_are_incomplete(self):
         report = probe.audit_tool_surface([*self.CONTROL, "marketops_crawl"])
         self.assertEqual("RED", report["severity"])
-        self.assertEqual(["LEGACY_VENDOR_TOOL_EXPOSED", "NO_MANAGED_ENTRY_BESIDE_LEGACY"],
+        self.assertEqual(["NO_MANAGED_ENTRY_BESIDE_LEGACY"],
                          [f["kind"] for f in report["findings"]])
 
     def test_the_legacy_inventory_is_the_one_the_dispatch_named(self):
         # Seven tools, named. Pinned so a silent addition to the ungated set is
         # a test failure rather than a reviewer's memory test.
-        self.assertEqual(7, len(probe.LEGACY_VENDOR_TOOLS))
+        self.assertEqual(0, len(probe.LEGACY_VENDOR_TOOLS))
+        self.assertEqual(7, len(probe.COMPAT_PROVIDER_TOOLS))
         self.assertEqual(
             {"marketops_search", "marketops_crawl", "marketops_tinyfish",
              "marketops_serpapi_mcp_search", "marketops_tinyfish_agent",
              "marketops_tinyfish_agent_wait", "marketops_jev_choice"},
-            set(probe.LEGACY_VENDOR_TOOLS))
+            set(probe.COMPAT_PROVIDER_TOOLS))
 
 
 class CleanArchiveTests(unittest.TestCase):

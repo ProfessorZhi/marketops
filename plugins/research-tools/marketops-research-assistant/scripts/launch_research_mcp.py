@@ -21,7 +21,7 @@ Behaviour:
   in this process — no second interpreter hunt.
 * Otherwise it probes, in order: `MARKETOPS_RESEARCH_PYTHON` (must be absolute),
   the plugin-local venvs the installer creates, then `python3` / `python` /
-  Windows' `py -3` on PATH. The first one that can `import mcp` wins.
+  Windows' `py -3.12` on PATH. The first one that can `import mcp` wins.
 * Nothing is installed, downloaded, or read from a credential store.
 
 Exit codes: 0 when the server ran and returned, 78 for the launcher's own
@@ -41,8 +41,8 @@ DEFAULT_SERVER = HERE / "research_mcp.py"
 DEFAULT_ENTRY = "research_mcp_facade.py"
 
 #: Names tried on PATH after the explicit override and the plugin-local venvs.
-#: `py` is the Windows Python launcher and is deliberately probed with `-3`.
-PATH_CANDIDATES = (("python3",), ("python",), ("py", "-3"))
+#: `py` is the Windows Python launcher and is deliberately probed with `-3.12`.
+PATH_CANDIDATES = (("python3.12",), ("python3",), ("python",), ("py", "-3.12"))
 
 
 def _usable(command: list[str]) -> bool:
@@ -59,15 +59,15 @@ def candidates() -> list[list[str]]:
     """Every interpreter command this launcher would try, in order.
 
     Returned as argv lists because one candidate is a two-token command
-    (`py -3`), which a plain "which" cannot express.
+    (`py -3.12`), which a plain "which" cannot express.
     """
     probes: list[list[str]] = []
     override = os.environ.get("MARKETOPS_RESEARCH_PYTHON", "").strip()
     if override:
         probes.append([override])
     # The installer's venv, on either layout: bin/ on POSIX, Scripts/ on Windows.
-    for relative in ("../.venv/bin/python", "../../.venv/bin/python",
-                     "../.venv/Scripts/python.exe", "../../.venv/Scripts/python.exe"):
+    for relative in ("../.venv/bin/python", "../../.venv/bin/python", "../../../.venv/bin/python",
+                     "../.venv/Scripts/python.exe", "../../.venv/Scripts/python.exe", "../../../.venv/Scripts/python.exe"):
         candidate = (HERE / relative).resolve()
         if candidate.is_file():
             probes.append([str(candidate)])

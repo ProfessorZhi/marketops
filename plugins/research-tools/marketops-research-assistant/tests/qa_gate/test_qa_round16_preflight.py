@@ -216,14 +216,14 @@ def test_every_declared_guard_source_is_honest(clean_env):
 PROVIDER_CAPABLE = {
     "marketops_tinyfish_agent", "marketops_tinyfish_agent_wait",
     "marketops_serpapi_mcp_search", "marketops_tinyfish", "marketops_crawl",
-    "marketops_jev_choice", "marketops_search", "marketops_managed_call",
+    "marketops_jev_choice", "marketops_search", "marketops_managed_call", "marketops_research_step",
 }
 
 
-def test_the_visible_surface_is_25_and_the_workbook_is_not_a_provider_bypass(clean_env):
+def test_the_visible_surface_is_30_and_local_tools_are_not_provider_bypasses(clean_env):
     mcp = _mod("research_mcp")
     tools = mcp.build_server()._tool_manager._tools
-    assert len(tools) == 25, sorted(tools)
+    assert len(tools) == 30, sorted(tools)
     assert "marketops_evidence_workbook" in tools, sorted(tools)
 
     reachable = set()
@@ -235,8 +235,9 @@ def test_the_visible_surface_is_25_and_the_workbook_is_not_a_provider_bypass(cle
         attrs = {(c.func.value.id, c.func.attr) for c in ast.walk(tree)
                  if isinstance(c, ast.Call) and isinstance(c.func, ast.Attribute)
                  and isinstance(c.func.value, ast.Name)}
-        if (names & {"invoke", "search", "managed_invoke"}
-                or ("research_wiring", "managed_invoke") in attrs):
+        if (names & {"invoke", "search", "managed_invoke", "managed_call"}
+                or ("research_wiring", "managed_invoke") in attrs
+                or ("research_fallback", "research_step") in attrs):
             reachable.add(name)
     assert reachable == PROVIDER_CAPABLE, {
         "unexpected provider-capable tools": sorted(reachable - PROVIDER_CAPABLE),

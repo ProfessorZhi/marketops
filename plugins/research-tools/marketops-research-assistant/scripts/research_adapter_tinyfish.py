@@ -264,7 +264,7 @@ _SPEC = (
      "PROJECT_NETWORK_AND_DOMAIN_POLICY",
      _billing(False, "FETCH_URL_ACCOUNT_RATE"),
      "", ("urls",),
-     ("format", "links", "image_links", "page_metadata", "purpose",
+     ("format", "links", "image_links", "iframe_links", "page_metadata", "purpose",
       "include_selectors", "exclude_selectors", "ttl", "per_url_timeout_ms",
       "if_none_match", "if_modified_since", "include_etag_and_last_modified")),
 
@@ -939,7 +939,7 @@ def _validate_fetch(arguments: dict) -> None:
     published = {k: v for k, v in arguments.items() if k in allowed and k != "urls"}
     if published.get("format") is not None and published["format"] not in _FETCH_FORMAT:
         raise ValueError("TINYFISH_FETCH_ARGS_INVALID")
-    for name in ("links", "image_links", "page_metadata",
+    for name in ("links", "image_links", "iframe_links", "page_metadata",
                  "include_etag_and_last_modified"):
         if published.get(name) is not None and type(published[name]) is not bool:
             raise ValueError("TINYFISH_FETCH_ARGS_INVALID")
@@ -1687,14 +1687,15 @@ async def _run(plan: dict) -> dict:
         approved_url(target, resolve=True)
 
     if tool == "fetch_content":
-        # The upstream page lists `format`, `links`, `image_links` and
-        # `page_metadata` under its Required column while also documenting
+        # The actual 2026-10-20 tools/list requires format and all four flags,
+        # including iframe_links, while also documenting
         # defaults for them, so sending nothing leaves the server's behaviour
         # undefined for us. Sending the documented defaults is behaviour
         # preserving under either reading, and an explicit caller value still
         # wins. (This is one of the four W-C corrections.)
         for name, default in (("format", "markdown"), ("links", False),
-                              ("image_links", False), ("page_metadata", False)):
+                              ("image_links", False), ("iframe_links", False),
+                              ("page_metadata", False)):
             arguments.setdefault(name, default)
 
     if tool == "run_web_automation":
@@ -1894,7 +1895,7 @@ SHIPPING_CALL_SHAPES = {
     "tinyfish_mcp_search": ("search", {"query": "public venue list"}),
     "tinyfish_mcp_fetch": ("fetch_content", {
         "urls": ["https://public.example.org/a"], "format": "markdown",
-        "links": False, "image_links": False, "page_metadata": False}),
+        "links": False, "image_links": False, "iframe_links": False, "page_metadata": False}),
     "tinyfish_mcp_wait": ("get_run", {"id": "run-abc_1"}),
 }
 

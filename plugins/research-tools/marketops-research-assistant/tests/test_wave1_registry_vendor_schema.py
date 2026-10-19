@@ -391,7 +391,7 @@ class InvalidationTests(unittest.TestCase):
         policy = policy_module.Policy(
             registry=invalid, network_enabled=True, allowed_domains=("example.com",),
             clock=lambda: NOW)
-        decision = policy.evaluate(policy_request("serpapi.search", {"q": "venue"}))
+        decision = policy.evaluate(policy_request("serpapi.search", {"query": "venue"}))
         self.assertIs(decision.verdict, contract.PolicyVerdict.DENY)
         self.assertEqual(decision.reason_code, "CAPABILITY_SCHEMA_DRIFT")
         if decision.verdict is contract.PolicyVerdict.ALLOW:

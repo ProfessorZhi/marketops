@@ -25,7 +25,7 @@ import os
 import re
 import sys
 import tempfile
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 CONFIG_VERSION = 1
 APP_DIR = "marketops-research"
@@ -202,9 +202,9 @@ def _validate_target(kind: str, value: str, platform: str):
     if not is_absolute_path(value, platform):
         raise ConfigError("PATH_NOT_ABSOLUTE",
                           f"{kind} must be an absolute path, got {value!r}")
-    if platform == "win32":
+    if platform == "win32" and sys.platform != "win32":
         # Do not resolve a Windows path with a POSIX Path: it cannot be checked
-        # for existence on this host anyway, and resolving would mangle it.
+        # for existence on this host. Native Windows still runs all checks below.
         return Path(value.strip())
     resolved = Path(value.strip()).expanduser().resolve()
     if _inside_plugin_source(resolved):
@@ -238,7 +238,9 @@ def configure(data_root: str, experience_file: str, *, confirm: bool = False,
     env = os.environ if env is None else env
     data_path = _validate_target("data_root", data_root, platform)
     exp_path = _validate_target("experience_file", experience_file, platform)
-    if platform != "win32" and exp_path.is_relative_to(data_path):
+    summary_inside = (PureWindowsPath(str(exp_path)).is_relative_to(PureWindowsPath(str(data_path)))
+                      if platform == "win32" else exp_path.is_relative_to(data_path))
+    if summary_inside:
         raise ConfigError("EXPERIENCE_FILE_INSIDE_DATA_ROOT",
                           "the experience file must be collectable on its own, "
                           "outside the research data directory")

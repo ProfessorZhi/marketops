@@ -26,7 +26,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from contextlib import closing
+from contextlib import closing, nullcontext
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -49,7 +49,7 @@ VERIFIED_STATES = frozenset({"UNVERIFIED", "CORROBORATED", "CONTRADICTED", "HUMA
 # -------------------------------------------------------- candidate provenance
 def link_evidence(root: Path | str | None, run_id: str, record_id: str, artifact_id: str, *,
                   content_sha256: str, span_sha256: str, locator_kind: str,
-                  locator: str = "", material_kind: str = "", field: str = "") -> dict:
+                  locator: str = "", material_kind: str = "", field: str = "", _db=None) -> dict:
     """Record *which span* of *which artifact* a candidate was built from.
 
     A record's `artifact_ids` says an artifact was attached. This says what part of
@@ -69,8 +69,9 @@ def link_evidence(root: Path | str | None, run_id: str, record_id: str, artifact
     link_id = "lnk-" + hashlib.sha256("|".join(
         (run_id, record_id, artifact_id, span_sha256, field)).encode("utf-8")).hexdigest()[:32]
     values = (content_sha256, span_sha256, locator_kind, locator, material_kind, field)
-    with closing(_connection(store_root)) as db:
-        db.execute("BEGIN IMMEDIATE")
+    with (closing(_connection(store_root)) if _db is None else nullcontext(_db)) as db:
+        if _db is None:
+            db.execute("BEGIN IMMEDIATE")
         if db.execute("SELECT 1 FROM records WHERE run_id=? AND record_id=?",
                       (run_id, record_id)).fetchone() is None:
             raise ValueError("EVIDENCE_LINK_RECORD_NOT_IN_RUN")
@@ -80,15 +81,67 @@ def link_evidence(root: Path | str | None, run_id: str, record_id: str, artifact
         prior = db.execute("SELECT content_sha256,span_sha256,locator_kind,locator,material_kind,field "
                            "FROM evidence_links WHERE link_id=?", (link_id,)).fetchone()
         if prior is not None:
-            db.commit()
+            if _db is None:
+                db.commit()
             if tuple(prior) != values:
                 raise ValueError("EVIDENCE_LINK_COLLISION")
             return {"link_id": link_id, "status": "IDEMPOTENT"}
         db.execute("INSERT INTO evidence_links VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                    (link_id, run_id, record_id, artifact_id, *values,
                     datetime.now(timezone.utc).isoformat()))
-        db.commit()
+        if _db is None:
+            db.commit()
     return {"link_id": link_id, "status": "LINKED"}
+
+
+def link_candidate_claims(root, db, run_id, record_id, payload, artifact_ids):
+    """Link actual matching spans in the candidate writer's transaction.
+
+    Invalid/missing quotes remain ordinary candidate gaps for the evidence
+    audit. A corrupted source refuses the transaction; a partial batch cannot
+    leave links for records that were rolled back. Normalization is exactly the
+    audit's versioned text representation, not a claim of raw-byte offsets.
+    """
+    from research_evidence import KEY, _norm, _text
+    claims = payload.get("claims", [])
+    if not isinstance(claims, list) or len(claims) > 12:
+        return []
+    base = Path(root).resolve()
+    linked = []
+    for claim in claims:
+        if not isinstance(claim, dict):
+            continue
+        aid, quote, field = (claim.get("artifact_id"), claim.get("quote"), claim.get("field"))
+        if (not isinstance(aid, str) or aid not in (artifact_ids or [])
+                or not isinstance(quote, str) or not 12 <= len(quote) <= 600
+                or not isinstance(field, str) or not KEY.fullmatch(field)):
+            continue
+        row = db.execute("SELECT material_kind,content_sha256,relative_path FROM artifacts "
+                         "WHERE run_id=? AND artifact_id=?", (run_id, aid)).fetchone()
+        if row is None:
+            raise ValueError("ARTIFACT_NOT_IN_RUN")
+        if row[0] in {"image", "decision_response"}:
+            continue
+        relative = Path(row[2])
+        path = (base / relative).resolve()
+        if relative.is_absolute() or ".." in relative.parts or not path.is_relative_to(base / "artifacts"):
+            raise ValueError("EVIDENCE_LINK_ARTIFACT_PATH_OUTSIDE_ROOT")
+        if not path.is_file() or not 0 < path.stat().st_size <= 4_000_000:
+            raise ValueError("EVIDENCE_LINK_ARTIFACT_MISSING_OR_INVALID")
+        content = path.read_bytes()
+        if hashlib.sha256(content).hexdigest() != row[1]:
+            raise ValueError("ARTIFACT_READBACK_HASH_MISMATCH")
+        normalized = _text({"kind": row[0], "text": content.decode("utf-8", errors="replace")})
+        wanted = _norm(quote)
+        start = normalized.find(wanted)
+        if start < 0:
+            continue
+        end = start + len(wanted)
+        linked.append(link_evidence(base, run_id, record_id, aid, content_sha256=row[1],
+            span_sha256=hashlib.sha256(normalized[start:end].encode("utf-8")).hexdigest(),
+            locator_kind="normalized_text_v1", locator=f"{start}:{end}", material_kind=row[0],
+            field=field, _db=db))
+    return linked
 
 
 def evidence_links(root: Path | str | None, run_id: str, *,

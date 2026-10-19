@@ -417,6 +417,7 @@ class FakeCrawl4AI:
         self.fetcher = fetcher
         self.browser_configs: list[dict[str, Any]] = []
         self.run_configs: list[dict[str, Any]] = []
+        self.base_directories: list[str | None] = []
         self.calls: list[str] = []
         self._outer = self
 
@@ -429,7 +430,8 @@ class FakeCrawl4AI:
         self.run_configs.append(kwargs)
         return dict(kwargs)
 
-    def AsyncWebCrawler(self, *, config: Any = None) -> "_FakeCrawlerCtx":  # noqa: N802
+    def AsyncWebCrawler(self, *, config: Any = None, base_directory=None) -> "_FakeCrawlerCtx":  # noqa: N802
+        self.base_directories.append(base_directory)
         return _FakeCrawlerCtx(self, config)
 
 

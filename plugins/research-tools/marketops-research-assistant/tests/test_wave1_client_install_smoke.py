@@ -175,6 +175,8 @@ class ReproducibilityTests(unittest.TestCase):
     LOCKS = {
         "requirements-lock-lite.txt": "requirements-lite.txt",
         "requirements-lock-crawl-local.txt": "requirements-crawl-local.txt",
+        "requirements-lock-lite-windows.txt": "requirements-lite.txt",
+        "requirements-lock-crawl-local-windows.txt": "requirements-crawl-local.txt",
     }
 
     def test_every_lock_line_is_version_and_hash_pinned(self):

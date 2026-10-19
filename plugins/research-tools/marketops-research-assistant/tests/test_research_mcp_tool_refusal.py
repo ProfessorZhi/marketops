@@ -17,6 +17,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import research_mcp as mcp
 
 EXPECTED_TOOLS = {
+    "marketops_runs", "marketops_research_step", "marketops_experience_recall",
+    "marketops_experience_feedback", "marketops_experience_summary",
     "marketops_setup_status", "marketops_setup_configure", "marketops_note",
     "marketops_capabilities", "marketops_start", "marketops_search", "marketops_crawl",
     "marketops_tinyfish", "marketops_serpapi_mcp_search", "marketops_tinyfish_agent",
@@ -69,7 +71,7 @@ class ToolRefusalTests(unittest.TestCase):
 
     def test_server_reports_the_plugin_version(self):
         server = mcp.build_server()
-        self.assertEqual("0.4.0", server.version)
+        self.assertEqual("0.5.0", server.version)
 
 
 if __name__ == "__main__":

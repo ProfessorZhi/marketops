@@ -75,7 +75,7 @@ def _identifier(value: str, field: str, optional: bool = False) -> str:
     return value
 
 
-def _root(value: str | Path | None) -> Path:
+def _root(value: str | Path | None, *, create: bool = True) -> Path:
     configured = value if value is not None else os.environ.get("MARKETOPS_RESEARCH_DATA_ROOT")
     # A blank or unreplaced `${VAR}` override is "not configured", never a path:
     # treating it as one would create a literal directory named after the template.
@@ -95,7 +95,8 @@ def _root(value: str | Path | None) -> Path:
     # future agents may accidentally stage artifacts/PII into Git.
     if any((part / ".git").exists() for part in (root, *root.parents)):
         raise ValueError("Runtime/customer data must be outside all Git checkouts")
-    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if create:
+        root.mkdir(parents=True, exist_ok=True, mode=0o700)
     return root
 
 

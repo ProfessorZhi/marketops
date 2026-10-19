@@ -8,6 +8,7 @@ import importlib.util
 import inspect
 import json
 import os
+import re
 import sqlite3
 import sys
 from pathlib import Path
@@ -20,6 +21,7 @@ import research_provider_extensions as extra
 import research_delivery as delivery
 import research_workflow as workflow
 import research_evidence as evidence
+import research_experience_recall as experience_memory
 import research_provider_policy as provider_policy
 from research_event_journal import (_root, append_event, append_note, draft_experience,
                                     summarize_events)
@@ -28,7 +30,21 @@ from research_experience_summary import refresh_quietly as refresh_summary
 
 def next_step(run_id, limit=10, previous_snapshot_id="", after_attempt=False):
     """Bounded tasks; an unchanged snapshot after work triggers a stop/switch hint."""
-    return workflow.next_step(root(), run_id, limit, previous_snapshot_id, after_attempt)
+    result = workflow.next_step(root(), run_id, limit, previous_snapshot_id, after_attempt)
+    result["experience"] = _experience_view(run_id, stage=result.get("stage", "intake"))
+    return result
+
+
+def _experience_view(run_id, *, stage="intake"):
+    """A failed advisory lookup must be visible without losing durable research."""
+    try:
+        return experience_memory.recall(root(), run_id=run_id, stage=stage, limit=5)
+    except Exception as exc:
+        code = str(exc).split(":", 1)[0]
+        return {"status": "UNAVAILABLE", "experiences": [],
+                "reason_code": code if re.fullmatch(r"[A-Z][A-Z0-9_]{0,79}", code)
+                else "EXPERIENCE_READ_FAILED", "reason_type": type(exc).__name__,
+                "business_verified": False, "policy_changed": False}
 
 
 def status(run_id, limit=20, cursor="", kind="", entity_key=""):
@@ -303,6 +319,19 @@ def capabilities(host_observed_tools: list[str] | None = None,
     The same five adapters can be installed in different client environments
     with different keys, policies, budgets, SDKs, wallet balances and sessions.
     """
+    import research_runtime_setup as runtime_setup
+    try:
+        configured_root = research_config.data_root()
+    except research_config.ConfigError:
+        configured_root = None
+    if configured_root is not None and runtime_setup.config(configured_root):
+        from research_runtime_status import view
+        return {"product": "MarketOps Research MCP", "version": "0.5.0-candidate",
+                **view(configured_root, task_kind=task_kind),
+                "external_host": _external_inventory(host_observed_tools),
+                "embedded_official_mcp": provider_policy.embedded_official_mcp_capabilities(),
+                "business_store": "customer data root; evidence-linked candidates",
+                "no_auto_outreach": True}
     search = dual_search_mcp._configuration()
     budget_search = _capacity(search["max_total_reserved_calls"],
                               _ledger_usage("dual-search-ledger.sqlite3", "search_attempts"))
@@ -372,7 +401,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         if task_kind else None)
     return {
         "product": "MarketOps Lite Research MCP",
-        "version": "0.4.0-candidate",
+        "version": "0.5.0-candidate",
         "providers": {
             "serpapi": {"transport": "REST through local MCP", **search["serpapi"]},
             "serper": {"transport": "REST through local MCP", **search["serper"]},
@@ -463,7 +492,8 @@ def start(run_id, scope, objective, rule_version, brief=None):
     return {**result, "event": event,
             "brief": brief_receipt or {"status": "BRIEF_REQUIRED"},
             "next_status": next_state["status"],
-            "next_skill": next_state["recommended_skill"]}
+            "next_skill": next_state["recommended_skill"],
+            "experience": _experience_view(run_id, stage="intake")}
 
 
 def _require_s0_for_provider(what):
@@ -491,57 +521,92 @@ def _require_s0_for_provider(what):
     raise ValueError(f"{reason_code}: S0 gate refused {what} ({detail})")
 
 
-def search(provider, query, country, language, run_id, operation_id, mode="web", limit=10):
+def managed_call(capability_id, params, run_id, operation_id, account_ref="",
+                 intent_fingerprint="", grant_ref=""):
+    """One effective provider route, with the real durable evidence contract."""
+    import research_wiring
+    import research_capability_registry as registry
+    import research_runtime_results as results
     r = root()
     store.list_run(r, run_id, limit=1)
-    # Same order as `invoke`: local preconditions, then the deployment gate.
     _require_brief_for_network(r, run_id)
-    _require_s0_for_provider(f"search provider {provider!r}")
-    result = dual_search_mcp.search(
-        provider, query, country, language, run_id, operation_id, mode, limit)
-    record_ids = []
-    try:
-        for i, item in enumerate(result["results"]):
-            record_id = "src-" + hashlib.sha256(
-                (run_id + operation_id + str(i) +
-                 json.dumps(item, sort_keys=True)).encode("utf-8")).hexdigest()[:32]
-            rec = store.put_candidate(
-                r, run_id, record_id, "discovery", "source", record_id,
-                {"provider": provider, "operation_id": operation_id,
-                 "url": item.get("url"), "title": item.get("title"),
-                 "place_id": item.get("place_id"), "address": item.get("address"),
-                 "snippet": item.get("snippet"), "discovery_only": True})
-            record_ids.append(rec["record_id"])
-    except Exception:
-        append_event(r, run_id=run_id, operation_id=operation_id, stage="discovery",
-                     kind="handoff", status="hold", provider=provider,
-                     reason_code="search_receipt_not_fully_staged")
-        raise ValueError("SEARCH_RECEIPT_SAVED_BUT_RECORD_STAGING_FAILED") from None
-    return {**result, "stored_record_ids": record_ids,
+    entry = registry.DEFAULT_REGISTRY.get(capability_id)
+    if entry is None:
+        raise ValueError("CAPABILITY_UNKNOWN")
+    # Account/intent authority belongs to local setup and canonical arguments,
+    # never caller-supplied strings which could bypass the account/dedup scopes.
+    if account_ref and account_ref != entry.provider:
+        raise ValueError("CAPABILITY_PARAM_NOT_ALLOWED: account alias is deployment-owned")
+    if not isinstance(params, dict):
+        raise ValueError("CAPABILITY_PARAM_NOT_ALLOWED")
+    arguments = results.normalize_params(capability_id, params)
+    if capability_id in {"serper.search", "serpapi.search"}:
+        for key, value in {"country": "US", "language": "en", "limit": 10}.items():
+            arguments.setdefault(key, value)
+        arguments.setdefault("mode" if capability_id == "serper.search" else "engine",
+                             "web" if capability_id == "serper.search" else "google_light")
+    fingerprint = results.identity(capability_id, arguments)
+    # IDs are run-scoped at the MCP boundary, ledger-scoped internally.
+    ledger_operation = "op-" + hashlib.sha256((run_id + ":" + operation_id).encode()).hexdigest()[:40]
+    guarded = research_wiring.managed_invoke(
+        capability_id=capability_id, params=arguments, run_id=run_id,
+        operation_id=ledger_operation, account_ref=entry.provider,
+        intent_fingerprint=fingerprint, root=r, grant_ref=grant_ref or None)
+    return results.persist(r, run_id, operation_id, guarded, params=arguments)
+
+
+def search(provider, query, country, language, run_id, operation_id, mode="web", limit=10):
+    if provider not in {"serper", "serpapi"}:
+        raise ValueError("CAPABILITY_UNKNOWN")
+    if provider == "serpapi" and mode != "web":
+        raise ValueError("CAPABILITY_PARAM_NOT_ALLOWED: use an explicitly reviewed engine")
+    params = {"query": query, "country": country, "language": language, "limit": limit}
+    params["mode" if provider == "serper" else "engine"] = mode if provider == "serper" else "google_light"
+    answer = managed_call(provider + ".search", params, run_id, operation_id)
+    if answer["status"] != "OK":
+        raise ValueError(answer["reason_code"] + ": " + ",".join(answer["s0_failed"]))
+    return {**answer, **(answer.get("payload") or {}),
             "invocation": provider_policy.invocation_receipt(
-                provider, reservation="ONE_ATTEMPT_RESERVED_NOT_BILL_VERIFIED")}
+                "serpapi_mcp_search" if provider == "serpapi" else provider,
+                reservation="ONE_ATTEMPT_RESERVED_NOT_BILL_VERIFIED")}
 
 
 def invoke(action, run_id, operation_id, url="", query="", document="",
            question="", options=None, primitive="choice", mcp_params=None,
            paid_limit_usd="", ledger_grant=""):
-    # Local preconditions first, then the deployment gate. `_require_brief_for_network`
-    # reads the store and opens nothing, so it is not an egress path; its refusal is
-    # also the more specific one ("this run has no brief") and running S0 ahead of it
-    # would replace that answer with "this deployment may not spend", which is true
-    # but useless to the caller. The S0 check still precedes every provider plane.
-    _require_brief_for_network(root(), run_id)
-    # Only a real provider action is gated. An unknown action never reaches a
-    # provider, and refusing it here would turn "you called something that does
-    # not exist" into "this deployment may not spend", which is a different and
-    # less useful answer.
-    if action in extra.ALLOWED_ACTIONS:
-        _require_s0_for_provider(f"provider action {action!r}")
-    return extra.invoke(action, run_id=run_id, operation_id=operation_id,
-                        url=url, query=query, document=document,
-                        question=question, options=options, primitive=primitive,
-                        mcp_params=mcp_params, paid_limit_usd=paid_limit_usd,
-                        ledger_grant=ledger_grant)
+    if action == "crawl4ai_local":
+        capability, params = "crawl4ai.fetch_page", {"url": url}
+    elif action == "tinyfish_mcp_search":
+        capability, params = "tinyfish.search", {"query": query}
+    elif action == "tinyfish_mcp_fetch":
+        capability, params = "tinyfish.fetch_content", {"urls": [url], "format": "html",
+            "links": False, "image_links": False, "iframe_links": False, "page_metadata": False}
+    elif action == "serpapi_mcp_search":
+        from research_runtime_results import normalize_params
+        data = dict(mcp_params or {})
+        allowed = {"q", "query", "engine", "gl", "hl", "num"}
+        if set(data) - allowed:
+            raise ValueError("CAPABILITY_PARAM_NOT_ALLOWED")
+        capability, params = "serpapi.search", normalize_params("serpapi.search", data)
+    elif action == "jev_choice":
+        from research_runtime_results import resolve_excerpt
+        if primitive not in {"choice", "noul", "score"}:
+            raise ValueError("CAPABILITY_PARAM_NOT_ALLOWED")
+        capability, params = "jev." + primitive, {"artifact_id": resolve_excerpt(root(), run_id, document),
+                                                 "question": question}
+        if primitive == "choice":
+            params["options"] = options
+        elif primitive == "score":
+            params["scale"] = options
+    else:
+        # Old explicit REST/Cloud paths never silently substitute for a reviewed
+        # provider. Paid browser-agent and account mutation remain unavailable.
+        raise ValueError("CAPABILITY_NOT_AVAILABLE: action is not in the initial product profile")
+    answer = managed_call(capability, params, run_id, operation_id, grant_ref=ledger_grant)
+    if answer["status"] != "OK":
+        raise ValueError(answer["reason_code"] + ": " + ",".join(answer["s0_failed"]))
+    return {**answer, "status": "SAVED_MATERIAL_NOT_VERIFIED",
+            "managed_status": answer["status"], "result": answer.get("payload")}
 
 
 def propose(run_id, record_id, stage, kind, entity_key, facts, artifact_ids=None):
@@ -666,7 +731,7 @@ def handoff(run_id, operation_id):
     try:
         experience_result = draft_experience(
             r, run_id=run_id, scope=head["scope"],
-            rule_version=head["rule_version"], skill_version="0.4.0",
+            rule_version=head["rule_version"], skill_version="0.5.0",
             output=experience_path)
         result["experience_candidate"] = str(experience_path)
         result["experience_incidents"] = experience_result["incidents"]
@@ -674,6 +739,13 @@ def handoff(run_id, operation_id):
         result["experience_candidate"] = None
         result["experience_incidents"] = None
         reasons.append("EXPERIENCE_DRAFT_FAILED_" + type(exc).__name__)
+
+    try:
+        result["experience_feedback"] = experience_memory.summary(r, run_id=run_id)
+    except Exception as exc:
+        result["experience_feedback"] = {"status": "UNAVAILABLE",
+                                         "reason_type": type(exc).__name__}
+        reasons.append("EXPERIENCE_FEEDBACK_SUMMARY_FAILED")
 
     try:
         append_event(r, run_id=run_id, operation_id=operation_id,
@@ -767,8 +839,10 @@ def _guarded(fn):
 
 
 def build_server():
+    from research_credentials import load_into_environment
+    load_into_environment()
     from mcp.server import MCPServer
-    mcp = MCPServer("MarketOps Lite Research", version="0.4.0")
+    mcp = MCPServer("MarketOps Lite Research", version="0.5.0")
 
     def tool(fn):
         return mcp.tool()(_guarded(fn))
@@ -823,7 +897,7 @@ def build_server():
     def marketops_tinyfish(run_id: str, operation_id: str,
                            task: str = "search", query: str = "", url: str = "",
                            transport: str = "mcp") -> dict:
-        """Embedded official TinyFish MCP Search/Fetch by default; REST explicit fallback."""
+        """Embedded official TinyFish MCP Search/Fetch. Legacy REST selection is refused."""
         options = {"mcp": {"search": "tinyfish_mcp_search", "fetch": "tinyfish_mcp_fetch"},
                    "rest": {"search": "tinyfish_search", "fetch": "tinyfish_fetch"}}
         action = options.get(transport, {}).get(task, "unsupported")
@@ -834,8 +908,7 @@ def build_server():
                                     params: dict) -> dict:
         """Embedded official SerpApi MCP search; any valid engine, compact mode.
 
-        The normal marketops_search(provider='serpapi') remains a separate
-        backwards-compatible REST adapter; no automatic double search/fallback.
+        Both search tool names use the same embedded MCP adapter and ledger identity.
         """
         return invoke("serpapi_mcp_search", run_id, operation_id, mcp_params=params)
 
@@ -843,7 +916,7 @@ def build_server():
     def marketops_tinyfish_agent(run_id: str, operation_id: str, url: str,
                                  goal: str, max_steps: int, max_duration_seconds: int,
                                  max_charge_usd: str) -> dict:
-        """Submit one read-only, bounded, explicitly paid TinyFish official MCP Agent.
+        """Compatibility entry; paid TinyFish Agent is unavailable in this research profile.
 
         Requires separate process paid opt-in, domain allowlist, wallet-rate
         readback and an upstream-supported hard max_steps/max_duration_seconds.
@@ -858,7 +931,7 @@ def build_server():
     def marketops_tinyfish_agent_wait(run_id: str, operation_id: str,
                                      original_operation_id: str,
                                      agent_run_id: str, poll_index: int) -> dict:
-        """Check an already-submitted TinyFish Agent run through official MCP.
+        """Compatibility entry; TinyFish Agent polling is unavailable in this research profile.
 
         Polling never creates a new Agent; the exact run handle must match a
         prior hash-verified agent submission in this MarketOps Run. Use a
@@ -901,6 +974,35 @@ def build_server():
         return evidence_audit(run_id, limit)
 
     @tool
+    def marketops_research_step(run_id: str, operation_id: str, task_kind: str,
+                                query: str = "", url: str = "", artifact_id: str = "",
+                                question: str = "", options: list[str] | None = None,
+                                country: str = "", language: str = "",
+                                limit: int = 5, max_attempts: int = 3) -> dict:
+        """Run one bounded research step with recorded, admitted fallback channels.
+
+        task_kind: source_discovery, known_public_url, batch_public_pages (one
+        URL per step), or semantic_choice. Unknown charges, timeouts, access
+        restrictions and exhausted shared budgets stop the chain. Results are
+        candidate materials; read the returned artifact IDs and verify claims.
+        """
+        import research_fallback
+        import research_runtime_setup
+        data_root = root()
+        _require_brief_for_network(data_root, run_id)
+        return research_fallback.research_step(
+            data_root, run_id=run_id, operation_id=operation_id, task_kind=task_kind,
+            managed_call=managed_call,
+            admission=lambda capability: research_runtime_setup.admission(data_root, capability),
+            query=query, url=url, artifact_id=artifact_id, question=question, options=options,
+            country=country, language=language, limit=limit, max_attempts=max_attempts)
+
+    @tool
+    def marketops_runs(limit: int = 10, cursor: str = "", scope: str = "") -> dict:
+        """Find saved tasks before resuming or starting a related batch. Read-only and paginated."""
+        return store.list_runs(None, limit=limit, cursor=cursor, scope=scope)
+
+    @tool
     def marketops_status(run_id: str, limit: int = 20, cursor: str = "",
                          kind: str = "", entity_key: str = "") -> dict:
         """Read persistent candidates; iterate next_cursor for a full audit, or filter."""
@@ -941,6 +1043,38 @@ def build_server():
         return handoff(run_id, operation_id)
 
     @tool
+    def marketops_experience_recall(run_id: str, stage: str = "intake",
+                                    provider: str = "", query: str = "",
+                                    limit: int = 5, as_of: str = "") -> dict:
+        """Relevant prior observations and methods, with applicability and counterexamples.
+
+        Advisory data, never authority to change rules, permissions or spending.
+        """
+        return experience_memory.recall(root(), run_id=run_id, stage=stage,
+                                        provider=provider, query=query, limit=limit,
+                                        as_of=as_of or None)
+
+    @tool
+    def marketops_experience_feedback(run_id: str, feedback_id: str,
+                                      experience_id: str, used: bool,
+                                      outcome: str, evidence_ref: str,
+                                      observation: str = "") -> dict:
+        """Record actual use and an evidence-linked reported outcome; never auto-approve a rule.
+
+        outcome: helped, not_helped, contradicted or unknown. References must
+        resolve to this Run's saved material or operation receipt.
+        """
+        return experience_memory.feedback(
+            root(), run_id=run_id, feedback_id=feedback_id,
+            experience_id=experience_id, used=used, outcome=outcome,
+            evidence_ref=evidence_ref, observation=observation)
+
+    @tool
+    def marketops_experience_summary(run_id: str = "") -> dict:
+        """Counts of recorded use/results; unknown savings remain unknown."""
+        return experience_memory.summary(root(), run_id=run_id or None)
+
+    @tool
     def marketops_experience_draft(run_id: str, scope: str, rule_version: str,
                                    output_path: str) -> dict:
         """Create unapproved incident draft from actual event receipts."""
@@ -950,7 +1084,7 @@ def build_server():
             raise ValueError("EXPERIENCE_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT")
         output.parent.mkdir(parents=True, exist_ok=True)
         return draft_experience(r, run_id=run_id, scope=scope,
-                                rule_version=rule_version, skill_version="0.4.0",
+                                rule_version=rule_version, skill_version="0.5.0",
                                 output=output)
 
     @tool
@@ -965,28 +1099,9 @@ def build_server():
         unlock a paid call. A refused gate returns `gateway_invoked: false`,
         which means no reservation was taken and no adapter ran.
         """
-        import research_wiring
+        return managed_call(capability_id, params, run_id, operation_id,
+                            account_ref, intent_fingerprint, grant_ref)
 
-        outcome = research_wiring.managed_invoke(
-            capability_id=capability_id, params=params, run_id=run_id,
-            operation_id=operation_id, account_ref=account_ref,
-            intent_fingerprint=intent_fingerprint, grant_ref=grant_ref or None,
-            root=root())
-        inner = outcome.outcome
-        return {
-            "status": outcome.status,
-            "reason_code": outcome.reason_code,
-            "capability_id": outcome.capability_id,
-            "gateway_invoked": outcome.gateway_invoked,
-            "s0_failed": list(outcome.s0_failed),
-            "caveats": list(outcome.caveats),
-            "outcome": None if inner is None else {
-                "status": getattr(inner, "status", None),
-                "reason_code": getattr(inner, "reason_code", None),
-                "provider": getattr(inner, "provider", None),
-                "caveats": list(getattr(inner, "caveats", ()) or ()),
-            },
-        }
 
     return mcp
 

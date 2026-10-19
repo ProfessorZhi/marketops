@@ -65,10 +65,12 @@ def seed(root: Path, run_id: str, *, venues: int = 2, dispositions: bool = True,
 
 
 class ToolSurfaceTests(unittest.TestCase):
-    def test_next_is_registered_and_the_surface_is_twenty_five(self):
+    def test_next_and_experience_tools_are_in_the_published_surface(self):
         names = set(mcp.build_server()._tool_manager._tools)  # noqa: SLF001
         self.assertIn("marketops_next", names)
-        self.assertEqual(25, len(names))
+        self.assertTrue({"marketops_experience_recall", "marketops_experience_feedback",
+                         "marketops_experience_summary"}.issubset(names))
+        self.assertEqual(30, len(names))
 
     def test_status_exposes_the_contract_parameters(self):
         schema = mcp.build_server()._tool_manager._tools["marketops_status"].parameters  # noqa: SLF001

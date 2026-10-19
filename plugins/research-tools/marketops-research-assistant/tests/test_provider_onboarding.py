@@ -144,7 +144,8 @@ class ProviderOnboardingTests(unittest.TestCase):
             self.assertFalse(receipt["external_official_mcp_registered"])
             self.assertFalse(receipt["provider_login_performed"])
             self.assertTrue((dest / "START_HERE.md").is_file())
-            self.assertTrue((dest / "connectors" / "workbuddy").is_dir())
+            self.assertTrue(Path(receipt["workbuddy_bundle"]["directory"]).is_dir())
+            self.assertEqual("PENDING_HOST_IMPORT", receipt["workbuddy_import_status"])
 
     def test_private_browser_cache_is_bound_in_source_and_workbuddy_without_download(self):
         with tempfile.TemporaryDirectory() as tmp:

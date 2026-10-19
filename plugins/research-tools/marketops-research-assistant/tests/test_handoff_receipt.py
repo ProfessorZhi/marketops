@@ -33,6 +33,8 @@ class HandoffReceiptTests(unittest.TestCase):
             ("workflow.page", {"return_value": {"scope": "synthetic", "rule_version": "UNKNOWN", "record_count": 1, "artifact_count": 1}}),
             ("delivery.write_delivery", {"side_effect": lambda *a, **k: self.workbook}),
             ("draft_experience", {"side_effect": self.draft}),
+            ("experience_memory.summary", {"return_value": {"feedback_count": 0,
+                                                            "business_verified": False}}),
             ("append_event", {"side_effect": self.event}),
             ("refresh_summary", {"side_effect": self.refresh}),
         ):
@@ -99,6 +101,14 @@ class HandoffReceiptTests(unittest.TestCase):
         self.assertEqual("PARTIAL", receipt["delivery_completeness"])
         self.assertEqual(self.workbook["xlsx_path"], receipt["workbook_xlsx"])
         self.assertIn("HANDOFF_EVENT_FAILED_OSError", receipt["partial_reasons"])
+
+    def test_feedback_read_failure_is_visible_and_keeps_workbook(self):
+        with patch("research_mcp.experience_memory.summary", side_effect=OSError("synthetic")):
+            receipt = mcp.handoff("run", "delivery")
+        self.assertEqual("PARTIAL", receipt["delivery_completeness"])
+        self.assertEqual(self.workbook["xlsx_path"], receipt["workbook_xlsx"])
+        self.assertIn("EXPERIENCE_FEEDBACK_SUMMARY_FAILED", receipt["partial_reasons"])
+        self.assertEqual("UNAVAILABLE", receipt["experience_feedback"]["status"])
 
 
 if __name__ == "__main__":

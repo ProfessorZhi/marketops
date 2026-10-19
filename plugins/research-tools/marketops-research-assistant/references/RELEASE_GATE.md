@@ -1,90 +1,41 @@
-# Release gate — do NOT distribute ZIP to Member-A before local E2E
+# 0.5 交付验收
 
-Status of this branch: **code candidate**, not a verified product release. This document is a test contract, not a PASS report. It draws negative tests from the 2026-09-26 Member-A session audit; historical thresholds are not the same as today's approved SOP.
+此文件是验收合同；结果记录在对应 revision 的真实测试、安装、客户端轨迹和研究报告中。
 
-## A. Source and dependency verification (offline)
+## 发行代码
 
-- [ ] 从插件根目录执行 `python scripts/preflight.py`，确保 status=STATIC_PASS_NOT_RUNTIME_VERIFIED 且errors为空。若缺mcp/SDK仅可视为警告，不能视为真实MCP可用。
+- 固定源码 revision，完整离线插件测试及独立 QA gate 通过；已知根仓库历史失败单独报告。
+- `BUILD_QA.json` 来自实际执行，文件摘要与发行内容一致，不能手填 PASS。
+- Portable ZIP 含安装入口、所有运行模块、17 Skills、平台锁和四账户说明；无客户数据、Key、缓存或开发机 venv。
+- 安装中断可恢复，陌生目录拒绝覆盖，升级保留研究数据和经验；源码/配置/数据位置可核对。
 
+## 安装与启动
 
-- [ ] Identify pinned git commit/branch. All plugin files are under plugins/research-tools; no personal email/Key/session transcript/hard-coded server endpoints.
-- [ ] Compile every *.py with the selected Python >=3.11; test Python 3.11 and 3.12 if target supported.
-- [ ] Validate portable root plugin.json/mcp.json schema and compatibility fallback .codex-plugin/plugin.json + .mcp.json. The two MCP catalogs must expose the same **single** marketops-research service.
-- [ ] 17 Skills have unique YAML frontmatter and relative links resolve. Skill text never silently overrides country profile, official SOP or approved human decisions.
-- [ ] WorkBuddy generated connector has exactly one stdio server, auth_mode=token, keys in token-schema only, source kebab-case, client version >=4.24.0; Python and script path belong to the **test machine**, not the developer's machine.
-- [ ] Full SDK imports pass: mcp>=2.2,<3; typesafe-sdk>=0.7. Optional local Crawl4AI install explicitly staged and browser doctor run.
-- [ ] Run all offline unit tests below with zero network/paid credentials.
+- Python 3.12 Linux/Windows 的依赖锁可安装，`pip check` 通过。
+- 从实际安装产物启动 stdio，完成 initialize、tools/list、配置、任务创建与恢复。
+- Windows 原生客户端/GUI未实际验证时明确标出，不能以清单形状替代。
+- 四 Key 本地隐藏录入和系统凭据库重启读取；头less测试凭据仅注入子进程。
+- 两家官方 MCP 客户端随包，无需用户另装厂商插件；账号认证、余额与免费tools/list分开判定。
 
-Command from plugin directory:
+## 实际 Agent 调研（最终必要项）
 
-~~~bash
-python -m unittest discover -s tests -v
-python -m compileall -q scripts tests
-python scripts/setup_clients.py --destination /ABSOLUTE/EMPTY/TEST-DIR --client both
-~~~
+- 真实 Claude Code 或 Codex 加载此安装包，用 MarketOps 工具完成调研；不以 Python 直调代替。
+- 固定明确输入、范围、规则、网站与请求上限；用保存的会话轨迹确认实际工具调用。
+- 逐目标保存材料和处置；引用有具体原文，组织/场地/角色/联系方式的关联独立复核。
+- 查看实际 XLSX/CSV 和 hash；无资料或空任务不能假绿，有理由的 HOLD 不丢行。
+- 同任务恢复复用已保存材料；后续任务召回适用经验并记录实际采用和结果。
+- 真实故障后定位、修复、重新测试新构建；保留失败历史，不把旧回执改为成功。
 
-The setup command without --apply must have **zero filesystem effects**.
+## 降级和预算
 
-## B. All five providers: synthetic receipts + fail-closed (offline)
+- 仅在既有授权范围与累计额度内有限切换；不同入口共享同一预算和操作身份。
+- UNKNOWN/超时不盲重派；明确访问限制和预算耗尽停止。
+- 付费 Browser/Agent、充值、外联不在本次产品路径。
+- 可读取的账户余额先核验并留保留额度；未知费率/余额保持UNKNOWN，限制最少必要请求。
+- 记录真实供应商尝试和已知/未知消费；不能将本地请求计数当美元保证。
 
-- [ ] SerpApi and Serper web/maps mock responses normalize without swapping API keys; distinct provider names retained; snippets stay discovered, never verified. Repeated operation ID and higher call ceilings behave as declared.
-- [ ] Crawl4AI Cloud mock POST and browser-local import-missing behavior. URL/approved domain policy rejects private/local/unapproved hosts BEFORE reservations. Derived Markdown hash cannot be advertised as raw page hash.
-- [ ] TinyFish Search/Fetch mocked official REST endpoints; fake Key never reaches artifact or agent preview; Cloud Agent remains **outside this gateway**, not mistakenly called by skill-only.
-- [ ] Jev Choice/Noul/Score official SDK semantics: candidate option must be in declared labels; if SDK/Key unavailable the call is unavailable, not auto-passed; no A/B/C/D client promotion based on model answer.
-- [ ] All providers blocked by default network switches and cumulative independent attempt caps; unsupported / extra credential placeholder fails closed. Changing env variables inside a hosted Agent chat is NOT operator approval.
-- [ ] External attempt consumed/failed/unknown status remains visible, and caller cannot get a false “verified” result. If journal save fails, user gets named unsaved result.
+## 比较与交付
 
-## C. Complete Lite research *staging* E2E (offline fixtures)
-
-- [ ] Start one Run with original objective and country/approved business SOP revision; verify re-start idempotence and collision refusal.
-- [ ] SerpApi mock discovers 3 leads; staging SQLite contains 3 **source candidates** with stable IDs; zero main-store official contacts.
-- [ ] Crawl4AI mock returns usable source material; artifact saved and re-read with SHA, relationship only proposed after reading evidence; challenge page/empty content cannot be used as verification.
-- [ ] TinyFish mock fetch supplies additional public source data; verify source/operational context cannot be accidentally cross-bound.
-- [ ] Jev mock judgment creates a decision artifact, but can't itself create verified company, literal email or formal ContactRoute.
-- [ ] Agent proposes venue/account/person/contact candidate facts; read same data in a second simulated agent session without copying CSV. A second worker does not double-create record.
-- [ ] Reports give actual real row counts and unresolved items, never missing rows as zeros. Export candidate-only CSV within customer-approved exports root, with reference links; exercise Excel workbook Skill separately in a client with actual .xlsx tooling.
-- [ ] Generate experience candidate from real operation receipts; root cause unconfirmed by default, source IDs attached, no memory of hidden chain-of-thought, no automatic SOP change.
-- [ ] No outgoing email/form submission, backend production marketops.db mutation or general account provisioning occurs.
-
-**This stage validates only portable staging, not the full MarketOps formal contact grading or market coverage.** The missing production/business migration is a distinct blocker that must be resolved before claiming the whole business chain is finished.
-
-## D. Local provider / client E2E (human-approved real calls)
-
-- [ ] Member-A or operator has provided *credentials in own OS/WorkBuddy only*. Confirm which services are purchased/free and per-account settings.
-- [ ] Search: one real SerpApi and one Serper equivalent bounded request, compare outcome/units and registered source receipts.
-- [ ] Crawl4AI: choose client-side local or Cloud. Local needs crawl4ai-setup/doctors and public-domain rules; Cloud needs only Cloud key and explicit data-processing approval. A successful source fetch must produce real source artifact and readback.
-- [ ] TinyFish: Search, Fetch, and (as **separate official connector**) only an explicitly approved read-only browser Agent task if that capability is a requirement.
-- [ ] Jev: one approved Choice request and separate subsequent evaluation of true labels and rate. Jev Choice/Noul/Score primitives share the legacy marketops_jev_choice tool; do not claim three separate tools or production billing validation.
-- [ ] WorkBuddy connector installed/imported from a stable folder on the customer test machine. Tool listing and calls verified in client, not merely running Python directly.
-- [ ] Codex local plugin installed through current plugin marketplace and Skills discoverable. Its one MCP starts with the dedicated installed Python venv. Tool listing/permissions and a no-network dry-run proven.
-- [ ] TinyFish and Crawl4AI third-party MCP (if enabled separately) have distinct authentication and cannot bypass MarketOps data capture under the pretense that calling a direct MCP creates an internal event.
-- [ ] User can cancel/stop approved work. No secret in tools/list, error body, SHA manifests, support bundle or generated README.
-
-## E. WorkBuddy / Codex cross-session handoff + Member-A review
-
-- [ ] Use a Member-A-like task with real approved country/Scene/roles. Real 3–5 venues/organizations followed end-to-end: source → verified material → candidate entity → relevant roles → public contact signal → human verified formal route (once real domain-store integration is ready).
-- [ ] Demonstrate no dropped rows: acquired/extracted/staged/rejected/held counts reconcile. New source discoveries vs actual verified entities and market coverage never conflated.
-- [ ] Job or tool success alone cannot pass: check actual on-disk artifact and read it back, check literal email in source and role source age.
-- [ ] Both clients can read same Run through one local MCP service where host and file permissions permit, and no concurrent CSV modifications.
-- [ ] Run the 12 Member-A Skill replay cases with separate development and holdout fixtures and audit each failure reason.
-- [ ] Excel output generated with actual spreadsheet engine, content inspected for row count, source URLs, formula injection and no silently dropped HOLD records. CSV fallback must be called CSV, not claimed XLSX.
-- [ ] Experience candidate auto-populated with real receipts; human validates explanation, counterexamples and versioned change. Only after independent approval may a new Skills release be published.
-
-## F. Only after PASS: prepare distribution ZIP
-
-- [ ] Record test machine OS, Python, Codex/WorkBuddy versions, pinned Git SHA, CLI/test results, actual Provider query IDs (sanitized), source hash, version, date, reviewer.
-- [ ] Build **source-only archive** without customer data/venv/logs/Keys. Include MEMBER_A_INSTALL, installer and pinned dependency requirements. Users rebuild machine-bound WorkBuddy connector **on their own machine**, not by copying a dev's generated connector directory.
-- [ ] Validate extracted archive on a clean Windows pilot machine; a fresh Agent must follow setup steps, generate the local marketplace/connector, and accurately distinguish only-installed from authenticated.
-- [ ] Compute published archive sha256 and produce rollback notes before sending to Member-A.
-
-**Current state: these boxes are NOT checked merely because test functions have been committed.** GitHub CI failures or missing logs must be investigated, not converted to PASS. Explicitly refuse to publish a “ready-to-use ZIP” until D/E succeed.
-
-
-## E. New candidate XLSX and real public-source E2E
-
-- [ ] `python -m unittest discover -s tests -p test_research_delivery.py -v` passed, including good source, wrong SHA, unsupported email and immutable duplicate ID.
-- [ ] Opt-in `MARKETOPS_LIVE_PUBLIC_E2E=1 python -m unittest discover -s tests -p test_research_live_e2e.py -v` read City of Lincoln Council actual page, saved its bytes, wrote a real XLSX, independently reopened the workbook and checked public email evidence. Record runner URL, SHA, time. This is *real-source candidate* E2E, NOT a paid-provider or approved-business E2E.
-- [ ] On real Codex and WorkBuddy, confirm `tools/list`, `tools/call marketops_export_xlsx`, file readback, customer data isolation, Run and provider receipts.
-- [ ] Connect approved MarketOps business A/B/C/D domain and authenticated reviewer before claiming formal verified contacts, or preparing a Member-A customer release.
-
-See [E2E_VERIFICATION](E2E_VERIFICATION.md) for the L0–L5 ladder.
+- 使用同一批历史目标和原始判据比较有效结果、证据质量、请求数及壁钟。
+- 当前网页变化、缺失旧原件、未知人工工时和费用单独说明；不外推未测的提效百分比。
+- 提供固定版本ZIP、SHA256、安装/启动/账户赠金说明、问题及验证范围、可复现回执。

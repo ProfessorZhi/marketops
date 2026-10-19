@@ -36,8 +36,8 @@ from pathlib import Path
 import research_config
 import research_event_journal as journal
 
-SNAPSHOT_VERSION = 1
-HEADER_FIELDS = ("events", "notes", "runs", "bump_events")
+SNAPSHOT_VERSION = 2
+HEADER_FIELDS = ("events", "notes", "runs", "bump_events", "feedback")
 BUMP_STATUSES = journal.BUMP_STATUSES   # one definition, in the journal's own vocabulary
 _HEADER_RE = re.compile(r"^<!--\s*marketops:research-experience\s+v(\d+)\s+([^>]*?)-->\s*$")
 _NOT_RECORDED = "—"
@@ -63,6 +63,11 @@ def read_snapshot_header(path: Path) -> dict:
     if not match:
         raise ValueError("EXPERIENCE_SNAPSHOT_HEADER_INVALID: first line is not a MarketOps header")
     fields = dict(re.findall(r"(\w+)=(\d+)", match.group(2)))
+    version = int(match.group(1))
+    if version == 1 and set(fields) == set(HEADER_FIELDS) - {"feedback"}:
+        fields["feedback"] = "0"
+    elif version != SNAPSHOT_VERSION:
+        raise ValueError("EXPERIENCE_SNAPSHOT_HEADER_INVALID: unsupported version")
     if set(fields) != set(HEADER_FIELDS):
         raise ValueError("EXPERIENCE_SNAPSHOT_HEADER_INVALID: unexpected field set")
     return {name: int(value) for name, value in fields.items()}
@@ -82,14 +87,17 @@ def _grouped(events: list[dict]) -> list[dict]:
     return [buckets[key] for key in sorted(buckets)]
 
 
-def render(events: list[dict], notes: list[dict], header: dict) -> str:
+def render(events: list[dict], notes: list[dict], header: dict,
+           feedback_rows: list[dict] | None = None) -> str:
     """Pure render: the entire file content, given the journal contents."""
     stamp = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     bumps = [e for e in events if e["status"] in BUMP_STATUSES]
-    runs = sorted({e["run_id"] for e in events} | {n["run_id"] for n in notes})
+    feedback_rows = feedback_rows or []
+    runs = sorted({e["run_id"] for e in events} | {n["run_id"] for n in notes}
+                  | {f["run_id"] for f in feedback_rows})
     lines: list[str] = [
         f"<!-- marketops:research-experience v{SNAPSHOT_VERSION} "
-        + " ".join(f"{name}={header[name]}" for name in HEADER_FIELDS) + " -->",
+        + " ".join(f"{name}={header.get(name, 0)}" for name in HEADER_FIELDS) + " -->",
         "# MarketOps 调研经验与卡点汇总（candidate）",
         "",
         "> 本文件由 MarketOps Research Plugin 自动累计刷新，是 **candidate** 视图；**不修改正式SOP**，"
@@ -160,7 +168,24 @@ def render(events: list[dict], notes: list[dict], header: dict) -> str:
         lines.append(f"| {_NOT_RECORDED} | 0 | 0 | 0 |")
     lines += [
         "",
-        "## 五、本文件如何更新",
+        "## 五、跨 Run 方法采用与结果反馈",
+        "",
+        "以下为有出处的结果报告；采用不等于有效，同一 Run 的反例与正例并存。"
+        "不自动修改规则，不据此推算时间或费用收益；召回时会重新检查证据是否仍可读。",
+        "",
+        "| 发生时间(UTC) | Run | 经验 | 已采用 | 结果 | 观察 | 证据 ref |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    if feedback_rows:
+        lines += [f"| {_cell(f['recorded_at'])} | {_cell(f['run_id'])} | "
+                  f"{_cell(f['experience_id'])} | {_cell(str(f['used']))} | "
+                  f"{_cell(f['outcome'])} | {_cell(f['observation'])} | {_cell(f['evidence_ref'])} |"
+                  for f in feedback_rows]
+    else:
+        lines.append("| " + " | ".join([_NOT_RECORDED] * 7) + " |")
+    lines += [
+        "",
+        "## 六、本文件如何更新",
         "",
         "每次真实阻断/失败/HOLD/人工纠正，以及每次 Run 的 handoff 或导出结束时，插件会原子地重写本文件。",
         "文件首行是机器可读的计数头：若磁盘上的版本已经知道更多事件，本次刷新会拒绝覆盖（`EXPERIENCE_FILE_IS_NEWER`），",
@@ -221,16 +246,20 @@ def refresh(*, data_root: str | Path | None = None,
                     "SELECT " + ", ".join(journal.NOTE_FIELDS) +
                     " FROM research_notes ORDER BY sequence").fetchall()
                 notes = [dict(zip(journal.NOTE_FIELDS, row)) for row in note_rows]
+                from research_experience_recall import read_feedback
+                feedback_rows = read_feedback(db)
                 header = {"events": len(events), "notes": len(notes),
-                          "runs": len({e["run_id"] for e in events} | {n["run_id"] for n in notes}),
-                          "bump_events": len([e for e in events if e["status"] in BUMP_STATUSES])}
+                          "runs": len({e["run_id"] for e in events} | {n["run_id"] for n in notes}
+                                      | {f["run_id"] for f in feedback_rows}),
+                          "bump_events": len([e for e in events if e["status"] in BUMP_STATUSES]),
+                          "feedback": len(feedback_rows)}
                 previous = read_snapshot_header(target) if target.is_file() else None
                 if previous and any(previous[name] > header[name] for name in HEADER_FIELDS):
                     db.commit()
                     return {"status": "SKIPPED_NOT_NEWER",
                             "reason_code": "EXPERIENCE_FILE_IS_NEWER",
                             "experience_file": str(target), **header}
-                text = render(events=events, notes=notes, header=header)
+                text = render(events=events, notes=notes, header=header, feedback_rows=feedback_rows)
                 _atomic_write(target, text)
                 db.commit()
             except BaseException:

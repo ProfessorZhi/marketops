@@ -457,8 +457,11 @@ class SerpApiAdapter:
     def __init__(self, *, session: Any | None = None, catalog: Any | None = None,
                  runner: Any | None = None, clock: Any | None = None,
                  artifact_writer: Any | None = None,
-                 guard: Any | None = None) -> None:
+                 guard: Any | None = None, session_factory=None,
+                 auto_discover: bool = False) -> None:
         self._session = session
+        self._session_factory = session_factory
+        self._auto_discover = auto_discover
         self._catalog = catalog
         self._runner = runner
         self._clock = clock
@@ -479,6 +482,12 @@ class SerpApiAdapter:
         answer ``MATCH`` against something nobody fetched, and the engine count
         in it would be a number we never measured.
         """
+        if self._session_factory is not None:
+            async def probe():
+                from research_runtime_transport import tools_payload
+                async with self._session_factory() as session:
+                    return tools_payload(await session.list_tools())
+            return self._drive(probe())
         if self._session is None:
             detail = "SERPAPI_SESSION_UNBOUND"
         else:
@@ -507,6 +516,32 @@ class SerpApiAdapter:
         makes no tier, budget or routing decision — it validates the request
         against *this capability's* shape and sends it.
         """
+        if self._session_factory is not None:
+            # MCP's task groups and all session methods live on this one loop.
+            # The existing synchronous adapter runs in a worker and submits its
+            # coroutines to that loop; it never creates an orphan SDK session.
+            async def run():
+                async with self._session_factory() as session:
+                    loop = asyncio.get_running_loop()
+                    bound = SerpApiAdapter(session=session, catalog=self._catalog,
+                        runner=lambda work: asyncio.run_coroutine_threadsafe(work, loop).result(90),
+                        clock=self._clock, artifact_writer=self._artifact_writer,
+                        guard=self._guard, auto_discover=True)
+                    return await asyncio.to_thread(bound.execute, req)
+            try:
+                return asyncio.run(run())
+            except ValueError as exc:
+                from research_runtime_transport import BeforeDispatchRefused
+                if isinstance(exc, BeforeDispatchRefused):
+                    return self._refusal(str(exc), "runtime refused before tools/call",
+                        capability_id=str(getattr(req, "capability_id", "")))
+                return SerpApiResult(outcome=OUTCOME_UNKNOWN,
+                    caveats=("SERPAPI_AMBIGUOUS_TIMEOUT",))
+            except Exception:
+                # Do not echo transport/key-bearing errors; the ledger holds
+                # ambiguous exposure and prevents a second dispatch.
+                return SerpApiResult(outcome=OUTCOME_UNKNOWN,
+                    caveats=("SERPAPI_AMBIGUOUS_TIMEOUT",))
         capability_id = str(getattr(req, "capability_id", "") or "")
         run_id = str(getattr(req, "run_id", "") or "")
         operation_id = str(getattr(req, "operation_id", "") or "")
@@ -776,6 +811,11 @@ class SerpApiAdapter:
         # happened to be missing too.
         engine = params.get("engine", "google_light")
         catalog = self._engine_catalog()
+        if self._auto_discover:
+            if not catalog.engine_names():
+                self._drive(catalog_module.discover_index(self._session, catalog=catalog))
+            if engine in catalog.engine_names() and catalog.cached_schema(engine) is None:
+                self._drive(catalog_module.discover_schema(self._session, engine, catalog=catalog))
         decision = catalog_module.resolve_engine(
             engine if isinstance(engine, str) else "", catalog=catalog)
         if decision["status"] != "READY":

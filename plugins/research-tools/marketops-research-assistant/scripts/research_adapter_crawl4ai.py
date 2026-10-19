@@ -478,7 +478,7 @@ class CrawlOutcome:
 
     outcome: str
     payload: Mapping[str, Any] | None = None
-    artifacts: tuple[ArtifactRef, ...] = ()
+    artifacts: tuple[ArtifactRef | str, ...] = ()
     upstream_ref: str | None = None
     actual_usd: Decimal | None = None
     actual_source: str = "NONE"
@@ -507,7 +507,8 @@ def to_adapter_result_fields(outcome: CrawlOutcome) -> dict[str, Any]:
     return {
         "outcome": outcome.outcome,
         "payload": payload or None,
-        "artifacts": tuple(item.as_row() for item in outcome.artifacts),
+        "artifacts": tuple(item if isinstance(item, str) else item.as_row()
+                           for item in outcome.artifacts),
         "upstream_ref": outcome.upstream_ref,
         "actual_usd": outcome.actual_usd,
         "actual_source": outcome.actual_source,
@@ -933,6 +934,8 @@ class Crawl4AIAdapter:
         clock: Callable[[], float] | None = None,
         user_agent: str = "MarketOps-Research/1.0 (+anonymous public browsing)",
         artifact_root: str | None = None,
+        material_writer: Callable | None = None,
+        cache_base_directory: str | None = None,
     ) -> None:
         self._egress = egress or UNBOUND_EGRESS
         self._sdk_available = sdk_available or crawl4ai_available
@@ -940,6 +943,8 @@ class Crawl4AIAdapter:
         self._clock = clock or time.monotonic
         self._user_agent = user_agent
         self._artifact_root = artifact_root
+        self._material_writer = material_writer
+        self._cache_base_directory = cache_base_directory
         self._last_decisions: tuple[EgressDecisionView, ...] = ()
 
     # -- §6 Protocol ------------------------------------------------------
@@ -1368,6 +1373,12 @@ class Crawl4AIAdapter:
         self._refuse_unusable_page(outcome, url, html, headers)
 
         meter.consume_bytes(len(html))
+        primary_ids = ()
+        if self._material_writer is not None:
+            # These are the actual validated browser bytes, before extraction.
+            # The composition-owned store returns Run-owned artifact IDs.
+            primary_ids = tuple(self._material_writer(run_id, operation_id, url,
+                                                       html.encode("utf-8")))
         extraction = apply_extraction(spec, html=html, url=url)
         manifest = EvidenceManifest(run_id=run_id)
         artifact_refs: tuple[ArtifactRef, ...] = ()
@@ -1378,7 +1389,7 @@ class Crawl4AIAdapter:
             content_sha256=content_sha256(html),
             extraction_method=f"local_sdk:{spec.mode.value}",
             outcome="OK",
-            artifact_refs=tuple(item.ref for item in artifact_refs),
+            artifact_refs=tuple(primary_ids) + tuple(item.ref for item in artifact_refs),
             egress_decision_ref=f"{decision.method} {decision.target}:{decision.port}",
             caveats=(f"session ttl={session.ttl_seconds}s；"
                      "persist_state 恒为 False。",),
@@ -1395,6 +1406,7 @@ class Crawl4AIAdapter:
         }
         return CrawlOutcome(
             outcome="OK", payload=_clean(payload), transport=TRANSPORT,
+            artifacts=primary_ids,
             schema_verdict="UNVERIFIED",
             quota_units_used=Decimal(meter.pages),
             caveats=("本地 SDK 无厂商计价：配额单位是 pages/bytes/seconds，"
@@ -1750,7 +1762,9 @@ class Crawl4AIAdapter:
         run_config = _build_run_config(module, page_timeout_ms=page_timeout_ms)
 
         async def run() -> dict[str, Any]:
-            async with module.AsyncWebCrawler(config=browser_config) as crawler:
+            extra = ({"base_directory": self._cache_base_directory}
+                     if self._cache_base_directory is not None else {})
+            async with module.AsyncWebCrawler(config=browser_config, **extra) as crawler:
                 result = await crawler.arun(url=url, config=run_config)
                 return {
                     "html": getattr(result, "html", "") or "",
@@ -1811,7 +1825,9 @@ class Crawl4AIAdapter:
                                        artifact=kind)
 
         async def run() -> dict[str, Any]:
-            async with module.AsyncWebCrawler(config=browser_config) as crawler:
+            extra = ({"base_directory": self._cache_base_directory}
+                     if self._cache_base_directory is not None else {})
+            async with module.AsyncWebCrawler(config=browser_config, **extra) as crawler:
                 result = await crawler.arun(url=url, config=run_config)
                 return {
                     "html": getattr(result, "html", "") or "",

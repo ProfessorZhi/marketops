@@ -28,7 +28,7 @@ STAGES = frozenset({"discovery", "acquisition", "entities", "qualification", "pe
 #: visual judgment (Jev Box) can be bound to a *saved* artifact like any other
 #: evidence; its bytes are validated against the real file signatures below, so
 #: text relabelled as a picture is refused rather than stored.
-MATERIAL_KINDS = frozenset({"provider_extracted", "rendered_html", "raw_response",
+MATERIAL_KINDS = frozenset({"provider_extracted", "provider_html", "rendered_html", "raw_response",
                             "decision_response", "image"})
 #: File signatures the SDK itself recognises (see `typesafe_sdk._core.assets`).
 IMAGE_SIGNATURES = (b"\x89PNG\r\n\x1a\n", b"\xff\xd8\xff")
@@ -102,6 +102,48 @@ def start_run(root: Path | str | None, run_id: str, scope: str, objective: str,
     return {"run_id": run_id, "status": "RUN_CREATED"}
 
 
+def list_runs(root: Path | str | None, *, limit: int = 10, cursor: str = "",
+              scope: str = "") -> dict:
+    """Discover resumable tasks without opening a writable database or creating one."""
+    if type(limit) is not int or not 1 <= limit <= 50:
+        raise ValueError("RUN_LIST_LIMIT_INVALID")
+    if not isinstance(scope, str) or len(scope) > 300:
+        raise ValueError("RUN_LIST_SCOPE_INVALID")
+    if cursor:
+        _id(cursor, "cursor")
+    base = _root(root, create=False)
+    path = (base / "state" / "research-lite.sqlite3").resolve()
+    if not path.is_relative_to(base):
+        raise ValueError("RUN_STORE_OUTSIDE_DATA_ROOT")
+    if not path.is_file():
+        if cursor:
+            raise ValueError("RUN_CURSOR_UNKNOWN")
+        return {"runs": [], "next_cursor": None, "limit": limit, "mutates_nothing": True}
+    clauses, arguments = [], []
+    with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=20)) as db:
+        db.execute("BEGIN")
+        if scope:
+            clauses.append("r.scope=?")
+            arguments.append(scope)
+        if cursor:
+            previous = db.execute("SELECT created_at,scope FROM runs WHERE run_id=?", (cursor,)).fetchone()
+            if previous is None or (scope and previous[1] != scope):
+                raise ValueError("RUN_CURSOR_UNKNOWN")
+            clauses.append("(r.created_at<? OR (r.created_at=? AND r.run_id<?))")
+            arguments.extend((previous[0], previous[0], cursor))
+        where = " WHERE " + " AND ".join(clauses) if clauses else ""
+        rows = db.execute(
+            "SELECT r.run_id,r.scope,r.rule_version,r.objective,r.created_at,"
+            "(SELECT COUNT(*) FROM records c WHERE c.run_id=r.run_id) "
+            "FROM runs r" + where + " ORDER BY r.created_at DESC,r.run_id DESC LIMIT ?",
+            (*arguments, limit + 1),
+        ).fetchall()
+    names = ("run_id", "scope", "rule_version", "objective", "created_at", "record_count")
+    return {"runs": [dict(zip(names, row)) for row in rows[:limit]],
+            "next_cursor": rows[limit - 1][0] if len(rows) > limit else None,
+            "limit": limit, "mutates_nothing": True}
+
+
 def _safe_name(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
@@ -117,6 +159,10 @@ def save_artifact(root: Path | str | None, run_id: str, artifact_id: str,
         raise ValueError("Nonempty material bytes required (<=4 MB)")
     if material_kind not in MATERIAL_KINDS:
         raise ValueError("Unknown material kind")
+    if material_kind == "provider_html":
+        from research_provider_html import canonical_url, validate_content
+        canonical_url(origin_url)
+        validate_content(content.decode("utf-8"))
     # A picture is only a picture if its leading bytes say so. Without this check a
     # text page stored as `image` would later be handed to a visual judgment as if
     # it were a fetched screenshot.
@@ -212,6 +258,8 @@ def put_candidate(root: Path | str | None, run_id: str, record_id: str, stage: s
         db.execute("BEGIN IMMEDIATE")
         result = _insert_candidate(db, run_id, record_id, stage, kind, entity_key,
                                    payload, artifact_ids)
+        from research_evidence_store import link_candidate_claims
+        link_candidate_claims(store_root, db, run_id, record_id, payload, artifact_ids)
         db.commit()
     return result
 
@@ -245,6 +293,9 @@ def put_candidates_batch(root: Path | str | None, run_id: str,
             results.append(_insert_candidate(
                 db, run_id, item["record_id"], item["stage"], item["kind"],
                 item["entity_key"], item["facts"], item.get("artifact_ids")))
+            from research_evidence_store import link_candidate_claims
+            link_candidate_claims(store_root, db, run_id, item["record_id"],
+                                  item["facts"], item.get("artifact_ids"))
         db.commit()
     return {"status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED",
             "requested": len(items),

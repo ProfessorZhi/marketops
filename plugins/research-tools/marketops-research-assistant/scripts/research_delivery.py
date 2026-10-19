@@ -31,7 +31,7 @@ from research_event_journal import _root, append_event, append_note
 from research_experience_summary import refresh_quietly as refresh_summary
 from _xlsx import Sheet, render_workbook
 
-VERSION = "0.4.0-plus-xlsx-candidate"
+VERSION = "0.5.0-plus-xlsx-candidate"
 EMAIL = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 FORMULA = ("=", "+", "-", "@")
 NAMESPACE = {"x": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
@@ -204,7 +204,8 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
                        ", ".join(sample["reason_codes"]),
                        "回到同一资料的具体引文；禁止据附件ID本身晋升事实"))
     spanless = [record for record in effective
-                if record["artifact_ids"] and not links_by_record.get(record["record_id"])]
+                if record["kind"] in evidence.CHECK_KINDS
+                and record["artifact_ids"] and not links_by_record.get(record["record_id"])]
     for record in spanless:
         issues.append(("来源跨度未记录", record["record_id"],
                        "候选引用了资料但未记录读取跨度：" + "; ".join(record["artifact_ids"][:8]),
@@ -258,7 +259,11 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
                 elif "EXCERPT_NOT_FOUND" in problems:
                     validation = "HOLD_EMAIL_QUOTE_MISMATCH"
                 else:
-                    validation = "RENDERED_EMAIL_LITERAL_NOT_BUSINESS_VERIFIED"
+                    original = any(assets[i]["kind"] in {"rendered_html", "raw_response"}
+                                   and value.casefold() in assets[i]["text"].casefold()
+                                   for i in candidate["artifact_ids"])
+                    validation = ("RENDERED_EMAIL_LITERAL_NOT_BUSINESS_VERIFIED" if original else
+                                  "VENDOR_HTML_EMAIL_LITERAL_NOT_BUSINESS_VERIFIED")
         # A literal in a provider-extracted page is useful source support, not formal SOP grading.
         if validation.startswith("HOLD"):
             issues.append(("联系渠道证据", candidate["record_id"], validation,

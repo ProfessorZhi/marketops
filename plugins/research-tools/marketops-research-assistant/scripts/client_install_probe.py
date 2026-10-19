@@ -408,16 +408,34 @@ def audit_workbuddy_package(dest: Path) -> dict:
     behaviour has no device here to exercise it.
     """
     findings: list[dict] = []
-    root = dest / CONNECTOR_ROOT
-    if not root.is_dir():
-        return {"ok": False, "findings": [_finding("CONNECTOR_ROOT_MISSING", "",
-                                                   str(CONNECTOR_ROOT))]}
-    connectors = [p for p in sorted(root.iterdir()) if p.is_dir()]
-    if len(connectors) != 1:
-        findings.append(_finding("CONNECTOR_NOT_EXACTLY_ONE", f"{len(connectors)} dirs",
-                                 str(CONNECTOR_ROOT)))
-        return {"ok": False, "findings": findings}
-    connector = connectors[0]
+    dest = dest.resolve()
+    receipt_path = dest / "WORKBUDDY_BUNDLE.json"
+    if receipt_path.exists():
+        try:
+            if receipt_path.is_symlink():
+                raise ValueError("SYMLINK")
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+            selected = Path(receipt["directory"])
+            connector = selected.resolve()
+            contained = dest / "connectors"
+            if (not selected.is_absolute() or not connector.is_relative_to(contained)
+                    or not connector.is_dir() or selected.is_symlink()):
+                raise ValueError("OUTSIDE_INSTALL")
+        except (OSError, ValueError, TypeError, KeyError):
+            return {"ok": False, "findings": [_finding("CONNECTOR_RECEIPT_INVALID", "",
+                                                       receipt_path.name)]}
+    else:
+        # Compatibility for earlier installers and stand-alone test fixtures.
+        root = dest / CONNECTOR_ROOT
+        if not root.is_dir():
+            return {"ok": False, "findings": [_finding("CONNECTOR_ROOT_MISSING", "",
+                                                       str(CONNECTOR_ROOT))]}
+        connectors = [p for p in sorted(root.iterdir()) if p.is_dir()]
+        if len(connectors) != 1:
+            findings.append(_finding("CONNECTOR_NOT_EXACTLY_ONE", f"{len(connectors)} dirs",
+                                     str(CONNECTOR_ROOT)))
+            return {"ok": False, "findings": findings}
+        connector = connectors[0]
     for name in CONNECTOR_REQUIRED_FILES:
         if not (connector / name).is_file():
             findings.append(_finding("CONNECTOR_FILE_MISSING", name,
@@ -581,11 +599,15 @@ POSIX_ONLY_COMMANDS = ("sh", "bash", "/bin/sh", "/bin/bash")
 #: The list is expected to shrink to empty when the provider lane retires them.
 #: When that happens this constant is what must be updated — a stale entry here
 #: would report a bypass that no longer exists, which is its own kind of lie.
-LEGACY_VENDOR_TOOLS = frozenset({
+COMPAT_PROVIDER_TOOLS = frozenset({
     "marketops_search", "marketops_crawl", "marketops_tinyfish",
     "marketops_serpapi_mcp_search", "marketops_tinyfish_agent",
     "marketops_tinyfish_agent_wait", "marketops_jev_choice",
 })
+# These names now translate arguments to research_mcp.managed_call. They are
+# retained for customers, but there are no direct provider dispatchers among
+# them. The runtime routing test checks that structural invariant.
+LEGACY_VENDOR_TOOLS = frozenset()
 
 #: The single tool that is allowed to reach a provider, and only through S0.
 MANAGED_ENTRY_TOOL = "marketops_managed_call"
@@ -607,7 +629,7 @@ def audit_tool_surface(tool_names) -> dict:
             f"{len(legacy)} vendor-capable tool(s) reachable without the S0 gate: "
             + ", ".join(legacy),
             ""))
-    if MANAGED_ENTRY_TOOL not in names and legacy:
+    if MANAGED_ENTRY_TOOL not in names and set(names) & COMPAT_PROVIDER_TOOLS:
         findings.append(_finding("NO_MANAGED_ENTRY_BESIDE_LEGACY", MANAGED_ENTRY_TOOL, ""))
     return {
         "severity": "RED" if findings else "OK",

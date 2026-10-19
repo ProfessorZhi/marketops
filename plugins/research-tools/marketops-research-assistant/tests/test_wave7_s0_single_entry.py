@@ -1,224 +1,97 @@
-"""R12-D1: one S0 gate in front of every provider-capable host entry.
+"""All customer provider names share admission and the managed gateway.
 
-Q's round 12 measured seven MCP tools reaching the provider plane with
-`research_s0_preflight_gate.evaluate` never having run. `managed_call` was gated;
-`marketops_tinyfish_agent`, `marketops_tinyfish_agent_wait`,
-`marketops_serpapi_mcp_search`, `marketops_tinyfish`, `marketops_crawl`,
-`marketops_jev_choice` and `marketops_search` were not. An S0 gate that one tool
-honours while six others dial out is a preference, not a gate.
-
-The fix is one check in `research_mcp`, above the product's only two provider
-planes. These tests are the **paired** half of that claim: for each tier, the
-same call is refused without a passing deployment and reaches the plane with one.
-A negative-only suite would pass on a gate that refuses everything, which is the
-fake broad deny this must not become.
-
-Every provider is a recorder. No socket, no credential, no paid call.
+Old code had two independent direct-provider planes. These tests retain the
+negative boundary and assert the replacement: one default dispatch path.
+Positive default-factory dispatch, caps and persistence are tested in
+``test_delivery_runtime`` against only a replaced lowest wire transport.
 """
-from __future__ import annotations
-
+import inspect
 import os
+from pathlib import Path
 import sys
 import tempfile
 import unittest
-from pathlib import Path
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
-sys.path.insert(0, str(ROOT / "tests"))
+sys.path.insert(0, str(ROOT / 'scripts'))
+sys.path.insert(0, str(ROOT / 'tests'))
+import research_mcp as mcp
+import research_wiring as wiring
+import _s0_evidence_fixture as s0_fixture
 
-import _s0_evidence_fixture as s0_fixture  # noqa: E402
-import dual_search_mcp as dual  # noqa: E402
-import research_mcp as mcp  # noqa: E402
-import research_provider_extensions as extra  # noqa: E402
-import research_wiring as wiring  # noqa: E402
-
-
-class _Plane:
-    """Both provider planes behind recorders, and the local preconditions relaxed.
-
-    `_require_brief_for_network` and `store.list_run` are local reads; they are
-    replaced so a failure here is about the S0 gate and nothing else. A leaked
-    recorder would make later tests measure this fixture, so everything is
-    restored on exit.
-    """
-
-    def __init__(self) -> None:
-        self.reached: list[str] = []
-        self._saved: dict[str, object] = {}
-
-    def __enter__(self) -> "_Plane":
-        self._saved = {
-            "extra.invoke": extra.invoke,
-            "dual.search": dual.search,
-            "mcp.brief": mcp._require_brief_for_network,
-            "mcp.list_run": mcp.store.list_run,
-            "mcp.root": mcp.root,
-        }
-        extra.invoke = lambda action, **kw: (
-            self.reached.append(action) or {"status": "SYNTHETIC"})
-        dual.search = lambda *a, **k: (
-            self.reached.append(f"dual_search:{a[0]}") or {"results": []})
-        mcp._require_brief_for_network = lambda r, run_id: None
-        mcp.store.list_run = lambda *a, **k: [{}]
-        return self
-
-    def __exit__(self, *exc) -> bool:
-        extra.invoke = self._saved["extra.invoke"]
-        dual.search = self._saved["dual.search"]
-        mcp._require_brief_for_network = self._saved["mcp.brief"]
-        mcp.store.list_run = self._saved["mcp.list_run"]
-        mcp.root = self._saved["mcp.root"]
-        return False
-
-
-#: The seven host-visible entries Q measured, by tier, as the call the tool body
-#: makes. Each funnels into `research_mcp.invoke` or `research_mcp.search`.
-DIRECT = {
-    "T0 tinyfish_mcp_wait": lambda: mcp.invoke(
-        "tinyfish_mcp_wait", "r1", "o1",
-        mcp_params={"agent_run_id": "run-x", "origin_operation_id": "o1",
-                    "poll_index": 1}),
-    "T1 tinyfish_mcp_search": lambda: mcp.invoke(
-        "tinyfish_mcp_search", "r1", "o1", query="synthetic"),
-    "T2 serpapi_mcp_search": lambda: mcp.invoke(
-        "serpapi_mcp_search", "r1", "o1",
-        mcp_params={"engine": "google", "q": "synthetic"}),
-    "T2 jev_choice": lambda: mcp.invoke(
-        "jev_choice", "r1", "o1", document="synthetic", question="q",
-        options=["a", "b"], primitive="choice"),
-    "T2 serper search": lambda: mcp.search("serper", "synthetic", "us", "en", "r1", "o1"),
-    "T3 tinyfish_mcp_agent": lambda: mcp.invoke(
-        "tinyfish_mcp_agent", "r1", "o1", url="https://example.invalid/",
-        mcp_params={"max_steps": 1, "max_duration_seconds": 10},
-        paid_limit_usd="0.20"),
-    "local crawl4ai_local": lambda: mcp.invoke(
-        "crawl4ai_local", "r1", "o1", url="https://example.invalid/"),
-}
-
+BRIEF = {'record_type': 'research_brief', 'target_kind': 'venue', 'goal': 'pool',
+         'require_named_person': False, 'minimum_targets': None}
 
 class SingleGateTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        self.root = Path(self.tmp.name) / "data"
-        env = patch.dict(os.environ, {
-            "MARKETOPS_RESEARCH_DATA_ROOT": str(self.root),
-            "MARKETOPS_TINYFISH_AGENT_ALLOW_PAID": "1",
-        })
+        self.root = Path(self.tmp.name) / 'data'
+        env = patch.dict(os.environ, {'MARKETOPS_RESEARCH_DATA_ROOT': str(self.root)})
         env.start()
         self.addCleanup(env.stop)
+        mcp.start('r1', 'scope', 'public venues', 'rules', BRIEF)
 
-    def test_without_a_passing_deployment_every_entry_is_refused_at_the_gate(self):
-        with _Plane() as plane:
-            for label, call in DIRECT.items():
-                with self.subTest(entry=label):
-                    plane.reached.clear()
-                    with self.assertRaises(ValueError) as caught:
-                        call()
-                    message = str(caught.exception)
-                    self.assertIn("S0 gate refused", message, message)
-                    # The refusal names what is missing, so an operator can act.
-                    self.assertIn("S0_07_UPSTREAM_SCHEMA_VERIFIED", message, message)
-                    self.assertEqual([], plane.reached,
-                                     f"{label} reached a provider without S0")
-
-    def test_with_a_passing_deployment_the_same_entries_reach_the_plane(self):
-        """The pair. Without this half the test above passes on a blanket deny."""
-        s0_fixture.install(self.root)
-        with _Plane() as plane:
-            for label, call in DIRECT.items():
-                with self.subTest(entry=label):
-                    plane.reached.clear()
+    def test_without_admission_no_legacy_name_reaches_any_provider(self):
+        import research_runtime_transport as transport
+        calls = [lambda: mcp.invoke('tinyfish_mcp_search', 'r1', 'tiny', query='venues'),
+                 lambda: mcp.invoke('serpapi_mcp_search', 'r1', 'serp', mcp_params={'q':'venues'}),
+                 lambda: mcp.search('serper', 'venues', 'US', 'en', 'r1', 'serper'),
+                 lambda: mcp.invoke('crawl4ai_local', 'r1', 'crawl', url='https://example.org/')]
+        with patch.object(transport, 'mcp_session') as remote, patch.object(transport, 'serper_transport') as rest:
+            for call in calls:
+                with self.assertRaisesRegex(ValueError, 'CAPABILITY_NOT_AVAILABLE'):
                     call()
-                    self.assertEqual(
-                        1, len(plane.reached),
-                        f"{label} was gated even though S0 passed")
+            remote.assert_not_called()
+            rest.assert_not_called()
+        self.assertFalse((self.root / 'state' / 'usage-ledger.sqlite3').exists())
 
-    def test_the_unit_of_the_gate_is_the_deployment_not_the_tier(self):
-        """A passing deployment admits every tier; a failing one admits none.
+    def test_paid_agent_and_legacy_direct_rest_stay_unavailable(self):
+        for action in ('tinyfish_mcp_agent', 'tinyfish_mcp_wait', 'tinyfish_search',
+                       'tinyfish_fetch', 'crawl4ai_cloud'):
+            with self.subTest(action=action), self.assertRaisesRegex(ValueError, 'CAPABILITY_NOT_AVAILABLE'):
+                mcp.invoke(action, 'r1', 'no-dispatch')
+        self.assertFalse((self.root / 'state' / 'usage-ledger.sqlite3').exists())
 
-        That is what a pre-S0 gate means: it answers 'may this deployment call a
-        vendor at all', and the per-tier ladder runs afterwards, inside the
-        gateway or the extension module. A gate that admitted T0 while refusing
-        T2 would be a second tier policy, and there is already one authority for
-        that.
-        """
-        with _Plane() as plane:
-            for label, call in DIRECT.items():
-                plane.reached.clear()
-                with self.assertRaises(ValueError):
-                    call()
-                self.assertEqual([], plane.reached, label)
-        s0_fixture.install(self.root)
-        with _Plane() as plane:
-            for label, call in DIRECT.items():
-                plane.reached.clear()
-                call()
-                self.assertEqual(1, len(plane.reached), label)
+    def test_tools_cannot_supply_their_own_admission_or_runtime_consent(self):
+        for fn in (mcp.invoke, mcp.search, mcp.managed_call):
+            params = inspect.signature(fn).parameters
+            for forbidden in ('evidence', 'runtime_config', 'network_enabled', 'max_calls'):
+                self.assertNotIn(forbidden, params)
+        names = mcp.build_server()._tool_manager._tools
+        self.assertNotIn('marketops_runtime_configure', names)
+        self.assertNotIn('marketops_grant', names)
 
-    def test_evidence_comes_from_the_data_root_and_not_from_the_caller(self):
-        """A caller cannot present its own S0 result.
+    def test_evidence_written_elsewhere_does_not_unlock_this_root(self):
+        s0_fixture.install(Path(self.tmp.name) / 'other')
+        with self.assertRaisesRegex(ValueError, 'CAPABILITY_NOT_AVAILABLE'):
+            mcp.search('serper', 'venues', 'US', 'en', 'r1', 'no-admission')
 
-        `s0_provider_entry` takes a root and nothing else, and the two entry
-        points in `research_mcp` pass no evidence through. This is asserted on
-        the signatures rather than the docstrings.
-        """
-        import inspect
-
-        self.assertEqual(["root"], list(
-            inspect.signature(wiring.s0_provider_entry).parameters))
-        for fn in (mcp.invoke, mcp.search):
-            self.assertNotIn("evidence", inspect.signature(fn).parameters, fn)
-
-    def test_evidence_written_elsewhere_is_not_read(self):
-        """A second root's evidence must not unlock this deployment."""
-        other = Path(self.tmp.name) / "other"
-        s0_fixture.install(other)
-        with _Plane() as plane:
-            with self.assertRaises(ValueError):
-                DIRECT["T2 serpapi_mcp_search"]()
-            self.assertEqual([], plane.reached)
-
-    def test_an_absent_gate_is_a_refusal_not_permission(self):
-        """The gate is the only thing that could authorise a call; no gate is no."""
+    def test_absent_gate_is_never_permission(self):
         real = wiring._import_if_present
-        wiring._import_if_present = lambda name: (
-            None if name == "research_s0_preflight_gate" else real(name))
-        self.addCleanup(setattr, wiring, "_import_if_present", real)
-        allowed, code, failed = wiring.s0_provider_entry(self.root)
+        with patch.object(wiring, '_import_if_present', lambda name: None
+                if name == 'research_s0_preflight_gate' else real(name)):
+            allowed, code, failed = wiring.s0_provider_entry(self.root)
         self.assertFalse(allowed)
-        self.assertEqual("CAPABILITY_NOT_AVAILABLE", code)
-        self.assertEqual(("S0_GATE_ABSENT",), failed)
+        self.assertEqual('CAPABILITY_NOT_AVAILABLE', code)
+        self.assertEqual(('S0_GATE_ABSENT',), failed)
 
-    def test_a_breaking_gate_fails_closed_without_leaking_evidence(self):
+    def test_broken_gate_fails_without_echoing_evidence(self):
         import research_s0_preflight_gate as gate
-
-        def explode(evidence):
-            raise RuntimeError("evidence: synthetic")
-
-        real = gate.evaluate
-        gate.evaluate = explode
-        self.addCleanup(setattr, gate, "evaluate", real)
-        allowed, code, failed = wiring.s0_provider_entry(self.root)
+        with patch.object(gate, 'evaluate', side_effect=RuntimeError('synthetic-secret')):
+            allowed, code, failed = wiring.s0_provider_entry(self.root)
         self.assertFalse(allowed)
-        self.assertEqual(("S0_EVALUATION_FAILED",), failed)
+        self.assertEqual(('S0_EVALUATION_FAILED',), failed)
+        self.assertNotIn('synthetic-secret', str((code, failed)))
 
-    def test_the_two_planes_are_the_only_provider_paths_in_the_product(self):
-        """The guard is above both planes, so covering them covers the surface.
+    def test_only_managed_invoke_remains_in_customer_provider_dispatch(self):
+        source = (ROOT / 'scripts' / 'research_mcp.py').read_text()
+        self.assertNotIn('return extra.invoke(', source)
+        self.assertNotIn('result = dual_search_mcp.search(', source)
+        self.assertEqual(1, source.count('research_wiring.managed_invoke('))
+        for fn in (mcp.search, mcp.invoke):
+            self.assertIn('managed_call(', inspect.getsource(fn))
 
-        Asserted by reading the source rather than by remembering: a third
-        `extra.invoke` or `dual_search_mcp.search` call added elsewhere would
-        silently be unguarded, and this test is what makes that visible.
-        """
-        source = (ROOT / "scripts" / "research_mcp.py").read_text(encoding="utf-8")
-        self.assertEqual(1, source.count("return extra.invoke("))
-        self.assertEqual(1, source.count("result = dual_search_mcp.search("))
-        guard = source.index("def _require_s0_for_provider")
-        self.assertLess(guard, source.index("return extra.invoke("))
-        self.assertLess(guard, source.index("result = dual_search_mcp.search("))
-
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     unittest.main()

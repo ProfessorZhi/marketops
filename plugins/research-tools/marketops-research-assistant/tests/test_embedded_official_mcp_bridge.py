@@ -16,11 +16,11 @@ from unittest.mock import patch
 BASE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BASE / "scripts"))
 sys.path.insert(0, str(BASE.parent / "tests"))
-import _s0_evidence_fixture as s0_fixture
 import research_official_mcp as official
 import research_official_mcp_auth as oauth
 import research_provider_extensions as ext
 import research_mcp as mcp
+import _runtime_mcp_fixture as runtime_fixture
 import research_lite_store as store
 
 
@@ -243,53 +243,53 @@ class LiteBridgeWritebackTests(unittest.TestCase):
         # paid-agent opt-in, the receipt shape, the writeback. Without an
         # S0-passing deployment the new outer gate would refuse first and
         # these guards would never be reached.
-        s0_fixture.install(self.root)
+        runtime_fixture.install(self, self.root)
 
     def test_official_mcp_search_and_fetch_are_stored_under_same_run(self):
-        calls=[]
-        def fake(provider,tool,arguments,**kwargs):
-            calls.append((provider,tool))
-            return {"provider":provider,"tool_result":{"matches":[{"title":"Public Library",
-                        "url":"https://example.org/library"}]},
-                    "transport":"OFFICIAL_STREAMABLE_HTTP_MCP",
-                    "provider_charge_verified":False}
-        with patch.object(ext.official_mcp,"call",side_effect=fake):
-            found=mcp.invoke("tinyfish_mcp_search","embedded-run","tf1",query="public library")
-            fetched=mcp.invoke("tinyfish_mcp_fetch","embedded-run","tf2",
-                              url="https://example.org/library")
-            multi=mcp.invoke("serpapi_mcp_search","embedded-run","sp1",
-                             mcp_params={"engine":"google_scholar","q":"public libraries"})
-        self.assertEqual([("tinyfish","search"),("tinyfish","fetch_content"),
-                          ("serpapi","search")],calls)
-        for result in (found,fetched,multi):
-            self.assertEqual("SAVED_MATERIAL_NOT_VERIFIED",result["status"])
-            self.assertEqual("EMBEDDED_OFFICIAL_MCP_HTTP",
-                             result["invocation"]["marketops_to_provider"])
-            self.assertIsNone(result["invocation"]["billing"]["actual_amount"])
+        calls = []
+        def result(provider, tool, arguments):
+            if tool == "fetch_content":
+                self.assertEqual("html", arguments["format"])
+                self.assertFalse(arguments["iframe_links"])
+                return {"results": [{"url": arguments["urls"][0],
+                    "html": "<main>Public Library opening hours 09:00 to 17:00</main>"}]}
+            return {"organic_results": [{"title": "Public Library", "link": "https://example.org/library"}],
+                    "matches": [{"title": "Public Library", "url": "https://example.org/library"}]}
+        runtime_fixture.bind(self, self.root, calls=calls, result=result)
+        found = mcp.invoke("tinyfish_mcp_search", "embedded-run", "tf1", query="public library")
+        fetched = mcp.invoke("tinyfish_mcp_fetch", "embedded-run", "tf2", url="https://example.org/library")
+        multi = mcp.invoke("serpapi_mcp_search", "embedded-run", "sp1",
+                           mcp_params={"engine": "google_scholar", "q": "public libraries"})
+        self.assertEqual([("tinyfish", "search"), ("tinyfish", "fetch_content"),
+                          ("serpapi", "search")], [(p,t) for p,t,_ in calls])
+        for result in (found, fetched, multi):
+            self.assertEqual("SAVED_MATERIAL_NOT_VERIFIED", result["status"])
             self.assertFalse(result["invocation"]["billing"]["charge_verified"])
-            self.assertEqual("SAVED_NOT_BUSINESS_VERIFIED",
-                             result["artifact"]["storage_status"])
-        snapshot=store.list_run(self.root,"embedded-run",limit=50)
-        self.assertEqual(4,snapshot["record_count"])  # brief + three source receipts
-        events=mcp.provider_events("embedded-run")
-        self.assertEqual("serpapi_mcp_search",events["latest_lite_provider_call"]["invocation"]["operation"])
-        # A same-query renamed-ID retry still refuses before fake provider call.
-        with patch.object(ext.official_mcp,"call") as outbound:
-            with self.assertRaisesRegex(ValueError,"DUPLICATE_RESEARCH_ATTEMPT"):
-                mcp.invoke("tinyfish_mcp_search","embedded-run","tf3",query="public library")
-            outbound.assert_not_called()
+            store.read_artifact(self.root, "embedded-run", result["artifact"]["artifact_id"])
+        self.assertEqual([], fetched["primary_artifact_ids"])
+        self.assertEqual(1, len(fetched["provider_html_artifact_ids"]))
+        page = store.read_artifact(self.root, "embedded-run", fetched["provider_html_artifact_ids"][0])
+        self.assertEqual("provider_html", page["material_kind"])
+        self.assertEqual("https://example.org/library", page["origin_url"])
+        self.assertTrue(fetched["source_materials"][0]["vendor_mediated"])
+        self.assertFalse(fetched["source_materials"][0]["raw_http_verified"])
+        self.assertEqual("serpapi_mcp_search",
+                         mcp.provider_events("embedded-run")["latest_lite_provider_call"]["invocation"]["operation"])
+        with self.assertRaisesRegex(ValueError, "DUPLICATE_OPERATION"):
+            mcp.invoke("tinyfish_mcp_search", "embedded-run", "tf3", query="public library")
+        self.assertEqual(3, len(calls))
 
     def test_paid_agent_is_refused_before_any_reservation(self):
         with patch.object(ext.official_mcp,"call") as outbound:
-            with self.assertRaisesRegex(ValueError,"TINYFISH_AGENT_PAID_NOT_AUTHORIZED"):
+            with self.assertRaisesRegex(ValueError,"CAPABILITY_NOT_AVAILABLE"):
                 mcp.invoke("tinyfish_mcp_agent","embedded-run","agent1",
                           url="https://example.org/library",
                           question="Find opening hours without submissions",
                           mcp_params={"max_steps":6,"max_duration_seconds":50},
                           paid_limit_usd="0.50")
             outbound.assert_not_called()
-        usage=mcp.capabilities()["budgets"]["provider"]
-        self.assertEqual(0,usage["reserved"])
+        usage=mcp.capabilities()["budgets"]["managed"]
+        self.assertEqual(0,usage["reserved_operations"])
 
     def test_external_mcp_oauth_has_no_implicit_login(self):
         state=mcp.capabilities()["embedded_official_mcp"]

@@ -120,7 +120,7 @@ class CompositionTests(unittest.TestCase):
             policy=policy_module.Policy(registry=registry_module.DEFAULT_REGISTRY,
                                         network_enabled=True, clock=lambda: NOW),
             ledger=ledger, adapters={"serper": adapter}, root=self.root)
-        outcome = gateway.invoke(capability_id="serper.search", params={"q": "venue"},
+        outcome = gateway.invoke(capability_id="serper.search", params={"query": "venue"},
                                  run_id="run-01", operation_id="op-1",
                                  account_ref="serper-main",
                                  intent_fingerprint="intent-1")
