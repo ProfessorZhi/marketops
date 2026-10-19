@@ -10,7 +10,7 @@ description: Single entry for one human-initiated MarketOps candidate research R
 ## 小批次：只取需要的信息
 
 1. 每批 `marketops_next(run_id, limit=10)`；先阅读 start/next 返回的有限经验建议，只加载当前推荐的阶段 Skill（需要语义解释时才读单个 reference）。需要按工具细化时调用 `marketops_experience_recall(run_id, stage, provider, query, limit=5)`，不要 dump 历史；已知对象直接用过滤的 `marketops_status(limit=20)`。
-2. 需要资料才调用 provider router，先对当前项目调用 `marketops_capabilities(task_kind=...)`，看真实接口、权限、余额和禁止付费降级提示。优先复用当前 Run 的真实材料；用 `marketops_material_excerpt` 根据关键词读最多1200字符，不把整页 HTML、全部 Skill 或整批候选堆入上下文。允许联网和费用必须**明确、有限、可停**。
+2. 需要资料才调用 provider router，先对当前项目调用 `marketops_capabilities(task_kind=...)`，看真实接口、权限、余额和禁止付费降级提示。优先复用当前 Run 的真实材料；恢复会话先用 `marketops_status(run_id,kind="artifact",limit=20)` 找回原文资料 ID/类型/来源，按 cursor 翻页，不依赖上一段对话记住 ID；用 `marketops_material_excerpt` 根据关键词读最多1200字符，不把整页 HTML、全部 Skill 或整批候选堆入上下文。允许联网和费用必须**明确、有限、可停**。
 3. **先落结果再扩搜索**：每取得一个目标的可用材料，立刻保存它支持的组织/场地及已核实字段，再处理下一个目标；不要把所有轮次耗在只存 source。批次规模优先 1–2 个目标，调用 next 后按推荐阶段推进。有整体输入名单时先记录各目标候选及未知项，缺依据的字段保持空/HOLD。对多个候选用 `marketops_propose_batch` 一次提交最多20条，原子写入、失败全回滚。不得在正式 Run 插测试探针。每条主张要有 `claims=[{field,artifact_id,quote}]`，关系、排除和场景要求的关键事实必须给出**同源引文**；仅有 artifact_id 不构成论据。
 4. 用户要求哪些实体、数量、字段，严格按原话区分：场地探索数 ≠ 已核实客户数 ≠ 具名邮箱数；“争取”不是强制 `minimum_targets`。若有硬最低值，必须保存其 `minimum_targets_unit`，与 `target_kind` 一致。场景特定门槛写在 Brief 的 `evidence_requirements`，不写死在插件代码。
 5. 每批调用 `marketops_evidence_audit` 看简短缺口码，再判断继续取证、HOLD、EXCLUDED 或暂停。

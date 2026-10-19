@@ -6,7 +6,7 @@
 |---|---|---|
 | 路径设置 | `marketops_setup_status`、`marketops_setup_configure` | 读取配置；保存用户选定的数据根和经验文件 |
 | 找回任务 | `marketops_runs` | 只读、有限分页，返回 ID、范围、规则与目标 |
-| 开始/继续 | `marketops_start`、`marketops_status`、`marketops_next` | 保存 Brief、读取候选、给出下一阶段和适用经验 |
+| 开始/继续 | `marketops_start`、`marketops_status`、`marketops_next` | 保存 Brief、读取候选、给出下一阶段和适用经验；status 的 kind=artifact 可找回原文资料元数据 |
 | 当前能力 | `marketops_capabilities` | 与调用相同的本地准入、依赖和累计请求台账；身份/余额未知不假绿 |
 | 有界降级 | `marketops_research_step` | 在已准入渠道中有限尝试，保留每次原因、结果和回执 |
 | 单次调用 | `marketops_managed_call` | 统一 Registry/Policy/Ledger/Adapter，返回业务数据和持久资料引用 |

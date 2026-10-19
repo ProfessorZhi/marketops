@@ -68,6 +68,10 @@ def status(run_id, limit=20, cursor="", kind="", entity_key=""):
     A page fixes a row high-water mark; later appends land in a new query, and a
     cursor belongs to its Run and filters.
     """
+    if kind == "artifact":
+        if entity_key:
+            raise ValueError("MATERIAL_VIEW_HAS_NO_ENTITY_FILTER")
+        return store.list_materials(None, run_id, limit=limit, cursor=cursor)
     return workflow.page(root(), run_id, limit, cursor, kind, entity_key)
 
 
@@ -1058,7 +1062,13 @@ def build_server():
     @tool
     def marketops_status(run_id: str, limit: int = 20, cursor: str = "",
                          kind: str = "", entity_key: str = "") -> dict:
-        """Read persistent candidates; iterate next_cursor for a full audit, or filter."""
+        """Read persistent candidates, with bounded next_cursor pagination.
+
+        Use kind='artifact' to discover saved material IDs, source URLs, types
+        and hashes after a restart. It returns metadata, not page contents;
+        read chosen IDs through marketops_material_excerpt. Prefer original or
+        local rendered material for primary-source checks; vendor HTML stays labelled.
+        """
         return status(run_id, limit, cursor, kind, entity_key)
 
     @tool

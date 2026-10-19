@@ -41,6 +41,27 @@ class ResearchRunsTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "RUN_CURSOR_UNKNOWN"):
                 store.list_runs(root, cursor="missing")
 
+    def test_material_discovery_after_restart_exposes_primary_sources_without_cross_run_rows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "data"
+            for run_id in ("one", "other"):
+                store.start_run(root, run_id, "scope", "Task", "rules")
+            store.save_artifact(root, "one", "html-one", "crawl4ai", "https://example.org/one",
+                                b"<p>Original synthetic public material</p>", "rendered_html")
+            store.save_artifact(root, "one", "json-one", "crawl4ai", "https://example.org/one",
+                                b'{"text":"Synthetic extraction"}', "provider_extracted")
+            store.save_artifact(root, "other", "foreign", "crawl4ai", "https://example.org/other",
+                                b"<p>Different task</p>", "rendered_html")
+            first = store.list_materials(root, "one", limit=1)
+            self.assertEqual("html-one", first["artifacts"][0]["artifact_id"])
+            self.assertEqual("rendered_html", first["artifacts"][0]["material_kind"])
+            self.assertNotIn("content", first["artifacts"][0])
+            second = store.list_materials(root, "one", limit=1, cursor=first["next_cursor"])
+            self.assertEqual(["json-one"], [x["artifact_id"] for x in second["artifacts"]])
+            self.assertIsNone(second["next_cursor"])
+            with self.assertRaisesRegex(ValueError, "MATERIAL_CURSOR"):
+                store.list_materials(root, "other", cursor=first["next_cursor"])
+
 
 if __name__ == "__main__":
     unittest.main()

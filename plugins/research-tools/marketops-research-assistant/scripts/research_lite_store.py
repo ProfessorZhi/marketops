@@ -6,6 +6,7 @@ No method grants contact-route readiness, sends messages or changes SOP.
 """
 from __future__ import annotations
 
+import base64
 import csv
 import hashlib
 import json
@@ -142,6 +143,54 @@ def list_runs(root: Path | str | None, *, limit: int = 10, cursor: str = "",
     return {"runs": [dict(zip(names, row)) for row in rows[:limit]],
             "next_cursor": rows[limit - 1][0] if len(rows) > limit else None,
             "limit": limit, "mutates_nothing": True}
+
+
+def list_materials(root: Path | str | None, run_id: str, *, limit: int = 20,
+                   cursor: str = "") -> dict:
+    """Read-only metadata discovery; a new session need not remember artifact IDs."""
+    _id(run_id, "run_id")
+    if type(limit) is not int or not 1 <= limit <= 50:
+        raise ValueError("MATERIAL_LIST_LIMIT_INVALID")
+    base = _root(root, create=False)
+    path = (base / "state" / "research-lite.sqlite3").resolve()
+    if not path.is_relative_to(base) or not path.is_file():
+        raise ValueError("MATERIAL_STORE_UNAVAILABLE")
+    with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=20)) as db:
+        db.execute("BEGIN")
+        if db.execute("SELECT 1 FROM runs WHERE run_id=?", (run_id,)).fetchone() is None:
+            raise ValueError("UNKNOWN_RUN")
+        if cursor:
+            try:
+                if not isinstance(cursor, str) or len(cursor) > 2048:
+                    raise ValueError()
+                token = json.loads(base64.b64decode(cursor.encode(), altchars=b"-_", validate=True))
+                high, after = token["high"], token["after"]
+                if (token.get("kind") != "materials" or token.get("run_id") != run_id
+                        or type(high) is not int or type(after) is not int
+                        or not 0 <= after <= high <= 2**63 - 1):
+                    raise ValueError()
+            except (ValueError, KeyError, TypeError, UnicodeError):
+                raise ValueError("MATERIAL_CURSOR_INVALID_OR_MISMATCHED") from None
+        else:
+            high = db.execute("SELECT COALESCE(MAX(rowid),0) FROM artifacts WHERE run_id=?",
+                              (run_id,)).fetchone()[0]
+            after = 0
+        total = db.execute("SELECT COUNT(*) FROM artifacts WHERE run_id=? AND rowid<=?",
+                           (run_id, high)).fetchone()[0]
+        rows = db.execute("SELECT rowid,artifact_id,provider,origin_url,material_kind,content_sha256,acquired_at "
+                          "FROM artifacts WHERE run_id=? AND rowid>? AND rowid<=? ORDER BY rowid LIMIT ?",
+                          (run_id, after, high, limit + 1)).fetchall()
+    visible = rows[:limit]
+    next_cursor = None
+    if len(rows) > limit:
+        next_cursor = base64.urlsafe_b64encode(json.dumps(
+            {"kind": "materials", "run_id": run_id, "high": high, "after": visible[-1][0]},
+            separators=(",", ":")).encode()).decode()
+    fields = ("artifact_id", "provider", "source_url", "material_kind", "content_sha256", "acquired_at")
+    return {"run_id": run_id, "kind": "artifact", "artifact_count": total,
+            "artifacts": [dict(zip(fields, row[1:])) for row in visible],
+            "next_cursor": next_cursor, "mutates_nothing": True,
+            "read_with": "marketops_material_excerpt", "facts_verified": False}
 
 
 def _safe_name(value: str) -> str:
