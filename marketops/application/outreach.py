@@ -43,7 +43,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -54,6 +54,7 @@ from ..domain.entities import ContactRoute
 from ..domain.enums import EntryKind, Grade, RouteBinding, RouteStatus
 from ..domain.errors import ConfigError, MarketOpsError
 from ..domain.outreach import (
+    AuthorizationProvenance,
     DraftRef,
     DraftState,
     ManifestEntry,
@@ -81,6 +82,7 @@ from ..ports.outreach import (
     OutreachStore,
 )
 from ..ports.scenes import SceneStore
+from ..security.authorization import AuthoritySource, require_verified_authority
 from .validation import one_line_reason
 
 #: 摘要拼接用的分隔符。用一个**不可能出现在标识里**的字节，否则
@@ -1813,7 +1815,11 @@ def prepare_wave(
 
 
 def record_authorization(
-    *, authorization: WaveAuthorization, store: OutreachStore, at: datetime
+    *,
+    authorization: WaveAuthorization,
+    store: OutreachStore,
+    at: datetime,
+    authority_source: AuthoritySource | None = None,
 ) -> WaveAuthorization:
     """登记一份**已经存在**的授权，并把它绑定的清单核对一遍。
 
@@ -1845,6 +1851,11 @@ def record_authorization(
             "授权与清单不一致时**不得**登记 —— 登记一份覆盖不了的授权，"
             "会让它在盘上看起来与一份有效的授权一样。"
         )
+    # 来源验证是**可选注入**而不是默认开启：本仓今天没有受管批准记录来源，
+    # 默认拒绝会让所有现有调用方在接线之前无法工作。但一旦给了来源，
+    # 任何非 VERIFIED 的判决都按拒绝处理 —— 包括 BLOCKED_TRUST_SOURCE。
+    if authority_source is not None:
+        require_verified_authority(authorization, authority_source)
     store.put_authorization(authorization)
     return authorization
 
@@ -1936,6 +1947,8 @@ def dispatch_wave(
     transport: MailTransport,
     rules: OutreachRules,
     at: datetime,
+    executor: str | None = None,
+    clock: Callable[[], datetime] | None = None,
 ) -> DispatchReport:
     """把一批**已经授权**的信发出去。**逐封判定、逐封记录。**
 
@@ -1975,6 +1988,27 @@ def dispatch_wave(
     它与「被抑制」一样是一条**跳过**，而它是最后一道：两个驱动同时对同一封信
     进来时只有一个 ``won``。把它记成失败会让「并发保护生效了」看起来像
     「发信失败了」。
+
+    ## 授权必须带**可验证的来源标记**
+
+    只有 ``AuthorizationProvenance.BEARER_PRINCIPAL`` 的授权放行；默认的
+    ``UNVERIFIED`` 是「绕过受控入口、直接调应用层登记」的那条路径 ——
+    整批拒绝，并报 ``BLOCKED_TRUST_SOURCE``。这一格不是密码学签名：它证明的是
+    「这条记录由 MCP 的 ``authorize_wave`` 写入」，不是「这个人有权批准」。
+    后者需要一个外部批准记录来源，见 ``security/authorization.py``。
+
+    ## ``executor``：批准与执行必须分开
+
+    给了 ``executor``、且它等于授权的 ``authorized_by`` 时整批拒绝。MCP 的
+    ``send_wave`` **总是**把传输层已认证的主体传进来；应用层的直接调用方
+    没有身份可言，这一条不判 —— 它不判的那条路径由上面的 provenance 兜住。
+
+    ## ``clock``：批次中途的授权重查
+
+    批次开始时的那份授权是一个快照。``_deliver_one`` 在**每一封**离开之前
+    重读批次状态、清单摘要与授权记录，并用 ``clock`` 取当前时刻。默认
+    ``clock`` 返回批次的 ``at``（批次一般很短）；一个可能跨过 ``expires_at``
+    的调用方应当传 ``utc_now``，否则「过期」只能在下一次调用时被发现。
     """
     moment = to_utc(at)
     wave = _require_wave(store, wave_id)
@@ -1994,6 +2028,18 @@ def dispatch_wave(
     authorization = _live_authorization(store, wave_id, manifest, moment)
     if authorization is None:
         return _stopped("这一批此刻没有一份覆盖当前清单的授权")
+    if authorization.provenance is not AuthorizationProvenance.BEARER_PRINCIPAL:
+        return _stopped(
+            "这份授权没有可验证的签发来源（BLOCKED_TRUST_SOURCE）："
+            f"provenance={authorization.provenance.value!r}。\n"
+            "只有经由 MCP authorize_wave（主体取自传输层已认证的 Bearer 令牌）"
+            "登记的授权才放行 —— 直接调应用层登记一份授权不构成一次批准。"
+        )
+    if executor is not None and executor == authorization.authorized_by:
+        return _stopped(
+            f"执行投递的主体 {executor!r} 与批准这份授权的主体相同 —— "
+            "批准与执行必须落在两个主体上；同一个主体自批自发不是独立授权。"
+        )
     if not manifest.entries:
         return _stopped("这一批的清单是空的")
     # 发送箱一致在**循环之外**判：它不是某一封的问题，是这一整个部署的问题。
@@ -2021,6 +2067,7 @@ def dispatch_wave(
                 transport=transport,
                 rules=rules,
                 at=moment,
+                clock=clock,
             )
         )
     return DispatchReport(outcomes=tuple(outcomes))
@@ -2065,6 +2112,7 @@ def _deliver_one(
     transport: MailTransport,
     rules: OutreachRules,
     at: datetime,
+    clock: Callable[[], datetime] | None = None,
 ) -> DispatchOutcome:
     """一封的完整序列。见 :func:`dispatch_wave` 的 docstring 第 6–8 条。
 
@@ -2083,6 +2131,46 @@ def _deliver_one(
         draft_version=entry.draft.draft_version,
         recipient=recipient,
     )
+
+    # --- 批次中途的授权重查（TOCTOU）------------------------------------
+    # 批次开始时取到的 ``authorization`` 是一个**当时**的快照。第一封离开之后，
+    # 授权可能被过期、批次可能被退回待授权、清单可能被换掉 —— 而循环里剩下的
+    # 每一封如果只读那个快照，仍会按它发出去。这里在**每一封**之前重新读一次
+    # 存储里的当前事实：批次状态、清单摘要、授权记录本身。
+    #
+    # 判据是「当前事实」，不是「开始时的对象」：一个只看快照的实现会让
+    # 「撤回发生在批次中途」这件事在记录上完全看不出来 —— 那一批仍然全部发出，
+    # 报告上每一封都写着正常。
+    moment = (clock or (lambda: at))()
+    current_wave = store.wave(manifest.wave_id)
+    if current_wave is None:
+        return DispatchOutcome(send_key, "skipped", "批次在执行中消失")
+    if current_wave.state not in (WaveState.AUTHORIZED, WaveState.SENDING):
+        return DispatchOutcome(
+            send_key,
+            "skipped",
+            f"批次已在执行中退回 {current_wave.state.value} —— 剩余的不再发",
+        )
+    current_manifest = store.manifest(manifest.wave_id)
+    if current_manifest is None:
+        return DispatchOutcome(send_key, "skipped", "清单在执行中被移除")
+    if current_manifest.manifest_sha256 != manifest.manifest_sha256:
+        return DispatchOutcome(
+            send_key, "skipped", "清单在执行中被替换 —— 授权绑的是旧摘要"
+        )
+    current_authorization = next(
+        (
+            row
+            for row in store.authorizations(wave_id=manifest.wave_id)
+            if row.authorization_id == authorization.authorization_id
+        ),
+        None,
+    )
+    if current_authorization is None:
+        return DispatchOutcome(send_key, "skipped", "授权记录在执行中消失")
+    problem = current_authorization.covers(current_manifest, moment)
+    if problem:
+        return DispatchOutcome(send_key, "skipped", f"授权在执行中失效：{problem}")
 
     draft = store.draft(entry.draft.draft_id, entry.draft.draft_version)
     if draft is None:
