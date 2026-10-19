@@ -136,6 +136,15 @@ def _usd_price_is_known(price: "Price") -> bool:
     return bool(price.free_tier or price.unit_micros > 0)
 
 
+def display_actual_micros(operation):
+    """Read historical placeholder-derived zeros as unknown without rewriting."""
+    if (operation.actual_micros == 0 and operation.actual_source == "DERIVED"
+            and not operation.price_verified
+            and operation.price_source == "provider_documentation_credits_only"):
+        return None
+    return operation.actual_micros
+
+
 def _reference(value: Any, field: str) -> str:
     """A bounded opaque reference: a provider run id, a request id, an evidence id.
 
@@ -1145,7 +1154,10 @@ class UsageLedger:
         providers: dict[str, dict[str, int]] = {}
         evidence = {"verified": 0, "unverified": 0}
         legacy = 0
+        legacy_unverified_zeros = 0
         for row in rows:
+            historical_zero = row.actual_micros == 0 and display_actual_micros(row) is None
+            legacy_unverified_zeros += int(historical_zero)
             states[row.charge_state] = states.get(row.charge_state, 0) + 1
             money["estimated_micros"] += row.estimated_micros
             if row.charge_state in ("SETTLED", "FREE_TIER"):
@@ -1158,7 +1170,12 @@ class UsageLedger:
                 quota[row.quota_unit] = quota.get(row.quota_unit, 0) + row.quota_units
             bucket = providers.setdefault(row.provider, {
                 "operations": 0, "estimated_micros": 0, "actual_micros": 0,
-                "unknown_exposure_micros": 0})
+                "unknown_exposure_micros": 0, "legacy_unverified_zero_operations": 0,
+                "actual_usd_status": "KNOWN"})
+            if (row.charge_state in {"UNKNOWN", "RESERVED"} or historical_zero
+                    or (not row.price_verified and row.actual_source == "DERIVED")):
+                bucket["actual_usd_status"] = "UNKNOWN"
+            bucket["legacy_unverified_zero_operations"] += int(historical_zero)
             bucket["operations"] += 1
             bucket["estimated_micros"] += row.estimated_micros
             if row.charge_state in ("SETTLED", "FREE_TIER"):
@@ -1174,7 +1191,7 @@ class UsageLedger:
         # figure produced anyway - "cost per accepted output: 0" - is the one number a
         # reader would take at face value, so it is withheld instead of printed.
         basis_code = "OK"
-        if money["unknown_exposure_micros"] > 0:
+        if money["unknown_exposure_micros"] > 0 or states.get("UNKNOWN", 0) > 0:
             basis_code = "UNKNOWN_COST_OUTSTANDING"
         elif evidence["unverified"] > 0:
             basis_code = "PRICE_UNVERIFIED"
@@ -1184,6 +1201,19 @@ class UsageLedger:
             # nothing" prints as "$0.00 per accepted output".
             basis_code = "NO_SETTLED_OPERATIONS"
         basis = "VERIFIED_ACTUAL" if basis_code == "OK" else "INDETERMINATE"
+        money["actual_usd_status"] = "KNOWN" if basis_code == "OK" else "UNKNOWN"
+        money["actual_total_micros"] = money["actual_micros"] if basis_code == "OK" else None
+        money["legacy_unverified_zero_operations"] = legacy_unverified_zeros
+        if legacy_unverified_zeros:
+            money["recorded_actual_micros"] = money["actual_micros"]
+            money["actual_micros"] = None
+        for bucket in providers.values():
+            bucket["actual_total_micros"] = (bucket["actual_micros"]
+                                             if bucket["actual_usd_status"] == "KNOWN" else None)
+            if bucket["legacy_unverified_zero_operations"]:
+                bucket["recorded_actual_micros"] = bucket["actual_micros"]
+                bucket["actual_micros"] = None
+                bucket["actual_usd_status"] = "UNKNOWN"
         notes = [
             "A local reservation or a settled estimate is not a vendor invoice.",
             "Money is integer micro-USD; quota units are counted separately and are never "

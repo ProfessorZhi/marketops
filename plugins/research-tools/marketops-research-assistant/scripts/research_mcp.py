@@ -12,6 +12,7 @@ import re
 import sqlite3
 import sys
 from pathlib import Path
+from typing import Literal
 
 import dual_search_mcp
 import research_config
@@ -38,7 +39,21 @@ def next_step(run_id, limit=10, previous_snapshot_id="", after_attempt=False):
 def _experience_view(run_id, *, stage="intake"):
     """A failed advisory lookup must be visible without losing durable research."""
     try:
-        return experience_memory.recall(root(), run_id=run_id, stage=stage, limit=5)
+        found = experience_memory.recall(root(), run_id=run_id, stage=stage, limit=2)
+        fields = ("experience_id", "source_type", "source_run_id", "when", "do",
+                  "limitations", "strategy_hint")
+        suggestions = []
+        for item in found["experiences"]:
+            compact = {name: item[name] for name in fields if name in item}
+            compact["feedback"] = {name: item.get("feedback", {}).get(name)
+                                   for name in ("independent_runs", "outcomes")}
+            compact["execution_authority"] = "none"
+            suggestions.append(compact)
+        return {"status": found["status"], "as_of": found["as_of"],
+                "experiences": suggestions, "matched_count": found["matched_count"],
+                "more_available": found["matched_count"] > len(suggestions),
+                "detail_tool": "marketops_experience_recall",
+                "business_verified": False, "policy_changed": False}
     except Exception as exc:
         code = str(exc).split(":", 1)[0]
         return {"status": "UNAVAILABLE", "experiences": [],
@@ -326,7 +341,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         configured_root = None
     if configured_root is not None and runtime_setup.config(configured_root):
         from research_runtime_status import view
-        return {"product": "MarketOps Research MCP", "version": "0.5.0-candidate",
+        return {"product": "MarketOps Research MCP", "version": "0.5.1-candidate",
                 **view(configured_root, task_kind=task_kind),
                 "external_host": _external_inventory(host_observed_tools),
                 "embedded_official_mcp": provider_policy.embedded_official_mcp_capabilities(),
@@ -401,7 +416,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         if task_kind else None)
     return {
         "product": "MarketOps Lite Research MCP",
-        "version": "0.5.0-candidate",
+        "version": "0.5.1-candidate",
         "providers": {
             "serpapi": {"transport": "REST through local MCP", **search["serpapi"]},
             "serper": {"transport": "REST through local MCP", **search["serper"]},
@@ -463,7 +478,9 @@ def _valid_brief(run_id: str, brief: dict) -> None:
                             "BRIEF_UNIT_REVIEW_REQUIRED"}:
         raise ValueError("RESEARCH_BRIEF_INVALID: " + result["status"])
     if evidence.audit_records([synthetic], {}, result_limit=0)["invalid_brief_evidence_requirements"]:
-        raise ValueError("RESEARCH_BRIEF_EVIDENCE_REQUIREMENTS_INVALID")
+        raise ValueError("RESEARCH_BRIEF_EVIDENCE_REQUIREMENTS_INVALID: expected kind -> field-name array, "
+                         "for example {organization: [identity], venue: [identity, surface_type]}; "
+                         "put narrative requirements in objective, not in this mapping")
 
 
 def _require_brief_for_network(root_path, run_id: str) -> None:
@@ -489,6 +506,8 @@ def start(run_id, scope, objective, rule_version, brief=None):
                          stage="intake", kind="run", status="succeeded",
                          provider="local")
     next_state = workflow.next_step(r, run_id, limit=1)
+    if brief_receipt is None and next_state.get("brief_record_id"):
+        brief_receipt = {"status": "EXISTING_BRIEF", "record_id": next_state["brief_record_id"]}
     return {**result, "event": event,
             "brief": brief_receipt or {"status": "BRIEF_REQUIRED"},
             "next_status": next_state["status"],
@@ -731,7 +750,7 @@ def handoff(run_id, operation_id):
     try:
         experience_result = draft_experience(
             r, run_id=run_id, scope=head["scope"],
-            rule_version=head["rule_version"], skill_version="0.5.0",
+            rule_version=head["rule_version"], skill_version="0.5.1",
             output=experience_path)
         result["experience_candidate"] = str(experience_path)
         result["experience_incidents"] = experience_result["incidents"]
@@ -826,7 +845,15 @@ def _guarded(fn):
     @functools.wraps(fn)
     def wrapper(*args, **kwargs):
         try:
-            return fn(*args, **kwargs)
+            response = fn(*args, **kwargs)
+            if fn.__name__ in {"marketops_managed_call", "marketops_search", "marketops_crawl",
+                               "marketops_tinyfish", "marketops_serpapi_mcp_search",
+                               "marketops_jev_choice"} and isinstance(response, dict):
+                from research_response_view import compact_provider_response
+                fields = inspect.signature(fn).bind_partial(*args, **kwargs).arguments
+                if fields.get("run_id"):
+                    response = compact_provider_response(root(), fields["run_id"], response)
+            return response
         except (ValueError, OSError) as exc:
             from mcp.server.mcpserver.exceptions import ToolError
             response = {"status": "BLOCKED", "tool": fn.__name__,
@@ -842,7 +869,7 @@ def build_server():
     from research_credentials import load_into_environment
     load_into_environment()
     from mcp.server import MCPServer
-    mcp = MCPServer("MarketOps Lite Research", version="0.5.0")
+    mcp = MCPServer("MarketOps Lite Research", version="0.5.1")
 
     def tool(fn):
         return mcp.tool()(_guarded(fn))
@@ -862,21 +889,41 @@ def build_server():
     def marketops_note(run_id: str, note_id: str, stage: str, category: str,
                        problem: str, action_taken: str, observed_result: str,
                        hypothesis: str = "", evidence_ref: str = "") -> dict:
-        """Record one real bottleneck the agent met, with what it tried and what happened."""
+        """Record a real observation, action and result, without URLs, emails or secrets.
+
+        category: contact_found_not_stored, field_template_pollution,
+        artifact_without_delivery, source_blocked, provider_blocked,
+        evidence_missing, human_correction or other. evidence_ref identifies an
+        actual saved artifact/event; use the receipt ID, never an invented ref.
+        """
         return note(run_id, note_id, stage, category, problem, action_taken,
                     observed_result, hypothesis, evidence_ref)
 
     @tool
     def marketops_capabilities(host_observed_tools: list[str] | None = None,
-                               task_kind: str | None = None,
+                               task_kind: Literal["source_discovery", "known_public_url", "batch_public_pages",
+                                                  "dynamic_navigation", "authorized_login_read",
+                                                  "semantic_choice", "semantic_yes_no", "semantic_score"] | None = None,
                                tinyfish_wallet_snapshot: dict | None = None) -> dict:
-        """Read local and optionally host-reported cost hints. Never buys or logs in."""
+        """Read actual runtime readiness and budget. task_kind is a tool activity, not the Brief goal.
+
+        Use source_discovery for search, known_public_url for fetching a page,
+        semantic_choice for judgment; omit task_kind to inspect all capabilities.
+        """
         return capabilities(host_observed_tools, task_kind, tinyfish_wallet_snapshot)
 
     @tool
     def marketops_start(run_id: str, scope: str, objective: str, rule_version: str,
                         brief: dict | None = None) -> dict:
-        """Start/resume and save an explicit research_brief before any network spend."""
+        """Start/resume and save a valid Brief before network spend. Reuse existing scope/rule.
+
+        Minimal brief: {record_type: research_brief, target_kind: organization,
+        goal: contacts, require_named_person: false, minimum_targets: null,
+        evidence_requirements: {organization: [identity]}}.
+        target_kind is venue or organization; goal is pool or contacts.
+        evidence_requirements maps candidate kinds to arrays of field names,
+        never narrative strings. The narrative belongs in objective (1–300 chars).
+        """
         return start(run_id, scope, objective, rule_version, brief)
 
     @tool
@@ -965,7 +1012,11 @@ def build_server():
     @tool
     def marketops_material_excerpt(run_id: str, artifact_ids: list[str],
                                    queries: list[str] | None = None) -> dict:
-        """Get SHA-checked source snippets capped at 1200 chars; no full-page dump."""
+        """Get SHA-checked snippets: 1–3 artifact IDs and at most 3 query strings (2–60 chars each).
+
+        The total excerpt is capped at 1200 characters; make a separate focused
+        read if more evidence is needed, rather than requesting four queries.
+        """
         return material_excerpt(run_id, artifact_ids, queries)
 
     @tool
@@ -974,7 +1025,9 @@ def build_server():
         return evidence_audit(run_id, limit)
 
     @tool
-    def marketops_research_step(run_id: str, operation_id: str, task_kind: str,
+    def marketops_research_step(run_id: str, operation_id: str,
+                                task_kind: Literal["source_discovery", "known_public_url",
+                                                   "batch_public_pages", "semantic_choice"],
                                 query: str = "", url: str = "", artifact_id: str = "",
                                 question: str = "", options: list[str] | None = None,
                                 country: str = "", language: str = "",
@@ -1084,7 +1137,7 @@ def build_server():
             raise ValueError("EXPERIENCE_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT")
         output.parent.mkdir(parents=True, exist_ok=True)
         return draft_experience(r, run_id=run_id, scope=scope,
-                                rule_version=rule_version, skill_version="0.5.0",
+                                rule_version=rule_version, skill_version="0.5.1",
                                 output=output)
 
     @tool

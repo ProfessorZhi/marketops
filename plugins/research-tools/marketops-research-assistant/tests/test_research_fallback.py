@@ -72,7 +72,8 @@ class FallbackTests(unittest.TestCase):
         result = self.step()
         self.assertEqual(["tinyfish.search"], [x["capability_id"] for x in self.calls])
         self.assertEqual(["SKIPPED", "SKIPPED", "OK"], [x["status"] for x in result["attempts"]])
-        self.assertEqual("gb", self.calls[0]["params"]["gl"])
+        self.assertEqual("GB", self.calls[0]["params"]["location"])
+        self.assertEqual("en", self.calls[0]["params"]["language"])
 
     def test_missing_local_sdk_and_known_technical_failure_can_use_tinyfish(self):
         for i, missing in enumerate((True, False)):

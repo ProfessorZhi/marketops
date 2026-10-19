@@ -289,7 +289,8 @@ APPROVED_URL_SOURCE = "research_egress.approved_url"
 
 
 def approved_url(value: object, *, resolve: bool = True,
-                 resolver: safe.HostResolver | None = None) -> str:
+                 resolver: safe.HostResolver | None = None,
+                 allowlist: frozenset[str] | None = None) -> str:
     """**厂商适配器唯一该用的 URL 判据**：这个地址能不能交给上游去取。
 
     ## 它为什么必须在这里，而不是在适配器里
@@ -358,7 +359,8 @@ def approved_url(value: object, *, resolve: bool = True,
         literal = safe.check_target(value)
         if not literal.allowed:
             raise ValueError(OFFICIAL_TARGET_REFUSAL)
-        scoped = safe.check_domain(host, allowlist=allowed_domains_from_env())
+        scoped = safe.check_domain(host, allowlist=(allowed_domains_from_env()
+                                                   if allowlist is None else allowlist))
         if not scoped.allowed:
             raise ValueError(OFFICIAL_TARGET_REFUSAL)
         ported = safe.check_port(443, allowed=APPROVED_URL_PORTS)
@@ -368,7 +370,7 @@ def approved_url(value: object, *, resolve: bool = True,
 
     gate = safe.EgressGate(
         resolver if resolver is not None else safe.SystemResolver(),
-        allowlist=allowed_domains_from_env(),
+        allowlist=allowed_domains_from_env() if allowlist is None else allowlist,
         allowed_ports=APPROVED_URL_PORTS,
     )
     verdict = gate.check(host, 443)

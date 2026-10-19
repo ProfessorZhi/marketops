@@ -18,6 +18,15 @@ class AccountRefreshTests(unittest.TestCase):
         case = DefaultDispatchTests("test_default_gateway_returns_and_persists_real_adapter_result")
         case.setUp()
         self.addCleanup(case.doCleanups)
+        import research_usage_ledger as usage
+        # This case needs one explicitly settled fixture operation and one
+        # ambiguous execution; default credit-only dollars are tested elsewhere.
+        pricing = usage.PricingCatalog.from_entries([{"provider": "serper", "capability": "search",
+            "unit_micros": 1000, "quota_unit": "credits", "quota_per_call": 1,
+            "source": "SYNTHETIC_TEST_RATE_NOT_VENDOR", "version": "test-1",
+            "observed_at": runtime.now(), "verified": True}])
+        prices = patch.object(usage, "_pricing_from_environment", return_value=pricing)
+        prices.start(); self.addCleanup(prices.stop)
         runtime.configure(case.root, providers=["serper"], domains=["example.org"],
                           max_calls=5, task="public venues", confirm=True, amend=True)
         case.mcp.search("serper", "first venue", "US", "en", "run-a", "settled")

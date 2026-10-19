@@ -94,6 +94,15 @@ def tinyfish_runner(root):
     return run
 
 
+def tinyfish_target_guard(root):
+    def guard(value, *, resolve=True, resolver=None):
+        from research_runtime_setup import config
+        from research_egress import approved_url
+        return approved_url(value, resolve=resolve, resolver=resolver,
+                            allowlist=frozenset(config(root).get("allowed_domains", ())))
+    return guard
+
+
 class CheckedSerpApiSession:
     """SDK session facade: exact admitted schema and audited resource reads."""
     def __init__(self, session, root):
@@ -118,7 +127,13 @@ class CheckedSerpApiSession:
         return await self._session.list_resources(*args, **kwargs)
 
     async def list_resource_templates(self, *args, **kwargs):
-        return await self._session.list_resource_templates(*args, **kwargs)
+        from research_runtime_setup import audit
+        audit(self._root, {"event": "engine-discovery", "provider": "serpapi",
+                           "method": "resources/templates/list", "phase": "intent"})
+        result = await self._session.list_resource_templates(*args, **kwargs)
+        audit(self._root, {"event": "engine-discovery", "provider": "serpapi",
+                           "method": "resources/templates/list", "phase": "result"})
+        return result
 
     async def read_resource(self, uri):
         from research_runtime_setup import audit

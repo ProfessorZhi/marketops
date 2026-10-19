@@ -139,8 +139,14 @@ class RealAssemblyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = _rooted(tmp)
             adapter = _LocalTinyFish()
+            local_pricing = ledger_module.PricingCatalog.from_entries([{
+                "provider": "tinyfish", "capability": "wallet_read", "unit_micros": 0,
+                "quota_unit": "requests", "quota_per_call": 1, "source": "SYNTHETIC_LOCAL_CONTROL",
+                "version": "test-1", "observed_at": "2026-10-20T00:00:00+00:00",
+                "verified": True, "free_tier": True}])
             built = wiring.build_gateway(
                 root=root, adapters={"tinyfish": adapter},
+                ledger=ledger_module.for_root(root, pricing=local_pricing),
                 policy=policy_module.Policy(
                     registry=registry_module.DEFAULT_REGISTRY, network_enabled=True))
 

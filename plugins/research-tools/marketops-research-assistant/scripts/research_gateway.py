@@ -466,12 +466,19 @@ def _operation_id(reservation: Any, request: Any) -> str:
 
 
 def _priced_at_zero(operation_id: str, ledger: Any) -> bool:
-    """Whether the ledger recorded a rate for this row — a zero rate is a rate."""
+    """Only an evidenced zero rate or an explicit free tier can derive USD zero."""
     try:
         row = ledger.get(operation_id)
     except Exception:
         return False
-    return bool(getattr(row, "price_source", ""))
+    if row is None or getattr(row, "estimated_micros", None) != 0:
+        return False
+    if getattr(row, "price_verified", False) and getattr(row, "price_source", ""):
+        return True
+    pricing = getattr(ledger, "_pricing", None)
+    price = pricing.price_for(row.provider, row.capability) if pricing is not None else None
+    return bool(price is not None and price.free_tier and price.unit_micros == 0
+                and price.source == row.price_source and price.version == row.price_version)
 
 
 def _estimated_micros(reservation: Any) -> int:
@@ -502,12 +509,8 @@ def _actuals(actual_usd, actual_source, estimated_micros: int,
     if estimated_micros:
         return estimated_micros, "DERIVED"
     if priced_at_zero:
-        # A recorded rate of zero is a fact, not an absence: the shipped catalog
-        # prices every credit-metered capability at 0 USD with a quota unit, so a
-        # successful call it priced is settled as 0 USD *derived from the recorded
-        # rate* — the quota column carries what was actually consumed. Holding
-        # instead would leave every successful credit-metered call permanently
-        # RESERVED, which is the exposure leak this branch was written to stop.
+        # This flag is evidence-backed. The default credits-only catalog's
+        # placeholder zero never reaches this branch.
         return 0, "DERIVED"
     # Nothing attributable at all: the caller decides between holding and settling
     # by getting None back, and `_settle_terminal` holds.

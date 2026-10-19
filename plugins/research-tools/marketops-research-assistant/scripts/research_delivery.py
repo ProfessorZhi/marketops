@@ -31,7 +31,7 @@ from research_event_journal import _root, append_event, append_note
 from research_experience_summary import refresh_quietly as refresh_summary
 from _xlsx import Sheet, render_workbook
 
-VERSION = "0.5.0-plus-xlsx-candidate"
+VERSION = "0.5.1-plus-xlsx-candidate"
 EMAIL = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 FORMULA = ("=", "+", "-", "@")
 NAMESPACE = {"x": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
@@ -665,6 +665,7 @@ def write_evidence_workbook(data_root: Path | str | None, run_id: str, delivery_
     `UsageLedger` in practice and a mapping-shaped stand-in in tests.
     """
     root = _root(data_root)
+    import research_usage_ledger as usage_ledger
     store._id(run_id, "run_id")
     store._id(delivery_id, "delivery_id")
     snapshot = _read_snapshot(root, run_id)
@@ -676,13 +677,15 @@ def write_evidence_workbook(data_root: Path | str | None, run_id: str, delivery_
         links, envelopes, list(reviews))
     receipts = []
     for operation in ledger.operations(project=project, run_id=run_id):
+        display_amount = usage_ledger.display_actual_micros(operation)
+        historical_unknown = display_amount is None and operation.actual_micros is not None
         receipts.append((
             operation.operation_id, operation.operation_id, operation.provider,
             operation.capability, operation.charge_state,
             _micros_to_usd(operation.reserved_micros),
             _micros_to_usd(operation.estimated_micros),
-            _micros_to_usd(operation.actual_micros),
-            operation.actual_source, operation.upstream_ref,
+            "UNKNOWN" if historical_unknown else _micros_to_usd(display_amount),
+            "UNKNOWN" if historical_unknown else operation.actual_source, operation.upstream_ref,
             bool(operation.counts_against_caps)))
 
     collected = {"sources": sources, "claims": claims, "evidence": evidence,

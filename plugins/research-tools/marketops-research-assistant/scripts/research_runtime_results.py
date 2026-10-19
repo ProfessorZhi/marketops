@@ -8,6 +8,43 @@ import research_lite_store as store
 from research_event_journal import append_event
 
 
+def known_provider_reason_codes():
+    """Closed vocabularies already owned by the adapters, never provider prose."""
+    from research_contract import REASON_CODES
+    import research_adapter_crawl4ai as crawl
+    import research_adapter_serper as serper
+    import research_adapter_serpapi as serpapi
+    import research_adapter_tinyfish as tinyfish
+    import research_adapter_jev as jev
+    return (set(REASON_CODES) | set(crawl.ALL_REASON_CODES) | set(serper.ADAPTER_LOCAL_REASONS)
+            | set(serpapi.ADAPTER_LOCAL_REASONS) | set(tinyfish._KNOWN_BRIDGE_CODES)
+            | set(jev.JEV_REASON_CODES) | {"PROVIDER_HTML_URL_INVALID", "PROVIDER_HTML_INVALID_CONTENT",
+                "PROVIDER_HTML_REQUEST_URLS_INVALID", "PROVIDER_HTML_REQUEST_URLS_DUPLICATE",
+                "PROVIDER_HTML_BATCH_INCOMPLETE", "PROVIDER_HTML_RESPONSE_INVALID",
+                "PROVIDER_HTML_URL_MISMATCH", "PROVIDER_HTML_AMBIGUOUS_CONTENT",
+                "SERPER_HTTP_ERROR", "SERPER_UPSTREAM_ERROR", "PROVIDER_HTTP_5XX"})
+
+
+def diagnostic_reason_codes(payload=None, *, result=None, codes=()):
+    from research_contract import REASON_CODES
+    candidates = list(codes)
+    candidates.append(getattr(result, "reason", None))
+    candidates.extend(getattr(result, "caveats", ()) or ())
+    nodes = [payload] if isinstance(payload, dict) else []
+    if nodes:
+        for key in ("results", "pages", "data"):
+            child = payload.get(key)
+            nodes.extend([child] if isinstance(child, dict) else
+                         [x for x in child[:30] if isinstance(x, dict)] if isinstance(child, list) else [])
+    for node in nodes:
+        candidates.extend(node.get(k) for k in ("reason", "reason_code", "error_code",
+                                               "contract_reason_code", "adapter_local_reason"))
+    allowed = known_provider_reason_codes()
+    clean = {value.removeprefix("adapter_local:") for value in candidates if isinstance(value, str)
+             and value.removeprefix("adapter_local:") in allowed}
+    return sorted(clean, key=lambda code: (code in REASON_CODES, code))
+
+
 def normalize_params(capability, params):
     values = dict(params)
     if capability in {"crawl4ai.fetch_page", "crawl4ai.extract"}:
@@ -166,6 +203,10 @@ def persist(root, run_id, operation_id, guarded, *, params):
             derived_refs=[x["artifact_id"] for x in source_materials] if saved and identifier == saved["artifact_id"] else [],
             caveats=caveats + ("CANDIDATE_ONLY_NOT_BUSINESS_VERIFIED", "EGRESS_REFERENCE_NOT_RETAINED"))
         envelope_ids.append(envelope["evidence_id"])
+    diagnostics = diagnostic_reason_codes(payload, result=result, codes=(reason_code,))
+    primary_reason = diagnostics[0] if diagnostics else reason_code
+    if status != "OK" and not reason_code:
+        reason_code = primary_reason
     event = append_event(root, run_id=run_id, operation_id=operation_id,
         stage="acquisition" if "search" not in guarded.capability_id else "discovery",
         kind="tool", status="succeeded" if status == "OK" else "blocked"
@@ -174,6 +215,7 @@ def persist(root, run_id, operation_id, guarded, *, params):
     from research_provider_policy import invocation_receipt
     invocation = invocation_receipt(route, reservation="ONE_ATTEMPT_RESERVED_NOT_BILL_VERIFIED")
     return {"status": status, "reason_code": reason_code,
+        "primary_reason_code": primary_reason, "provider_reason_codes": diagnostics,
         "provider_status": guarded.status,
         "capability_id": guarded.capability_id, "gateway_invoked": guarded.gateway_invoked,
         "s0_failed": list(guarded.s0_failed), "provider": provider,

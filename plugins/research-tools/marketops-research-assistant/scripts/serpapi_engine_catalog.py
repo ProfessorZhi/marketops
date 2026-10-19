@@ -713,6 +713,20 @@ async def advertised_uris(session) -> tuple[str, ...]:
             value = getattr(resource, name, None)
             if isinstance(value, str) and value and value not in uris:
                 uris.append(value)
+    # MCP advertises resource templates through a separate standard method.
+    # Older in-process fixtures put templates in resources; retain that shape,
+    # but a real server must not be required to duplicate its advertisements.
+    template_method = getattr(session, "list_resource_templates", None)
+    if callable(template_method) and SCHEMA_URI_TEMPLATE not in uris:
+        try:
+            templates = await template_method()
+        except Exception:
+            raise ValueError("SERPAPI_RESOURCE_UNAVAILABLE") from None
+        for resource in (getattr(templates, "resource_templates", None)
+                         or getattr(templates, "resourceTemplates", None) or ()):
+            value = getattr(resource, "uri_template", None) or getattr(resource, "uriTemplate", None)
+            if isinstance(value, str) and value and value not in uris:
+                uris.append(value)
     return tuple(uris)
 
 

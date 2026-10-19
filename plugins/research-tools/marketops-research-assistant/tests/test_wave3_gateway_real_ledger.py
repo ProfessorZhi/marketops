@@ -19,6 +19,7 @@ from __future__ import annotations
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -61,18 +62,16 @@ def _call(gateway_object, ledger):
 
 
 class RealLedgerIntegrationTests(unittest.TestCase):
-    def test_a_successful_call_settles_in_the_ledgers_own_row(self):
-        with tempfile.TemporaryDirectory() as tmp:
+    def test_credit_only_success_is_usable_but_has_unknown_dollars(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(ledger_module,
+                "_pricing_from_environment", return_value=ledger_module.PricingCatalog(())):
             built = _gateway(Path(tmp))
             outcome, row = _call(*built)
             self.assertEqual("OK", outcome.status)
-            self.assertEqual([], list(outcome.caveats))
-            self.assertEqual("SETTLED", row.charge_state)
-            # The shipped catalog prices credit-metered capabilities at 0 USD with
-            # a quota unit, so the settled amount is zero *derived from the
-            # recorded rate* — which is a different statement from "the vendor
-            # reported zero", and the source column is what keeps them apart.
-            self.assertEqual("DERIVED", row.actual_source)
+            self.assertIn("LEDGER_HELD_ACTUAL_UNKNOWN", outcome.caveats)
+            self.assertEqual("UNKNOWN", row.charge_state)
+            self.assertIsNone(row.actual_micros)
+            self.assertEqual("NONE", row.actual_source)
 
     def test_a_transport_failure_holds_the_exposure_rather_than_refunding_it(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -56,6 +56,14 @@ class ExperienceMCPIntegrationTests(unittest.TestCase):
                      "marketops_experience_summary"):
             self.assertIn(name, tools)
 
+    def test_resume_without_resubmitting_an_existing_brief_does_not_request_it_again(self):
+        brief = {"record_type": "research_brief", "target_kind": "organization",
+                 "goal": "contacts", "require_named_person": False, "minimum_targets": None}
+        mcp.start("resume", "scope", "Task", "rules", brief)
+        resumed = mcp.start("resume", "scope", "Task", "rules")
+        self.assertEqual("EXISTS_NO_CHANGE", resumed["status"])
+        self.assertEqual("EXISTING_BRIEF", resumed["brief"]["status"])
+
 
 if __name__ == "__main__":
     unittest.main()

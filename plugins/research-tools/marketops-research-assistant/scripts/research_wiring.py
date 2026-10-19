@@ -190,7 +190,8 @@ def _construct_adapter(adapter_class, root):
     if name == "Crawl4AIAdapter":
         return transport.RuntimeCrawlAdapter(root)
     if name == "TinyFishAdapter":
-        return adapter_class(runner=transport.tinyfish_runner(root))
+        return adapter_class(runner=transport.tinyfish_runner(root),
+                             target_guard=transport.tinyfish_target_guard(root))
     if root is None:
         return adapter_class()
     try:

@@ -769,6 +769,9 @@ def _import_guard(module_name: str, attribute: str):
 
 def _url_guard():
     """The plugin's URL-allowlist rule, or raise a refusal if there is none."""
+    injected = _TARGET_GUARD.get()
+    if injected is not None:
+        return injected
     for module_name, attribute in URL_GUARD_SOURCES:
         guard = _import_guard(module_name, attribute)
         if guard is not None:
@@ -2477,6 +2480,13 @@ def cancel(upstream_ref, *, grant_ref=None, runner=None,
     return execute(request, runner=runner, advertised_tools=advertised_tools)
 
 
+from contextvars import ContextVar
+
+# Per-execution dependency injection reaches the existing module helpers and
+# propagates through asyncio.run without mutating process-global environment.
+_TARGET_GUARD = ContextVar("marketops_tinyfish_target_guard", default=None)
+
+
 class TinyFishAdapter:
     """§6 `ProviderAdapter` as an instance, which is what a gateway looks up.
 
@@ -2489,10 +2499,13 @@ class TinyFishAdapter:
     provider = PROVIDER
 
     def __init__(self, *, runner=None, advertised_tools=None,
-                 transport=None) -> None:
+                 transport=None, target_guard=None) -> None:
         self._runner = runner
         self._advertised = advertised_tools
         self._transport = transport
+        if target_guard is not None and not callable(target_guard):
+            raise ValueError("TINYFISH_TARGET_GUARD_INVALID")
+        self._target_guard = target_guard
 
     def capabilities(self) -> tuple:
         return capabilities()
@@ -2502,9 +2515,13 @@ class TinyFishAdapter:
                             transport=self._transport)
 
     def execute(self, req) -> ResultView:
-        return execute(req, runner=self._runner,
-                       advertised_tools=self._advertised,
-                       transport=self._transport)
+        token = _TARGET_GUARD.set(self._target_guard)
+        try:
+            return execute(req, runner=self._runner,
+                           advertised_tools=self._advertised,
+                           transport=self._transport)
+        finally:
+            _TARGET_GUARD.reset(token)
 
     def cancel(self, upstream_ref: str, *, grant_ref=None) -> ResultView:
         return cancel(upstream_ref, grant_ref=grant_ref, runner=self._runner,

@@ -23,7 +23,7 @@ META = {
     "description_en": "Research business workflow, five-provider routing and bounded evidence-first local MCP.",
     "source": "marketops-research-assistant-lite",
     "type": "skill-only",
-    "version": "0.5.0",
+    "version": "0.5.1",
     "minWorkbuddyVersion": "4.24.0",
     "examples_zh": [
         "调查指定地区的场地和运营组织，先列官方来源，将待核实项标为HOLD。",

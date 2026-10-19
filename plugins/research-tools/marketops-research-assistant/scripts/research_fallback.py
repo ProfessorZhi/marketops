@@ -155,7 +155,7 @@ def _params(capability, request):
     if capability == "serpapi.search":
         return {k: request[k] for k in ("query", "country", "language", "limit")} | {"engine": "google_light"}
     if capability == "tinyfish.search":
-        return {"query": request["query"], "gl": request["country"].lower(), "hl": request["language"]}
+        return {"query": request["query"], "location": request["country"], "language": request["language"]}
     if capability == "crawl4ai.fetch_page":
         return {"url": request["url"]}
     if capability == "tinyfish.fetch_content":
@@ -180,6 +180,8 @@ def _nodes(payload):
 
 def _reasons(response):
     codes = {_code(response.get("reason_code"))}
+    from research_runtime_results import diagnostic_reason_codes
+    codes.update(diagnostic_reason_codes(codes=response.get("provider_reason_codes") or ()))
     for node in _nodes(response.get("payload")):
         codes.update(_code(node.get(key)) for key in ("reason", "reason_code", "error_code", "contract_reason_code"))
     for caveat in response.get("caveats") or ():
@@ -362,8 +364,13 @@ def research_step(data_root, *, run_id, operation_id, task_kind, managed_call, a
                         "gateway_invoked": None, "actual_usd": None}
             action, reason = "STOP", "FALLBACK_UNKNOWN_OUTCOME_HOLD"
         amount = _amount(response.get("actual_usd"))
+        from research_runtime_results import diagnostic_reason_codes
+        diagnostics = diagnostic_reason_codes(response.get("payload"),
+            codes=[response.get("reason_code"), *(response.get("provider_reason_codes") or ())])
         item.update(status=response.get("status") if response.get("status") in {"OK", "BLOCKED", "FAILED", "UNKNOWN"} else "UNKNOWN",
-                    reason_code=_code(response.get("reason_code")), decision_reason=reason,
+                    reason_code=_code(response.get("reason_code")) or (diagnostics[0] if diagnostics else ""),
+                    primary_reason_code=diagnostics[0] if diagnostics else _code(response.get("reason_code")),
+                    provider_reason_codes=diagnostics, decision_reason=reason,
                     gateway_invoked=response.get("gateway_invoked") if type(response.get("gateway_invoked")) is bool else None,
                     actual_usd=amount, cost_unknown=amount is None and response.get("gateway_invoked") is not False,
                     charge_state=_code(response.get("charge_state")) or "NOT_REPORTED_USE_USAGE_LEDGER")

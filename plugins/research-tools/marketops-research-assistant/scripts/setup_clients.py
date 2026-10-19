@@ -15,7 +15,7 @@ import venv
 from pathlib import Path
 
 SOURCE = Path(__file__).resolve().parents[1]
-VERSION = "0.5.0"
+VERSION = "0.5.1"
 CLIENTS = ("codex", "workbuddy", "both", "claude", "all")
 STATE_FILE = "INSTALL_STATE.json"
 STATE_OWNER = "marketops.setup_clients.v1"
