@@ -79,3 +79,21 @@ never repo-wide or rule-wide.
 | `tests/test_mcp_workspace.py:654` | generic-api-key | public main baseline false positive; fixture/deterministic id, unchanged content |
 | `tests/test_plugin_skill_has_no_authority.py:210` | generic-api-key | public main baseline false positive; fixture/deterministic id, unchanged content |
 | `tests/test_workstream_store_contract.py:67` | generic-api-key | public main baseline false positive; fixture/deterministic id, unchanged content |
+
+---
+
+## 2026-10-20：研究插件整棵并入（本分支）
+
+这次收敛把私有分支上的研究插件整棵搬进公开树，脱敏口径与上面完全一致：
+
+- 并入 `plugins/research-tools/**`（312 个文件，含 1911 条用例）与
+  `docs/quality-scorecard/`（3 个文件）；其中 3 个以人名命名的夹具文件改名为
+  `MEMBER_A_*`，与上表「以人名命名的目录、文档与常量」同一条规则。
+- 并入前后各跑一次 `apply-synthetic.py --check`（280 个条目 / 5523 个变体形态）：
+  **921 个文件扫描，0 命中**；替换是幂等的。
+- 被并入的历史不跟随搬迁：本分支只带文件快照，不重写任何既有提交。
+- 插件的测试树保留了它自己的写法（测试先 `sys.path.insert` 再 import，属于 E402；
+  一行写多条断言，属于 E701/E702）。搬迁期不重排这些代码——重排会把这次 diff 变成
+  几百行纯格式改动，也会让上游分支与本仓永久分叉。因此 `pyproject.toml` 里对
+  `plugins/research-tools/**` 豁免了这四条**纯风格**规则；会藏 bug 的 F 类
+  （未定义名、重复定义、未使用变量/导入）照旧全开，并且已在整棵树上清零。

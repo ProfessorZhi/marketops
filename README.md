@@ -45,7 +45,8 @@ python -m pip install -r requirements-lite.txt
 CUDA_VISIBLE_DEVICES="" nice -n 10 python -m unittest discover -s tests -v
 ```
 
-实测：`Ran 236 tests in 4.859s`，`OK (skipped=1)`。
+实测（2026-10-20，插件整棵并入之后）：`Ran 1911 tests in 118.945s`，`OK (skipped=29)`。
+跑之前同一条命令即可；`requirements-lite.txt` 里没有 pytest，用的是 `unittest discover`，但 `mcp` 与 `typesafe-sdk` 必须装上，否则相关用例走的是「SDK 未安装」的阻断分支。
 
 ### 本地启动
 
