@@ -2,6 +2,66 @@
 
 MarketOps 是完整的市场运营产品：持续维护场地/资产母池，核实责任实体，研究有证据且有时效性的联系人和公开邮箱，未来在独立授权下完成个性化外联、回复监控和销售交接。
 
+## 开发入门
+
+以下命令在一个全新 clone + 隔离 venv 中实测通过（Linux，Python 3.12）。venv 建在仓库之外，因为 `tests/test_no_stale_assumptions.py` 会扫描整个仓库树。`MARKETOPS_DATA_ROOT` 必须是仓库之外的显式运行目录。
+
+### Clone
+
+```bash
+git clone https://github.com/ProfessorZhi/marketops.git
+cd marketops
+```
+
+### 装依赖
+
+```bash
+python3.12 -m venv ~/.venvs/marketops
+. ~/.venvs/marketops/bin/activate
+python -m pip install -e ".[dev]" pytest-timeout
+```
+
+### 跑测试
+
+```bash
+CUDA_VISIBLE_DEVICES="" nice -n 10 python -m pytest -q --timeout=300 \
+  --ignore=tests/test_sources_snapshot.py \
+  --deselect tests/test_portability.py::test_slugify_is_platform_independent \
+  --deselect tests/test_security_egress.py::test_the_domain_part_is_normalised_and_the_local_part_is_not \
+  -k "not (test_insertion_order_is_preserved or test_projection_order_is_by_key_not_by_arrival or test_the_fold_does_not_take_the_maximum)"
+```
+
+实测：选中 7813 条用例，rc=0，耗时约 445s。以上筛选对应 `main` 上已知失败的 4 组断言，未改代码：
+
+- `tests/test_sources_snapshot.py`：快照清单里 `member-c-scene-email-pool-sheet` 故意没有 `snapshot_path`（`why_not_captured`），测试却要求每条都有；12 项失败。
+- `test_slugify_is_platform_independent` 与 `test_the_domain_part_is_normalised_and_the_local_part_is_not`：测试期望把 `AcmeCorp` 归一成 `acme`，实现输出 `acmecorp`。
+- 证据库排序/折叠的 3 条用例（`test_insertion_order_is_preserved`、`test_projection_order_is_by_key_not_by_arrival`、`test_the_fold_does_not_take_the_maximum`）在当前 `main` 上失败。
+
+插件测试单独跑：
+
+```bash
+cd plugins/research-tools/marketops-research-assistant
+python -m pip install -r requirements-lite.txt
+CUDA_VISIBLE_DEVICES="" nice -n 10 python -m unittest discover -s tests -v
+```
+
+实测：`Ran 236 tests in 4.859s`，`OK (skipped=1)`。
+
+### 本地启动
+
+CLI 与 MCP 服务面：
+
+```bash
+export MARKETOPS_DATA_ROOT=/tmp/marketops-dev
+mkdir -p "$MARKETOPS_DATA_ROOT"
+marketops --help
+marketops-controller --help
+python -m marketops.interfaces.mcp --check
+python -m marketops.interfaces.mcp
+```
+
+实测：两个 `--help` 均 rc=0；`--check` 在未配置 `MARKETOPS_MCP_TOKENS` 时 **exit 1 属预期**——服务面能启动，但没有令牌环就“谁都不许”，blocker 会明确写出缺少哪一项；`python -m marketops.interfaces.mcp` 绑定 `127.0.0.1:8787/mcp`（Streamable HTTP）。
+
 ## 当前目标：六项技术全部接入的 MCP 研究 MVP
 
 **Serper、Crawl4AI、Jev、Laya、Quay、Claude Code 全部属于 MVP 必做、必实测范围。** 对外提供一个 MarketOps MCP 业务服务，而不是要求用户分别接六套工具。
