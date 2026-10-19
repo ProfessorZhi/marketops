@@ -48,3 +48,15 @@ description = "tests/test_workstream_store_contract.py:67 generic-api-key (synth
 paths = ['''^tests/test_workstream_store_contract\.py$''']
 regexTarget = "match"
 regexes = ['''KEY = "launch-2026-09-29-natural-grass"''']
+
+[[allowlists]]
+description = "plugins/.../tests/test_research_experience_summary.py:201 synthetic credential in a negative-test fixture"
+paths = ['''^plugins/research-tools/marketops-research-assistant/tests/test_research_experience_summary\.py$''']
+regexTarget = "line"
+regexes = ['''sk-abcdefghijklmnopqrstuvwxyz012345''']
+
+[[allowlists]]
+description = "plugins/.../tests/test_research_lite_integration.py:132 synthetic CRAWL4AI key in an offline fixture"
+paths = ['''^plugins/research-tools/marketops-research-assistant/tests/test_research_lite_integration\.py$''']
+regexTarget = "line"
+regexes = ['''synthetic-secret-crawl4ai''']
