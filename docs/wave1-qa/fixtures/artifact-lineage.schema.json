@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "marketops.qa.artifact_lineage.v1",
+  "_comment": "Lineage for every artefact the real run stores. Extraction lineage is what lets a reviewer re-check a fact without re-running the research, and what makes AF-9 decidable.",
+  "type": "object",
+  "required": ["artifact_id", "run_id", "provider", "origin_url", "material_kind",
+               "content_sha256", "bytes", "acquired_at", "parent_ids", "derivation"],
+  "additionalProperties": false,
+  "properties": {
+    "artifact_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,95}$"},
+    "run_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,95}$"},
+    "provider": {"type": "string", "minLength": 1, "maxLength": 60},
+    "origin_url": {"type": "string", "maxLength": 2048},
+    "material_kind": {
+      "enum": ["raw_response", "rendered_html", "provider_extracted", "decision_response"],
+      "description": "Raw and derived material are never conflated: rendered_html is what the browser produced, provider_extracted is what the vendor returned as text, raw_response is the unparsed transport body."
+    },
+    "content_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "bytes": {"type": "integer", "minimum": 1},
+    "acquired_at": {"type": "string", "format": "date-time"},
+    "parent_ids": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Empty for a directly retrieved artefact. A derived artefact names the artefact(s) it was derived from, so the chain is walkable to a retrieval."
+    },
+    "derivation": {
+      "enum": ["retrieved", "parsed", "normalized", "excerpted", "judged"],
+      "description": "A 'judged' artefact is model output and is never evidence of a source fact."
+    },
+    "source_grade": {
+      "enum": ["A", "B", "C", "D", "E", "F"],
+      "description": "Assigned by the published rubric, not by the producer."
+    },
+    "retrieval_decision": {
+      "type": "object",
+      "description": "The egress decision that permitted this retrieval, so an audit can tell a governed fetch from an ungoverned one.",
+      "required": ["allowed", "checked_address", "policy_source"],
+      "properties": {
+        "allowed": {"type": "boolean"},
+        "checked_address": {"type": "string"},
+        "policy_source": {"type": "string"},
+        "refusal_reason": {"type": ["string", "null"]}
+      }
+    },
+    "challenge_suspected": {
+      "type": "boolean",
+      "description": "True when the guard saw challenge markers. Such an artefact may be stored for diagnosis but may never be cited by an accepted row (AF-3)."
+    },
+    "validated": {
+      "const": false,
+      "description": "Storage is never business validation. A row becomes reviewed only through the human review step."
+    }
+  }
+}
