@@ -82,4 +82,3 @@ def binding_for(session: Any, egress_module: Any) -> SessionEgressBinding:
         implementation="research_egress.SafeEgressSession",
         contract_sha256=_contract_sha256(egress_module),
     )
-
