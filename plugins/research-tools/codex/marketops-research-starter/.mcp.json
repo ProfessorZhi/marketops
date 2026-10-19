@@ -2,7 +2,11 @@
   "mcpServers": {
     "tinyfish": {
       "type": "http",
-      "url": "https://mcp.tinyfish.ai"
+      "url": "https://mcp.tinyfish.ai",
+      "enabledTools": [
+        "search",
+        "fetch_content"
+      ]
     }
   }
 }

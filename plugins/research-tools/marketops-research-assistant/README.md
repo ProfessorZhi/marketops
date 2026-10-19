@@ -1,13 +1,28 @@
 # MarketOps Research Assistant — v0.4.0 Candidate (NOT a customer release)
 
+**安装后入口：[中文一次安装／五家账号向导](references/CUSTOMER_QUICKSTART.md)**。受管安装器自动复制非机密Provider连接目录和 `provider_onboarding.py`，安装后会生成 `START_HERE.md`。明确授权运行 `python3 scripts/setup_clients.py --destination <空目录> --client all --apply --bootstrap-runtime`，可一次下载配置 MCP、Jev SDK、Crawl4AI 本地SDK和Chromium；也可以选只装精简核心依赖。厂商官方MCP的OAuth/Key、付费额度和网站Profile仍需客户本人按需授权。**本仓库提供适配代码和安装流程，不内嵌跨OS可复用的第三方二进制运行时，不默认注册第三方MCP。**
+
+
 MarketOps has two deliverables: (1) this human-led, MCP+Skills market research plugin for Codex/WorkBuddy and later DeepSeek Harness; (2) a separate full autonomous Claude Code workflow to build only after the research process, data model and client experience have been verified.
 
 **This is a GitHub review candidate, not an installation-ready ZIP.** Do not give Member-A an archive claiming full success before running RELEASE_GATE on local Codex + WorkBuddy. No credentials or paid provider calls were made while preparing this branch.
 
+## Embedded official MCP bridge (actual code)
+
+MarketOps `research_official_mcp.py` opens the official Streamable HTTP MCP endpoints `https://agent.tinyfish.ai/mcp` and `https://mcp.serpapi.com/mcp` as an MCP **client**, performs initialize/tools/list/tools/call, and stores bounded results in the same Run ledger and evidence store. User does **not** separately install TinyFish/SerpApi MCP into Claude/Codex. See [actual embedded client and cost gates](references/EMBEDDED_OFFICIAL_MCP.md). TinyFish may use an account API key or explicit **in-plugin** OAuth login via OS Keyring. No authentication/paid success is implied by this software integration.
+
+## Setup the five vendors without enabling paid calls
+
+Start with [**Five-provider onboarding / API Key / OAuth / profiles / cost / downgrade**](references/PROVIDER_ONBOARDING.md) and the [verified official Skills/MCP registry](references/OFFICIAL_SKILLS_MCP_REGISTRY.md) and [**Current provider capability router**](references/PROVIDER_ROUTING.md). The Lite MCP's 23 tools (including three new official-MCP bridge/Agent tools) form the bounded user-visible surface; TinyFish and SerpApi official **HTTP MCP servers are now called by an actual embedded Python MCP Client** inside MarketOps (without extra vendor plugin installation); Crawl4AI independent MCP remains optional. Embedded calls use the Lite reservation/evidence path; separate host-direct vendor MCP tools do not.
+
+At first launch ask only for the two storage paths. Before network research persist a structured Brief in the same Run; `marketops_capabilities` only inspects read-only capacity, never charges or verifies credentials. A balance shortfall for one TinyFish paid meter does not turn off a separately-free function automatically. Jev supports Choice/Noul/Score via one bounded SDK route; scored output is not source evidence.
+
+See also [**per-call execution route and billing receipts**](references/PROVIDER_TRANSPORT_BILLING.md) to distinguish outer MarketOps MCP from upstream REST/SDK and to see why a reserved attempt is not a monetary charge.
+
 ## What the 17 Skills cover
 
 - **9 Member-A business Skills**: one research entry, intake/Scene, source discovery, venues/organizations and their responsibilities, people/roles, Evidence, Excel, human-review handoff.
-- **6 provider Skills**: a tool router plus SerpApi, Serper, Crawl4AI, TinyFish and Jev. A live provider is optional per task; five vendors are not five mandatory sequential steps.
+- **6 provider Skills**: `marketops-provider-router` plus `marketops-serpapi`, `marketops-serper`, `marketops-crawl4ai`, `marketops-tinyfish`, `marketops-jev`. Each vendor Skill now specifies the actual callable Lite MCP tool and parameters; TinyFish/SerpApi embedded MCP calls are first-class; extra direct vendor host tools remain optional and are not the managed path. A live provider is optional per task; five vendors are not five mandatory sequential steps.
 - **1 retrospective Skill**: record real bottlenecks, successful methods, wrong assumptions and corrections; generate candidate experience lessons with provenance, replay and human approval.
 - **1 setup Skill**: onboard Codex or WorkBuddy in the customer's chosen local directory without silently enabling any paid calls.
 
@@ -15,15 +30,15 @@ Member-A's business basis is recorded and bounded in [MEMBER_A_SKILL_ANALYSIS](r
 
 ## One five-provider Lite Research MCP (new candidate code)
 
-The root plugin.json + mcp.json (new portable format) and compatibility .codex-plugin/plugin.json + .mcp.json reference one **MarketOps Lite Research stdio MCP**. Implemented in scripts/research_mcp.py with one local customer-owned SQLite staging store, append-only event journal and source material artifacts.
+The root plugin.json + mcp.json (new portable format), the Claude Code .claude-plugin/plugin.json + .mcp.json, and the compatibility .codex-plugin/plugin.json all reference one **MarketOps Lite Research stdio MCP**. Implemented in scripts/research_mcp.py; every host config points at the host-facing entry scripts/research_mcp_facade.py, which serves that same server with only the JSON Schema subset all supported hosts accept. It uses one local customer-owned SQLite staging store, append-only event journal and source material artifacts.
 
 | Provider | Current callable ability inside this one MCP | What's **not** implemented or verified yet |
 | --- | --- | --- |
-| SerpApi | Google Web/Maps discovery through official REST adapter, with Place ID and URL candidates | Full official MCP multi-engine tools still optional separately; real key test not done |
-| Serper | Google Web/Places discovery through official API adapter | Live authenticated test not done; no automatic double charge/fallback |
+| SerpApi | Embedded official MCP Client calling \`search(params=...,mode='compact')\` across engines; legacy Google REST explicit | Real credential/paid usage not yet verified; vendor account is user-owned |
+| Serper | Google Web/Places/Images/News/Videos/Shopping/Scholar/Patents/Autocomplete discovery through official REST adapter | No vendor-maintained official MCP confirmed; live authenticated test not done; no automatic paid double-search |
 | Crawl4AI | Local AsyncWebCrawler or official Cloud /scrape; saves extracted material as unverified artifact | Local Chromium and Cloud Key not tested on Member-A's machine; bulk/extract Cloud MCP separate |
-| TinyFish | Official Search and Fetch API through TINYFISH_API_KEY | Advanced browser Agent and OAuth MCP separately installed and human-authorized |
-| Jev / TypeSafe | Official typesafe-sdk Choice over bounded source text, returns a judgment artifact | Noul/Score not yet exposed as MCP tools; model and SOP verification not proven |
+| TinyFish | Embedded official MCP Client for Search/Fetch plus read-only bounded Agent submission and status polling; explicit REST fallback | Paid Agent requires extra opt-in, provider wallet and hard step/time limits; live OAuth account verification pending |
+| Jev / TypeSafe | Official typesafe-sdk Choice/Noul/Score via one `marketops_jev_choice(primitive=...)` MCP tool | Not three separate MCP tools; real service billing/credential and SOP verification not proven |
 
 The standalone older dual_search_mcp.py stays as an internal search component. **Do not install both dual-search and the new research_mcp simultaneously**. The user sees only one MarketOps Research MCP in the new package.
 

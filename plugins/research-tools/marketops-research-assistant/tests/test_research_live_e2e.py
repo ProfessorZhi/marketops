@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import csv
 import os
-import re
 import sys
 import tempfile
 import unittest
@@ -37,10 +36,7 @@ class LivePublicSourceResearchE2E(unittest.TestCase):
         ) as response:
             self.assertEqual(200, response.status)
             html = response.read(3_000_000)
-        match = re.search(rb"[A-Za-z0-9._%+-]+@lincoln\.gov\.uk", html, re.I)
-        self.assertIsNotNone(
-            match, "Official page changed or blocks retrieval: do not invent an email")
-        literal_email = match.group(0).lower()
+        literal_email = b"grounds.maintenance@lincoln.gov.uk"
         self.assertIn(literal_email, html.lower(),
                       "Official page changed or blocks retrieval: do not invent an email")
         self.assertIn(b"West Common", html,
@@ -71,7 +67,7 @@ class LivePublicSourceResearchE2E(unittest.TestCase):
                 mcp.propose("live-lincoln-smoke", "lincoln-grounds-contact", "routes",
                             "contact_point", "city-lincoln-grounds-maintenance",
                             {"organization_id": "city-lincoln-council", "type": "email",
-                             "value": literal_email.decode("ascii"),
+                             "value": "grounds.maintenance@lincoln.gov.uk",
                              "department": "Grounds Maintenance",
                              "role_function": "Grounds maintenance"},
                             ["lincoln-official-page"])

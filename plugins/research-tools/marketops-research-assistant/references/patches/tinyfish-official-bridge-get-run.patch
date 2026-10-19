@@ -1,0 +1,90 @@
+# TinyFish official bridge — get_run rename + the drift record closed
+#
+# Target file : plugins/research-tools/marketops-research-assistant/scripts/research_official_mcp.py
+# Base blob   : the file as it stands at integration cf8ff6e36931b81bdd7d63df5c190ecae8593a6c
+# Owner       : the shared bridge is W-INTEGRATOR's; this is a proposal, NOT applied.
+# Apply check : git apply --check  -> rc=0 against that exact blob
+# Behaviour   : verified by importing the patched module in the integration's own
+#               scripts tree (see the W-C status file for the transcript).
+#
+--- orig/research_official_mcp.py	2026-10-17 04:32:15.447530573 +0800
++++ fixed/research_official_mcp.py	2026-10-17 04:32:37.632446705 +0800
+@@ -34,7 +34,7 @@
+ }
+ TOOLS = {
+     "tinyfish": frozenset({"search", "fetch_content", "run_web_automation",
+-                           "wait_for_run"}),
++                           "get_run"}),
+     "serpapi": frozenset({"search"}),
+ }
+ SECRET_FIELDS = frozenset({"api_key", "apikey", "authorization", "access_token",
+@@ -190,11 +190,11 @@
+         if arguments.get("browser_profile", "lite") != "lite":
+             raise ValueError("TINYFISH_AGENT_UNAPPROVED_BROWSER_PROFILE")
+         _approved_url(arguments.get("url"), resolve=False)
+-    elif provider == "tinyfish" and tool == "wait_for_run":
+-        run_id = arguments.get("run_id")
++    elif provider == "tinyfish" and tool == "get_run":
++        run_id = arguments.get("id")
+         if (not isinstance(run_id, str)
+                 or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", run_id)
+-                or set(arguments) != {"run_id"}):
++                or set(arguments) != {"id"}):
+             raise ValueError("TINYFISH_AGENT_RUN_ID_INVALID")
+     elif provider == "serpapi":
+         params = arguments.get("params")
+@@ -398,7 +398,7 @@
+                         raise ValueError("TINYFISH_AGENT_RUN_ID_MISSING_AFTER_SUBMISSION")
+                     parsed["agent_run_id"] = handle
+                     parsed["agent_lifecycle"] = "submitted_not_terminal"
+-                elif tool == "wait_for_run":
++                elif tool == "get_run":
+                     parsed["agent_lifecycle"] = _agent_status(parsed)
+                 return {**parsed, "provider": provider, "mcp_tool": tool,
+                         "transport": "OFFICIAL_STREAMABLE_HTTP_MCP",
+@@ -586,16 +586,16 @@
+                             "authorized per Run by the operator."),
+     },
+     {
+-        "capability_id": "tinyfish.wait_for_run",
++        "capability_id": "tinyfish.get_run",
+         "provider": "tinyfish",
+-        "upstream_tool": "wait_for_run",
++        "upstream_tool": "get_run",
+         "transport": "official_mcp",
+         "effect_class": "READ_ONLY",
+         "tier": "T1",
+-        "auth_scope": "tinyfish:wait_for_run",
++        "auth_scope": "tinyfish:get_run",
+         "cost_meter": "tinyfish.agent.steps",
+-        "allowed_params": ("run_id",),
+-        "required_params": ("run_id",),
++        "allowed_params": ("id",),
++        "required_params": ("id",),
+         "curated_summary": ("Poll one TinyFish run handle for its "
+                             "provider-reported status; the handle is never "
+                             "inferred from free text."),
+@@ -744,11 +744,11 @@
+ #: authorization this Wave does not hold, and `TOOLS` is the frozen exposed set.
+ SYMBOL_DRIFT = {
+     "provider": "tinyfish",
+-    "shipped_tool": "wait_for_run",
++    "shipped_tool": "get_run",
+     "vendor_documented_tool": "get_run",
+-    "shipped_param": "run_id",
++    "shipped_param": "id",
+     "vendor_documented_param": "id",
+-    "resolution_state": "RECORDED_NOT_REPAIRED",
++    "resolution_state": "REPAIRED_IN_THIS_PATCH",
+     "authoritative_side": "UNRESOLVED_PENDING_HANDSHAKE",
+     "recorded_on": SCHEMA_SNAPSHOT_CAPTURED_ON,
+     "why_not_repaired": (
+@@ -795,6 +795,8 @@
+                 "live-verified — recorded, not asserted."),
+             "recorded_vendor_tool_names": ("search", "fetch_content",
+                                            "run_web_automation", "get_run"),
++            "exposed_after_patch": ("search", "fetch_content",
++                                    "run_web_automation", "get_run"),
+             "recorded_vendor_required_params": {
+                 "run_web_automation": ("session_id",),
+                 "fetch_content": ("format", "links", "image_links",

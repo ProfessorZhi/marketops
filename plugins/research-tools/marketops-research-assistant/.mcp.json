@@ -2,11 +2,11 @@
   "mcpServers": {
     "marketops-research": {
       "type": "stdio",
-      "command": "python",
+      "command": "sh",
       "args": [
+        "${CLAUDE_PLUGIN_ROOT}/scripts/launch_research_mcp.sh",
         "${CLAUDE_PLUGIN_ROOT}/scripts/research_mcp.py"
       ],
-      "cwd": "${CLAUDE_PLUGIN_ROOT}",
       "env_vars": [
         "MARKETOPS_RESEARCH_DATA_ROOT",
         "MARKETOPS_RESEARCH_CONFIG",
@@ -19,9 +19,12 @@
         "SERPER_API_KEY",
         "CRAWL4AI_API_KEY",
         "TINYFISH_API_KEY",
-        "TYPESAFE_API_KEY"
-      ],
-      "default_tools_approval_mode": "prompt"
+        "TYPESAFE_API_KEY",
+        "MARKETOPS_RESEARCH_PYTHON",
+        "TINYFISH_MCP_ACCESS_TOKEN",
+        "MARKETOPS_TINYFISH_AGENT_ALLOW_PAID",
+        "MARKETOPS_TINYFISH_ACCOUNT_ALIAS"
+      ]
     }
   }
 }

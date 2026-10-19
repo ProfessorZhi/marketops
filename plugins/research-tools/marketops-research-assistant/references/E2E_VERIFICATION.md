@@ -65,7 +65,7 @@ After each pilot, update `RELEASE_GATE.md` with actual CI run ID, SDK/python ver
 
 ## Measured on 2026-10-16 (authorized isolated runner)
 
-Device `example-runner-01`, branch base `<sha-redacted>`, Python 3.12.14, `mcp==2.3.0`.
+Device `tokyo-shared-dev-01`, branch base `7491730`, Python 3.12.14, `mcp==2.3.0`.
 
 | Level | Command | Observed result |
 |---|---|---|

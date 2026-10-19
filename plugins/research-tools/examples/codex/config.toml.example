@@ -10,9 +10,9 @@ enabled_tools = ["search", "fetch_content"]
 [mcp_servers.crawl4ai]
 url = "https://api.crawl4ai.com/mcp"
 bearer_token_env_var = "CRAWL4AI_API_KEY"
-disabled_tools = ["topup", "recharge", "spend_cap", "report_issue"]
+# Positive allowlist: anything the upstream adds later is denied until reviewed here.
+enabled_tools = ["scrape", "extract"]
 
 # Other providers:
 # Serper: no confirmed official MCP. Use its API manually or MarketOps managed MCP.
 # Jev: install the official TypeSafe Skill; real decisions require SDK/API or managed MCP.
-

@@ -1,0 +1,33 @@
+--- orig/research_provider_extensions.py	2026-10-17 11:11:45.376945132 +0800
++++ fixed/research_provider_extensions.py	2026-10-17 11:11:45.396945058 +0800
+@@ -640,8 +640,8 @@
+             raise ValueError("TINYFISH_AGENT_POLL_INVALID")
+         if type(mcp_params["poll_index"]) is not int or not 1 <= mcp_params["poll_index"] <= 10:
+             raise ValueError("TINYFISH_AGENT_POLL_LIMIT")
+-        official_mcp._validate("tinyfish", "wait_for_run",
+-                               {"run_id": mcp_params["agent_run_id"]})
++        official_mcp._validate("tinyfish", "get_run",
++                               {"id": mcp_params["agent_run_id"]})
+         if not _owns_submitted_agent_run(root, run_id,
+                                           mcp_params["origin_operation_id"],
+                                           mcp_params["agent_run_id"]):
+@@ -731,14 +731,16 @@
+             response = official_mcp.call("tinyfish", "search", {"query": query})
+         elif action == "tinyfish_mcp_fetch":
+             response = official_mcp.call("tinyfish", "fetch_content",
+-                                         {"urls": [url], "format": "markdown"})
++                                         {"urls": [url], "format": "markdown",
++                                          "links": False, "image_links": False,
++                                          "page_metadata": False})
+         elif action == "serpapi_mcp_search":
+             response = official_mcp.call("serpapi", "search",
+                                          {"params": mcp_params, "mode": "compact"})
+         elif action == "tinyfish_mcp_wait":
+             response = official_mcp.call(
+-                "tinyfish", "wait_for_run",
+-                {"run_id": mcp_params["agent_run_id"]})
++                "tinyfish", "get_run",
++                {"id": mcp_params["agent_run_id"]})
+         elif action == "tinyfish_mcp_agent":
+             response = official_mcp.call(
+                 "tinyfish", "run_web_automation",

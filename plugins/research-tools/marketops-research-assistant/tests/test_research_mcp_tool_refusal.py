@@ -19,10 +19,12 @@ import research_mcp as mcp
 EXPECTED_TOOLS = {
     "marketops_setup_status", "marketops_setup_configure", "marketops_note",
     "marketops_capabilities", "marketops_start", "marketops_search", "marketops_crawl",
-    "marketops_tinyfish", "marketops_jev_choice", "marketops_propose", "marketops_status",
+    "marketops_tinyfish", "marketops_serpapi_mcp_search", "marketops_tinyfish_agent",
+    "marketops_tinyfish_agent_wait", "marketops_jev_choice", "marketops_propose", "marketops_status",
     "marketops_events", "marketops_export", "marketops_export_xlsx", "marketops_handoff",
     "marketops_experience_draft", "marketops_next", "marketops_propose_batch",
     "marketops_material_excerpt", "marketops_evidence_audit",
+    "marketops_managed_call", "marketops_evidence_workbook",
 }
 
 

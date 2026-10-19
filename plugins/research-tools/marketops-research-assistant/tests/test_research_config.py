@@ -137,17 +137,15 @@ class PathValidationTests(unittest.TestCase):
 
     def test_accepts_a_windows_absolute_path(self):
         # The path is recognised as absolute on Windows without touching the OS.
-        self.assertTrue(cfg.is_absolute_path("C:" + r"\Users\member-a\research", "win32"))
+        self.assertTrue(cfg.is_absolute_path(r"C:\Users\member-a\research", "win32"))
         self.assertTrue(cfg.is_absolute_path(r"\\server\share\research", "win32"))
         self.assertFalse(cfg.is_absolute_path(r"research\data", "win32"))
         self.assertTrue(cfg.is_absolute_path("/home/member-a/research", "linux"))
 
     def test_windows_config_file_lives_under_appdata(self):
-        path = cfg.config_path(env={"APPDATA": "C:" + r"\Users\member-a\AppData\Roaming"},
-                               platform="win32")
-        self.assertEqual(
-            "C:" + r"\Users\member-a\AppData\Roaming\marketops-research\config.json",
-            str(path).replace("/", "\\"))
+        path = cfg.config_path(env={"APPDATA": r"C:\Users\member-a\AppData\Roaming"}, platform="win32")
+        self.assertEqual(r"C:\Users\member-a\AppData\Roaming\marketops-research\config.json",
+                         str(path).replace("/", "\\"))
 
     def test_unix_config_file_lives_under_xdg(self):
         path = cfg.config_path(env={"HOME": "/home/member-a", "XDG_CONFIG_HOME": "/home/member-a/.config"},

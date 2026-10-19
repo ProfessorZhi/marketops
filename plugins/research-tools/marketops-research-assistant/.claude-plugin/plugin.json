@@ -1,0 +1,17 @@
+{
+  "name": "marketops-research-assistant",
+  "version": "0.4.0",
+  "description": "Member-A-informed semi-automatic evidence-first market research with five upstream provider capabilities and one managed local research MCP",
+  "author": {
+    "name": "ProfessorZhi"
+  },
+  "repository": "https://github.com/ProfessorZhi/marketops",
+  "keywords": [
+    "market-research",
+    "evidence",
+    "venues",
+    "contacts",
+    "mcp",
+    "skills"
+  ]
+}

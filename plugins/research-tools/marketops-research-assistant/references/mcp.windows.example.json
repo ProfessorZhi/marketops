@@ -1,0 +1,40 @@
+{
+  "_comment": [
+    "OS-neutral entry for a Windows host. NOT loaded automatically by any client —",
+    "copy the mcpServers block into the client's own MCP config, or simply use the",
+    "config `setup_clients.py` writes, which is already shell-free and needs no edit.",
+    "",
+    "Replace WINDOWS_ABSOLUTE_PYTHON with an absolute path to a Python that has the",
+    "`mcp` package (the installer's venv, e.g. C:/MarketOps/.venv/Scripts/python.exe).",
+    "Do not put a credential here: this file is an example, and the plugin reads its",
+    "credentials from the host's environment or keyring."
+  ],
+  "mcpServers": {
+    "marketops-research": {
+      "type": "stdio",
+      "command": "WINDOWS_ABSOLUTE_PYTHON",
+      "args": [
+        "WINDOWS_ABSOLUTE_PLUGIN/scripts/launch_research_mcp.py",
+        "WINDOWS_ABSOLUTE_PLUGIN/scripts/research_mcp.py"
+      ],
+      "env_vars": [
+        "MARKETOPS_RESEARCH_DATA_ROOT",
+        "MARKETOPS_RESEARCH_CONFIG",
+        "MARKETOPS_SEARCH_ALLOW_NETWORK",
+        "MARKETOPS_SEARCH_MAX_CALLS",
+        "MARKETOPS_RESEARCH_ALLOW_NETWORK",
+        "MARKETOPS_RESEARCH_MAX_EXTERNAL_CALLS",
+        "MARKETOPS_FETCH_ALLOWED_DOMAINS",
+        "SERPAPI_API_KEY",
+        "SERPER_API_KEY",
+        "CRAWL4AI_API_KEY",
+        "TINYFISH_API_KEY",
+        "TYPESAFE_API_KEY",
+        "MARKETOPS_RESEARCH_PYTHON",
+        "TINYFISH_MCP_ACCESS_TOKEN",
+        "MARKETOPS_TINYFISH_AGENT_ALLOW_PAID",
+        "MARKETOPS_TINYFISH_ACCOUNT_ALIAS"
+      ]
+    }
+  }
+}

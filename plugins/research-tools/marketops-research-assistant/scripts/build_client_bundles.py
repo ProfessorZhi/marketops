@@ -5,7 +5,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import shutil
+import stat
 import sys
 import zipfile
 from pathlib import Path
@@ -17,19 +19,19 @@ META = {
     "name_zh": "MarketOps 半自动市场调研",
     "name_en": "MarketOps Research Assistant",
     "description": "Member-A-grounded business Skills, provider routing and candidate research experience packs.",
-    "description_zh": "研究业务、四工具路由和有出处的卡点经验；统一MCP运行时仍待接线。",
-    "description_en": "Research methods, four-provider routing and scoped lessons; unified MCP runtime not bundled.",
+    "description_zh": "通用市场调研业务Skills、五Provider可选能力、证据库与可审计调用回执。",
+    "description_en": "Research business workflow, five-provider routing and bounded evidence-first local MCP.",
     "source": "marketops-research-assistant-lite",
     "type": "skill-only",
     "version": "0.4.0",
     "minWorkbuddyVersion": "4.24.0",
     "examples_zh": [
-        "研究 Devon 的体育场地，先列来源和候选场地，所有不确定项进人工复核。",
+        "调查指定地区的场地和运营组织，先列官方来源，将待核实项标为HOLD。",
         "根据已有公司名单，寻找相关岗位和有原始出处的公开工作邮箱。",
         "检查调研交付，并把卡点与成功方法归纳成待验证的经验包。"
     ],
     "examples_en": [
-        "Find public sports venues in Devon and leave ambiguous claims for manual review.",
+        "Research venues and operating organizations in the chosen market with source-based review.",
         "Research decision-maker roles from official public pages without guessing emails.",
         "Audit the research handoff and produce an evidence-linked candidate retrospective."
     ],
@@ -37,23 +39,99 @@ META = {
 
 
 def make_zip(folder: Path, output_zip: Path) -> None:
-    """Fixed timestamps/order: same source bytes produce identical ZIP."""
+    """Fixed timestamps/order, preserved modes, no symlink dereference.
+
+    Three properties, each of which has been wrong here before:
+
+    * **Determinism** — sorted walk and a fixed timestamp, so the same tree gives
+      the same bytes and the published hash means something.
+    * **Mode** — the ZIP records the source mode. Flattening every member to 0644
+      strips the executable bit from `launch_research_mcp.py` (100755 upstream);
+      `unzip` honours this field, so dropping it ships a launcher a host cannot
+      exec even though the build tree had one. Group/other *write* bits are
+      dropped first: they are the one thing a checkout's umask varies, and
+      leaving them in would make the published hash depend on who built it.
+    * **Containment** — a symlink is refused, never followed. Following one would
+      read a file from outside the package and ship its bytes under a name that
+      looks internal, which no later audit would flag.
+
+    `os.walk(followlinks=False)` rather than `rglob`: on some versions `rglob`
+    descends *into* a symlinked directory, and then no per-file `is_symlink()`
+    check ever sees the link.
+    """
     with zipfile.ZipFile(output_zip, "x", compression=zipfile.ZIP_DEFLATED) as archive:
-        for filename in sorted(p for p in folder.rglob("*") if p.is_file()):
-            arcname = f"{folder.name}/{filename.relative_to(folder).as_posix()}"
-            info = zipfile.ZipInfo(arcname, date_time=(2020, 1, 1, 0, 0, 0))
-            info.compress_type = zipfile.ZIP_DEFLATED
-            info.external_attr = 0o644 << 16
-            archive.writestr(info, filename.read_bytes())
+        for root, dirs, files in os.walk(folder, followlinks=False):
+            root_path = Path(root)
+            for name in sorted(dirs):
+                if (root_path / name).is_symlink():
+                    raise ValueError(
+                        f"SYMLINK_IN_PACKAGE: {(root_path / name).relative_to(folder).as_posix()} "
+                        "— a package may not carry links out of itself")
+            for name in sorted(files):
+                filename = root_path / name
+                if filename.is_symlink():
+                    raise ValueError(
+                        f"SYMLINK_IN_PACKAGE: {filename.relative_to(folder).as_posix()} "
+                        "— a package may not carry links out of itself")
+                if not filename.is_file():
+                    continue
+                arcname = f"{folder.name}/{filename.relative_to(folder).as_posix()}"
+                info = zipfile.ZipInfo(arcname, date_time=(2020, 1, 1, 0, 0, 0))
+                info.compress_type = zipfile.ZIP_DEFLATED
+                mode = stat.S_IMODE(filename.stat().st_mode) & ~0o022
+                info.external_attr = (stat.S_IFREG | mode) << 16
+                archive.writestr(info, filename.read_bytes())
+
+
+def _verify_egress_slice(slice_root: Path) -> None:
+    """Verify the managed-egress slice against its own PROVENANCE.json.
+
+    Two failures are possible and they mean different things, so they get different
+    codes. A listed file whose digest moved is EDITING: somebody changed the copy
+    instead of the core. A python file the manifest never heard of is UNTRACKED:
+    policy was added to the shipping slice without a canonical source, which is the
+    "second copy" this whole arrangement exists to prevent. Both raise rather than
+    warn — a warning here would be discovered by a customer, not by us.
+
+    This check needs no core checkout and no network, so it runs on the machine that
+    is most likely to hold a hand-edited copy.
+    """
+    manifest = json.loads((slice_root / "PROVENANCE.json").read_text(encoding="utf-8"))
+    listed = set()
+    for row in manifest["files"]:
+        listed.add(row["slice"])
+        target = slice_root / row["slice"]
+        if not target.is_file():
+            raise FileNotFoundError(f"SAFE_EGRESS_SLICE_INCOMPLETE: {row['slice']}")
+        actual = hashlib.sha256(target.read_bytes()).hexdigest()
+        if actual != row["sha256"]:
+            raise ValueError(
+                f"SAFE_EGRESS_SLICE_EDITED: {row['slice']} 的摘要与 PROVENANCE.json "
+                f"不一致（{actual[:12]}… vs {row['sha256'][:12]}…）。"
+                "切片里的代码不得手改 —— 改核心，再用 "
+                "tools/sync_safe_egress_bundle.py 重新生成。"
+            )
+    mirrors = set(manifest["hand_written_mirrors"])
+    for path in slice_root.rglob("*.py"):
+        relative = path.relative_to(slice_root).as_posix()
+        if relative not in listed and relative not in mirrors:
+            raise ValueError(
+                f"SAFE_EGRESS_SLICE_UNTRACKED: {relative} 在切片里但没有出处 —— "
+                "一份没有规范来源的策略就是这件事要防的第二份实现。"
+            )
 
 
 def build(output: Path, *, with_search_mcp: bool = False,
-          with_research_mcp: bool = False) -> dict:
+          with_research_mcp: bool = False, browser_cache: Path | None = None) -> dict:
     if with_search_mcp and with_research_mcp:
         raise ValueError("Select exactly one MCP mode")
     output = output.expanduser().resolve()
     if output.is_relative_to(HERE):
         raise ValueError("Build output must be outside this plugin source directory")
+    if browser_cache is not None:
+        browser_cache = browser_cache.expanduser().resolve()
+        if browser_cache.is_relative_to(HERE):
+            raise ValueError("BROWSER_CACHE_MUST_BE_OUTSIDE_PLUGIN_CHECKOUT")
     workbuddy = output / "workbuddy"
     target = workbuddy / "marketops-research-assistant"
     package = workbuddy / f"marketops-research-assistant-v{META['version']}.zip"
@@ -69,7 +147,7 @@ def build(output: Path, *, with_search_mcp: bool = False,
             "source": "marketops-research-assistant" if with_research_mcp else "marketops-research-assistant-dual-search",
             "type": "mcp",
             "auth_mode": "token",
-            "description": "One local Research MCP with SerpApi, Serper, Crawl4AI, TinyFish Search/Fetch and Jev Choice; all network calls default off." if with_research_mcp else "One local Search MCP for SerpApi or Serper; paid network calls default off.",
+            "description": "One local Research MCP with five optional provider adapters, guided onboarding, typed Jev judgments and network off by default." if with_research_mcp else "One local Search MCP for SerpApi or Serper; paid network calls default off.",
             "description_zh": "统一调研 MCP + 17 项业务和工具 Skills；五家 Provider 任选，联网默认关闭。" if with_research_mcp else "本地双搜索 MCP + 17 项 Skills，联网默认关闭。",
         })
     (target / "connector-meta.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -77,17 +155,50 @@ def build(output: Path, *, with_search_mcp: bool = False,
     for part in ("skills", "references"):
         shutil.copytree(HERE / part, target / part)
     (target / "scripts").mkdir()
-    for name in ("research_pack.py", "export_excel_safe_csv.py", "experience_pack.py",
-                 "research_event_journal.py", "research_config.py",
-                 "research_experience_summary.py", "research_workflow.py", "research_evidence.py",
-                 "dual_search_mcp.py", "compare_search_receipts.py", "research_lite_store.py",
-                 "research_provider_extensions.py", "research_mcp.py",
-                 "research_delivery.py", "_xlsx.py", "preflight.py", "setup_clients.py",
-                 "build_client_bundles.py"):
-        shutil.copy2(HERE / "scripts" / name, target / "scripts" / name)
+    # Every module and launcher, minus an explicit never-ship set.
+    #
+    # This used to be a hand-maintained list, and it drifted: seventeen modules
+    # the server imports — the whole adapter layer, research_wiring, research_grants
+    # — were absent from the connector, so the shipped package could not even
+    # import its own entry. A list that has to be updated whenever a module is
+    # added will be forgotten; a list that has to be updated when a module must
+    # NOT ship is read every time someone adds one.
+    CONNECTOR_SCRIPT_EXCLUSIONS = frozenset({
+        # QA tooling that drives the Claude CLI; not part of the managed product.
+        "cc_host_probe.sh",
+    })
+    for source in sorted((HERE / "scripts").glob("*")):
+        if source.suffix not in (".py", ".sh") or source.name in CONNECTOR_SCRIPT_EXCLUSIONS:
+            continue
+        shutil.copy2(source, target / "scripts" / source.name)
+    # The managed-egress slice is a **package**, not a flat script, and it is copied
+    # whole: the canonical modules sit at the same relative depth here as they do in
+    # `marketops/`, so their relative imports resolve unchanged and the copies stay
+    # byte-identical (see tools/sync_safe_egress_bundle.py). Before copying, verify
+    # the slice against its own PROVENANCE.json — this catches a hand-edited copy on
+    # a machine that has no core checkout, which is exactly the machine most likely
+    # to have one.
+    _verify_egress_slice(HERE / "scripts" / "marketops_safe_egress")
+    shutil.copytree(HERE / "scripts" / "marketops_safe_egress",
+                    target / "scripts" / "marketops_safe_egress",
+                    # Never ship `__pycache__`: a `.pyc` is keyed to the interpreter
+                    # and source mtime that produced it, so a bundle built on one
+                    # machine would carry bytecode that another machine's Python
+                    # ignores or, worse, one this machine's stale cache would shadow.
+                    # It also makes the fixed-timestamp ZIP non-reproducible.
+                    ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
     shutil.copy2(HERE / "README.md", target / "README.md")
-    for requirements_file in ("requirements-lite.txt", "requirements-crawl-local.txt"):
+    for requirements_file in ("requirements-lite.txt", "requirements-crawl-local.txt",
+                              "requirements-lock-lite.txt",
+                              "requirements-lock-crawl-local.txt"):
         shutil.copy2(HERE / requirements_file, target / requirements_file)
+    # Every bundle (including skill-only archives) contains account signup URLs,
+    # secure optional official MCP connection templates, and the read-only guide.
+    # The CLI is stdlib-only and never logs into or calls any provider.
+    if not (target / "references" / "PROVIDER_CONNECTIONS.json").is_file():
+        raise FileNotFoundError("PROVIDER_CONNECTION_CATALOG_MISSING")
+    if not (target / "references" / "CUSTOMER_QUICKSTART.md").is_file():
+        raise FileNotFoundError("CUSTOMER_QUICKSTART_MISSING")
     if with_search_mcp or with_research_mcp:
         # This is a *machine-bound* preview: the checked-out source and Python
         # interpreter must remain on the importing client's machine. Never copy
@@ -98,10 +209,21 @@ def build(output: Path, *, with_search_mcp: bool = False,
             "MARKETOPS_SEARCH_ALLOW_NETWORK", "MARKETOPS_SEARCH_MAX_CALLS",
         ]
         env = {name: "${" + name + "}" for name in variables}
+        if browser_cache is not None:
+            # Bind the machine's private browser cache, never rely on HOME.
+            # This value is an installation path, not a credential.
+            env["PLAYWRIGHT_BROWSERS_PATH"] = str(browser_cache)
         server_name = "marketops-research" if with_research_mcp else "marketops-dual-search"
+        # The generated connector loads the single managed entrypoint
+        # `research_mcp.py`, the same module the installer's client configs, the
+        # three host manifests and the source-tree configs point at. The legacy
+        # dual-search connector predates it and is unchanged.
         program = "research_mcp.py" if with_research_mcp else "dual_search_mcp.py"
         if with_research_mcp:
-            variables.extend(["CRAWL4AI_API_KEY", "TINYFISH_API_KEY", "TYPESAFE_API_KEY",
+            variables.extend(["CRAWL4AI_API_KEY", "TINYFISH_API_KEY",
+                              "TINYFISH_MCP_ACCESS_TOKEN", "MARKETOPS_TINYFISH_ACCOUNT_ALIAS",
+                              "TYPESAFE_API_KEY",
+                              "MARKETOPS_TINYFISH_AGENT_ALLOW_PAID",
                               "MARKETOPS_RESEARCH_ALLOW_NETWORK",
                               "MARKETOPS_RESEARCH_MAX_EXTERNAL_CALLS",
                               "MARKETOPS_FETCH_ALLOWED_DOMAINS"])
@@ -126,8 +248,8 @@ def build(output: Path, *, with_search_mcp: bool = False,
              "text", False, "") if with_research_mcp else
             ("MARKETOPS_RESEARCH_DATA_ROOT", "Private absolute data directory", "text", True, ""))
         field_data = [
-            ("SERPAPI_API_KEY", "SerpApi API Key (optional)", "password", False, ""),
-            ("SERPER_API_KEY", "Serper API Key (optional)", "password", False, ""),
+            ("SERPAPI_API_KEY", "SerpApi key: register at https://serpapi.com/dashboard (optional)", "password", False, ""),
+            ("SERPER_API_KEY", "Serper key: register at https://serper.dev/ (optional)", "password", False, ""),
             data_root_field,
             ("MARKETOPS_RESEARCH_CONFIG", "Optional: path to a different first-use config JSON", "text", False, ""),
             ("MARKETOPS_SEARCH_ALLOW_NETWORK", "Enable billable search: enter 1, otherwise 0", "text", True, "0"),
@@ -135,16 +257,19 @@ def build(output: Path, *, with_search_mcp: bool = False,
         ]
         if with_research_mcp:
             field_data.extend([
-                ("CRAWL4AI_API_KEY", "Crawl4AI Cloud API Key (optional; local mode uses no key)", "password", False, ""),
-                ("TINYFISH_API_KEY", "TinyFish API Key (optional)", "password", False, ""),
-                ("TYPESAFE_API_KEY", "TypeSafe Jev API Key (optional)", "password", False, ""),
+                ("CRAWL4AI_API_KEY", "Optional Crawl4AI Cloud Key; local mode needs no Key", "password", False, ""),
+                ("TINYFISH_API_KEY", "TinyFish account key: embedded official MCP or REST; OAuth token is optional alternative", "password", False, ""),
+                ("TINYFISH_MCP_ACCESS_TOKEN", "Optional TinyFish OAuth access token; set from your protected credential store, never paste here from chat", "password", False, ""),
+                ("MARKETOPS_TINYFISH_ACCOUNT_ALIAS", "TinyFish OS-keyring OAuth account alias; empty means default", "text", False, "default"),
+                ("MARKETOPS_TINYFISH_AGENT_ALLOW_PAID", "Explicit opt-in to capped PAID TinyFish Agent (1/0); stays 0 otherwise", "text", True, "0"),
+                ("TYPESAFE_API_KEY", "TypeSafe Jev key: https://console.typesafe.ai/ (optional)", "password", False, ""),
                 ("MARKETOPS_RESEARCH_ALLOW_NETWORK", "Enable non-search provider calls: 1/0", "text", True, "0"),
                 ("MARKETOPS_RESEARCH_MAX_EXTERNAL_CALLS", "Cumulative other provider attempts cap", "text", True, "0"),
                 ("MARKETOPS_FETCH_ALLOWED_DOMAINS", "Comma separated approved public website domains", "text", False, ""),
             ])
         schema = {
             "title": "MarketOps Research MCP" if with_research_mcp else "MarketOps Dual Search (local stdio)",
-            "description": "One optional account or both; payment authorization and quotas remain your responsibility.",
+            "description": "Built-in TinyFish and SerpApi official MCP clients; provider keys/OAuth and paid wallet authorization must be configured by the user.",
             "docUrl": "https://github.com/ProfessorZhi/marketops",
             "fields": [
                 {"key": key, "label": label, "type": datatype, "required": required, "defaultValue": default}
@@ -155,6 +280,24 @@ def build(output: Path, *, with_search_mcp: bool = False,
             json.dumps(schema, indent=2) + "\n", encoding="utf-8")
     # The default skill-only bundle has no MCP; explicitly request search for tool mode.
     make_zip(target, package)
+    machine_bound = with_search_mcp or with_research_mcp
+    if machine_bound:
+        # The generated mcp.json names this build host's interpreter, because a
+        # host config takes one `command` and there is no token that names "a
+        # Python with the SDK" on every OS. Saying so in data — outside the
+        # connector directory, so no host import ever sees an extra key — is the
+        # difference between a labelled preview and a package that looks portable
+        # until somebody copies it to another machine.
+        (workbuddy / "MACHINE_BOUND_PREVIEW.json").write_text(
+            json.dumps({
+                "marker": "MACHINE_BOUND_PREVIEW",
+                "why": "the generated mcp.json binds this build host's interpreter "
+                       "path and this build host's absolute package path",
+                "regenerate_on_target": "run setup_clients.py on the target machine; "
+                                        "do not copy this connector between hosts",
+                "portable": False,
+                "built_by": "scripts/build_client_bundles.py",
+            }, indent=2) + "\n", encoding="utf-8")
     return {
         "status": "BUILT_STATIC_NOT_CLIENT_TESTED",
         "directory": str(target), "zip": str(package),
@@ -162,6 +305,14 @@ def build(output: Path, *, with_search_mcp: bool = False,
         "skills": len(list((target / "skills").glob("*/SKILL.md"))),
         "mcp_servers_bundled": 1 if (with_search_mcp or with_research_mcp) else 0,
         "machine_bound_local_mcp": with_search_mcp or with_research_mcp,
+        "provider_onboarding_script_bundled": True,
+        "official_mcp_connection_templates_bundled": True,
+        "all_vendor_sdks_physically_bundled": False,
+        "runtime_setup_required_on_target_machine": True,
+        "browser_cache_configured": browser_cache is not None,
+        "machine_bound": machine_bound,
+        "machine_bound_marker": str(workbuddy / "MACHINE_BOUND_PREVIEW.json")
+                                 if machine_bound else None,
     }
 
 
@@ -170,10 +321,13 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True, help="explicit user-owned destination outside source")
     parser.add_argument("--with-search-mcp", action="store_true", help="legacy dual-search local MCP")
     parser.add_argument("--with-research-mcp", action="store_true", help="one local MCP for all 5 provider integrations (beta)")
+    parser.add_argument("--browser-cache", type=Path,
+                        help="optional machine-local Chromium cache path from explicit installer")
     args = parser.parse_args()
     try:
         print(json.dumps(build(args.output, with_search_mcp=args.with_search_mcp,
-                               with_research_mcp=args.with_research_mcp), ensure_ascii=False, indent=2))
+                               with_research_mcp=args.with_research_mcp,
+                               browser_cache=args.browser_cache), ensure_ascii=False, indent=2))
     except (OSError, ValueError) as exc:
         parser.exit(status=2, message=f"ERROR: {exc}\n")
     return 0

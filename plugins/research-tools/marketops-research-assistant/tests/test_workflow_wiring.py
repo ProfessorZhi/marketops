@@ -19,12 +19,10 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-import research_config as cfg              # noqa: E402
 import research_delivery as delivery       # noqa: E402
 import research_event_journal as journal   # noqa: E402
 import research_lite_store as store        # noqa: E402
 import research_mcp as mcp                 # noqa: E402
-import research_workflow as workflow       # noqa: E402
 
 BRIEF = {"record_type": "research_brief", "target_kind": "venue", "goal": "pool",
          "minimum_targets": 2, "minimum_targets_unit": "venue",
@@ -67,10 +65,10 @@ def seed(root: Path, run_id: str, *, venues: int = 2, dispositions: bool = True,
 
 
 class ToolSurfaceTests(unittest.TestCase):
-    def test_next_is_registered_and_the_surface_is_seventeen(self):
+    def test_next_is_registered_and_the_surface_is_twenty_five(self):
         names = set(mcp.build_server()._tool_manager._tools)  # noqa: SLF001
         self.assertIn("marketops_next", names)
-        self.assertEqual(20, len(names))
+        self.assertEqual(25, len(names))
 
     def test_status_exposes_the_contract_parameters(self):
         schema = mcp.build_server()._tool_manager._tools["marketops_status"].parameters  # noqa: SLF001
@@ -416,7 +414,7 @@ class PackagedProviderDocsTests(unittest.TestCase):
     def test_the_routing_reference_no_longer_reaches_outside_the_plugin(self):
         text = (ROOT / "references" / "PROVIDER_ROUTING.md").read_text(encoding="utf-8")
         self.assertNotIn("../../providers/", text)
-        self.assertIn("providers/serpapi.md", text)
+        self.assertIn("PROVIDER_ONBOARDING.md", text)
 
 
 class PlaceholderUnconfiguredTests(unittest.TestCase):

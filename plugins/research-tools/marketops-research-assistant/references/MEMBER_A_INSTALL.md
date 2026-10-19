@@ -1,3 +1,7 @@
+# 安装后的客户主入口
+
+请先按 [Customer Quickstart](CUSTOMER_QUICKSTART.md) 安装。软件无需要求客户手工拼接五个API：`--client all --apply --bootstrap-runtime` 经许可在本机创建venv并安装已声明的Python依赖/Chromium，生成 `START_HERE.md` 和非机密Provider目录。每家API Key/OAuth/费用必须由用户独立授权，不能预打包。所有本地网络开关默认0。
+
 # Member-A / Codex / WorkBuddy 安装与配置手册（v0.4.0 候选，尚未发布压缩包）
 
 此插件位于 ProfessorZhi/marketops 内：

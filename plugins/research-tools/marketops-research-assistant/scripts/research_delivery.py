@@ -24,6 +24,7 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 
 import research_lite_store as store
+import research_evidence_store as provenance
 import research_workflow as workflow
 import research_evidence as evidence
 from research_event_journal import _root, append_event, append_note
@@ -44,7 +45,11 @@ TABLES = (
                    "公开字面值", "来源字面校验", "研究评级", "业务状态", "资料引用")),
     ("排除与待确认", ("类型", "对象ID", "问题或原因", "后续动作")),
     ("证据索引", ("资料ID", "来源URL", "提供者", "资料类型",
-                 "取得时间", "字节数", "SHA-256", "引用状态")),
+                 "取得时间", "字节数", "SHA-256", "引用状态",
+                 # Span-level provenance: which records read this artifact, and which
+                 # span of it they read. Without these a row could only say that a
+                 # file was attached, never that a candidate was read from it.
+                 "引用记录数", "引用跨度SHA256", "证据信封ID", "候选边界")),
     ("本轮说明", ("字段", "值")),
     ("场地与资产", ("场地ID", "名称", "关联组织ID", "研究状态", "资料引用")),
     ("人员岗位", ("候选ID", "记录类型", "姓名或部门", "原始岗位", "组织ID", "状态", "资料引用")),
@@ -140,31 +145,70 @@ def _read_snapshot(root: Path, run_id: str) -> tuple[dict, list[dict], list[dict
     return dict(zip(("scope", "objective", "rule_version", "created_at"), run)), records, artifacts
 
 
+def _read_provenance(root: Path, run_id: str) -> tuple[list[dict], list[dict]]:
+    """Provenance links and recorded envelopes for one run.
+
+    These are read in their own transaction rather than folded into `_read_snapshot`,
+    whose three-tuple shape is relied on elsewhere. Both tables are append-only
+    within a run, so a row can be added after the snapshot but never rewritten
+    underneath it: the workbook can only ever describe *more* provenance than the
+    snapshot carried, never different provenance.
+    """
+    return provenance.evidence_links(root, run_id), provenance.stored_envelopes(root, run_id)
+
+
 def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
     run, records, artifacts = _read_snapshot(root, run_id)
+    links, envelopes = _read_provenance(root, run_id)
     if not records or not artifacts:
         raise ValueError("NO_RESEARCH_ROWS_OR_SOURCE_ARTIFACTS: not a successful E2E")
     # Assess exactly this snapshot: the same records that produced the workbook, so
     # the manifest, the notes sheet and the recorded gaps all describe one instant.
     # This is a structural check only — not semantic, not SOP and not coverage.
     goal = workflow.assess_records(run_id, records)
+    # Business sheets show only active append-only tips. Complete history
+    # remains visible in 候选数据审计, so a correction is not a second venue.
+    effective, version_conflicts = workflow.active_records(records)
     assets = {x["artifact_id"]: x for x in artifacts}
-    audit_all = evidence.audit_records(records, assets, result_limit=100)
+    # Span-level provenance, indexed both ways. A record that cites an artifact
+    # without a link is exactly the gap an attachment list cannot show: "a file is
+    # attached" and "this candidate was read from that file" are not the same claim.
+    links_by_artifact: dict[str, list[dict]] = defaultdict(list)
+    links_by_record: dict[str, list[dict]] = defaultdict(list)
+    for link in links:
+        links_by_artifact[link["artifact_id"]].append(link)
+        links_by_record[link["record_id"]].append(link)
+    envelopes_by_artifact: dict[str, list[dict]] = defaultdict(list)
+    for envelope in envelopes:
+        envelopes_by_artifact[envelope["raw_artifact_ref"]].append(envelope)
+    audit_all = evidence.audit_records(effective, assets, result_limit=100)
     # A workbook can list many held records. Keep the MCP/manifest receipt tiny
     # while carrying individual record IDs in the human-review worksheet.
     audit = {**audit_all, "samples": audit_all["samples"][:8], "sample_limit": 8}
     by_kind: dict[str, list[dict]] = defaultdict(list)
-    for record in records:
+    for record in effective:
         by_kind[record["kind"]].append(record)
     organizations = by_kind["organization"]
     org_by_key: dict[str, dict] = {}
-    issues: list[tuple] = []
+    issues: list[tuple] = [
+        ("候选版本冲突", item["entity_key"],
+         "同类实体存在未能形成唯一 supersedes 链的版本：" +
+         ", ".join(item["record_ids"][:8]),
+         "先追加具名更正或人工核对；冲突版本不进入主业务表")
+        for item in version_conflicts
+    ]
     # Missing excerpts and mismatched source links are review items, not
     # automatically certified venue types, ownership or hard exclusions.
     for sample in audit_all["samples"]:
         issues.append(("来源声明未核实", sample["record_id"],
                        ", ".join(sample["reason_codes"]),
                        "回到同一资料的具体引文；禁止据附件ID本身晋升事实"))
+    spanless = [record for record in effective
+                if record["artifact_ids"] and not links_by_record.get(record["record_id"])]
+    for record in spanless:
+        issues.append(("来源跨度未记录", record["record_id"],
+                       "候选引用了资料但未记录读取跨度：" + "; ".join(record["artifact_ids"][:8]),
+                       "回到同一资料的具名片段；仅有附件级支持的候选不进入业务结论"))
 
     for org in organizations:
         key = org["entity_key"]
@@ -275,7 +319,13 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
 
     evidence_rows = [(
         a["artifact_id"], a["url"], a["provider"], a["kind"],
-        a["acquired_at"], a["bytes"], a["sha256"], "READBACK_HASH_OK_NOT_FACT_VERIFIED"
+        a["acquired_at"], a["bytes"], a["sha256"], "READBACK_HASH_OK_NOT_FACT_VERIFIED",
+        len({link["record_id"] for link in links_by_artifact.get(a["artifact_id"], ())}),
+        "; ".join(sorted({link["span_sha256"]
+                          for link in links_by_artifact.get(a["artifact_id"], ())})) or "NONE",
+        "; ".join(sorted({envelope["evidence_id"]
+                          for envelope in envelopes_by_artifact.get(a["artifact_id"], ())})) or "NONE",
+        "CANDIDATE_ONLY",
     ) for a in artifacts]
 
     for other in by_kind["review"]:
@@ -283,6 +333,15 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
                        _plain(other["data"].get("reason")), "人工决策并记录审批来源"))
     if not org_rows and not venue_rows:
         issues.append(("业务对象缺失", run_id, "缺少组织和场地候选", "继续在限定范围内研究"))
+    # §3.5 makes an envelope without a ledger row ineligible for export. The gate
+    # reports that as a blocked state; it does not fill the link with a placeholder,
+    # and it does not silently present the envelope as exportable.
+    envelope_gate = ("NO_ENVELOPES" if not envelopes
+                     else "BLOCKED_LEDGER_NOT_WIRED"
+                     if any(x["ledger_id"] is None for x in envelopes) else "OPEN")
+    envelopeless = sorted({a["artifact_id"] for a in artifacts
+                           if links_by_artifact.get(a["artifact_id"])
+                           and not envelopes_by_artifact.get(a["artifact_id"])})
     notes = [
         ("Run", run_id),
         ("研究范围", run["scope"]),
@@ -303,6 +362,10 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
         ("通用证据审计状态", audit["status"]),
         ("待补证据计数", json.dumps(audit["gap_counts"], ensure_ascii=False, sort_keys=True)),
         ("证据语义人工复核", "REQUIRED: quote match cannot prove business fact"),
+        ("证据跨度引用数", len(links)),
+        ("无可读跨度的候选数", len(spanless)),
+        ("证据信封数", len(envelopes)),
+        ("证据信封导出闸门", envelope_gate),
         ("结构目标状态", goal["status"]),
         ("结构目标满足", str(goal["goal_satisfied"])),
         ("结构检查范围", goal["assessment_scope"]),
@@ -326,12 +389,19 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
         "run_id": run_id, "scope": run["scope"], "rule_version": run["rule_version"],
         "status": "PARTIAL_CANDIDATE_ONLY_NOT_FORMAL_CONTACTS",
         "counts": {name: len(collected[name]) for name, _ in TABLES},
-        "input_record_count": len(records), "saved_artifact_count": len(artifacts),
+        "input_record_count": len(records), "active_record_count": len(effective),
+        "version_conflict_count": len(version_conflicts),
+        "saved_artifact_count": len(artifacts),
         "evidence_hash_readback": "ALL_OK", "business_verification": "NOT_PERFORMED",
         "send_authorized": False,
         "evidence_assessment": audit,
         "evidence_ready_for_business_use": False,
         "goal_assessment": goal,
+        "evidence_link_count": len(links),
+        "evidence_spanless_record_count": len(spanless),
+        "evidence_envelopes": envelopes,
+        "evidence_envelope_export_gate": envelope_gate,
+        "evidence_envelope_missing_artifacts": envelopeless,
     }
 
 
@@ -457,3 +527,210 @@ def main(argv=None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+# ---------------------------------------------------------------------------
+# Evidence workbook: sources -> claims -> evidence -> ledger receipts -> review
+# ---------------------------------------------------------------------------
+#: The five sheets this workbook must have, in order. Deliberately in English and
+#: deliberately not the nine business sheets above: this is the evidence chain a
+#: reviewer or an auditor reads, not the candidate spreadsheet a salesperson reads.
+EVIDENCE_TABLES = (
+    ("sources", ("source_id", "artifact_id", "title", "url", "retrieved_at",
+                 "material_kind", "content_sha256", "origin_provider")),
+    ("claims", ("claim_id", "candidate_id", "entity_key", "field", "value",
+                "source_id", "span_sha256", "support", "final_status")),
+    ("evidence", ("evidence_id", "run_id", "operation_id", "ledger_id", "provider",
+                  "capability_id", "raw_artifact_ref", "content_sha256",
+                  "verified_state", "candidate_only", "exportable", "caveats")),
+    ("ledger_receipts", ("ledger_id", "operation_id", "provider", "capability_id",
+                         "charge_state", "reserved_usd", "estimated_usd", "actual_usd",
+                         "actual_source", "upstream_ref", "counts_against_caps")),
+    ("review", ("candidate_id", "claim_id", "decision", "reviewer_minutes",
+                "decided_at", "note")),
+)
+
+#: Review states a claim can reach. Only `APPROVED` says a human accepted it, and it
+#: is reachable only through a recorded decision — never by default, never by export.
+CLAIM_STATES = frozenset({"APPROVED", "REJECTED", "BLOCKED_NOT_REVIEWED",
+                          "BLOCKED_UNSUPPORTED"})
+
+
+def _micros_to_usd(value):
+    """Integer micro-USD to a decimal string, or `None` when nothing is known."""
+    if value is None:
+        return None
+    from decimal import Decimal, ROUND_HALF_UP
+    return str((Decimal(int(value)) / Decimal(1_000_000)).quantize(
+        Decimal("0.000001"), ROUND_HALF_UP))
+
+
+def _evidence_rows(root: Path, run_id: str, snapshot, links, envelopes, reviews):
+    """The five sheet bodies, computed from stored rows and never from a claim."""
+    records, artifacts = snapshot["records"], snapshot["artifacts"]
+    title_by_artifact = {}
+    for record in records:
+        if record["kind"] == "source":
+            title = str(record["data"].get("title") or "").strip()
+            for artifact_id in record["artifact_ids"]:
+                title_by_artifact.setdefault(artifact_id, title)
+
+    sources = [(
+        next((r["record_id"] for r in records
+              if r["kind"] == "source" and artifact["artifact_id"] in r["artifact_ids"]),
+             artifact["artifact_id"]),
+        artifact["artifact_id"],
+        title_by_artifact.get(artifact["artifact_id"]) or "UNKNOWN",
+        artifact["url"],
+        artifact["acquired_at"],
+        artifact["kind"],
+        artifact["sha256"],
+        artifact["provider"],
+    ) for artifact in artifacts]
+
+    envelopes_by_artifact = {}
+    for envelope in envelopes:
+        envelopes_by_artifact.setdefault(envelope["raw_artifact_ref"], []).append(envelope)
+
+    claims, review_rows, blocked = [], [], 0
+    decisions = {(r["candidate_id"], r.get("claim_id")): r for r in reviews}
+    for record in records:
+        for claim in record["data"].get("claims") or []:
+            artifact_id = str(claim.get("artifact_id", ""))
+            span = str(claim.get("span_sha256", ""))
+            matching = [link for link in links
+                        if link["record_id"] == record["record_id"]
+                        and link["artifact_id"] == artifact_id
+                        and link["span_sha256"] == span]
+            linked = [e for e in envelopes_by_artifact.get(artifact_id, [])
+                      if e.get("ledger_id")]
+            supported = bool(matching) and bool(linked)
+            decision = decisions.get((record["record_id"], claim.get("claim_id")))
+            if not supported:
+                status = "BLOCKED_UNSUPPORTED"
+            elif decision is None:
+                status = "BLOCKED_NOT_REVIEWED"
+            elif decision.get("decision") == "ACCEPT":
+                status = "APPROVED"
+            else:
+                status = "REJECTED"
+            if status.startswith("BLOCKED"):
+                blocked += 1
+            claims.append((
+                claim.get("claim_id", ""), record["record_id"], record["entity_key"],
+                claim.get("field", ""), claim.get("value", ""),
+                next((s[0] for s in sources if s[1] == artifact_id), "UNKNOWN"),
+                span, "SUPPORTED" if supported else "UNSUPPORTED", status))
+    for decision in reviews:
+        review_rows.append((decision.get("candidate_id", ""), decision.get("claim_id", ""),
+                            decision.get("decision", ""), decision.get("reviewer_minutes", ""),
+                            decision.get("decided_at", ""), decision.get("note", "")))
+
+    evidence = [(
+        envelope["evidence_id"], envelope["run_id"], envelope["operation_id"],
+        envelope["ledger_id"], envelope["provider"], envelope["capability_id"],
+        envelope["raw_artifact_ref"], envelope["content_sha256"],
+        envelope["verified_state"], bool(envelope["candidate_only"]),
+        bool(envelope["ledger_id"]) and bool(envelope["candidate_only"]),
+        "; ".join(envelope["caveats"]),
+    ) for envelope in envelopes]
+
+    return sources, claims, evidence, review_rows, blocked
+
+
+def write_evidence_workbook(data_root: Path | str | None, run_id: str, delivery_id: str, *,
+                            ledger, project: str, reviews=()) -> dict:
+    """Write the evidence chain as one XLSX: sources, claims, evidence, receipts, review.
+
+    Three rules this export will not break:
+
+    * **Envelope ids are read, never rebuilt.** The `evidence` sheet copies
+      `evidence_id` and `ledger_id` from the rows `research_evidence_store` recorded.
+      Deriving them again at export time would let the workbook describe a link that
+      was never written.
+    * **A claim is final only after a recorded human decision.** `APPROVED` is
+      reachable only through a review row; the default for a supported claim is
+      `BLOCKED_NOT_REVIEWED`, and an unsupported one is `BLOCKED_UNSUPPORTED`
+      regardless of what any reviewer says.
+    * **The ledger's own states are copied verbatim.** An `UNKNOWN` charge stays
+      `UNKNOWN` with its `actual_usd` empty; nothing here sums or promotes a state, so
+      an unreconciled call can never read as a settled one.
+
+    `ledger` is duck-typed on `operations(project=..., run_id=...)`; it is B's
+    `UsageLedger` in practice and a mapping-shaped stand-in in tests.
+    """
+    root = _root(data_root)
+    store._id(run_id, "run_id")
+    store._id(delivery_id, "delivery_id")
+    snapshot = _read_snapshot(root, run_id)
+    links, envelopes = provenance.evidence_links(root, run_id), \
+        provenance.stored_envelopes(root, run_id)
+    run, records, artifacts = snapshot
+    sources, claims, evidence, review_rows, blocked = _evidence_rows(
+        root, run_id, {"records": records, "artifacts": artifacts},
+        links, envelopes, list(reviews))
+    receipts = []
+    for operation in ledger.operations(project=project, run_id=run_id):
+        receipts.append((
+            operation.operation_id, operation.operation_id, operation.provider,
+            operation.capability, operation.charge_state,
+            _micros_to_usd(operation.reserved_micros),
+            _micros_to_usd(operation.estimated_micros),
+            _micros_to_usd(operation.actual_micros),
+            operation.actual_source, operation.upstream_ref,
+            bool(operation.counts_against_caps)))
+
+    collected = {"sources": sources, "claims": claims, "evidence": evidence,
+                 "ledger_receipts": receipts, "review": review_rows}
+    sheets = []
+    for name, fields in EVIDENCE_TABLES:
+        rows = collected[name]
+        safe = tuple(tuple(_literal(v) if isinstance(v, str) else ("" if v is None else v)
+                           for v in row) for row in rows)
+        if any(len(row) != len(fields) for row in safe):
+            raise ValueError(f"COLUMN_MISMATCH:{name}")
+        sheets.append(Sheet(name, tuple(fields), safe,
+                            widths=tuple(min(48.0, max(16.0, len(c) * 2.2))
+                                         for c in fields)))
+
+    destination = root / "exports" / run_id / delivery_id
+    if destination.exists():
+        raise FileExistsError("DELIVERY_ID_ALREADY_EXISTS: exports are immutable")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=".evidence-", dir=destination.parent))
+    try:
+        workbook = staging / "Evidence_Chain.xlsx"
+        workbook.write_bytes(render_workbook(sheets))
+        _readback_xlsx(workbook, sheets)
+        files = [workbook]
+        for sheet in sheets:
+            path = staging / f"{sheet.name}.csv"
+            with path.open("x", encoding="utf-8-sig", newline="") as handle:
+                writer = csv.writer(handle)
+                writer.writerow(sheet.headers)
+                writer.writerows(sheet.rows)
+            files.append(path)
+        manifest = {
+            "schema": "marketops.quality.evidence-workbook.v1",
+            "run_id": run_id, "project": project,
+            "status": "EVIDENCE_CHAIN_CANDIDATE_ONLY",
+            "sheets": {name: len(collected[name]) for name, _ in EVIDENCE_TABLES},
+            "claims_blocked": blocked,
+            "claims_approved": sum(1 for c in claims if c[-1] == "APPROVED"),
+            "evidence_exportable": sum(1 for e in evidence if e[10]),
+            "ledger_states": {state: sum(1 for r in receipts if r[4] == state)
+                              for state in sorted({r[4] for r in receipts})},
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "files": {},
+        }
+        manifest["files"] = {f.name: {"bytes": f.stat().st_size,
+                                      "sha256": hashlib.sha256(f.read_bytes()).hexdigest()}
+                             for f in files}
+        (staging / "MANIFEST.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        os.rename(staging, destination)
+    except BaseException:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+    return {**manifest, "directory": str(destination), "xlsx_path": str(
+        destination / "Evidence_Chain.xlsx")}

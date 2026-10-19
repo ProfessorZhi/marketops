@@ -199,7 +199,6 @@ def _inside_plugin_source(path: Path) -> bool:
 
 
 def _validate_target(kind: str, value: str, platform: str):
-    code_prefix = "DATA_ROOT" if kind == "data_root" else "EXPERIENCE_FILE"
     if not is_absolute_path(value, platform):
         raise ConfigError("PATH_NOT_ABSOLUTE",
                           f"{kind} must be an absolute path, got {value!r}")

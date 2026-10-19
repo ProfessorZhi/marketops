@@ -7,11 +7,9 @@
         "Authorization": "Bearer ${CRAWL4AI_API_KEY}"
       },
       "timeout": 30000,
-      "disabledTools": [
-        "topup",
-        "recharge",
-        "spend_cap",
-        "report_issue"
+      "enabledTools": [
+        "scrape",
+        "extract"
       ]
     }
   }

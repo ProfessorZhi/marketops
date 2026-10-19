@@ -17,7 +17,6 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import research_config as cfg          # noqa: E402
 import research_delivery as delivery   # noqa: E402
 import research_event_journal as journal  # noqa: E402
-import research_experience_summary as summary  # noqa: E402
 import research_lite_store as store    # noqa: E402
 import research_mcp as mcp             # noqa: E402
 
@@ -214,7 +213,7 @@ class SurfaceTests(unittest.TestCase):
                               "marketops_note", "marketops_next",
                               "marketops_propose_batch", "marketops_material_excerpt",
                               "marketops_evidence_audit"}, names)
-        self.assertEqual(20, len(names))
+        self.assertEqual(25, len(names))
 
     def test_setup_status_is_safe_for_an_agent_to_call_anytime(self):
         with tempfile.TemporaryDirectory() as tmp, isolated_env(tmp):

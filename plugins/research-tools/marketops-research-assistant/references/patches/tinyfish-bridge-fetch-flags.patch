@@ -1,0 +1,14 @@
+--- orig/research_official_mcp.py	2026-10-17 11:12:02.337882564 +0800
++++ fixed/research_official_mcp.py	2026-10-17 11:12:02.355882498 +0800
+@@ -169,7 +169,10 @@
+         urls = arguments.get("urls")
+         if (type(urls) is not list or not 1 <= len(urls) <= 10
+                 or not all(isinstance(u, str) and len(u) <= 2000 for u in urls)
+-                or any(k not in {"urls", "format", "ttl", "purpose"} for k in arguments)):
++                or any(k not in {"urls", "format", "ttl", "purpose", "links",
++                                  "image_links", "page_metadata",
++                                  "include_selectors", "exclude_selectors",
++                                  "per_url_timeout_ms"} for k in arguments)):
+             raise ValueError("TINYFISH_MCP_FETCH_ARGS_INVALID")
+         for target in urls:
+             _approved_url(target, resolve=False)

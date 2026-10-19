@@ -87,6 +87,27 @@ def _tip(rows: list[dict]) -> dict | None:
     return tip if len(seen) == len(index) else None
 
 
+def active_records(records: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Select only unambiguous live tips for business-facing views.
+
+    History is NOT deleted. A version fork is not resolved by created_at, so
+    neither conflicting candidate enters the customer sheet. The caller's
+    complete snapshot stays available in the audit sheet and manifest.
+    """
+    versions = defaultdict(list)
+    for row in records:
+        versions[(row["kind"], row["entity_key"])].append(row)
+    selected, conflicts = [], []
+    for (kind, entity_key), group in versions.items():
+        tip = _tip(group)
+        if tip is None:
+            conflicts.append({"kind": kind, "entity_key": entity_key,
+                              "record_ids": sorted(row["record_id"] for row in group)})
+        else:
+            selected.append(tip)
+    return selected, conflicts
+
+
 def _text(value: object) -> bool:
     return (isinstance(value, str) and bool(value.strip())
             and value.strip().upper() not in {"UNKNOWN", "NONE", "N/A", "NULL", "TBD", "NOT_FOUND"})

@@ -22,6 +22,42 @@ import research_lite_store as store
 import research_workflow as workflow
 
 
+# --- Wave-1 integration fixtures -------------------------------------------
+# Two contract changes now sit in front of every outbound call, and neither is
+# what these unit tests are about: an unbound local browser is refused
+# (INTERFACE-CONTRACT IA-4) and a synthetic documentation name cannot resolve,
+# which the SSRF guard treats as a refusal rather than as permission
+# (research_target_guard). The adversarial matrix in tests/qa_gate owns both
+# questions; here they are supplied so the behaviour under test stays reachable.
+# The shared ledger refuses an unpriced capability rather than estimating one
+# (research_usage_ledger: "A price is recorded, never assumed"). These tests are
+# about other behaviour, so they install an offline catalog that says so.
+import sys as _sys
+import pathlib as _pathlib
+
+_sys.path.insert(0, str(_pathlib.Path(__file__).resolve().parent))
+import wave1_pricing_fixture
+
+wave1_pricing_fixture.install()
+
+
+class _BoundEgress:
+    """A bound egress: enough for BrowserConfig(**kwargs) without a browser."""
+
+    def browser_config_kwargs(self):
+        return {"proxy_config": {"server": "http://127.0.0.1:1"},
+                "extra_args": ["--disable-quic"]}
+
+
+def _stub_resolution():
+    import research_target_guard as _guard
+
+    _guard.resolve_checked = lambda hostname, port=443: ("203.0.113.10",)
+
+
+_stub_resolution()
+
+
 class ReservationLoopTests(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
@@ -120,10 +156,12 @@ class CrawlChallengeClassificationTests(unittest.TestCase):
                 success=False, status_code=200,
                 markdown="Checking your browser", html="<title>Just a moment...</title> cf-chl-")
         fake = type("FakeCrawler", (), {
+            "__init__": lambda self, **kw: None,
             "__aenter__": _enter, "__aexit__": _exit, "arun": _arun})
-        with patch.dict(sys.modules, {"crawl4ai": types.SimpleNamespace(AsyncWebCrawler=fake)}):
+        with patch.dict(sys.modules, {"crawl4ai": types.SimpleNamespace(AsyncWebCrawler=fake,
+                                                             BrowserConfig=lambda **kw: kw)}):
             with self.assertRaisesRegex(ValueError, "SOURCE_CHALLENGE_PAGE"):
-                ext._crawl4ai_local("https://public.example.org/staff")
+                ext._crawl4ai_local("https://public.example.org/staff", egress=_BoundEgress())
 
 
     def test_cloudflare_header_detected_without_html_marker(self):
@@ -137,10 +175,12 @@ class CrawlChallengeClassificationTests(unittest.TestCase):
                 response_headers={"CF-Mitigated": "challenge"},
                 markdown="normal-looking text", html="<p>ordinary page</p>")
         fake = type("FakeCrawler", (), {
+            "__init__": lambda self, **kw: None,
             "__aenter__": _enter, "__aexit__": _exit, "arun": _arun})
-        with patch.dict(sys.modules, {"crawl4ai": types.SimpleNamespace(AsyncWebCrawler=fake)}):
+        with patch.dict(sys.modules, {"crawl4ai": types.SimpleNamespace(AsyncWebCrawler=fake,
+                                                             BrowserConfig=lambda **kw: kw)}):
             with self.assertRaisesRegex(ValueError, "SOURCE_CHALLENGE_PAGE"):
-                ext._crawl4ai_local("https://public.example.org/info")
+                ext._crawl4ai_local("https://public.example.org/info", egress=_BoundEgress())
 
 
     def test_embedded_turnstile_on_readable_page_is_not_a_full_challenge(self):
@@ -155,9 +195,11 @@ class CrawlChallengeClassificationTests(unittest.TestCase):
                 html="<h1>Community Facilities</h1><script src='https://"
                      "challenges.cloudflare.com/turnstile/v0/api.js'></script>")
         fake = type("FakeCrawler", (), {
+            "__init__": lambda self, **kw: None,
             "__aenter__": _enter, "__aexit__": _exit, "arun": _arun})
-        with patch.dict(sys.modules, {"crawl4ai": types.SimpleNamespace(AsyncWebCrawler=fake)}):
-            result = ext._crawl4ai_local("https://public.example.org/catalogue")
+        with patch.dict(sys.modules, {"crawl4ai": types.SimpleNamespace(AsyncWebCrawler=fake,
+                                                             BrowserConfig=lambda **kw: kw)}):
+            result = ext._crawl4ai_local("https://public.example.org/catalogue", egress=_BoundEgress())
         self.assertIn("community facilities", result["markdown"].casefold())
 
 

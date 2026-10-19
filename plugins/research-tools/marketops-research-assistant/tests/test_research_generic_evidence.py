@@ -1,7 +1,6 @@
 """Scene-neutral evidence gates, bounded context and batch staging — offline only."""
 from __future__ import annotations
 
-import json
 import os
 import sys
 import tempfile
@@ -16,6 +15,42 @@ import research_evidence as evidence
 import research_lite_store as store
 import research_workflow as workflow
 import research_provider_extensions as provider
+
+
+# --- Wave-1 integration fixtures -------------------------------------------
+# Two contract changes now sit in front of every outbound call, and neither is
+# what these unit tests are about: an unbound local browser is refused
+# (INTERFACE-CONTRACT IA-4) and a synthetic documentation name cannot resolve,
+# which the SSRF guard treats as a refusal rather than as permission
+# (research_target_guard). The adversarial matrix in tests/qa_gate owns both
+# questions; here they are supplied so the behaviour under test stays reachable.
+# The shared ledger refuses an unpriced capability rather than estimating one
+# (research_usage_ledger: "A price is recorded, never assumed"). These tests are
+# about other behaviour, so they install an offline catalog that says so.
+import sys as _sys
+import pathlib as _pathlib
+
+_sys.path.insert(0, str(_pathlib.Path(__file__).resolve().parent))
+import wave1_pricing_fixture
+
+wave1_pricing_fixture.install()
+
+
+class _BoundEgress:
+    """A bound egress: enough for BrowserConfig(**kwargs) without a browser."""
+
+    def browser_config_kwargs(self):
+        return {"proxy_config": {"server": "http://127.0.0.1:1"},
+                "extra_args": ["--disable-quic"]}
+
+
+def _stub_resolution():
+    import research_target_guard as _guard
+
+    _guard.resolve_checked = lambda hostname, port=443: ("203.0.113.10",)
+
+
+_stub_resolution()
 
 
 def candidate(record_id, kind, facts, ids=None, entity_key=None):
@@ -82,10 +117,10 @@ class EvidenceTests(unittest.TestCase):
         point = candidate("cp", "contact_point", {
             "type": "email", "value": "onevents@club.example",
             "claims": [{"field": "email", "artifact_id": "derived",
-                        "quote": "Contact Member-A onevents@club.example"}]},
+                        "quote": "Contact Aloma Watson onevents@club.example"}]},
             ["derived", "rendered"])
-        artifacts = {**source("derived", '{"markdown":"Contact Member-A onevents@club.example"}'),
-                     **source("rendered", "<span>Contact Member-A on</span><a "
+        artifacts = {**source("derived", '{"markdown":"Contact Aloma Watson onevents@club.example"}'),
+                     **source("rendered", "<span>Contact Aloma Watson on</span><a "
                              "href='mailto:events@club.example'>events@club.example</a>", "rendered_html")}
         report = evidence.audit_records([point], artifacts)
         self.assertIn("EMAIL_NOT_IN_PRIMARY_MATERIAL", report["gap_counts"])
@@ -95,9 +130,9 @@ class EvidenceTests(unittest.TestCase):
         point = candidate("cp", "contact_point", {
             "type": "email", "value": "events@club.example",
             "claims": [{"field": "email", "artifact_id": "rendered",
-                        "quote": "Contact Member-A on events@club.example"}]},
+                        "quote": "Contact Aloma Watson on events@club.example"}]},
             ["rendered"])
-        artifacts = source("rendered", "<p>Contact Member-A on events@club.example</p>", "rendered_html")
+        artifacts = source("rendered", "<p>Contact Aloma Watson on events@club.example</p>", "rendered_html")
         report = evidence.audit_records([point], artifacts)
         self.assertNotIn("EMAIL_NOT_IN_PRIMARY_MATERIAL", report["gap_counts"])
         self.assertFalse(report["formal_sop_approved"])
@@ -221,7 +256,8 @@ class BatchAndExcerptTests(unittest.TestCase):
                 with patch.object(provider.importlib.util, "find_spec", return_value=object()):
                     receipt = provider.invoke("crawl4ai_local", run_id="run-1",
                                               operation_id="op-1",
-                                              url="https://public.example.org/source")
+                                              url="https://public.example.org/source",
+                                              egress=_BoundEgress())
         self.assertEqual("rendered_html", receipt["rendered_artifact"]["material_kind"])
         self.assertNotIn("<html>", receipt["preview"])
         self.assertEqual(2, len(receipt["record"]["artifact_ids"]))

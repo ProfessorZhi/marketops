@@ -44,9 +44,15 @@ python scripts/build_client_bundles.py --output /USER/LOCAL/PATH --with-search-m
 
 ## 5. 工具与可观测性
 
-marketops_search_capabilities() 不发网络请求，只报告配置就绪状态，绝不回传 Key。
+marketops_search_capabilities() 不发网络请求，只报告配置就绪状态，绝不回传 Key。它同时返回 `serper_coverage`——Serper 九个分类各自带核实等级与出处；口径见 [Serper 覆盖口径](SERPER_MODE_COVERAGE.md)。
 
-marketops_search(provider, query, country, language, run_id, operation_id, mode='web'|'maps', limit=10) 只使用**指定的一个**供应商。它保存发现候选和搜索回执到客户数据根 search-receipts/<run_id>/，操作事件进 state/research-events.sqlite3，预留次数进 state/dual-search-ledger.sqlite3。重复 operation_id 会拒绝再次请求，防止超时后盲重试。
+marketops_search(provider, query, country, language, run_id, operation_id, mode='web'|'maps'|…, limit=10, page=1, account='') 只使用**指定的一个**供应商。它保存发现候选和搜索回执到客户数据根 search-receipts/<run_id>/，操作事件进 state/research-events.sqlite3，预留次数进 state/dual-search-ledger.sqlite3。重复 operation_id 会拒绝再次请求，防止超时后盲重试。
+
+**预留键与传输无关。** 台账里存的指纹是 `search_canonical.operation_signature`：它按 provider + account + mode + 规范化后的 query + country + language + limit + page + engine 计算，**不含 transport**。因此同一条检索式无论走旧兼容 REST，还是走内嵌官方 MCP，落在**同一格**预留上，不会因为换了一条路就多计一次费用。`account` 是值不是通配：两个账户上的同一条查询是两次计费机会。
+
+**SerpApi 的 REST 兼容路径默认是关的（Wave-1 D-2）。** `marketops_search(provider='serpapi', ...)` 在默认配置下直接以 `SERPAPI_REST_DISABLED` 拒绝，**不发网络、不占额度**——它是通往同一家付费供应商的**第二条**路，默认安装不该有它。它不是被删掉了（产品简报要求它活到官方 MCP 契约验证完成），而是需要操作者显式打开：设 `MARKETOPS_SERPAPI_REST_ENABLE=1`，然后自担该路径的未验证性。这个开关**刻意不进任何 manifest 的 `env_vars`**：出现在生成模板里的开关，会被「填个空就打开」，与「需要一次决定」正好相反。Serper 不受影响，恒为 `ENABLED`。`marketops_search_capabilities()` 如实报告两者的 `availability`。
+
+**`page` 只对已声明可翻页的分类有效。** 不带 `page` 时请求体与加入本参数之前逐字节相同（有测试钉住）；`page>1` 只写入注册表声明的分类，其余情况按三句不同的话拒绝，见 [Serper 覆盖口径](SERPER_MODE_COVERAGE.md) §3。SerpApi 兼容 REST 的翻页参数**未经验证**，`page>1` 一律 `SERPAPI_PAGINATION_UNVERIFIED`，而不是发一个可能被忽略的参数。
 
 返回状态是 DISCOVERED_NOT_VERIFIED：搜索摘要与地图 Place ID 只是线索，不能直接晋升为已核实场地、组织责任或邮件联系人。SerpApi 原生 REST GET 传输按官方要求将 Key 放在查询参数，代码不记录完整 URL、禁止重定向；若对代理/网络日志敏感，优先考虑 SerpApi 官方 Header Bearer 托管 MCP，但该直连还无法自动进入本地 MarketOps 事件日志。
 

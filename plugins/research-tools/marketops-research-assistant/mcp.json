@@ -19,7 +19,10 @@
         "SERPER_API_KEY",
         "CRAWL4AI_API_KEY",
         "TINYFISH_API_KEY",
-        "TYPESAFE_API_KEY"
+        "TYPESAFE_API_KEY",
+        "TINYFISH_MCP_ACCESS_TOKEN",
+        "MARKETOPS_TINYFISH_AGENT_ALLOW_PAID",
+        "MARKETOPS_TINYFISH_ACCOUNT_ALIAS"
       ],
       "default_tools_approval_mode": "prompt"
     }

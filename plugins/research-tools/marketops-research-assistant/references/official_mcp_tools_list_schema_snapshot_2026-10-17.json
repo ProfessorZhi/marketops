@@ -1,0 +1,160 @@
+{
+  "_generated_by": "research_official_mcp.schema_snapshot_json()",
+  "_not_a_live_handshake": "No authorized read-only upstream tools/list was performed; see live_handshake_performed and blocked_on inside.",
+  "_record": "Dated offline schema record for the official-MCP line.",
+  "_regenerate": "python -c \"import sys;sys.path.insert(0,\"scripts\");import research_official_mcp as m;print(m.schema_snapshot_json())\"",
+  "reviewed_capabilities": {
+    "serpapi.search": {
+      "allowed_params": [
+        "mode",
+        "params"
+      ],
+      "effect_class": "BILLABLE_READ",
+      "provider": "serpapi",
+      "schema_sha256": "cac3ba1d89918984ff42ecb3fed6dae2d8f99d1e2b41b3a98d5cef28146600d9",
+      "tier": "T2",
+      "upstream_tool": "search"
+    },
+    "tinyfish.fetch_content": {
+      "allowed_params": [
+        "format",
+        "purpose",
+        "ttl",
+        "urls"
+      ],
+      "effect_class": "BILLABLE_READ",
+      "provider": "tinyfish",
+      "schema_sha256": "80bb9d201430bbbf4b13c093c30e37d5833d60a548b5d31aaffc9e01623a5018",
+      "tier": "T1",
+      "upstream_tool": "fetch_content"
+    },
+    "tinyfish.run_web_automation": {
+      "allowed_params": [
+        "agent_config",
+        "browser_profile",
+        "capture_config",
+        "goal",
+        "url",
+        "use_profile",
+        "use_vault"
+      ],
+      "effect_class": "BILLABLE_ACT",
+      "provider": "tinyfish",
+      "schema_sha256": "f49f11b62210173fcca62d6e0d6019b82b918e9991e982138aa9e380b6d995f3",
+      "tier": "T3",
+      "upstream_tool": "run_web_automation"
+    },
+    "tinyfish.search": {
+      "allowed_params": [
+        "language",
+        "location",
+        "purpose",
+        "query"
+      ],
+      "effect_class": "BILLABLE_READ",
+      "provider": "tinyfish",
+      "schema_sha256": "b4748d89734cef2ebb7cbcf86b65db0376f1e8b8b3dbb4ee3a336b8da5660937",
+      "tier": "T2",
+      "upstream_tool": "search"
+    },
+    "tinyfish.wait_for_run": {
+      "allowed_params": [
+        "run_id"
+      ],
+      "effect_class": "READ_ONLY",
+      "provider": "tinyfish",
+      "schema_sha256": "63b6001f44d4b7dd670ca0271fe3364594f0244ae4505d79769449fb7ff1b8ca",
+      "tier": "T1",
+      "upstream_tool": "wait_for_run"
+    }
+  },
+  "snapshot": {
+    "blocked_on": "DECISION-04 — one bounded read-only upstream tools/list handshake per provider; NOT GRANTED for Wave-1",
+    "capture_mode": "OFFLINE_RECORDED",
+    "captured_on": "2026-10-17",
+    "claims_not_made": [
+      "UPSTREAM_SCHEMA_VERIFIED",
+      "LIVE_VERIFIED",
+      "CLIENT_VERIFIED"
+    ],
+    "live_handshake_performed": false,
+    "pinned_hash_subject": "HOST_SUBSET_NOT_VENDOR_TOOLS_LIST",
+    "pinned_schema_sha256": {
+      "serpapi.search": "cac3ba1d89918984ff42ecb3fed6dae2d8f99d1e2b41b3a98d5cef28146600d9",
+      "tinyfish.fetch_content": "80bb9d201430bbbf4b13c093c30e37d5833d60a548b5d31aaffc9e01623a5018",
+      "tinyfish.run_web_automation": "f49f11b62210173fcca62d6e0d6019b82b918e9991e982138aa9e380b6d995f3",
+      "tinyfish.search": "b4748d89734cef2ebb7cbcf86b65db0376f1e8b8b3dbb4ee3a336b8da5660937",
+      "tinyfish.wait_for_run": "63b6001f44d4b7dd670ca0271fe3364594f0244ae4505d79769449fb7ff1b8ca"
+    },
+    "provenance": [
+      "docs/wave1-coordination/WORKER-DAG-AND-OWNERSHIP.md (W-C TINYFISH, six recorded corrections), docs/wave1-coordination/INTEGRATION-ACCEPTANCE-CHECKLIST.md (D-1, D-6 BLOCKED), docs/wave1-qa/INDEPENDENT-QA-MATRIX-20261017.md (§4 D-1/D-6)"
+    ],
+    "providers": {
+      "serpapi": {
+        "endpoint": "https://mcp.serpapi.com/mcp",
+        "recorded_vendor_catalog_size": null,
+        "recorded_vendor_tool_names": null,
+        "shipped_allowlist": [
+          "search"
+        ],
+        "transport": "official_mcp",
+        "ui_extensions": {
+          "search_dashboard": "OPT_IN_HOST_DEPENDENT_NOT_EXPOSED",
+          "search_table": "OPT_IN_HOST_DEPENDENT_NOT_EXPOSED"
+        }
+      },
+      "tinyfish": {
+        "endpoint": "https://agent.tinyfish.ai/mcp",
+        "recorded_auth_header": "X-API-Key",
+        "recorded_corrections_count": 6,
+        "recorded_vendor_absences": [
+          "agent_config.max_steps / agent_config.max_duration_seconds"
+        ],
+        "recorded_vendor_catalog_size": 28,
+        "recorded_vendor_catalog_size_source": "operator knowledge base for this node (TinyFish official catalog, 28 tools). Not present in this checkout and NOT live-verified — recorded, not asserted.",
+        "recorded_vendor_required_params": {
+          "fetch_content": [
+            "format",
+            "links",
+            "image_links",
+            "page_metadata"
+          ],
+          "get_run": [
+            "id"
+          ],
+          "run_web_automation": [
+            "session_id"
+          ]
+        },
+        "recorded_vendor_tool_names": [
+          "search",
+          "fetch_content",
+          "run_web_automation",
+          "get_run"
+        ],
+        "shipped_allowlist": [
+          "fetch_content",
+          "run_web_automation",
+          "search",
+          "wait_for_run"
+        ],
+        "transport": "official_mcp"
+      }
+    },
+    "readiness": "CODED",
+    "snapshot_id": "marketops-official-mcp-schema-record-2026-10-17",
+    "symbol_drift": {
+      "authoritative_side": "UNRESOLVED_PENDING_HANDSHAKE",
+      "provider": "tinyfish",
+      "recorded_on": "2026-10-17",
+      "resolution_state": "RECORDED_NOT_REPAIRED",
+      "shipped_param": "run_id",
+      "shipped_tool": "wait_for_run",
+      "vendor_documented_param": "id",
+      "vendor_documented_tool": "get_run",
+      "why_not_repaired": "Renaming the exposed tool changes the Agent-visible surface, and the vendor side of this disagreement is not verified by any handshake this Wave is authorized to perform (DECISION-04 not granted; INDEPENDENT-QA-MATRIX-20261017.md §4 D-6 BLOCKED). Repair under P2-01 waits for the authorized read-only tools/list; until then the drift is recorded here so it is detectable offline instead of unprovable."
+    },
+    "vendor_schema_sha256": null,
+    "verification_status": "UNVERIFIED"
+  }
+}

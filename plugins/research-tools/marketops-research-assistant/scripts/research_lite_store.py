@@ -24,6 +24,14 @@ KINDS = frozenset({"source", "venue", "organization", "relationship", "person",
                    "role", "contact_point", "contact_route", "observation", "review"})
 STAGES = frozenset({"discovery", "acquisition", "entities", "qualification", "people",
                     "routes", "review", "export"})
+#: Material kinds a caller may store. `image` holds fetched picture bytes so a
+#: visual judgment (Jev Box) can be bound to a *saved* artifact like any other
+#: evidence; its bytes are validated against the real file signatures below, so
+#: text relabelled as a picture is refused rather than stored.
+MATERIAL_KINDS = frozenset({"provider_extracted", "rendered_html", "raw_response",
+                            "decision_response", "image"})
+#: File signatures the SDK itself recognises (see `typesafe_sdk._core.assets`).
+IMAGE_SIGNATURES = (b"\x89PNG\r\n\x1a\n", b"\xff\xd8\xff")
 MAX_RECORD = 16_384
 NO_EVIDENCE = "evidence_missing_not_verified"
 
@@ -55,6 +63,22 @@ def _connection(root: Path) -> sqlite3.Connection:
             stage TEXT NOT NULL, kind TEXT NOT NULL, status TEXT NOT NULL,
             entity_key TEXT NOT NULL, payload_json TEXT NOT NULL,
             artifact_ids_json TEXT NOT NULL, created_at TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS evidence_links (
+            link_id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES runs(run_id),
+            record_id TEXT NOT NULL, artifact_id TEXT NOT NULL,
+            content_sha256 TEXT NOT NULL, span_sha256 TEXT NOT NULL,
+            locator_kind TEXT NOT NULL, locator TEXT NOT NULL,
+            material_kind TEXT NOT NULL, field TEXT NOT NULL,
+            created_at TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS evidence_envelopes (
+            evidence_id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES runs(run_id),
+            operation_id TEXT NOT NULL, artifact_id TEXT NOT NULL,
+            ledger_id TEXT, provider TEXT NOT NULL, capability_id TEXT NOT NULL,
+            source_url TEXT, retrieved_at TEXT NOT NULL, content_sha256 TEXT NOT NULL,
+            raw_artifact_ref TEXT NOT NULL, derived_refs_json TEXT NOT NULL,
+            extraction_method TEXT NOT NULL, verified_state TEXT NOT NULL,
+            candidate_only INTEGER NOT NULL, egress_decision_ref TEXT,
+            caveats_json TEXT NOT NULL, created_at TEXT NOT NULL);
     """)
     return db
 
@@ -91,8 +115,13 @@ def save_artifact(root: Path | str | None, run_id: str, artifact_id: str,
     list_run(store_root, run_id, limit=1)
     if not isinstance(content, bytes) or not content or len(content) > 4_000_000:
         raise ValueError("Nonempty material bytes required (<=4 MB)")
-    if material_kind not in {"provider_extracted", "rendered_html", "raw_response", "decision_response"}:
+    if material_kind not in MATERIAL_KINDS:
         raise ValueError("Unknown material kind")
+    # A picture is only a picture if its leading bytes say so. Without this check a
+    # text page stored as `image` would later be handed to a visual judgment as if
+    # it were a fetched screenshot.
+    if material_kind == "image" and not content.startswith(IMAGE_SIGNATURES):
+        raise ValueError("IMAGE_ARTIFACT_REQUIRES_IMAGE_BYTES")
     if len(origin_url) > 2048 or len(provider) > 60 or not provider:
         raise ValueError("Invalid material metadata")
     digest = hashlib.sha256(content).hexdigest()
@@ -270,3 +299,44 @@ def export_csv(root: Path | str | None, run_id: str, output: Path) -> dict:
                              json.dumps(row["artifact_ids"]), safe])
     return {"status": "CANDIDATE_CSV_EXPORTED_NOT_FORMALLY_VERIFIED",
             "rows": snapshot["record_count"], "path": str(output)}
+
+
+# --------------------------------------------------------------------- readback
+def read_artifact(root: Path | str | None, run_id: str, artifact_id: str) -> dict:
+    """Saved bytes, read back from disk and hash-verified against the recorded row.
+
+    An artifact is only usable as evidence if the bytes on disk still hash to the
+    value written at save time. Reading without that check would let a later edit
+    pass silently as the original material.
+    """
+    store_root = _root(root)
+    _id(run_id, "run_id"); _id(artifact_id, "artifact_id")
+    with closing(_connection(store_root)) as db:
+        row = db.execute(
+            "SELECT material_kind,origin_url,content_sha256,relative_path,acquired_at,provider "
+            "FROM artifacts WHERE run_id=? AND artifact_id=?", (run_id, artifact_id)).fetchone()
+    if row is None:
+        raise ValueError("ARTIFACT_NOT_IN_RUN")
+    path = (store_root / row[3]).resolve()
+    if not path.is_relative_to((store_root / "artifacts").resolve()):
+        raise ValueError("ARTIFACT_PATH_OUTSIDE_ROOT")
+    if not path.is_file():
+        raise ValueError("ARTIFACT_MISSING")
+    data = path.read_bytes()
+    if hashlib.sha256(data).hexdigest() != row[2]:
+        raise ValueError("ARTIFACT_READBACK_HASH_MISMATCH")
+    return {"artifact_id": artifact_id, "run_id": run_id, "content": data,
+            "material_kind": row[0], "origin_url": row[1], "content_sha256": row[2],
+            "provider": row[5], "acquired_at": row[4]}
+
+
+def artifact_sha256(root: Path | str | None, run_id: str, artifact_id: str) -> str:
+    return read_artifact(root, run_id, artifact_id)["content_sha256"]
+
+
+def artifact_kind(root: Path | str | None, run_id: str, artifact_id: str) -> str:
+    return read_artifact(root, run_id, artifact_id)["material_kind"]
+
+
+def is_image_artifact(root: Path | str | None, run_id: str, artifact_id: str) -> bool:
+    return artifact_kind(root, run_id, artifact_id) == "image"

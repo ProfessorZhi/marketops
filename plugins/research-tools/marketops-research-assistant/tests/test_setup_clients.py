@@ -37,7 +37,9 @@ class LocalInstallTests(unittest.TestCase):
                 config = json.loads((source / filename).read_text(encoding="utf-8"))
                 server = next(iter((config.get("mcpServers") or config.get("mcp_servers")).values()))
                 self.assertEqual(result["venv_python"], server["command"])
-                self.assertEqual(str(source / "scripts" / "research_mcp.py"), server["args"][0])
+                # Both host configs must land on the same managed entrypoint.
+                self.assertEqual(str(source / "scripts" / "research_mcp.py"),
+                                 server["args"][0])
                 self.assertNotIn("cwd", server, "Codex cached plugin root must not inherit external cwd")
             wb = result["workbuddy_bundle"]
             self.assertEqual(1, wb["mcp_servers_bundled"])
@@ -46,6 +48,7 @@ class LocalInstallTests(unittest.TestCase):
             wmeta = json.loads((connector / "connector-meta.json").read_text(encoding="utf-8"))
             self.assertEqual("mcp", wmeta["type"])
             self.assertEqual("token", wmeta["auth_mode"])
+            self.assertTrue((connector / "scripts" / "research_provider_policy.py").exists())
             self.assertTrue((connector / "scripts" / "research_mcp.py").exists())
             self.assertTrue((connector / "scripts" / "build_client_bundles.py").exists(),
                             "Packaged setup_clients must not reference an absent builder")

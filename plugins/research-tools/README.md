@@ -43,6 +43,6 @@
 | TinyFish | [官方 MCP/CLI](providers/tinyfish.md) |
 | Jev/TypeSafe | [SDK/Key](providers/jev.md) |
 
-`workbuddy/tinyfish/`、`workbuddy/crawl4ai/` 和 `codex/marketops-research-starter/` 是历史**独立候选**，不是当前 v0.4 统一插件。它们可能需要单独 OAuth/Key，也不会自动将调用回写我们的 Lite Research Store。切勿把多个直接连接的 MCP 当作同一个受管服务。
+`workbuddy/tinyfish/`、`workbuddy/crawl4ai/` 和 `codex/marketops-research-starter/` 是历史**独立候选**，不是当前 v0.4 统一插件；`examples/codex/` 保存用户自建 Codex 配置的片段，同样是**不为受管分发**（not for managed distribution）的开发者材料。它们可能需要单独 OAuth/Key，也不会自动将调用回写我们的 Lite Research Store。切勿把多个直接连接的 MCP 当作同一个受管服务。这四个目录现标记为 **`DEVELOPER_ONLY`**（各含 `NOT-FOR-MANAGED-DISTRIBUTION.md`）：默认安装器与连接器生成器都不会复制它们，保留仅为开发对照，删除需先复核。每个直连示例只用**正向显式白名单**（`enabledTools` / `enabled_tools`）列出允许的上游工具——拒绝名单挡不住上游明天新增的工具，白名单挡得住。
 
 目前仅通过 GitHub 对 PR 文件、清单和路径范围进行了静态核对；Python 全套单元测试、Codex/WorkBuddy 真机安装、五个 Provider 真实调用、正式联系路线晋升和客户业务 E2E **均未宣布完成**。先做本地 E2E，再提供验证过、有SHA与安装说明的最终ZIP。

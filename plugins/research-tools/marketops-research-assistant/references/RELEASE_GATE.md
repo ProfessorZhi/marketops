@@ -10,7 +10,7 @@ Status of this branch: **code candidate**, not a verified product release. This 
 - [ ] Identify pinned git commit/branch. All plugin files are under plugins/research-tools; no personal email/Key/session transcript/hard-coded server endpoints.
 - [ ] Compile every *.py with the selected Python >=3.11; test Python 3.11 and 3.12 if target supported.
 - [ ] Validate portable root plugin.json/mcp.json schema and compatibility fallback .codex-plugin/plugin.json + .mcp.json. The two MCP catalogs must expose the same **single** marketops-research service.
-- [ ] 16 Skills have unique YAML frontmatter and relative links resolve. Skill text never silently overrides country profile, official SOP or approved human decisions.
+- [ ] 17 Skills have unique YAML frontmatter and relative links resolve. Skill text never silently overrides country profile, official SOP or approved human decisions.
 - [ ] WorkBuddy generated connector has exactly one stdio server, auth_mode=token, keys in token-schema only, source kebab-case, client version >=4.24.0; Python and script path belong to the **test machine**, not the developer's machine.
 - [ ] Full SDK imports pass: mcp>=2.2,<3; typesafe-sdk>=0.7. Optional local Crawl4AI install explicitly staged and browser doctor run.
 - [ ] Run all offline unit tests below with zero network/paid credentials.
@@ -30,7 +30,7 @@ The setup command without --apply must have **zero filesystem effects**.
 - [ ] SerpApi and Serper web/maps mock responses normalize without swapping API keys; distinct provider names retained; snippets stay discovered, never verified. Repeated operation ID and higher call ceilings behave as declared.
 - [ ] Crawl4AI Cloud mock POST and browser-local import-missing behavior. URL/approved domain policy rejects private/local/unapproved hosts BEFORE reservations. Derived Markdown hash cannot be advertised as raw page hash.
 - [ ] TinyFish Search/Fetch mocked official REST endpoints; fake Key never reaches artifact or agent preview; Cloud Agent remains **outside this gateway**, not mistakenly called by skill-only.
-- [ ] Jev Choice official SDK's semantics: candidate option must be in declared labels; if SDK/Key unavailable the call is unavailable, not auto-passed; no A/B/C/D client promotion based on model answer.
+- [ ] Jev Choice/Noul/Score official SDK semantics: candidate option must be in declared labels; if SDK/Key unavailable the call is unavailable, not auto-passed; no A/B/C/D client promotion based on model answer.
 - [ ] All providers blocked by default network switches and cumulative independent attempt caps; unsupported / extra credential placeholder fails closed. Changing env variables inside a hosted Agent chat is NOT operator approval.
 - [ ] External attempt consumed/failed/unknown status remains visible, and caller cannot get a false “verified” result. If journal save fails, user gets named unsaved result.
 
@@ -54,7 +54,7 @@ The setup command without --apply must have **zero filesystem effects**.
 - [ ] Search: one real SerpApi and one Serper equivalent bounded request, compare outcome/units and registered source receipts.
 - [ ] Crawl4AI: choose client-side local or Cloud. Local needs crawl4ai-setup/doctors and public-domain rules; Cloud needs only Cloud key and explicit data-processing approval. A successful source fetch must produce real source artifact and readback.
 - [ ] TinyFish: Search, Fetch, and (as **separate official connector**) only an explicitly approved read-only browser Agent task if that capability is a requirement.
-- [ ] Jev: one approved Choice request and separate subsequent evaluation of true labels and rate. Do not claim Noul/Score tools exist in v0.4.
+- [ ] Jev: one approved Choice request and separate subsequent evaluation of true labels and rate. Jev Choice/Noul/Score primitives share the legacy marketops_jev_choice tool; do not claim three separate tools or production billing validation.
 - [ ] WorkBuddy connector installed/imported from a stable folder on the customer test machine. Tool listing and calls verified in client, not merely running Python directly.
 - [ ] Codex local plugin installed through current plugin marketplace and Skills discoverable. Its one MCP starts with the dedicated installed Python venv. Tool listing/permissions and a no-network dry-run proven.
 - [ ] TinyFish and Crawl4AI third-party MCP (if enabled separately) have distinct authentication and cannot bypass MarketOps data capture under the pretense that calling a direct MCP creates an internal event.

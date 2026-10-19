@@ -87,3 +87,11 @@ Persisted Run state—not the Agent's conversation—is the checkpoint. Each bou
 Existing paid-search and provider attempt ledgers prevent replay of an identical fingerprint even if the Agent changes `operation_id`. A known public-host 403/429 or challenge in the current Run blocks later crawl/fetch attempts on that host. Changing the URL path, provider, identity or browser fingerprint does not authorize bypassing Cloudflare/CAPTCHA. Use a separate legitimately accessible official/public source, reuse saved material or HOLD; never assume an unknown/timeout request was unbilled.
 
 `marketops_events` returns a max-20 recent event view and bounded full-Run blocker counts. `marketops_note` captures short observed symptom/action/result/uncertain hypothesis once per mechanism and refreshes the configured experience file. No private reasoning traces, raw web documents or arbitrary execution transcripts go into this file. Continue the same Run instead of restarting discovery, and stop at the approved call/time budget.
+
+## Provider coverage, first-call Brief and cost gates
+
+A **new** Run should call `marketops_start(run_id,scope,objective,rule_version,brief={...})` once, so the structured goal is durably saved **before** a managed network attempt. An old Run without a Brief stays `BRIEF_REQUIRED` and the new managed Search/Crawl/Provider path refuses a request; append the missing same-Run structured Brief via `marketops_propose` after user policy review. Never guess the goal from prose or invent an explicit quantity.
+
+Use `marketops_capabilities(task_kind=<supported task>)` to view low-context route suggestions; they are advisory only. Official external MCPs are not auto-installed and host-reported names are not auth, wallet or rate proof. The five-vendor [onboarding](PROVIDER_ONBOARDING.md) distinguishes MarketOps data storage, each vendor's key/OAuth, TinyFish target-site Browser Context Profile, host spending authorization, per-Run allowed domains, provider-wallet/credit verification and research-only actions.
+
+Do not paste API keys into chat or Git, don't treat a logged-in Google identity as universal site access, don't use Cloud/Agent to bypass CAPTCHA, and don't let provider error 402/429/401 silently pick a second paid vendor.
