@@ -49,7 +49,7 @@ class _BoundEgress:
 _REAL_RESOLVE_CHECKED = None
 
 
-def setup_module(module):
+def setUpModule(module=None):
     """Stub name resolution for *this module only*.
 
     The previous form assigned at import time, which permanently replaced the
@@ -65,7 +65,7 @@ def setup_module(module):
     _guard.resolve_checked = lambda hostname, port=443: ("203.0.113.10",)
 
 
-def teardown_module(module):
+def tearDownModule(module=None):
     import research_target_guard as _guard
 
     if _REAL_RESOLVE_CHECKED is not None:

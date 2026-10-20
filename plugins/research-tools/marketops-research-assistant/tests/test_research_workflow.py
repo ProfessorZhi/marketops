@@ -55,7 +55,23 @@ class WorkflowTests(unittest.TestCase):
     def test_existing_source_selects_entity_extraction(self):
         self.brief()
         self.put("src", "source", "src", {"title": "Synthetic"})
-        self.assertEqual("entities", workflow.next_step(self.root, "run-a")["stage"])
+        result = workflow.next_step(self.root, "run-a")
+        self.assertEqual("entities", result["stage"])
+        contract = result["candidate_write_contract"]
+        self.assertEqual("REGISTER_ALL_SUPPLIED_TARGET_NAMES_BEFORE_MORE_DISCOVERY",
+                         contract["next_action"])
+        # An input target can be persisted immediately without manufacturing
+        # source support; its absence of evidence remains actionable on resume.
+        store.put_candidates_batch(self.root, "run-a", [{
+            "record_id": "input-org", "stage": "entities", "kind": "organization",
+            "entity_key": "org", "facts": {"name": "Input-only organization"},
+            "artifact_ids": [],
+        }])
+        resumed = workflow.next_step(self.root, "run-a")
+        self.assertEqual("acquisition", resumed["stage"])
+        self.assertIn("target_source_material", resumed["gap_counts"])
+        self.assertFalse(resumed["goal_satisfied"])
+        self.assertFalse(resumed["business_verified"])
 
     def test_known_organization_does_not_restart_discovery(self):
         self.brief()
