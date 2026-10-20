@@ -72,10 +72,11 @@ __all__ = [
     "require_diagnosis",
 ]
 
-#: 七条「我们**不允许自己去那里**」的拒绝理由。
+#: 八条「我们**不允许自己去那里**」的拒绝理由。
 #:
-#: 它们读起来是七句话（协议不对、带了凭据、没有主机名、字面地址是内网的、
-#: 名字属于保留空间、主机名是数字变体、公开域名解析到内网），但处置是同一条：
+#: 它们读起来是八句话（协议不对、带了凭据、没有主机名、字面地址是内网的、
+#: 名字属于保留空间、主机名是数字变体、公开域名解析到内网、端口不在允许集合里），
+#: 但处置是同一条：
 #: 记下这个目标、放弃它、改走其他公开来源 —— 换 IP、换 UA 都不适用。
 UNSAFE_REFUSALS: frozenset[TargetRefusal] = frozenset(
     {
@@ -86,6 +87,7 @@ UNSAFE_REFUSALS: frozenset[TargetRefusal] = frozenset(
         TargetRefusal.RESERVED_HOST,
         TargetRefusal.NUMERIC_HOST,
         TargetRefusal.RESOLVES_TO_PRIVATE,
+        TargetRefusal.PORT_NOT_ALLOWED,
     }
 )
 
