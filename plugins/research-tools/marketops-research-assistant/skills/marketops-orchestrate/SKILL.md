@@ -30,8 +30,8 @@ hand work over through the pool's state, never through files or chat.
 ## Worker loop
 
 Each worker uses its own `worker_id` and its own `run_id` (e.g. `uk-sports-w1`) with the project
-brief. Repeat without asking: `marketops_harvest_batch(pool_id, worker_id, run_id, count=20)` →
-read the summary → for done targets, judge role/grade from routes (use `marketops-jev` for many) →
+brief. Repeat without asking: `marketops_harvest_batch(pool_id, worker_id, run_id, count=20,
+roles_wanted=<the brief's roles>)` → read the summary → grade each route from its Jev tag →
 next batch. Stop when it returns `POOL_EMPTY_OR_ALL_LEASED` or the budget nears the cap. A crashed
 window's targets return to the pool when its lease expires.
 

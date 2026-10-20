@@ -18,6 +18,12 @@ without independent natural-grass evidence, indoor venues, MUGAs, outside the de
 - County community-building directories (Rural Community Councils, e.g. Essex RCC "find a village
   hall" by district) - found by Serper in the live Essex run.
 - County FA club lists and league fixtures pages; county cricket boards.
+- Cricket: every league's member-club list (e.g. Essex: Shepherd Neame Essex League, Mid-Essex
+  League, Two Counties Championship, Essex Cricket Board) and the leagues' Wikipedia articles.
+  Play-Cricket pages sit behind a challenge page in the live run: use `site:play-cricket.com`
+  search titles for names, never the pages themselves.
+- Groundsmen are often named in a club's recruitment pack, AGM minutes or "best kept ground"
+  awards (county groundsmen's association news): search those PDFs and pages for the name and email.
 - Council playing pitch strategies and assessments (PDF tables of every pitch site).
 - Sport England Active Places; independent schools and university sports pages.
 - Charity Commission register: amateur sport charities use classification code 110 (108 is

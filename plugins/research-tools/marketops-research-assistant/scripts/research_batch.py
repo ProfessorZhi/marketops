@@ -20,14 +20,26 @@ __all__ = ["harvest_batch", "MAX_CONCURRENCY"]
 MAX_CONCURRENCY = 8
 
 
+def _route_line(route: dict) -> str:
+    line = f"{route['type']}:{route['value']}"
+    if route.get("role"):
+        confidence = route.get("confidence")
+        line += f" [{route['role']}" + (f" {confidence:.2f}]" if isinstance(confidence, (int, float)) else "]")
+    return line
+
+
 def _organization_key(target: dict) -> str:
     return "org-" + target["target_key"].removeprefix("t-")
 
 
 def harvest_batch(data_root, *, pool_id: str, worker_id: str, run_id: str, fetch,
                   count: int = 20, concurrency: int = 4, max_pages: int = 5,
-                  lease_minutes: int = 30) -> dict:
-    """Lease `count` targets, harvest each own site, complete them in the pool."""
+                  lease_minutes: int = 30, grade=None) -> dict:
+    """Lease `count` targets, harvest each own site, complete them in the pool.
+
+    `grade(route)` (Jev, when the caller names the wanted roles) returns
+    {"role", "confidence"} for each email route; it ranks, it is not evidence.
+    """
     if type(concurrency) is not int or not 1 <= concurrency <= MAX_CONCURRENCY:
         raise ValueError(f"BATCH_CONCURRENCY_INVALID: 1-{MAX_CONCURRENCY}")
     leased = pool.claim(data_root, pool_id=pool_id, worker_id=worker_id, count=count,
@@ -53,6 +65,13 @@ def harvest_batch(data_root, *, pool_id: str, worker_id: str, run_id: str, fetch
         except ValueError as exc:
             return {"target": target, "outcome": "hold", "org_key": org_key, "record_ids": [],
                     "routes": [], "reason": str(exc).split(":", 1)[0]}
+        if grade is not None:
+            for route in result["routes"]:
+                if route["type"] == "email":
+                    try:
+                        route.update(grade(route))
+                    except ValueError as exc:
+                        route["role"] = "ungraded:" + str(exc).split(":", 1)[0]
         reason = "" if result["routes"] and result.get("identity") else (
             result.get("next_action", "NO_RESULT").split(":", 1)[0])
         return {"target": target, "outcome": "done" if not reason else "hold",
@@ -79,7 +98,7 @@ def harvest_batch(data_root, *, pool_id: str, worker_id: str, run_id: str, fetch
                         "reason": reason, "run_id": run_id, "organization_key": item["org_key"],
                         "routes": routes})
         summary.append({"name": item["target"]["name"], "outcome": outcome,
-                        "routes": [f"{r['type']}:{r['value']}" for r in item["routes"]][:6],
+                        "routes": [_route_line(r) for r in item["routes"]][:6],
                         "reason": reason or None})
     recorded = pool.complete(data_root, pool_id=pool_id, worker_id=worker_id,
                              results=results) if results else {"accepted": 0, "refused": []}

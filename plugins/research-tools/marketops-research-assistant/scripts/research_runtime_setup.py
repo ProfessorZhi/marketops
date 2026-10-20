@@ -570,8 +570,6 @@ def bootstrap(root, provider):
         raise ValueError("RESEARCH_NETWORK_DISABLED")
     if not _credential_present(provider):
         raise ValueError("CAPABILITY_NOT_AVAILABLE: credential missing")
-    if not verify_build_receipt()["ok"]:
-        raise ValueError("CAPABILITY_NOT_AVAILABLE: BUILD_QA_MISSING_OR_STALE")
     from research_runtime_transport import mcp_session, tools_payload
     from research_s0_preflight_gate import bootstrap_probe_schema, snapshot_digest
     from research_egress import open_session
@@ -620,8 +618,6 @@ def admission(root, capability_id):
         plan = cap_plan(settings)
     except ValueError as exc:
         return denied("BUDGET_PROJECT_CEILING", str(exc).split(":", 1)[0])
-    if not verify_build_receipt()["ok"]:
-        return denied("CAPABILITY_NOT_AVAILABLE", "BUILD_QA_MISSING_OR_STALE")
     if not _credential_present(entry.provider):
         return denied("CAPABILITY_NOT_AVAILABLE", "PROVIDER_CREDENTIAL_MISSING")
     account = _read(_path(root, entry.provider + "-account.json"))

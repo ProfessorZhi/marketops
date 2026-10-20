@@ -149,7 +149,17 @@ def setup_status():
         "provider_accounts_authenticated": "NOT_VERIFIED",
         "official_mcp_sessions_verified": False,
         "network_or_provider_fee_incurred": False,
-    }}
+    }, "build": _build_note()}
+
+
+def _build_note():
+    """A missing or stale test receipt is reported, never a reason to refuse calls."""
+    from research_runtime_setup import verify_build_receipt
+    receipt = verify_build_receipt()
+    if receipt["ok"]:
+        return {"tested_release": True, "source_revision": receipt["source_revision"]}
+    return {"tested_release": False,
+            "note": "Test build without a release receipt; research works normally."}
 
 
 def setup_configure(data_root, experience_file, confirm=False):
@@ -729,6 +739,10 @@ def search(provider, query, country, language, run_id, operation_id, mode="web",
             "invocation": provider_policy.invocation_receipt(
                 "serpapi_mcp_search" if provider == "serpapi" else provider,
                 reservation="ONE_ATTEMPT_RESERVED_NOT_BILL_VERIFIED")}
+
+
+ROLE_OPTIONS = ["wanted_role_person", "wanted_role_team_inbox", "other_named_role",
+                "generic_inbox", "unclear"]
 
 
 def jev_triage(run_id, operation_id, artifact_ids, question, options, threshold=0.85,
@@ -1349,6 +1363,23 @@ def build_server():
             organization_name=organization_name, organization_key=organization_key,
             url=url, fetch=fetch, max_pages=max_pages, write=write)
 
+    def _role_grader(run_id, roles_wanted):
+        if not roles_wanted.strip():
+            return None
+        import hashlib
+
+        def grade(route):
+            op = "role-" + hashlib.sha256(
+                f"{run_id}:{route['artifact_id']}:{route['value']}".encode()).hexdigest()[:20]
+            answer = invoke("jev_choice", run_id, op, document=route["artifact_id"],
+                            question=(f"Who does the contact {route['value']} on this page belong "
+                                      f"to? Wanted roles: {roles_wanted.strip()[:200]}."),
+                            options=ROLE_OPTIONS, primitive="choice")
+            judgment = ((answer.get("payload") or {}).get("judgments") or {}).get("judgment") or {}
+            return {"role": judgment.get("choice") or "unclear",
+                    "confidence": judgment.get("confidence")}
+        return grade
+
     def _fetcher(data_root, run_id):
         import research_fallback
         import research_runtime_setup
@@ -1404,11 +1435,16 @@ def build_server():
 
     @tool
     def marketops_harvest_batch(pool_id: str, worker_id: str, run_id: str, count: int = 20,
-                                concurrency: int = 4, max_pages: int = 5) -> dict:
+                                concurrency: int = 4, max_pages: int = 5,
+                                roles_wanted: str = "") -> dict:
         """Claim `count` targets and harvest each own site in one call; summary only.
 
         Each target's routes are quoted, staged in run_id and gate-checked; outcomes
         go back to the pool (done / hold with reason). Call again for the next batch.
+        roles_wanted (e.g. "head groundsman, grounds manager, head of grounds") makes
+        Jev tag every email with wanted_role_person / wanted_role_team_inbox /
+        other_named_role / generic_inbox / unclear and a confidence: grade from
+        the tags, and read the page only for low-confidence ones.
         """
         import research_batch
         data_root = root()
@@ -1416,7 +1452,7 @@ def build_server():
         return research_batch.harvest_batch(
             data_root, pool_id=pool_id, worker_id=worker_id, run_id=run_id,
             fetch=_fetcher(data_root, run_id), count=count, concurrency=concurrency,
-            max_pages=max_pages)
+            max_pages=max_pages, grade=_role_grader(run_id, roles_wanted))
 
     @tool
     def marketops_jev_triage(run_id: str, operation_id: str, artifact_ids: list[str],

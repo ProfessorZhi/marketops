@@ -29,6 +29,9 @@ __all__ = ["record_chain", "preferred_route", "report", "host_of"]
 
 LOCAL_RUNG = "crawl4ai.fetch_page"
 CLOUD_RUNG = "tinyfish.fetch_content"
+RUNTIME_CODES = frozenset({"LOCAL_CRAWL_NOT_SAFE_TO_RUN", "LOCAL_BROWSER_NOT_INSTALLED",
+                           "CAPABILITY_NOT_AVAILABLE", "CRAWL_CACHE_CONFIGURATION_REFUSED",
+                           "EGRESS_REFUSED", "RESEARCH_NETWORK_DISABLED"})
 
 
 def _db(root: Path) -> sqlite3.Connection:
@@ -85,15 +88,21 @@ def preferred_route(root, url: str, route: tuple[str, ...]) -> tuple[str, ...]:
     host = host_of(url)
     if not host or LOCAL_RUNG not in route or CLOUD_RUNG not in route:
         return route
+    if urlsplit(url).path.casefold().endswith(".pdf"):
+        # The local browser renders pages; TinyFish fetch returns a PDF's text.
+        return tuple(c for c in route if c != LOCAL_RUNG)
     try:
         with closing(_db(_root(root))) as db:
             local_ok = db.execute(
                 "SELECT COUNT(*) FROM wall_events WHERE host=? AND capability=? AND status='OK'",
                 (host, LOCAL_RUNG)).fetchone()[0]
+            # Only a failure the site caused teaches anything about the site; a local
+            # runtime that could not start says nothing about this host.
+            marks = ",".join("?" * len(RUNTIME_CODES))
             rescued = db.execute(
                 "SELECT COUNT(*) FROM wall_events WHERE host=? AND capability=? AND "
-                "status NOT IN ('OK','SKIPPED') AND rescued_by=?",
-                (host, LOCAL_RUNG, CLOUD_RUNG)).fetchone()[0]
+                f"status NOT IN ('OK','SKIPPED') AND rescued_by=? AND code NOT IN ({marks})",
+                (host, LOCAL_RUNG, CLOUD_RUNG, *sorted(RUNTIME_CODES))).fetchone()[0]
     except Exception:  # noqa: BLE001
         return route
     if rescued and not local_ok:

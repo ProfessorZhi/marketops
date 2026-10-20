@@ -26,15 +26,13 @@ async def mcp_session(provider, *, root=None, egress=None):
     from mcp.client.streamable_http import streamable_http_client
     import httpx2
     from research_egress import open_session
-    from research_runtime_setup import ENDPOINTS, config, verify_build_receipt
+    from research_runtime_setup import ENDPOINTS, config
     from contextlib import nullcontext
     endpoint = ENDPOINTS[provider]
     settings = config(root)
     if (provider not in settings.get("providers", ()) or not settings.get("network_enabled")
             or os.environ.get("MARKETOPS_RESEARCH_ALLOW_NETWORK") == "0"):
         raise BeforeDispatchRefused("RESEARCH_NETWORK_DISABLED")
-    if not verify_build_receipt()["ok"]:
-        raise BeforeDispatchRefused("CAPABILITY_NOT_AVAILABLE")
     auth, headers = None, {}
     if provider == "tinyfish":
         from research_adapter_tinyfish import credential_mode

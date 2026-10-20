@@ -30,7 +30,8 @@ class RuntimeCapabilityViewTests(unittest.TestCase):
                 self.assertEqual(5, result["budgets"]["managed"]["remaining"])
                 self.assertFalse((root / "state" / "usage-ledger.sqlite3").exists())
 
-    def test_build_failure_has_a_specific_actionable_reason(self):
+    def test_a_missing_build_receipt_does_not_disable_research(self):
+        # Option A (user decision 2026-10-20): the receipt is reported, never a gate.
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "data"
             with patch.dict(os.environ, {"MARKETOPS_RESEARCH_DATA_ROOT": str(root),
@@ -41,8 +42,9 @@ class RuntimeCapabilityViewTests(unittest.TestCase):
                 with patch.object(runtime, "verify_build_receipt", return_value={"ok": False}):
                     result = mcp.capabilities()
                 item = result["capability_matrix"]["serper.search"]
-                self.assertFalse(item["authorization_verified"])
-                self.assertIn("BUILD_QA", item["detail"])
+                self.assertTrue(item["authorization_verified"])
+                with patch.object(runtime, "verify_build_receipt", return_value={"ok": False}):
+                    self.assertFalse(mcp.setup_status()["build"]["tested_release"])
 
 
 if __name__ == "__main__":

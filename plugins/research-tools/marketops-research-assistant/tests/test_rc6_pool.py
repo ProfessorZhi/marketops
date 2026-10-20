@@ -142,6 +142,19 @@ class BatchHarvestTests(unittest.TestCase):
         self.assertEqual(0, again["claimed"])
         self.assertTrue(again["next_action"].startswith("POOL_EMPTY"))
 
+    def test_named_roles_tag_each_email_with_a_jev_role_guess(self):
+        asked = []
+
+        def grade(route):
+            asked.append(route["value"])
+            return {"role": "wanted_role_person", "confidence": 0.93}
+        result = batch.harvest_batch(self.root, pool_id="uk", worker_id="w1", run_id="run-w",
+                                     fetch=self.fetch, count=10, grade=grade)
+        lines = [line for target in result["targets"] for line in target["routes"]
+                 if line.startswith("email:")]
+        self.assertTrue(asked)
+        self.assertTrue(all(line.endswith("[wanted_role_person 0.93]") for line in lines))
+
 
 if __name__ == "__main__":
     unittest.main()

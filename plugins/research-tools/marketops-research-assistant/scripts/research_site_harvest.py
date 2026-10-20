@@ -172,6 +172,35 @@ def _identity_quote(text: str, name: str) -> str:
     return quote if delivery._quote_supports(quote, name, distinctive=True) else ""
 
 
+_CLUB_WORDS = (("Cricket Club", "CC"), ("Football Club", "FC"), ("Rugby Football Club", "RFC"))
+
+
+def name_variants(name: str) -> list[str]:
+    """How a club usually writes its own name: list "Essex County Cricket Club",
+    site "Essex Cricket"; list "Harlow Cricket Club", site "Harlow CC"."""
+    base = re.sub(r"\s+", " ", name).strip()
+    out = [base]
+    if base.casefold().startswith("the "):
+        out.append(base[4:])
+    for long, short in _CLUB_WORDS:
+        for item in list(out):
+            if re.search(rf"\b{long}\b", item, re.I):
+                out.append(re.sub(rf"\b{long}\b", short, item, flags=re.I))
+                out.append(re.sub(r"\s+Club\b", "", item, flags=re.I))
+            elif re.search(rf"\b{short}\b", item):
+                out.append(re.sub(rf"\b{short}\b", long, item))
+    for item in list(out):
+        if re.search(r"\bCounty\b", item, re.I):
+            out.append(re.sub(r"\s+County\b", "", item, flags=re.I))
+    seen, ordered = set(), []
+    for item in out:
+        item = re.sub(r"\s+", " ", item).strip()
+        if item and item.casefold() not in seen:
+            seen.add(item.casefold())
+            ordered.append(item)
+    return ordered
+
+
 def _record_id(*parts: str) -> str:
     return "harvest-" + hashlib.sha256("\x1f".join(parts).encode()).hexdigest()[:24]
 
@@ -271,9 +300,12 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
                                     for link in _envelope_links(root, run_id, receipt))
             queue.extend(candidate_links(material["origin_url"] or page_url, anchors, max_pages - 1))
         if identity is None:
-            quote = _identity_quote(text, name)
-            if quote:
-                identity = {"artifact_id": artifact_id, "quote": quote, "url": page_url}
+            for published in name_variants(name):
+                quote = _identity_quote(text, published)
+                if quote:
+                    identity = {"artifact_id": artifact_id, "quote": quote, "url": page_url,
+                                "published_name": published}
+                    break
         obfuscated += obfuscated_email_count(raw)
         for route in extract_routes(text):
             key = (route["type"], route["value"].casefold())
@@ -298,7 +330,8 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
     if not _exists(root, run_id, "entity_key", organization_key, kind="organization"):
         items.append({"record_id": _record_id(run_id, organization_key, "org"), "stage": "entities",
                       "kind": "organization", "entity_key": organization_key,
-                      "facts": {"name": name, "website": url, "claims": [
+                      "facts": {"name": identity["published_name"], "website": url,
+                                "listed_name": name, "claims": [
                           {"field": "identity", "artifact_id": identity["artifact_id"],
                            "quote": identity["quote"]}]},
                       "artifact_ids": [identity["artifact_id"]]})

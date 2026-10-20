@@ -34,6 +34,17 @@ Prefer one complete source over many guesses. In order:
    (Crawl4AI, falls back to TinyFish fetch). Follow actual links and pagination; guessing paths
    rarely works.
 
+**Keep adding sources until the list is complete**, not until you have one list. For a region,
+list its towns first (a county has 30+), then:
+
+- league / association member lists: league sites, county boards' "find a club" pages, the
+  league's Wikipedia article (member clubs table), Charity Commission (sport code 110);
+- a site behind a challenge page (Play-Cricket, some leagues) stays unopened: search
+  `site:<that domain> <type>` and use the result titles as names, or use another list;
+- `google_maps` per town for every town in the region, not just the big ones.
+
+Stop when two independent sources overlap by about 70% or more; report the expected size.
+
 Whole-list endpoints beat crawling: association search pages, `/wp-json/wp/v2/<type>` (check the
 `X-WP-Total` header), open-data portals, content-type sitemaps. See
 [lessons](../../references/MEMBER_A_LESSONS.md#discovery-find-the-list-dont-guess-it).

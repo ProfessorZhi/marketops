@@ -14,14 +14,22 @@ code. Two failed tries on one target means HOLD and the next target.
 2. **Harvest.** `marketops_site_harvest(run_id, operation_id, organization_name=<name exactly as the
    site publishes it>, organization_key, url=<official site>, max_pages=6)`. It fetches the page and
    its contact/people/hire pages, cuts literal quotes, writes the organisation and every email/phone
-   as candidates, and returns each record's gate decision. `NAME_NOT_FOUND_ON_SITE`: read the routes'
-   context for the published name and retry once. `SITE_UNREACHABLE`: HOLD with that cause.
-3. **Judge each route** from its `context`: who it reaches (named person, department, generic
-   inbox, switchboard) and what role. Apply the brief's or acceptance profile's grades.
+   as candidates, and returns each record's gate decision. It also tries the club's usual site
+   spellings ("Essex County Cricket Club" -> "Essex Cricket", "Harlow CC"). `NAME_NOT_FOUND_ON_SITE`:
+   read the routes' context for the published name and retry once. `SITE_UNREACHABLE`: HOLD.
+   In bulk, `marketops_harvest_batch(..., roles_wanted="<the brief's roles>")` does this for 20
+   targets and Jev tags every email with a role guess and confidence.
+3. **Judge each route** from its Jev tag and `context`: who it reaches (named person, department,
+   generic inbox, switchboard) and what role. Apply the brief's or acceptance profile's grades.
+   Read the page yourself only when the tag's confidence is below 0.85.
 4. **Missing decision-maker?** One Serper role search:
    `site:<domain> "Grounds Manager" OR "Head Groundsman" OR "Facilities" OR "Bookings"`, then
-   harvest the best staff page. Public PDFs (minutes, annual reports) often name officers; note
-   their date.
+   harvest the best staff page. Also `site:<domain> filetype:pdf groundsman OR grounds`: recruitment
+   packs, minutes and annual reports name officers and often their email. PDFs fetch with
+   `marketops_research_step` like pages; note their date.
+   **A named person in the wanted role without an email is still a result.** Fetch the page the
+   search result points to, then save a `role` record (person, title, quote) so the person appears
+   in the workbook as a lead; never keep a name only from a search snippet.
 5. **Venue link.** If the brief is venue-led, save the venue and an `operates`/`owns` relationship
    whose quote names both sides (see example).
 6. **Close the target.** Admitted routes, or a HOLD review with the reason and pages tried.

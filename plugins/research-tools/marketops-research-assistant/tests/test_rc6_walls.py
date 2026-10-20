@@ -54,6 +54,21 @@ class WallLearningTests(unittest.TestCase):
         self.step("s3", "https://otherhall.example/")
         self.assertEqual("crawl4ai.fetch_page", self.calls[0])
 
+    def test_a_local_runtime_that_cannot_start_teaches_nothing_about_the_host(self):
+        def unavailable(**args):
+            if args["capability_id"] == "crawl4ai.fetch_page":
+                self.calls.append(args["capability_id"])
+                return {"status": "BLOCKED", "reason_code": "CAPABILITY_NOT_AVAILABLE",
+                        "primary_reason_code": "LOCAL_CRAWL_NOT_SAFE_TO_RUN",
+                        "gateway_invoked": True, "actual_usd": None, "artifact_ids": []}
+            return self.managed(**args)
+        for op in ("u1", "u2"):
+            fallback.research_step(
+                self.root, run_id="run", operation_id=op, task_kind="known_public_url",
+                url="https://betahall.example/", managed_call=unavailable,
+                admission=lambda _cap: {"allowed": True, "reason_code": ""})
+        self.assertEqual(["crawl4ai.fetch_page", "tinyfish.fetch_content"] * 2, self.calls)
+
     def test_report_exports_walls_and_rescues(self):
         for i in range(6):
             self.step(f"r{i}", f"https://hall{i}.example/")

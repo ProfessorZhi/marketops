@@ -21,7 +21,30 @@ def canonical_url(value):
 def _same_site(left, right):
     def host(value):
         return (urlsplit(value).hostname or "").casefold().removeprefix("www.")
+    if _is_ip(host(left)) and urlsplit(left).path == urlsplit(right).path:
+        # TinyFish reports the address it connected to for documents (PDFs):
+        # same path on the resolved IP is the requested source, not a redirect.
+        return True
     return bool(host(left)) and host(left) == host(right)
+
+
+def _is_ip(value):
+    import ipaddress
+    try:
+        ipaddress.ip_address(value.strip("[]"))
+    except ValueError:
+        return False
+    return True
+
+
+def _document_html(url, text):
+    """Wrap a vendor's text extraction of a PDF so its literal text can be quoted."""
+    if not isinstance(text, str) or not urlsplit(url).path.casefold().endswith(".pdf"):
+        return text
+    if re.search(r"<(?:html|body|p|div)\b", text, re.I):
+        return text
+    from html import escape
+    return "<html><body><pre>" + escape(text) + "</pre></body></html>"
 
 
 def validate_content(value):
@@ -91,7 +114,7 @@ def extract_pages(payload, requested_urls):
         if body is None and row.get("format") in (None, "html"):
             # TinyFish returns the requested HTML in `text`; validate_content still
             # requires real markup, so Markdown cannot be relabelled as HTML.
-            body = row.get("text")
+            body = _document_html(url, row.get("text"))
         results.append({"url": url, "html": validate_content(body)})
         seen.add(url)
     if seen != requested:
