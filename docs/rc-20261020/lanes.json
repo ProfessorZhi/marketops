@@ -27,7 +27,9 @@
         "plugins/research-tools/marketops-research-assistant/tests/test_client_view_generation.py",
         "plugins/research-tools/marketops-research-assistant/references/CLIENT_VIEW_CONTRACT.md"
       ],
-      "commits": []
+      "commits": [
+        "76991cb76ec3b56e70732ea898e1b6458b271202"
+      ]
     },
     {
       "id": "C",
@@ -60,7 +62,9 @@
         "plugins/research-tools/marketops-research-assistant/scripts/research_adapter_jev.py",
         "plugins/research-tools/marketops-research-assistant/tests/test_jev_targeted_excerpt.py"
       ],
-      "commits": []
+      "commits": [
+        "da3005018ac625fec02c22f18435f075e60aeddc"
+      ]
     }
   ],
   "qa": {
