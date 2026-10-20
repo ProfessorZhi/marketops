@@ -387,6 +387,16 @@ class AutomaticClientViewTests(P0Case):
         self.assertEqual("CANDIDATE_NOT_APPROVED", result["client_view_status"])
         self.assertFalse(result["client_view_send_authorized"])
         self.assertEqual(64, len(result["client_view_manifest_sha256"]))
+        # Independent synthetic positive through the real handoff: the venue's
+        # identity quote contains the organisation name and the venue name in one
+        # local span, so it must reach the client view. This is the positive
+        # control that keeps the fail-closed negative from being vacuous.
+        view = Path(result["client_view_directory"])
+        venue_rows = read_sheet(view, "场地与资产")
+        self.assertEqual(["Example Sports Ground"],
+                         [row["名称"] for row in venue_rows])
+        client_manifest = json.loads((view / "MANIFEST.json").read_text(encoding="utf-8"))
+        self.assertEqual(1, client_manifest["counts"]["场地与资产"])
 
     def test_a_failed_client_view_leaves_no_partial_delivery(self):
         self._seed_single_org()

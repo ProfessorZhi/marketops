@@ -8,6 +8,13 @@ report goes to ``--evidence-dir`` (which must be outside the repository).
 The gate reports one of PASS / FAIL / BLOCKED / BASELINE_RED_NOT_NEW per check.
 A missing Lane test is BLOCKED, never a skip dressed up as success.
 
+**Technical checks are not release readiness.** The report carries
+``technical_checks_pass`` and ``release_ready`` separately. ``ok`` is true only
+when the overall status is PASS, which additionally requires
+``SOURCE_MANIFEST.qa_verified=true`` and a verified external ``independent_qa``
+attestation. Without them the overall status is BLOCKED /
+NOT_RELEASE_READY and the process exits 2, even if every ZIP/hash check passed.
+
 Typical use (run the full plugin suite exactly once):
 
     $TOOLCHAINS_ROOT/marketops-research-plugin-e2e/bin/python \
@@ -56,6 +63,7 @@ LANE_TESTS = (
     ("G12-RC2", "rc2-integration-seams", ["test_rc2_integration_seams.py"]),
     ("G13-RC3", "rc3-evidence-p0", ["test_rc3_evidence_p0.py"]),
     ("G14-RC3", "rc3-release-qa", ["test_rc3_release_qa.py"]),
+    ("G16-RC3", "rc3-release-gate-status", ["test_rc3_release_gate_status.py"]),
 )
 
 _SECRET_PATTERNS = (
@@ -224,7 +232,8 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def check_release_artifacts(env: dict[str, str]) -> dict:
+def check_release_artifacts(env: dict[str, str],
+                            qa_receipt: Path | None = None) -> dict:
     sys.path.insert(0, str(SCRIPTS))
     import build_client_bundles  # noqa: E402
 
@@ -236,10 +245,10 @@ def check_release_artifacts(env: dict[str, str]) -> dict:
     evidence: dict = {"temporary_root": str(root)}
 
     source_dir = root / "source"
-    source = build_client_bundles.build_source(source_dir)
+    source = build_client_bundles.build_source(source_dir, qa_receipt=qa_receipt)
     evidence["source"] = {k: source.get(k) for k in
                           ("status", "zip", "zip_sha256", "source_sha256",
-                           "qa_verified", "portable")}
+                           "qa_verified", "qa_attestation", "portable")}
     archive = Path(source["zip"])
     if not archive.is_file():
         problems.append("source archive missing")
@@ -321,6 +330,75 @@ def check_full_suite(env: dict[str, str], baseline_failures: int | None) -> dict
                   run=run_result, ran=ran, failures=failures, errors=errors)
 
 
+def assess_release(checks: list[dict]) -> dict:
+    """Separate "the technical checks passed" from "this is releasable".
+
+    A green targeted suite and matching ZIP hashes are **technical** evidence.
+    They cannot establish release readiness on their own: that needs
+    ``qa_verified=true`` **and** an external independent-QA attestation that
+    verified. Without either, the report says ``release_ready=false`` and the
+    overall status is BLOCKED, never ``ok:true``.
+    """
+    technical = [item for item in checks if item.get("id") != "G15-release-readiness"]
+    technical_pass = all(
+        item.get("status") in {"PASS", "BASELINE_RED_NOT_NEW"} for item in technical)
+    build = next((item for item in checks if item.get("id") == "G7-release"), None)
+    evidence = (build or {}).get("evidence") or {}
+    source = evidence.get("source") or {}
+    manifest = evidence.get("source_manifest") or {}
+    attestation = source.get("qa_attestation") or {}
+    qa_verified = bool(source.get("qa_verified") and manifest.get("qa_verified"))
+    independent = bool(attestation.get("verified"))
+    evaluated = build is not None
+    if not evaluated:
+        reason = "RELEASE_BUILD_NOT_EVALUATED"
+    elif not qa_verified:
+        reason = "SOURCE_MANIFEST_QA_VERIFIED_FALSE"
+    elif not independent:
+        reason = "INDEPENDENT_QA_ATTESTATION_UNVERIFIED"
+    elif not technical_pass:
+        reason = "TECHNICAL_CHECKS_NOT_GREEN"
+    else:
+        reason = ""
+    release_ready = bool(technical_pass and evaluated and qa_verified and independent)
+    return {
+        "technical_checks_pass": technical_pass,
+        "release_build_evaluated": evaluated,
+        "qa_verified": qa_verified,
+        "independent_qa_verified": independent,
+        "independent_qa_signed_by": attestation.get("signed_by"),
+        "release_ready": release_ready,
+        "release_readiness": "RELEASE_READY" if release_ready else "NOT_RELEASE_READY",
+        "formal_qa": "PASS" if qa_verified and independent else "NOT_PERFORMED",
+        "blocked_reason": reason,
+    }
+
+
+def build_report(checks: list[dict], assessment: dict, head: str) -> dict:
+    """One report shape for every caller: technical pass is not release pass."""
+    statuses = {item["status"] for item in checks}
+    if "FAIL" in statuses:
+        overall = "FAIL"
+    elif assessment["release_ready"] and statuses <= {"PASS", "BASELINE_RED_NOT_NEW"}:
+        overall = "PASS"
+    else:
+        overall = "BLOCKED"
+    return {
+        "schema": "marketops.rc-release-gate/1",
+        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "baseline": BASELINE,
+        "head": head,
+        "offline": True,
+        "status": overall,
+        # Strict: a technical pass without independent QA is not ok.
+        "ok": overall == "PASS",
+        **assessment,
+        "blocked_reasons": [item["detail"] for item in checks
+                            if item["status"] == "BLOCKED"],
+        "checks": checks,
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence-dir", type=Path,
@@ -331,6 +409,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="declared baseline failures+errors on 4f87bc33")
     parser.add_argument("--skip-release-build", action="store_true",
                         help="skip the bundle/source manifest build")
+    parser.add_argument("--qa-receipt", type=Path,
+                        help="external BUILD_QA receipt with a signed independent_qa block; "
+                             "without it the gate can only report NOT_RELEASE_READY")
     args = parser.parse_args(argv)
 
     if args.evidence_dir is not None:
@@ -347,29 +428,38 @@ def main(argv: list[str] | None = None) -> int:
     checks.extend(check_repo_state())
     checks.append(check_private_data())
     checks.extend(check_targeted(env))
+    qa_receipt = args.qa_receipt.expanduser().resolve() if args.qa_receipt else None
+    if qa_receipt is not None and not qa_receipt.is_file():
+        print(f"GATE_BLOCKED: --qa-receipt is missing: {qa_receipt}", file=sys.stderr)
+        return 2
     if not args.skip_release_build:
-        checks.append(check_release_artifacts(env))
+        checks.append(check_release_artifacts(env, qa_receipt))
     if args.full_suite:
         checks.append(check_full_suite(env, args.baseline_failures))
 
-    okay = all(item["status"] in {"PASS", "BASELINE_RED_NOT_NEW"} for item in checks)
-    report = {
-        "schema": "marketops.rc-release-gate/1",
-        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "baseline": BASELINE,
-        "head": subprocess.run(["git", "-C", str(REPO), "rev-parse", "HEAD"],
-                               text=True, capture_output=True).stdout.strip(),
-        "offline": True,
-        "ok": okay,
-        "checks": checks,
-    }
+    assessment = assess_release(checks)
+    checks.append(result(
+        "G15-release-readiness", "release readiness",
+        "PASS" if assessment["release_ready"] else "BLOCKED",
+        ("release_ready=true; formal QA verified by " +
+         str(assessment["independent_qa_signed_by"] or "external signer"))
+        if assessment["release_ready"] else
+        ("technical_checks_pass=" + str(assessment["technical_checks_pass"]).lower()
+         + "; release_ready=false; formal_qa=" + assessment["formal_qa"]
+         + "; reason=" + assessment["blocked_reason"]),
+        **assessment))
+
+    head = subprocess.run(["git", "-C", str(REPO), "rev-parse", "HEAD"],
+                          text=True, capture_output=True).stdout.strip()
+    report = build_report(checks, assessment, head)
     text = json.dumps(report, ensure_ascii=False, indent=2)
     print(text)
     if target is not None:
         path = target / f"rc-gate-{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}.json"
         path.write_text(text + "\n", encoding="utf-8")
         print(f"GATE_REPORT: {path}", file=sys.stderr)
-    return 0 if okay else 1
+    return 0 if report["status"] == "PASS" else (
+        2 if report["status"] == "BLOCKED" else 1)
 
 
 if __name__ == "__main__":

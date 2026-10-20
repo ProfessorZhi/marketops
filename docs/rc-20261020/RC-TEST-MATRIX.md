@@ -19,7 +19,7 @@ RC3 base：`38dcef853f526f64f669c475c96ad9c3bad3ad47`（H）。
 | R5 | 安装明确 opt-in | C | G3：无 `--apply` 不落盘；非交互无 destination 被拒；全局 Codex 注册默认 no | PASS（Ran 21 OK） |
 | R6 | SerpApi 不重复 reserve | D | G4：REST 与 embedded 同 signature；同一 operation 只一条 reserve | PASS（Ran 23 OK） |
 | R7 | Jev evidence locator | E | G5：locator 2–60、未命中 `JEV_EVIDENCE_LOCATOR_NO_MATCH`、box 拒绝 | PASS（Ran 19 OK） |
-| R8 | 所有相关定向测试 | 全部 | G1–G6 + F/G/RC2/RC3 | PASS（A 3 / B 11 / C 21 / D 23 / E 19 / G6 5 / F 16 / G 19 / RC2 12 / RC3 19 / RC3 QA 6） |
+| R8 | 所有相关定向测试 | 全部 | G1–G6 + F/G/RC2/RC3 | PASS（A 3 / B 11 / C 21 / D 23 / E 19 / G6 5 / F 16 / G 19 / RC2 12 / RC3 19 / RC3 QA 6 / gate-status 8） |
 | R9 | 完整 offline plugin suite 一次 | 集成 | G8：`python -m unittest discover -s tests -v` | PASS（Ran 2212 tests, 0 failures, 0 errors, 30 skipped） |
 | R10 | 不引入私有数据 / 密钥 | 集成 | G9：只扫本分支新增行；私钥/token 为 FAIL，个人邮箱/手机号为 REVIEW | PASS（0 secret-level，1 review-level：已 inline allowlist 的合成测试夹具）；**gitleaks CLI 缺失，不能宣称 gitleaks 通过** |
 | R11 | 基线红如实区分 | 集成 | G8 + `--baseline-failures N`；只有“总数等于声明基线”才记 `BASELINE_RED_NOT_NEW` | PASS（见 §4；23 条与 `main@63a5fe48`、`4f87bc33` 逐条相同） |
@@ -30,7 +30,8 @@ RC3 base：`38dcef853f526f64f669c475c96ad9c3bad3ad47`（H）。
 | R16 | 字段级身份支持 | I | 组织/场地 name、人员/岗位每个展示字段必须出现在其 linked quote | PASS（`test_rc3_evidence_p0.FieldSupportTests` 7 tests） |
 | R17 | 实体/关系级归属 | I | 同页两组织、错绑、共享 artifact、具名 relation | PASS（`BindingTests` 3 tests；长页正向 4/4） |
 | R18 | 自动 client-view + 完整 MANIFEST | I | `write_delivery` / `mcp.handoff` 产出 client-view 与哈希 | PASS（`AutomaticClientViewTests` 3 tests；hygiene H8/H10） |
-| R19 | 独立 QA 门禁 | I | `qa_verified=false` → BLOCKED/NOT_RELEASE_READY；签名校验 | PASS（`test_rc3_release_qa.py` 6 tests；hygiene H12 BLOCKED） |
+| R19 | 独立 QA 门禁（两个报告层） | I | `qa_verified=false` → BLOCKED/NOT_RELEASE_READY；gate `ok=false` | PASS（`test_rc3_release_qa.py` 6 + `test_rc3_release_gate_status.py` 8；hygiene H12 BLOCKED；gate G15 BLOCKED） |
+| R20 | live public E2E 归属 | I | 真实页面有 org+venue/email 局部跨度则写具名 relationship；否则诚实 HOLD | PASS（`_local_span` 合成单测 3；CI 以新 run 为准，不 skip/xfail） |
 
 ## 2. 执行顺序
 

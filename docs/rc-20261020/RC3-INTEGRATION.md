@@ -14,6 +14,9 @@
 - base：`38dcef853f526f64f669c475c96ad9c3bad3ad47`（H）
 - RC2 已验证 head：`be77fe0de9527afe3ecc6a136b579a06d0c2fb14`
 - RC3 变更：在 RC2 之上追加提交，无 force-push、无历史改写
+- RC3 follow-up（同分支追加）：统一 `check_release_gate.py` 的
+  `technical_checks_pass` / `release_ready` 报告层，并修正 live public E2E
+  的归属证据（真实局部跨度或诚实 HOLD）
 
 ## 2. P0-1：字段级/实体级证据准入
 
@@ -75,17 +78,22 @@
 `research_mcp.handoff` 回执增加 `client_view_directory`、manifest 路径/hash、状态与
 发送授权字段。
 
-## 6. 发布 QA 门禁
+## 6. 发布 QA 门禁（两个报告层统一）
 
 - `SOURCE_MANIFEST.qa_verified=false` 不再被读成正式 QA PASS。
-- 新增 `H12-independent-qa`：无外部签名的 `independent_qa` 时状态为 **BLOCKED**，
-  报告顶层为 `formal_qa=NOT_PERFORMED`、`release_readiness=NOT_RELEASE_READY`，
-  退出码 2。
+- **`check_release_hygiene.py`**：新增 `H12-independent-qa`；无外部签名
+  `independent_qa` 时 **BLOCKED**，报告 `formal_qa=NOT_PERFORMED`、
+  `release_readiness=NOT_RELEASE_READY`，退出码 2。
+- **`check_release_gate.py`**：报告层现在分开
+  `technical_checks_pass` 与 `release_ready`；`ok` 仅在 overall PASS 时为真。
+  G7 的 ZIP/hash 即使全 PASS，只要 `qa_verified=false` 或缺独立签名，
+  G15-release-readiness 为 **BLOCKED**，overall 为 **BLOCKED /
+  NOT_RELEASE_READY**，退出码 2，绝不返回 `ok:true`。
 - `build_source(qa_receipt=...)` 只有 receipt 匹配字节**且**外部 Ed25519 签名通过
   `MARKETOPS_QA_PUBLIC_KEY` 时才写 `qa_verified=true`；自生成 receipt 只能是
   `SOURCE_PACKAGE_PREVIEW_BUILT`。
-- 测试覆盖：缺少 attestation、缺公钥、有效签名、篡改签名、revision 不一致，
-  以及“自生成 receipt 仍是 preview”。
+- 测试覆盖：缺少 attestation、缺公钥、有效签名、篡改签名、revision 不一致、
+  自生成 receipt 仍是 preview，以及 gate 的 `ok=false / status=BLOCKED` 报告层。
 
 ## 7. 验证结果
 
@@ -94,7 +102,8 @@
 | 插件全量离线套件 | `Ran 2212 tests`，0 failures，0 errors，30 skipped |
 | P0 证据控制（`test_rc3_evidence_p0.py`） | 19 tests OK；含长页 4 条合法正向 |
 | 发布 QA 控制（`test_rc3_release_qa.py`） | 6 tests OK |
-| 定向 release gate | 全部 PASS（A/B/C/D/E/F/G/RC2/RC3 + ancestry） |
+| Gate readiness 控制（`test_rc3_release_gate_status.py`） | 8 tests OK |
+| 定向 release gate | 技术检查全 PASS；G15 **BLOCKED**、`ok=false`、overall **BLOCKED / NOT_RELEASE_READY**、退出码 2 |
 | 发布卫生门 | 技术检查 11/11 PASS；`H12-independent-qa` **BLOCKED**；整体 **BLOCKED / NOT_RELEASE_READY** |
 | 自动客户视图 | 4 admitted / 4 held；`client-view/` 8 文件；顶层 MANIFEST 哈希一致 |
 
@@ -104,9 +113,10 @@
 - **QA #15 冻结夹具**：其“合法”记录只提供局部 quote，未包含组织名称与值的同一跨度；
   在 RC3 标准下 3 个用例失败（venue/contact/count）。没有修改 QA 工件，也没有为绿
   放宽产品核验。需要独立 QA 方把夹具升级为 org-name+value 跨度或具名关系。
-- **live-readonly CI**：其真实页面夹具同样缺少组织名+值跨度，按新标准 venue/contact
-  会进入 HOLD；预计该 job 会因旧断言变红。真机研究由独立验收 Session 在修复分支通过
-  独立 QA 后再运行。
+- **live-readonly CI**：测试现在先在真实保存页面中寻找 12–600 字符、同时包含
+  org name + venue/email 的连续局部跨度；找到才写具名 relationship，找不到则走
+  “组织通过、场地/联系人 HOLD、客户视图不含它们”的诚实 fail-closed 断言。
+  不恢复共享 artifact 归属，不 skip/xfail。CI 以新 run 为准。
 - **OS 级 UDP 隔离 UNPROVEN**；未抓包。
 - **gitleaks CLI 缺失**；仓库内正则门禁不是 gitleaks。
 - 根 `ci` 的 23 条既有失败与 main/PR9 相同，不是本候选新增。

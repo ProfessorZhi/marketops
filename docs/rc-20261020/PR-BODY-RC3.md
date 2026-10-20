@@ -65,11 +65,26 @@ unchanged.
 
 ### Independent QA gate
 
-`SOURCE_MANIFEST.qa_verified=false` now makes the hygiene gate **BLOCKED /
-NOT_RELEASE_READY**, with `formal_qa=NOT_PERFORMED`. `build_source` only sets
-`qa_verified=true` when an external `independent_qa` block verifies as an Ed25519
-signature against `MARKETOPS_QA_PUBLIC_KEY`. A receipt the tree can generate for
-itself stays `SOURCE_PACKAGE_PREVIEW_BUILT`.
+`SOURCE_MANIFEST.qa_verified=false` now makes **both** report layers BLOCKED /
+NOT_RELEASE_READY. `check_release_hygiene.py` keeps `H12-independent-qa`.
+`check_release_gate.py` now separates `technical_checks_pass` from
+`release_ready`; its `ok` is true only for overall PASS. Even when every ZIP/hash
+check passes, missing `qa_verified` or a missing external signature makes
+`G15-release-readiness` BLOCKED, `ok=false`, overall `BLOCKED`, exit 2.
+`build_source` only sets `qa_verified=true` when an external `independent_qa`
+block verifies as an Ed25519 signature against `MARKETOPS_QA_PUBLIC_KEY`. A
+receipt the tree can generate for itself stays `SOURCE_PACKAGE_PREVIEW_BUILT`.
+
+### live public E2E binding
+
+The live fixture no longer assumes that citing the same council page binds a
+venue/contact. It searches the **saved real page** for a 12–600 character
+contiguous span containing the organisation name and the venue name/email. When
+one exists it writes a named `relationship` record with that exact quote; when
+none exists it asserts the honest fail-closed outcome: organisation admitted,
+venue/contact HOLD with `ORGANIZATION_PROVENANCE_MISMATCH`, and both absent from
+the client view. The shared-artifact rule is not restored and the test is not
+skipped/xfailed.
 
 ## Verification (offline; real provider calls = 0)
 
@@ -78,7 +93,8 @@ itself stays `SOURCE_PACKAGE_PREVIEW_BUILT`.
 | Plugin full offline suite | `Ran 2212 tests`, 0 failures, 0 errors, 30 skipped |
 | P0 evidence controls | 19 tests OK (4 legitimate long-page positives) |
 | Release QA controls | 6 tests OK |
-| Targeted release gate | all PASS (A/B/C/D/E/F/G/RC2/RC3 + ancestry) |
+| Gate readiness controls | 8 tests OK |
+| Targeted release gate | technical checks PASS; `G15-release-readiness` **BLOCKED**, `ok=false`, overall **BLOCKED / NOT_RELEASE_READY**, exit 2 |
 | Release hygiene | technical checks 11/11 PASS; `H12-independent-qa` BLOCKED; overall **BLOCKED / NOT_RELEASE_READY** |
 | Automatic client view | 4 admitted / 4 held; `client-view/` 8 files; hashes match |
 
