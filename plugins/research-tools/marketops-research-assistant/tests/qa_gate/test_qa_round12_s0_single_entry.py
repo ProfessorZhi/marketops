@@ -191,12 +191,13 @@ def test_the_managed_call_tool_cannot_be_handed_its_own_evidence(clean_env):
     promise is not enough.
     """
     mcp = _require("research_mcp", "MCP facade")
-    server = mcp.build_server()
-    tool = server._tool_manager._tools["marketops_managed_call"]
+    import inspect
 
-    properties = tool.parameters.get("properties", {})
-    assert "evidence" not in properties, sorted(properties)
-    assert "evidence" not in tool.fn.__code__.co_varnames, tool.fn.__code__.co_varnames
+    server = mcp.build_server()
+    for name, tool in server._tool_manager._tools.items():
+        properties = tool.parameters.get("properties", {})
+        assert "evidence" not in properties, (name, sorted(properties))
+    assert "evidence" not in inspect.signature(mcp.managed_call).parameters
 
 
 # --- evidence that the gate can actually allow ----------------------------

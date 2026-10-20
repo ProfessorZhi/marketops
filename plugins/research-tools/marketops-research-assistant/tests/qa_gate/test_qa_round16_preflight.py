@@ -13,7 +13,7 @@ the B/C owners are actively changing:
    (the pair is what makes "no side effect before the gate" meaningful);
 4. a missing URL guard must refuse with a closed-set code, never fall back to a
    second implementation;
-5. the visible surface is 25 tools including `marketops_evidence_workbook`, and
+5. the visible surface is exactly PUBLIC_TOOLS, and
    no tool reaches a provider without the S0 gate;
 6. missing B0 / unknown price DENY in S0, and an unclassified adapter failure is
    held as UNKNOWN while a pre-dispatch refusal is NO_CHARGE.
@@ -214,19 +214,17 @@ def test_every_declared_guard_source_is_honest(clean_env):
 
 
 PROVIDER_CAPABLE = {
-    "marketops_tinyfish_agent", "marketops_tinyfish_agent_wait",
-    "marketops_serpapi_mcp_search", "marketops_tinyfish", "marketops_crawl",
-    "marketops_jev_choice", "marketops_search", "marketops_managed_call", "marketops_research_step",
+    "marketops_serpapi_mcp_search", "marketops_jev_choice", "marketops_search",
+    "marketops_research_step",
     # Composite: every fetch goes through research_fallback.research_step.
     "marketops_site_harvest",
 }
 
 
-def test_the_visible_surface_is_31_and_local_tools_are_not_provider_bypasses(clean_env):
+def test_the_visible_surface_and_local_tools_are_not_provider_bypasses(clean_env):
     mcp = _mod("research_mcp")
     tools = mcp.build_server()._tool_manager._tools
-    assert len(tools) == 31, sorted(tools)
-    assert "marketops_evidence_workbook" in tools, sorted(tools)
+    assert set(tools) == set(mcp.PUBLIC_TOOLS), sorted(tools)
 
     reachable = set()
     for name, tool in tools.items():
@@ -245,7 +243,7 @@ def test_the_visible_surface_is_31_and_local_tools_are_not_provider_bypasses(cle
         "unexpected provider-capable tools": sorted(reachable - PROVIDER_CAPABLE),
         "expected but not seen": sorted(PROVIDER_CAPABLE - reachable)}
 
-    workbook = textwrap.dedent(inspect.getsource(tools["marketops_evidence_workbook"].fn))
+    workbook = textwrap.dedent(inspect.getsource(mcp.evidence_workbook))
     assert "extra.invoke" not in workbook and "dual_search_mcp.search" not in workbook
 
 

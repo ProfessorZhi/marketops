@@ -393,11 +393,12 @@ class GuardedEntryTests(unittest.TestCase):
 
         server = research_mcp.build_server()
         tools = asyncio.run(server.list_tools())
-        managed = next((t for t in tools if t.name == "marketops_managed_call"), None)
-        self.assertIsNotNone(managed, "the managed path is not exposed as a tool")
-        properties = (managed.input_schema or {}).get("properties", {})
-        self.assertNotIn("evidence", properties)
-        self.assertNotIn("s0", properties)
+        for tool in tools:
+            properties = (tool.input_schema or {}).get("properties", {})
+            self.assertNotIn("evidence", properties, tool.name)
+            self.assertNotIn("s0", properties, tool.name)
+        parameters = inspect.signature(research_mcp.managed_call).parameters
+        self.assertNotIn("evidence", parameters)
 
     def test_the_gate_module_is_the_one_the_entry_calls(self):
         """No second, differently-behaving gate on the product path."""

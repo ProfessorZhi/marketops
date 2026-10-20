@@ -212,9 +212,9 @@ class EmbeddedMCPTests(unittest.TestCase):
         self.assertFalse(embedded["tinyfish"]["quota_verified"])
         tools=mcp.build_server()._tool_manager._tools
         self.assertIn("marketops_serpapi_mcp_search",tools)
-        self.assertIn("marketops_tinyfish_agent",tools)
-        self.assertIn("marketops_tinyfish_agent_wait",tools)
-        self.assertEqual(31,len(tools))
+        # The paid Agent entries stay importable but are not offered to an Agent.
+        self.assertNotIn("marketops_tinyfish_agent",tools)
+        self.assertEqual(set(mcp.PUBLIC_TOOLS),set(tools))
 
 
 if __name__=="__main__":

@@ -979,6 +979,20 @@ def _guarded(fn):
     return wrapper
 
 
+#: What an Agent sees. Every other function stays importable for tests, the
+#: installer and power users, but a smaller surface is what makes a host pick
+#: the right tool: duplicates (propose vs propose_batch, crawl/tinyfish vs the
+#: fallback step), unavailable paid entries and maintenance views are hidden.
+PUBLIC_TOOLS = frozenset({
+    "marketops_setup_status", "marketops_setup_configure", "marketops_runs",
+    "marketops_start", "marketops_next", "marketops_status",
+    "marketops_search", "marketops_serpapi_mcp_search", "marketops_research_step",
+    "marketops_site_harvest", "marketops_jev_choice", "marketops_material_excerpt",
+    "marketops_propose_batch", "marketops_evidence_audit", "marketops_note",
+    "marketops_handoff", "marketops_experience_recall", "marketops_experience_feedback",
+})
+
+
 def build_server():
     from research_credentials import load_into_environment
     load_into_environment()
@@ -986,6 +1000,8 @@ def build_server():
     mcp = MCPServer("MarketOps Lite Research", version="0.5.6-rc5")
 
     def tool(fn):
+        if fn.__name__ not in PUBLIC_TOOLS:
+            return fn
         return mcp.tool()(_guarded(fn))
 
     @tool

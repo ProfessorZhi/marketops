@@ -52,8 +52,7 @@ class ExperienceMCPIntegrationTests(unittest.TestCase):
 
     def test_experience_tools_are_in_the_actual_server(self):
         tools = mcp.build_server()._tool_manager._tools
-        for name in ("marketops_experience_recall", "marketops_experience_feedback",
-                     "marketops_experience_summary"):
+        for name in ("marketops_experience_recall", "marketops_experience_feedback"):
             self.assertIn(name, tools)
 
     def test_resume_without_resubmitting_an_existing_brief_does_not_request_it_again(self):

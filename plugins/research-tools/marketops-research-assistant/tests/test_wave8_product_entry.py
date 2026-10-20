@@ -94,11 +94,11 @@ class WorkbookProductEntryTests(unittest.TestCase):
                                      if row["operation_id"] == "op-unknown"})
 
     def test_the_workbook_is_reachable_as_a_customer_tool(self):
+        # The customer reaches the workbook through the one delivery tool.
         server = mcp.build_server()
         tools = server._tool_manager._tools
-        self.assertIn("marketops_evidence_workbook", tools)
-        self.assertIn("run_id", tools["marketops_evidence_workbook"].parameters
-                      .get("properties", {}))
+        self.assertIn("marketops_handoff", tools)
+        self.assertIn("run_id", tools["marketops_handoff"].parameters.get("properties", {}))
 
     def test_a_second_delivery_with_the_same_id_is_refused(self):
         """Exports are immutable; a re-run must pick a new delivery id."""

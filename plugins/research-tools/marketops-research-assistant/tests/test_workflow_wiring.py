@@ -68,9 +68,8 @@ class ToolSurfaceTests(unittest.TestCase):
     def test_next_and_experience_tools_are_in_the_published_surface(self):
         names = set(mcp.build_server()._tool_manager._tools)  # noqa: SLF001
         self.assertIn("marketops_next", names)
-        self.assertTrue({"marketops_experience_recall", "marketops_experience_feedback",
-                         "marketops_experience_summary"}.issubset(names))
-        self.assertEqual(31, len(names))
+        self.assertIn("marketops_experience_feedback", names)
+        self.assertEqual(set(mcp.PUBLIC_TOOLS), names)
 
     def test_status_exposes_the_contract_parameters(self):
         schema = mcp.build_server()._tool_manager._tools["marketops_status"].parameters  # noqa: SLF001
