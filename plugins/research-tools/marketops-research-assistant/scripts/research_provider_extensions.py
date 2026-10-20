@@ -325,22 +325,61 @@ def _state_caps(ledger, project: str, run_id: str, ceiling: int,
 _SHARED_SEARCH_IDENTITY = frozenset({"serpapi_mcp_search"})
 
 
-def _ledger_identity(action: str, *, query: str, mcp_params, fingerprint: str) -> dict:
+def _param_text(params: dict, name: str) -> str | None:
+    """A vendor parameter as text, with "present but empty" read as omitted."""
+    value = params.get(name)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError("IDENTITY_VALUE_INVALID")
+    return value.strip() or None
+
+
+def _param_int(params: dict, name: str) -> int | None:
+    value = params.get(name)
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        raise ValueError("IDENTITY_VALUE_INVALID")
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.strip().isdigit():
+        return int(value.strip())
+    raise ValueError("IDENTITY_VALUE_INVALID")
+
+
+def _ledger_identity(action: str, *, query: str, mcp_params, fingerprint: str,
+                     account: str = "") -> dict:
     if action in _SHARED_SEARCH_IDENTITY:
-        params = (mcp_params or {}).get("params") if isinstance(mcp_params, dict) else None
-        if isinstance(params, dict):
-            try:
-                return search_canonical.search_operation_args(
-                    query=str(params.get("q", "")),
-                    capability=_capability_of(action),
-                    country=str(params.get("gl", "")).upper() or None,
-                    language=str(params.get("hl", "")) or None,
-                    engine=params.get("engine"),
-                    limit=int(params.get("num", 10) or 10))
-            except (ValueError, TypeError):
-                # Not enough to build the canonical identity honestly; fall through
-                # rather than invent the missing fields.
-                pass
+        envelope = mcp_params if isinstance(mcp_params, dict) else {}
+        params = envelope.get("params")
+        if not isinstance(params, dict):
+            # Two call shapes reach this function: the MCP argument envelope
+            # ``{"params": {...}, "mode": "compact"}`` and the vendor params
+            # themselves. The real ``invoke`` path hands the latter. Reading only
+            # the envelope made every real call fall through to the adapter-local
+            # digest, which is the CD-03 gap this function exists to close.
+            params = envelope
+        try:
+            primary = params.get("q")
+            alias = params.get("query")
+            if primary is None:
+                primary = alias
+            elif alias is not None and str(alias) != str(primary):
+                raise ValueError("IDENTITY_QUERY_CONFLICT")
+            return search_canonical.serpapi_search_route_args(
+                query=primary,
+                engine=_param_text(params, "engine"),
+                country=_param_text(params, "gl"),
+                language=_param_text(params, "hl"),
+                num=_param_int(params, "num"),
+                page=_param_int(params, "page"),
+                account=account,
+            )
+        except (ValueError, TypeError):
+            # Not enough to build the canonical identity honestly; fall through
+            # rather than invent the missing fields.
+            pass
     return search_canonical.search_operation_args(
         query=str(fingerprint), capability=_capability_of(action))
 

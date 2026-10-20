@@ -465,7 +465,14 @@ def _request(provider: str, mode: str, q: str, country: str,
     # inside `except` re-attaches the caught exception as `__context__`, and a
     # refused HTTPError carries an attacker-controlled reason phrase (and, on the
     # SerpApi GET, a request URL that includes the api_key). `from None` hides it
-    # from a printed traceback but not from a consumer that walks the chain.
+    # from a printed traceback but not from a consumer that walks the chain, so
+    # every handler here records a closed-set code and the raise happens outside.
+    #
+    # The broad final handler is load-bearing, not defensive padding: `http.client`
+    # raises OSErrors and ValueErrors that are not URLError subclasses, and some of
+    # them stringify the request target. An unconverted one would reach `search`'s
+    # boundary, and there it would be wrapped by an exception whose `__context__`
+    # still carries the URL — and therefore the key.
     failure: str | None = None
     raw = b""
     try:
@@ -477,17 +484,32 @@ def _request(provider: str, mode: str, q: str, country: str,
                 if len(raw) > MAX_BODY:
                     failure = "PROVIDER_BODY_TOO_LARGE"
     except urllib.error.HTTPError as exc:
-        # Do not stringify exc: SerpApi GET request URL includes api_key.
+        # Do not stringify exc: the SerpApi GET request URL includes api_key.
         failure = f"PROVIDER_HTTP_ERROR_{exc.code}"
-        exc.__traceback__ = None
     except urllib.error.URLError:
         failure = "PROVIDER_CONNECTION_ERROR"
+    except ValueError as exc:
+        # `NoRedirect` raises this by design. Anything else that reaches here is
+        # not a code this module defined, so it is collapsed rather than echoed.
+        failure = ("PROVIDER_REDIRECT_BLOCKED"
+                   if str(exc) == "PROVIDER_REDIRECT_BLOCKED"
+                   else "PROVIDER_TRANSPORT_ERROR")
+    except Exception:
+        # Never let a transport exception's message become the raised error or
+        # its `__context__`: on the SerpApi GET that message can carry the URL.
+        failure = "PROVIDER_TRANSPORT_ERROR"
     if failure is not None:
         raise ValueError(failure)
     try:
         payload = json.loads(raw)
     except (UnicodeDecodeError, json.JSONDecodeError):
-        raise ValueError("PROVIDER_INVALID_JSON")
+        # Raised outside the handler: `JSONDecodeError` embeds a slice of the
+        # document, and a provider that echoed the request would put the key in
+        # the exception chain.
+        payload = None
+        failure = "PROVIDER_INVALID_JSON"
+    if failure is not None:
+        raise ValueError(failure)
     if not isinstance(payload, dict):
         raise ValueError("PROVIDER_INVALID_BODY")
     if payload.get("error"):
@@ -552,6 +574,26 @@ def _normalize(provider: str, mode: str, data: dict, limit: int) -> list[dict]:
     return normalized
 
 
+def _ledger_identity(provider: str, *, query: str, country: str, language: str,
+                     mode: str, engine: str | None, limit: int, page: int,
+                     account: str) -> dict:
+    """The args this adapter hands the ledger.
+
+    SerpApi goes through the one shared builder: its vendor axis is ``engine``,
+    and the REST mode is only the local name of an engine (``web`` -> ``google``).
+    Keeping ``mode`` out of the identity is what lets the same query over REST and
+    over the embedded official MCP land on one ``route_shape``. Serper keeps
+    ``mode`` because the category *is* what it buys.
+    """
+    if provider == "serpapi":
+        return search_canonical.serpapi_search_route_args(
+            query=query, engine=engine, country=country, language=language,
+            num=limit, page=page, account=account)
+    return search_canonical.search_operation_args(
+        query=query, capability="search", country=country, language=language,
+        mode=mode, limit=limit, page=page, extra={"account": account})
+
+
 def search(provider: str, query: str, country: str, language: str,
            run_id: str, operation_id: str, mode: str = "web",
            limit: int = 10, page: int = 1, account: str = "",
@@ -589,12 +631,12 @@ def search(provider: str, query: str, country: str, language: str,
                     "operation_signature": fingerprint}
     _reserve(root, run_id=run_id, operation_id=operation_id,
              fingerprint=fingerprint, provider=provider,
-             ledger_args=search_canonical.search_operation_args(
-                 query=query, capability="search", country=country,
-                 language=language, mode=mode, engine=arguments.get("engine"),
+             ledger_args=_ledger_identity(
+                 provider, query=query, country=country, language=language,
+                 mode=mode, engine=arguments.get("engine"), limit=limit, page=page,
                  # The account is part of what was bought: two accounts are two
                  # spend opportunities even for one query.
-                 limit=limit, page=page, extra={"account": account}),
+                 account=account),
              limit=_number("MARKETOPS_SEARCH_MAX_CALLS"))
     # An operation reservation counts even if provider fails. No blind retries.
     append_event(root, run_id=run_id, operation_id=operation_id,
@@ -635,17 +677,28 @@ def search(provider: str, query: str, country: str, language: str,
                 "operation_id": operation_id, "result_count": len(hits),
                 "results": hits, "receipt_ref": ref, "receipt_sha256": hashlib.sha256(content).hexdigest(),
                 "calls_reserved": 1}
-    except Exception as exc:
+    except ValueError:
         try:
             append_event(root, run_id=run_id, operation_id=operation_id,
                          stage="discovery", kind="tool", status="unknown",
                          provider=provider, reason_code="provider_or_receipt_failed")
         except Exception:
             pass
-        if isinstance(exc, ValueError):
-            raise
-        # Never expose the SerpApi URL, which includes the key.
-        raise ValueError("PROVIDER_OR_RECEIPT_ERROR") from None
+        # Already a closed-set code from this module (or a pre-reservation
+        # refusal). Re-raising the same object adds no context.
+        raise
+    except Exception:
+        try:
+            append_event(root, run_id=run_id, operation_id=operation_id,
+                         stage="discovery", kind="tool", status="unknown",
+                         provider=provider, reason_code="provider_or_receipt_failed")
+        except Exception:
+            pass
+        # Built here, raised *after* the handler. Raising a new exception inside
+        # `except` attaches the caught one as `__context__`, and on the SerpApi
+        # GET that object can carry a request URL containing the api_key.
+        failure = ValueError("PROVIDER_OR_RECEIPT_ERROR")
+    raise failure
 
 
 def main() -> None:

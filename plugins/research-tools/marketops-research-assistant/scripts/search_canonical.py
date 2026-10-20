@@ -329,6 +329,67 @@ def search_operation_args(*, query: str, capability: str = "search",
     }
 
 
+# ---------------------------------------------------------------------------
+# The SerpApi route identity: one builder for both transports
+# ---------------------------------------------------------------------------
+#
+# SerpApi is reachable over the legacy REST adapter and over its embedded official
+# MCP. The two paths have different *wire* shapes: REST names a Google mode and
+# derives an engine from it, while the MCP names the engine directly. Each path
+# therefore used to hand the ledger a different ``args`` mapping, and
+# ``route_shape`` digests ``args`` — so no ledger, however correct, could see one
+# purchase. This builder is the single place the SerpApi identity is decided.
+#
+# The key is the reviewed list: provider and account are the ledger's own
+# columns, and ``args`` carries capability, engine, locale, page, depth and the
+# normalised query. ``mode`` is deliberately absent: SerpApi has no category
+# parameter, and ``engine`` is its vendor axis. Serper keeps ``mode`` because its
+# vendor axis *is* the category.
+#
+# Defaults are materialised so "omitted" and "explicitly default" cannot become
+# two purchases. The default engine mirrors ``serpapi_engine_catalog`` (a drift
+# test holds the two equal); the locale and depth defaults are the ones the
+# product layer already applies before dispatch.
+SERPAPI_DEFAULT_ENGINE = "google"
+SERPAPI_DEFAULT_COUNTRY = "US"
+SERPAPI_DEFAULT_LANGUAGE = "en"
+SERPAPI_DEFAULT_LIMIT = 10
+SERPAPI_DEFAULT_PAGE = 1
+
+
+def serpapi_search_route_args(*, query: str, engine: str | None = None,
+                              country: str | None = None,
+                              language: str | None = None,
+                              num: int | None = None,
+                              page: int | None = None,
+                              account: str | None = "") -> dict:
+    """The one SerpApi identity both transports hand the ledger.
+
+    ``num`` is the vendor's name for what the shared shape calls ``limit``; it is
+    accepted under that name so a caller reading the official MCP schema does not
+    have to translate and risk translating differently.
+
+    ``account`` has no wildcard: ``""`` means "the operator declared no account",
+    which is a value. A REST call that names an account and an embedded-MCP call
+    that names none are therefore two routes — the conservative direction, since
+    collapsing them would let two accounts share one purchase.
+    """
+    if account is None:
+        account = ""
+    if not isinstance(account, str):
+        raise ValueError("IDENTITY_VALUE_INVALID: account")
+    return search_operation_args(
+        query=query,
+        capability="search",
+        country=SERPAPI_DEFAULT_COUNTRY if country is None else country,
+        language=SERPAPI_DEFAULT_LANGUAGE if language is None else language,
+        engine=SERPAPI_DEFAULT_ENGINE if engine is None else engine,
+        limit=SERPAPI_DEFAULT_LIMIT if num is None else num,
+        page=SERPAPI_DEFAULT_PAGE if page is None else page,
+        extra={"account": account},
+    )
+
+
 def search_route_identity(*, provider: str, account_ref: str, query: str,
                           capability: str = "search", units: int = 1,
                           site: str = "", **operation_args) -> dict:
@@ -415,8 +476,10 @@ class DispatchGuard:
 __all__ = [
     "ARGUMENT_FIELDS", "DISPATCH_DISPATCHED", "DISPATCH_RESOLVED", "DISPATCH_UNKNOWN",
     "DispatchGuard", "IDENTITY_FORBIDDEN_FIELDS", "PROVIDERS",
-    "SEARCH_IDENTITY_SCHEMA", "TRANSPORTS", "canonical_arguments",
-    "normalise_search_query", "search_operation_args",
+    "SEARCH_IDENTITY_SCHEMA", "SERPAPI_DEFAULT_COUNTRY", "SERPAPI_DEFAULT_ENGINE",
+    "SERPAPI_DEFAULT_LANGUAGE", "SERPAPI_DEFAULT_LIMIT", "SERPAPI_DEFAULT_PAGE",
+    "TRANSPORTS", "canonical_arguments",
+    "normalise_search_query", "search_operation_args", "serpapi_search_route_args",
     "search_route_identity",
     "intent_signature", "operation_signature", "resource_operation_key",
     "same_intent", "same_operation",
