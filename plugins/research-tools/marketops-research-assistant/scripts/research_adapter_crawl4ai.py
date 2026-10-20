@@ -100,7 +100,13 @@ __all__ = [
     "ALL_REASON_CODES",
     "ArtifactRef",
     "BROWSER_EXTRA_ARGS",
+    "BROWSER_SECURITY_ARGS",
+    "BROWSER_SECURITY_BOUNDARY",
     "CAPABILITIES",
+    "DNS_REBINDING_GUARD",
+    "WEBRTC_NON_PROXIED_UDP_GUARD",
+    "browser_launch_violations",
+    "hardened_browser_extra_args",
     "CONTRACT_ANALOGUE",
     "CONTRACT_REASON_CODES",
     "READINESS_VERDICTS",
@@ -728,6 +734,7 @@ def auxiliary_http_get(
         # 显式再来一次：空代理地址在 urllib 里等于**直连**，那正是 IA-4 禁止的回退。
         raise _egress_error(LOCAL_CRAWL_NOT_SAFE_TO_RUN)
 
+    _managed_browser_url(url)
     decision = binding.check(url)
     if not decision.allowed:
         raise _egress_error("EGRESS_REFUSED", detail=f"{decision.refusal} {decision.detail}".strip())
@@ -792,6 +799,37 @@ def _egress_error(code: str, *, detail: str = "") -> UpstreamRefusal:
     return UpstreamRefusal(code, detail)
 
 
+#: 受管浏览器只允许这两个 scheme。``file:`` / ``ftp:`` / ``data:`` 一旦进了
+#: Chromium，浏览器自己就能读到本机文件或内联内容，而出口的 HTTP 判据看不见它们。
+_WEB_BROWSER_SCHEMES = frozenset({"http", "https"})
+
+
+def _managed_browser_url(url: str) -> str:
+    """把一个**要交给浏览器**的 URL 判成 http(s)，否则抛拒绝。
+
+    这一格是 scheme 与凭据的边界，不是 DNS 边界（DNS 由出口与
+    ``--host-resolver-rules`` 管）。判定发生在 ``egress.check`` **之前**：
+    一个 ``file:///etc/passwd`` 的目标连出口都不该问，更不该把浏览器拉起来。
+    """
+    parts = urllib.parse.urlsplit(url)
+    scheme = parts.scheme.lower()
+    if scheme not in _WEB_BROWSER_SCHEMES:
+        raise _egress_error(
+            "EGRESS_REFUSED",
+            detail=f"受管浏览器只允许 http/https，收到 scheme={scheme or '<none>'!r}",
+        )
+    if not parts.hostname:
+        raise _egress_error("EGRESS_REFUSED", detail="URL 没有 hostname")
+    if parts.username or parts.password:
+        raise _egress_error("EGRESS_REFUSED",
+                            detail="URL 不得携带凭据（userinfo）")
+    try:
+        parts.port
+    except ValueError:
+        raise _egress_error("EGRESS_REFUSED", detail="URL 的端口无效") from None
+    return url
+
+
 # ---------------------------------------------------------------------------
 # SDK 接线：可注入，因为没有 crawl4ai 的离线环境要能判「我们写了那些决定」
 # ---------------------------------------------------------------------------
@@ -809,14 +847,136 @@ def _crawl4ai_module() -> Any:
     return importlib.import_module("crawl4ai")
 
 
-#: 与 ``marketops/adapters/crawl4ai_fetcher.py::_browser_config`` 逐格对齐的
-#: 两格防御。它们**不是**本机读数所必需的那两格，理由写在那边的注释里，
-#: 不在这里重抄 —— 这里只保证「同一个决定，两处不会各自漂移」，
-#: 而这件事由测试注入一个假 ``crawl4ai`` 模块来判。
-BROWSER_EXTRA_ARGS: tuple[str, ...] = (
+#: WebRTC 自己开套接字，**不经过** ``--proxy-server``。``disable_non_proxied_udp``
+#: 是 Chromium 的 WebRTC IP handling policy 里唯一同时做到「WebRTC 走代理」与
+#: 「不允许非代理 UDP」的取值；没有它，一个页面可以用 STUN/ICE 把本机地址与
+#: 一条不走代理的 UDP 路径同时暴露出来，而出口上一条判决都不会留下。
+#:
+#: 开关名是**实测**的：本机 Playwright Chromium 1243 的二进制里存在
+#: ``webrtc-ip-handling-policy`` 与取值 ``disable_non_proxied_udp``，
+#: **不存在**带 ``force-`` 前缀的写法。写错前缀的参数会被 Chromium 静默忽略，
+#: 而配置看起来完全正常 —— 这正是这一格需要二进制读数而不是记忆的原因。
+WEBRTC_NON_PROXIED_UDP_GUARD = (
+    "--webrtc-ip-handling-policy=disable_non_proxied_udp"
+)
+
+#: 浏览器自己的 DNS。代理只接管 HTTP(S)；Chromium 仍可在本地解析名字，这正是
+#: DNS rebinding 的第一步（判据看到 A，连接落到 B）。``MAP * ~NOTFOUND`` 关掉
+#: 本地解析，名字交给代理那一侧解析 —— 出口的判据就在那里。
+#: ``EXCLUDE`` 只留给本机代理自身（``localhost`` / ``127.0.0.1`` 不是 DNS 目标）。
+DNS_REBINDING_GUARD = (
+    "--host-resolver-rules=MAP * ~NOTFOUND,EXCLUDE localhost,EXCLUDE 127.0.0.1"
+)
+
+#: 受管浏览器**不可协商**的四条启动护栏。前两条来自 A 的 guarded_http；
+#: 后两条是本 Lane 加的 WebRTC / DNS 边界。出口可以补充别的参数，但不能把
+#: 这四条换掉或降级 —— 见 :func:`browser_launch_violations`。
+BROWSER_SECURITY_ARGS: tuple[str, ...] = (
     LOOPBACK_BYPASS_GUARD,
     "--disable-quic",
+    WEBRTC_NON_PROXIED_UDP_GUARD,
+    DNS_REBINDING_GUARD,
 )
+
+#: 与 ``marketops/adapters/crawl4ai_fetcher.py::_browser_config`` 对齐的那两格，
+#: 加上本 Lane 的 WebRTC / DNS 两格。**顺序是承重的**：出口给的参数在前，
+#: 缺失的强制项按这里的顺序补在后面；同名项只保留一个。
+BROWSER_EXTRA_ARGS: tuple[str, ...] = BROWSER_SECURITY_ARGS
+
+#: 只检查启动参数能说什么、**不能**说什么。``FLAG_ENFORCED`` 的意思是
+#: 「这一格写进了 BrowserConfig」，不是「已在本机网络上量到隔离」。OS 级 UDP
+#: 边界必须由真实 Chromium + 抓包/系统观测来判；本 Lane 不做这件事，所以那两格
+#: 是 ``UNPROVEN`` / ``NOT_RUN``，且不得被绿色测试读成 ``verified``。
+BROWSER_SECURITY_BOUNDARY: Mapping[str, str] = {
+    "webrtc_non_proxied_udp": "FLAG_ENFORCED",
+    "local_dns_resolution": "FLAG_ENFORCED",
+    "quic_udp": "FLAG_ENFORCED",
+    "os_level_udp_isolation": "UNPROVEN",
+    "runtime_udp_measurement": "NOT_RUN",
+}
+
+#: 出口给的 ``extra_args`` 里，这些形态会**改写或绕过**上面四条护栏。
+#: 名字是稳定的判据读数，测试与 transport 都读它。
+_CONFLICTING_FLAG_PREFIXES: tuple[tuple[str, str], ...] = (
+    ("--webrtc-ip-handling-policy=", "browser_webrtc_policy_override"),
+    ("--host-resolver-rules=", "browser_host_resolver_rules_override"),
+    ("--proxy-server=", "browser_proxy_server_override"),
+    ("--proxy-bypass-list=", "browser_proxy_bypass_override"),
+)
+
+
+def browser_launch_violations(egress_kwargs: Mapping[str, object]) -> tuple[str, ...]:
+    """判一份 ``BrowserConfig`` kwargs 能不能用来启动受管浏览器。
+
+    返回**违反项**（空元组 = 可以启动）。这一层判三件事：
+
+    1. 代理必须从 ``proxy_config.server`` 来，且是**本机回环**上的 http 代理。
+       没有代理就是没有出口 —— 不允许「配了但没接上」的形状。
+    2. ``extra_args`` 必须是字符串序列。
+    3. 出口**不得**用同名参数把护栏降级（例如把 WebRTC policy 改回 ``default``）、
+       另指一个代理（``--proxy-server=``）、关掉代理（``--no-proxy-server``）
+       或扩大 bypass 名单（``--proxy-bypass-list=*``）。
+
+    判形状不等于判行为：这里说「这份配置可以被启动」，不说「网络已经隔离」。
+    """
+    violations: list[str] = []
+    if not isinstance(egress_kwargs, Mapping):
+        return ("browser_config_kwargs_not_a_mapping",)
+    proxy_config = egress_kwargs.get("proxy_config")
+    server = (str(proxy_config.get("server") or "").strip()
+              if isinstance(proxy_config, Mapping) else "")
+    if not server:
+        violations.append("browser_proxy_config_missing_server")
+    else:
+        parsed = urllib.parse.urlsplit(server)
+        if parsed.scheme != "http" or (parsed.hostname or "") not in {
+                "127.0.0.1", "::1", "localhost"}:
+            violations.append("browser_proxy_not_loopback")
+    extra_args = egress_kwargs.get("extra_args")
+    if not isinstance(extra_args, (list, tuple)):
+        violations.append("browser_extra_args_not_a_sequence")
+        return tuple(dict.fromkeys(violations))
+    if any(not isinstance(arg, str) or not arg.strip() for arg in extra_args):
+        violations.append("browser_extra_args_not_strings")
+    for arg in extra_args:
+        if not isinstance(arg, str):
+            continue
+        # 不带 ``=`` 的同名 switch 也可能把值放在下一个 argv 里；同样不许。
+        if arg in {"--no-proxy-server", "--proxy-server"}:
+            violations.append("browser_proxy_server_override")
+            continue
+        if arg in {"--webrtc-ip-handling-policy", "--host-resolver-rules",
+                   "--proxy-bypass-list"}:
+            violations.append("browser_flag_value_not_verified")
+            continue
+        if arg == "--enable-quic" or arg.startswith("--enable-quic="):
+            violations.append("browser_quic_reenabled")
+            continue
+        for prefix, name in _CONFLICTING_FLAG_PREFIXES:
+            if not arg.startswith(prefix):
+                continue
+            # 与本模块的强制项逐字相同的参数是幂等的，不算降级。
+            if arg not in BROWSER_SECURITY_ARGS:
+                violations.append(name)
+            break
+    return tuple(dict.fromkeys(violations))
+
+
+def hardened_browser_extra_args(egress_kwargs: Mapping[str, object]) -> list[str]:
+    """出口给的参数 + 四条强制护栏。**返回新列表，不改调用方的那一份。**
+
+    去重是承重的：同一个 switch 出现两次时，Chromium 取哪一份不是我们能依赖的
+    契约。强制项放在后面，是为了让「缺少时补上」这件事在读数上看得见。
+    """
+    raw = egress_kwargs.get("extra_args")
+    merged: list[str] = []
+    for arg in raw if isinstance(raw, (list, tuple)) else ():
+        if isinstance(arg, str) and arg.strip() and arg not in merged:
+            merged.append(arg)
+    for mandatory in BROWSER_EXTRA_ARGS:
+        if mandatory not in merged:
+            merged.append(mandatory)
+    return merged
 
 
 def _build_browser_config(module: Any, *, egress_kwargs: Mapping[str, object],
@@ -827,16 +987,21 @@ def _build_browser_config(module: Any, *, egress_kwargs: Mapping[str, object],
     固定版本里 ``BrowserConfig.proxy`` 已标 deprecated 并会在一条路径上被忽略 ——
     照抄那个字段名会得到一个「配了但没接上」的部署，而它看起来完全正常。
 
-    ``egress_kwargs`` **原样**传下去（只加 ``headless`` 与 ``user_agent`` 这两格
-    与出口无关的决定）。本模块不在这里拼代理地址、也不在这里挑参数 ——
-    它只是把出口给的那一份交给库。理由写在 :class:`EgressBinding` 上：
-    两处各写一份字符串的那一天，改一处的那一处不会红。
+    出口给的 ``extra_args`` 原样保留；**四条安全护栏由本模块补齐，且出口不能
+    降级它们**（:func:`browser_launch_violations`）。判不合格时抛
+    ``LOCAL_CRAWL_NOT_SAFE_TO_RUN``：这一次浏览器不启动，且**没有直连回退**。
     """
+    violations = browser_launch_violations(egress_kwargs)
+    if violations:
+        raise _egress_error(
+            LOCAL_CRAWL_NOT_SAFE_TO_RUN,
+            detail="浏览器启动配置不合格：" + ", ".join(violations),
+        )
     return module.BrowserConfig(
         headless=headless,
         user_agent=user_agent,
         proxy_config=dict(egress_kwargs.get("proxy_config") or {}),
-        extra_args=list(egress_kwargs.get("extra_args") or []),
+        extra_args=hardened_browser_extra_args(egress_kwargs),
     )
 
 
@@ -963,7 +1128,17 @@ class Crawl4AIAdapter:
         一格结论、一句该做什么，**闭集**：
         ``READY`` / ``EGRESS_NOT_BOUND`` / ``SDK_NOT_INSTALLED``。
         """
-        violations = verify_egress_binding(self._egress)
+        violations = list(verify_egress_binding(self._egress))
+        if not violations:
+            # 形状合格还不够：出口给的启动参数可能把护栏降级。把这件事放在
+            # readiness 里，操作员在第一次 execute 之前就能看见。
+            try:
+                launch_kwargs = self._egress.browser_config_kwargs()
+            except Exception as exc:  # noqa: BLE001 - 形状对了但一调就炸
+                violations.append(
+                    f"browser_config_kwargs_raised:{type(exc).__name__}")
+            else:
+                violations.extend(browser_launch_violations(launch_kwargs))
         sdk = bool(self._sdk_available())
         if violations:
             verdict, action = "EGRESS_NOT_BOUND", (
@@ -984,6 +1159,9 @@ class Crawl4AIAdapter:
             "sdk_available": sdk,
             "capabilities": list(CAPABILITIES),
             "reviewed_capability_hints": dict(REVIEWED_CAPABILITY_HINTS),
+            # 启动参数能保证什么、不能保证什么，**在这里说清楚**。只检查 flags
+            # 不是网络实测：OS 级 UDP 边界仍是 UNPROVEN，测量仍是 NOT_RUN。
+            "browser_security": dict(BROWSER_SECURITY_BOUNDARY),
         }
 
     def probe_schema(self) -> Mapping[str, object]:
@@ -1226,14 +1404,25 @@ class Crawl4AIAdapter:
             raise _egress_error("SOURCE_EMPTY_EXTRACT")
 
     def _require_egress_kwargs(self, egress: EgressBinding) -> Mapping[str, object]:
-        """出口给的那一份浏览器配置。**本模块不在此处拼任何一格。**
+        """出口给的那一份浏览器配置。**在它被交给任何浏览器之前判一次。**
 
         两个来源各写一份字符串的失败方式是安静的：改了一处、另一处照旧，
         而现象是「出口配了但没接上」。所以这里只做一次转交，
         并且把出口给的东西原样带下去（``verify_egress_binding`` 已经判过
         那一份里带着回环绕过护栏）。
+
+        Lane G 再加一条：出口**不能**用同名参数把 WebRTC/DNS/代理护栏降级。
+        这一判在 ``execute`` 的派发前发生，所以不合格时整个操作是 ``BLOCKED``，
+        而不是逐页 ``FAILED`` —— 一次浏览器都不该起来。
         """
-        return dict(egress.browser_config_kwargs())
+        kwargs = dict(egress.browser_config_kwargs())
+        violations = browser_launch_violations(kwargs)
+        if violations:
+            raise _egress_error(
+                LOCAL_CRAWL_NOT_SAFE_TO_RUN,
+                detail="浏览器启动配置不合格：" + ", ".join(violations),
+            )
+        return kwargs
 
     def _require_sdk(self) -> Any:
         if not self._sdk_available():
@@ -1344,6 +1533,7 @@ class Crawl4AIAdapter:
         url = str(params.get("url") or "").strip()
         if not url:
             raise CrawlRefusalError(CrawlRefusal.EXTRACTION_SPEC_INVALID, "缺 url")
+        _managed_browser_url(url)
         decision = egress.check(url)
         if not decision.allowed:
             raise _egress_error("EGRESS_REFUSED",
@@ -1659,6 +1849,12 @@ class Crawl4AIAdapter:
                 stop_reason = "time_cap_reached"
                 break
             url, depth = frontier.popleft()
+            try:
+                _managed_browser_url(url)
+            except UpstreamRefusal as exc:
+                rows.append({"url": url, "outcome": "BLOCKED",
+                             "reason": _reason(exc.code), "detail": exc.detail})
+                continue
             decision = egress.check(url)
             if not decision.allowed:
                 rows.append({"url": url, "outcome": "BLOCKED",
