@@ -881,14 +881,29 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
                           else "VENDOR_HTML_EMAIL_LITERAL_NOT_BUSINESS_VERIFIED")
         else:
             validation = "LITERAL_IN_SAVED_MATERIAL"
+        role_text = fact.get("role_function", fact.get("role_title", ""))
+        if not _is_meaningful(role_text) and fact.get("jev_role"):
+            # No role record yet: show Jev's ranking tag, labelled as such.
+            confidence = fact.get("jev_confidence")
+            role_text = f"Jev: {fact['jev_role']}" + (
+                f" ({float(confidence):.2f})" if isinstance(confidence, (int, float)) else "")
         contact_rows.append((
             candidate["record_id"], org_key or "UNKNOWN",
             _plain(fact.get("person_name", fact.get("department", ""))),
-            _plain(fact.get("role_function", fact.get("role_title", ""))),
+            _plain(role_text),
             channel or "UNKNOWN", value or "UNKNOWN", validation,
             "RULES_UNKNOWN", "CANDIDATE_NOT_APPROVED",
             "; ".join(candidate["artifact_ids"]) or "NONE",
         ))
+    # Within each organisation, the wanted role first, generic inboxes last.
+    rank = {"wanted_role_person": 0, "wanted_role_team_inbox": 1, "other_named_role": 2,
+            "generic_inbox": 3}
+
+    def _row_rank(row):
+        text = str(row[3])
+        tag = text[5:].split(" ")[0] if text.startswith("Jev: ") else ""
+        return (row[1], rank.get(tag, 0 if text and not text.startswith("Jev: ") else 4))
+    contact_rows.sort(key=_row_rank)
 
     venue_rows = [(
         x["entity_key"], _plain(x["data"].get("name")),

@@ -162,6 +162,10 @@ def harvest_batch(data_root, *, pool_id: str, worker_id: str, run_id: str, fetch
     _record_dispositions(data_root, run_id, results)
     recorded = pool.complete(data_root, pool_id=pool_id, worker_id=worker_id,
                              results=results) if results else {"accepted": 0, "refused": []}
+    # A site cut off by the time budget goes back to the pool for another
+    # window (at most three attempts in all), instead of ending as a HOLD.
+    requeued = pool.reopen(data_root, pool_id=pool_id,
+                           reason="TIME_BUDGET_REACHED")["reopened"] if results else 0
     done = sum(1 for r in results if r["outcome"] == "done")
     reasons: dict[str, int] = {}
     for r in results:
@@ -172,6 +176,6 @@ def harvest_batch(data_root, *, pool_id: str, worker_id: str, run_id: str, fetch
             "routes": sum(r["routes"] for r in results), "hold_reasons": reasons,
             "recorded": recorded["accepted"], "refused": recorded["refused"],
             "targets": summary, "returned_unstarted": released,
-            "still_loading": running,
+            "still_loading": running, "requeued_after_time_budget": requeued,
             "next_action": ("CLAIM_NEXT_BATCH" if leased["claimed"] else
                             "POOL_EMPTY_OR_ALL_LEASED: check marketops_pool_status")}

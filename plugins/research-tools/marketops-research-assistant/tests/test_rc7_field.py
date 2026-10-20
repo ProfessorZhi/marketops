@@ -34,6 +34,26 @@ class NamesAndNumbers(unittest.TestCase):
         self.assertIn("https://www.rumst.be/over-ons", links)
 
 
+class SameOrganisation(unittest.TestCase):
+    def test_same_name_on_the_same_site_reuses_the_existing_key(self):
+        import research_lite_store as store
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store.start_run(root, "r", "municipalities", "objective", "v1")
+            store.save_artifact(root, "r", "art-1", "crawl4ai", "https://www.dessel.be/",
+                                b"<p>Welkom bij Gemeente Dessel, uw gemeente.</p>", "rendered_html")
+            store.put_candidates_batch(root, "r", [{
+                "record_id": "org-1", "stage": "entities", "kind": "organization",
+                "entity_key": "org-pool-key", "artifact_ids": ["art-1"],
+                "facts": {"name": "Gemeente Dessel", "website": "https://www.dessel.be/",
+                          "claims": [{"field": "identity", "artifact_id": "art-1",
+                                      "quote": "Welkom bij Gemeente Dessel, uw gemeente."}]}}])
+            self.assertEqual("org-pool-key", harvest._same_organization(
+                root, "r", "Gemeente Dessel", "https://dessel.be/sport", "gemeente-dessel"))
+            self.assertEqual("", harvest._same_organization(
+                root, "r", "Gemeente Dessel", "https://www.other.be/", "gemeente-dessel"))
+
+
 class OfficialSite(unittest.TestCase):
     def test_the_host_naming_the_organisation_wins_over_social_and_wiki(self):
         answer = {"results": [

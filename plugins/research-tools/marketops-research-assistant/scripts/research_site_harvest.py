@@ -314,6 +314,33 @@ def _exists(root, run_id: str, column: str, value: str, *, kind: str = "") -> bo
             (run_id, value, kind, kind)).fetchone() is not None
 
 
+def _same_organization(root, run_id: str, name: str, url: str, own_key: str) -> str:
+    """An organisation already in this Run with the same name on the same site.
+
+    Two keys for one organisation (a pool key and a hand-typed one) make its
+    site look owned by two organisations, and the delivery gate then refuses
+    every contact quoted from it. Same name plus same host is the same entity.
+    """
+    import json as _json
+    from contextlib import closing
+    host = (urlsplit(url).hostname or "").casefold().removeprefix("www.")
+    wanted = " ".join(name.casefold().split())
+    with closing(store._connection(root)) as db:
+        rows = db.execute("SELECT entity_key, payload_json FROM records WHERE run_id=? AND "
+                          "kind='organization' AND entity_key<>?", (run_id, own_key)).fetchall()
+    for key, payload in rows:
+        try:
+            facts = _json.loads(payload)
+        except ValueError:
+            continue
+        names = {" ".join(str(facts.get(f) or "").casefold().split())
+                 for f in ("name", "listed_name")}
+        site = (urlsplit(str(facts.get("website") or "")).hostname or "").casefold()
+        if wanted in names and site.removeprefix("www.") == host:
+            return key
+    return ""
+
+
 def admission_for(root, run_id: str, record_ids) -> list[dict]:
     """The delivery gate's decision for these records (one snapshot read per call)."""
     wanted = set(record_ids)
@@ -456,6 +483,11 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
 
     items = []
     if not _exists(root, run_id, "entity_key", organization_key, kind="organization"):
+        existing = _same_organization(root, run_id, name, url, organization_key)
+        if existing:
+            result["merged_into_organization_key"] = existing
+            organization_key = result["organization_key"] = existing
+    if not _exists(root, run_id, "entity_key", organization_key, kind="organization"):
         items.append({"record_id": _record_id(run_id, organization_key, "org"), "stage": "entities",
                       "kind": "organization", "entity_key": organization_key,
                       "facts": {"name": identity["published_name"], "website": url,
@@ -470,6 +502,10 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
                       "kind": "contact_point", "entity_key": entity,
                       "facts": {"organization_id": organization_key, "type": route["type"],
                                 "value": route["value"], "source_url": route["url"],
+                                # Jev's tag ranks the route for people; it is not evidence.
+                                **({"jev_role": route["role"],
+                                    "jev_confidence": route.get("confidence")}
+                                   if route.get("role") else {}),
                                 "claims": [{"field": "value", "artifact_id": route["artifact_id"],
                                             "quote": route["quote"]}]},
                       "artifact_ids": [route["artifact_id"]]})
