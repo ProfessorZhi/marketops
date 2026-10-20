@@ -98,9 +98,18 @@ def tinyfish_runner(root):
 def tinyfish_target_guard(root):
     def guard(value, *, resolve=True, resolver=None):
         from research_runtime_setup import config, fetch_allowlist
-        from research_egress import approved_url
-        return approved_url(value, resolve=resolve, resolver=resolver,
-                            allowlist=fetch_allowlist(config(root), [value]))
+        from research_egress import TARGET_RESOLUTION_FAILED, approved_url
+        allowlist = fetch_allowlist(config(root), [value])
+        try:
+            return approved_url(value, resolve=resolve, resolver=resolver, allowlist=allowlist)
+        except ValueError as exc:
+            # TinyFish fetches from its own servers. A host that resolves to a
+            # private address is still refused above; a host this machine cannot
+            # resolve at all (proxy-only networks) is checked without resolution
+            # instead of blocking the vendor-side fetch.
+            if not str(exc).startswith(TARGET_RESOLUTION_FAILED):
+                raise
+            return approved_url(value, resolve=False, allowlist=allowlist)
     return guard
 
 

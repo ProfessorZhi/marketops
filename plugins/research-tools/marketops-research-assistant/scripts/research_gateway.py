@@ -367,6 +367,9 @@ class CapabilityGateway:
         exactly the case where a charge cannot be proven either way, so budget is
         held rather than refunded.
         """
+        import research_contract
+        if research_contract.never_sent(exc):
+            return "REFUSAL", "EGRESS_REFUSED"
         code = _reason_code_from(exc)
         if isinstance(exc, ValueError):
             if code not in REASON_CODES:

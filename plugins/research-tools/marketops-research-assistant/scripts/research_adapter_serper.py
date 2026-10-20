@@ -52,6 +52,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Mapping, Sequence
 
+import research_contract
 import search_canonical
 import serper_modes
 
@@ -552,6 +553,10 @@ class SerperAdapter:
             return self._failure("SERPER_AMBIGUOUS_TIMEOUT", "派发之后超时，费用未知",
                                  capability_id=capability_id, unknown=True)
         except urllib.error.URLError as exc:
+            if research_contract.never_sent(exc):
+                return self._refusal("EGRESS_REFUSED",
+                                     "connection never established; request not sent, no charge",
+                                     capability_id=capability_id)
             # No response object: the request may or may not have reached the
             # provider, so this holds the exposure too. A connection refused and a
             # reset after send look the same from here, and only one of them is

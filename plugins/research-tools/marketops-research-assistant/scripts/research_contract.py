@@ -327,3 +327,36 @@ class EvidenceEnvelope:
         if not isinstance(self.derived_refs, tuple) or not all(
                 isinstance(item, str) for item in self.derived_refs):
             raise ContractError("EvidenceEnvelope.derived_refs must be a tuple of strings")
+
+
+def never_sent(exc: BaseException) -> bool:
+    """True when a failure provably happened before any request byte was sent.
+
+    DNS failure, a refused or unreachable connection, a proxy refusing the
+    CONNECT tunnel and a certificate rejected during the handshake all end the
+    attempt before the provider can see, let alone bill, a request. Treating them
+    as an unknown charge held every later call behind a debt that cannot exist.
+    Anything after the connection is up (resets, timeouts, bad bodies) stays
+    ambiguous. Exception groups and chained causes are searched.
+    """
+    import socket
+    import ssl
+    seen, stack = set(), [exc]
+    while stack:
+        current = stack.pop()
+        if current is None or id(current) in seen:
+            continue
+        seen.add(id(current))
+        if isinstance(current, (socket.gaierror, ConnectionRefusedError,
+                                ssl.SSLCertVerificationError)):
+            return True
+        name = type(current).__name__
+        if name in {"ConnectError", "ProxyError"}:  # httpx / httpcore, pre-request
+            return True
+        if isinstance(current, OSError) and "Tunnel connection failed" in str(current):
+            return True
+        stack.extend(getattr(current, "exceptions", ()) or ())
+        stack.extend((getattr(current, "reason", None) if isinstance(
+            getattr(current, "reason", None), BaseException) else None,
+            current.__cause__, current.__context__))
+    return False
