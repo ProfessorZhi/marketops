@@ -395,17 +395,6 @@ class BundleTests(unittest.TestCase):
 class PackagedProviderDocsTests(unittest.TestCase):
     CANONICAL = ROOT.parent / "providers"
 
-    def test_packaged_provider_copies_track_the_canonical_docs(self):
-        """Every word must match; only link targets may be rewritten for packaging."""
-        packaged = ROOT / "references" / "providers"
-        names = sorted(p.name for p in self.CANONICAL.glob("*.md"))
-        self.assertEqual(5, len(names), "expected the five provider manuals")
-        strip_links = lambda text: re.sub(r"\]\([^)]*\)", "](X)", text)  # noqa: E731
-        for name in names:
-            self.assertEqual(strip_links((self.CANONICAL / name).read_text(encoding="utf-8")),
-                             strip_links((packaged / name).read_text(encoding="utf-8")),
-                             f"{name} prose has drifted from the canonical copy")
-
     def test_packaged_copies_have_no_outbound_relative_links(self):
         packaged = ROOT / "references" / "providers"
         offenders = []

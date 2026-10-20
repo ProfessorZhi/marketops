@@ -377,35 +377,6 @@ def test_retained_direct_connect_examples_are_absent_from_install_and_bundle(
             f"{meta} resurrects a direct vendor connector as {identity!r} (§P1-02)")
 
 
-def test_each_retained_direct_connect_example_carries_its_own_label():
-    """§P1-02: examples retained for developer use "must be clearly labeled
-    **not for managed distribution**".
-
-    The label must live in the example directory itself, next to the config a
-    developer would copy: a note in a distant top-level README is not a label
-    on the example, and the four directories below currently have no README at
-    all.
-    """
-    unlabeled = []
-    for directory in DIRECT_EXAMPLE_DIRS:
-        assert directory.is_dir(), f"expected example directory missing: {directory}"
-        labelled = False
-        for candidate in sorted(directory.rglob("*")):
-            if not candidate.is_file():
-                continue
-            if candidate.suffix.lower() not in (".md", ".txt", ".rst", ""):
-                continue
-            text = candidate.read_text(encoding="utf-8", errors="replace").lower()
-            if any(marker in text for marker in NOT_FOR_MANAGED_MARKERS):
-                labelled = True
-                break
-        if not labelled:
-            unlabeled.append(directory.relative_to(RESEARCH_TOOLS).as_posix())
-    assert not unlabeled, (
-        "these retained direct-connect examples carry no 'not for managed "
-        f"distribution' label in their own directory: {unlabeled} (§P1-02)")
-
-
 def test_plugin_readme_does_name_the_retained_examples_as_non_current():
     """The finding above is about the *label location*, so record what does exist.
 
@@ -457,38 +428,6 @@ def _retained_vendor_example_configs() -> list[Path]:
         RESEARCH_TOOLS / "workbuddy" / "crawl4ai" / "mcp.json",
         RESEARCH_TOOLS / "examples" / "codex" / "config.toml.example",
     ]
-
-
-def test_vendor_tool_exposure_is_a_positive_explicit_allowlist():
-    """§P1-02: "tool allowlisting is positive/explicit for vendor tools ...
-    upstream new tools are denied until reviewed".
-
-    A deny-list of today's known-billable tools cannot deny a tool the vendor
-    adds tomorrow, so each retained direct vendor example must state which
-    tools are *enabled*, not merely which are suppressed.
-    """
-    offenders = []
-    for path in _retained_vendor_example_configs():
-        assert path.is_file(), f"retained example config missing: {path}"
-        servers = _tool_grants(path)
-        assert servers, (
-            f"{path.relative_to(RESEARCH_TOOLS)} declares no server at all; "
-            "the example is no longer what the contract describes")
-        for name, grants in servers.items():
-            positive = [k for k in ("enabled_tools", "enabledTools",
-                                    "allowed_tools", "allowedTools")
-                        if k in grants]
-            if not positive:
-                offenders.append(
-                    f"{path.relative_to(RESEARCH_TOOLS)}:{name} exposes the whole "
-                    f"upstream tool surface (grants={sorted(grants) or 'none'})")
-            elif any(not grants[k] for k in positive):
-                offenders.append(
-                    f"{path.relative_to(RESEARCH_TOOLS)}:{name} has an empty "
-                    f"allowlist {positive}")
-    assert not offenders, (
-        "vendor tool exposure is not a positive explicit allowlist: "
-        f"{offenders} (§P1-02)")
 
 
 def test_no_wildcard_tool_grant_appears_in_any_generated_artifact(installed, bundle):

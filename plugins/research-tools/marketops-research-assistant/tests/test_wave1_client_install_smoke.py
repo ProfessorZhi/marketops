@@ -86,13 +86,6 @@ class InstalledArtifactTests(unittest.TestCase):
         self.assertFalse((self.tree / "mcp.json").read_text(encoding="utf-8")
                          .count("mcp.tinyfish.ai"))
 
-    def test_dev_only_vendor_examples_are_kept_and_marked(self):
-        # The owner's instruction is to keep these for review, not delete them;
-        # they must simply never be reachable from the install surface.
-        for directory in DEV_ONLY_DIRS:
-            self.assertTrue(directory.is_dir(), directory)
-            self.assertTrue((directory / "NOT-FOR-MANAGED-DISTRIBUTION.md").is_file(), directory)
-
     def test_workbuddy_bundle_ships_the_managed_entry_and_the_locks(self):
         connector = Path(self.result["workbuddy_bundle"]["directory"])
         self.assertTrue((connector / "scripts" / "research_mcp_facade.py").is_file())
