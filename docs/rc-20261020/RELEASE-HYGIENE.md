@@ -93,8 +93,8 @@ bundle 哈希是 run-local 的，不能当作跨机器发布哈希。
 | 线 | 判定 | 依据 |
 | --- | --- | --- |
 | 插件套件（本 RC 分支） | **PASS** | 2140 tests，0 failures/errors，30 skipped；定向 40 条全绿 |
-| GitHub `main` CI 的 23 条基线失败 | **BASELINE_RED，不是本 RC 引入** | `main@63a5fe486113a83afb063265e3458b46877789fa` 的 run `39194528248`：3.11 与 3.12 均 `23 failed, 7809 passed, 21 skipped`；失败集中在 `tests/test_security_egress.py` 与 `tests/test_sources_snapshot.py`。本 RC 基于 `feat/bruce-plugin-delivery-20261020@4f87bc33`，没有并入 `main`，也没有声称修复这 23 条 |
-| PR #17 CI | **部分 PASS / 待完成** | `research-plugin-e2e` success；`ci` 的 test jobs 在最后一次查询时仍 pending。不能把 pending 写成 PASS |
+| GitHub `main` CI 的 23 条基线失败 | **BASELINE_RED，不是本 RC 引入** | `main@63a5fe486113a83afb063265e3458b46877789fa` 的 run `39194528248`：3.11 与 3.12 均 `23 failed, 7809 passed, 21 skipped`；失败集中在 `tests/test_evidence_store_contract.py`、`tests/test_portability.py`、`tests/test_security_egress.py` 与 `tests/test_sources_snapshot.py`。本 RC 基于 `feat/bruce-plugin-delivery-20261020@4f87bc33`，没有并入 `main`，也没有声称修复这 23 条 |
+| PR #17 / PR #19 CI | **插件工作流 PASS；core test 为同一 23 条基线红** | PR #19 的 `research-plugin-e2e`（offline-3.12、installed-ubuntu、installed-windows、live-readonly）全部 success；`ci` 的 `test (3.11)` / `test (3.12)` 均 `23 failed, 7809 passed, 21 skipped`，与 `main` 基线同集合、同数量，不是本 lane 新增红 |
 | 公开历史潜在私有提交风险 | **BLOCKED（owner 决策）** | `REDACTION.md` 记录 public `main` 既有 244 条基线命中，本分支不重写历史、无法移除；本分支新增行 G9 为 0 FAIL / 1 REVIEW（已显式 allowlist）。是否重写公开历史、是否接受剩余基线风险，超出本 lane 权限 |
 | gitleaks 实际执行 | **BLOCKED（量具缺失）** | 本机没有 `gitleaks` CLI，CI workflow 也未接入；本轮只做了 path/match allowlist 静态核对与 release gate 自有扫描，不能宣称 gitleaks 已跑过 |
 | F：浏览器出口安全线 | **BLOCKED（未并入）** | `fix/marketops-rc-browser-egress-20261020@f977c6a1` 基于基线，`merge-base --is-ancestor` 对 RC 为假；本 RC 未包含 WebRTC/DNS 出口加固，也未做真实宿主浏览器出口验收 |
