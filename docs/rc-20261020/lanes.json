@@ -41,7 +41,9 @@
         "plugins/research-tools/marketops-research-assistant/scripts/setup_clients.py",
         "plugins/research-tools/marketops-research-assistant/tests/test_installer_optin_security.py"
       ],
-      "commits": []
+      "commits": [
+        "ed4836ba32f17378e61563f2493c5c0fd08beb4a"
+      ]
     },
     {
       "id": "D",
