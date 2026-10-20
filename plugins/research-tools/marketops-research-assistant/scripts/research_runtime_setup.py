@@ -181,6 +181,24 @@ def state_ledger_caps(root, run_id, *, project=None, ledger=None):
     return {"project": project, "run_id": run_id, **plan}
 
 
+def set_call_cap_preserving_money(ledger, scope_kind, scope_key, *, ceiling_calls,
+                                  source):
+    """State a *call* ceiling without erasing a money or time ceiling.
+
+    ``UsageLedger.set_cap`` replaces the whole row. The legacy entry points
+    (``dual_search_mcp`` / ``research_provider_extensions``) only know a request
+    count, so calling ``set_cap`` directly there silently dropped a USD cap an
+    operator had just consented to — the dollar promise disappeared while status
+    kept reporting it. This helper carries forward the parts the caller did not
+    decide. A read failure is raised rather than swallowed: replacing an unknown
+    ceiling with "none" is the failure this exists to prevent.
+    """
+    money, usd_enforced, seconds = _existing_cap(ledger, scope_kind, scope_key)
+    ledger.set_cap(scope_kind, scope_key, ceiling_calls=ceiling_calls,
+                   ceiling_micros=money, ceiling_seconds=seconds,
+                   usd_enforced=usd_enforced, source=source)
+
+
 def configure(root, *, providers, domains, max_calls, task, confirm=False, amend=False,
               provider_limits=None, run_max_calls=None, project_max_calls=None,
               project_max_usd_micros=None, run_max_usd_micros=None):

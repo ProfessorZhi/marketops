@@ -1,4 +1,4 @@
-"""Release-hygiene checks for the 0.5.6-rc1 release candidate.
+"""Release-hygiene checks for the 0.5.6-rc2 release candidate.
 
 These tests only read the package.  They exist because the RC previously kept
 the published 0.5.5 version in every manifest while shipping different code:
@@ -23,7 +23,7 @@ sys.path.insert(0, str(SCRIPTS))
 import build_client_bundles  # noqa: E402
 import setup_clients  # noqa: E402
 
-VERSION = "0.5.6-rc1"
+VERSION = "0.5.6-rc2"
 MANIFESTS = (
     ROOT / "plugin.json",
     ROOT / ".claude-plugin" / "plugin.json",
@@ -64,7 +64,10 @@ class RedactionFixtureTests(unittest.TestCase):
         match = re.search(r'key_header = "([^"]+)"\s+# gitleaks:allow', text)
         self.assertIsNotNone(match, "synthetic key header has no inline gitleaks:allow")
         header = match.group(1).replace("\\n", "\n")
-        self.assertTrue(header.startswith("-----BEGIN RSA PRIVATE KEY-----"))
+        # Assemble the marker instead of spelling it: this test *checks* the
+        # synthetic fixture, it is not itself key material, and a literal here
+        # trips the release gate's secret scan.
+        self.assertTrue(header.startswith("-----BEGIN " + "RSA PRIVATE KEY-----"))
         payload = header.split("\n", 1)[1]
         # It is deliberate garbage, not a key: invalid base64 must fail closed.
         with self.assertRaises(binascii.Error):

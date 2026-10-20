@@ -1,6 +1,6 @@
-# Codex / WorkBuddy / DSH 客户端配置（v0.5.6-rc1 Release Candidate）
+# Codex / WorkBuddy / DSH 客户端配置（v0.5.6-rc2 Release Candidate）
 
-> 版本说明：本文档随插件 `0.5.6-rc1` 发布候选更新。旧 `0.5.5` 安装包与本文档描述不同；不要混用两者的安装目录、连接器或 ZIP。
+> 版本说明：本文档随插件 `0.5.6-rc2` 发布候选更新。旧 `0.5.5` 安装包与本文档描述不同；不要混用两者的安装目录、连接器或 ZIP。
 
 **新版本唯一安装流程**：先读 [MEMBER_A_INSTALL.md](MEMBER_A_INSTALL.md) 再使用 skills/marketops-setup/SKILL.md 与 scripts/setup_clients.py。原有 v0.2/v0.3 的双搜索独立 MCP 和 8/15-Skills 指南已退居兼容用途。当前**只有一个** marketops-research Lite MCP 对接五家基础能力，不要同时安装旧 dual-search MCP 或另一个同名插件。
 

@@ -201,15 +201,40 @@ _CAPS_STATED: set = set()
 
 
 def _state_caps(ledger, project: str, run_id: str, ceiling: int,
-                project_ceiling: int | None = None) -> None:
+                project_ceiling: int | None = None, root=None) -> None:
     key = (str(getattr(ledger, "_path", ledger)), project, run_id, ceiling, project_ceiling)
     if key in _CAPS_STATED:
         return
-    ledger.set_cap("run", f"{project}/{run_id}", ceiling_calls=ceiling,
-                   source="MARKETOPS_SEARCH_MAX_CALLS")
-    if project_ceiling is not None:
-        ledger.set_cap("project", project, ceiling_calls=project_ceiling,
-                       source="MARKETOPS_RESEARCH_MAX_EXTERNAL_CALLS")
+    # A local consent record owns the run/project bounds when it exists: the two
+    # ceilings are independent there, and the record may also carry USD caps.
+    # Reading them from this adapter's environment variables instead would make
+    # one run's promise disagree with the other's, and a bare ``set_cap`` here
+    # would erase the dollar column. Both are failures of the same seam.
+    if root is not None:
+        import research_runtime_setup as runtime
+        if runtime.config(root):
+            runtime.state_ledger_caps(root, run_id, project=project, ledger=ledger)
+            _CAPS_STATED.add(key)
+            return
+    runtime_setup = None
+    try:
+        import research_runtime_setup as runtime_setup
+    except Exception:  # noqa: BLE001 - legacy path stays usable without the module
+        runtime_setup = None
+    if runtime_setup is not None:
+        runtime_setup.set_call_cap_preserving_money(
+            ledger, "run", f"{project}/{run_id}", ceiling_calls=ceiling,
+            source="MARKETOPS_SEARCH_MAX_CALLS")
+        if project_ceiling is not None:
+            runtime_setup.set_call_cap_preserving_money(
+                ledger, "project", project, ceiling_calls=project_ceiling,
+                source="MARKETOPS_RESEARCH_MAX_EXTERNAL_CALLS")
+    else:
+        ledger.set_cap("run", f"{project}/{run_id}", ceiling_calls=ceiling,
+                       source="MARKETOPS_SEARCH_MAX_CALLS")
+        if project_ceiling is not None:
+            ledger.set_cap("project", project, ceiling_calls=project_ceiling,
+                           source="MARKETOPS_RESEARCH_MAX_EXTERNAL_CALLS")
     _CAPS_STATED.add(key)
 
 
@@ -260,7 +285,7 @@ def _reserve(root: Path, *, run_id: str, operation_id: str, fingerprint: str,
     # State the ceilings this adapter is asked to enforce, naming who stated them.
     # A ceiling the ledger was never told about is one it cannot enforce, and an
     # unstated ceiling is not permission.
-    _state_caps(ledger, project, run_id, limit, _project_limit())
+    _state_caps(ledger, project, run_id, limit, _project_limit(), root=root)
     try:
         ledger.reserve(usage_ledger.OperationRequest(
             # Run-scoped on the adapter side, unique-per-ledger on the ledger's:

@@ -210,7 +210,7 @@ def _reserve(root: Path, *, run_id: str, operation_id: str, action: str,
     # operator number as the project bound: it says a single run may not consume
     # more than the whole allowance, which is the weaker of the two statements and
     # the only one this adapter can make without inventing a second policy.
-    _state_caps(ledger, project, run_id, ceiling, ceiling)
+    _state_caps(ledger, project, run_id, ceiling, ceiling, root=root)
     try:
         ledger.reserve(usage_ledger.OperationRequest(
             # The ledger's operation_id is unique per *ledger*, this adapter's is
@@ -301,15 +301,37 @@ _CAPS_STATED: set = set()
 
 
 def _state_caps(ledger, project: str, run_id: str, ceiling: int,
-                project_ceiling: int | None = None) -> None:
+                project_ceiling: int | None = None, root=None) -> None:
     key = (str(getattr(ledger, "_path", ledger)), project, run_id, ceiling, project_ceiling)
     if key in _CAPS_STATED:
         return
-    ledger.set_cap("run", f"{project}/{run_id}", ceiling_calls=ceiling,
-                   source="MARKETOPS_SEARCH_MAX_CALLS")
-    if project_ceiling is not None:
-        ledger.set_cap("project", project, ceiling_calls=project_ceiling,
-                       source="MARKETOPS_RESEARCH_MAX_EXTERNAL_CALLS")
+    # See ``dual_search_mcp._state_caps``: local consent owns the two independent
+    # call bounds and any USD cap when it exists, and a bare ``set_cap`` here
+    # would erase the money column that was just consented to.
+    if root is not None:
+        import research_runtime_setup as runtime
+        if runtime.config(root):
+            runtime.state_ledger_caps(root, run_id, project=project, ledger=ledger)
+            _CAPS_STATED.add(key)
+            return
+    try:
+        import research_runtime_setup as runtime
+    except Exception:  # noqa: BLE001 - legacy path stays usable without the module
+        runtime = None
+    if runtime is not None:
+        runtime.set_call_cap_preserving_money(
+            ledger, "run", f"{project}/{run_id}", ceiling_calls=ceiling,
+            source="MARKETOPS_SEARCH_MAX_CALLS")
+        if project_ceiling is not None:
+            runtime.set_call_cap_preserving_money(
+                ledger, "project", project, ceiling_calls=project_ceiling,
+                source="MARKETOPS_RESEARCH_MAX_EXTERNAL_CALLS")
+    else:
+        ledger.set_cap("run", f"{project}/{run_id}", ceiling_calls=ceiling,
+                       source="MARKETOPS_SEARCH_MAX_CALLS")
+        if project_ceiling is not None:
+            ledger.set_cap("project", project, ceiling_calls=project_ceiling,
+                           source="MARKETOPS_RESEARCH_MAX_EXTERNAL_CALLS")
     _CAPS_STATED.add(key)
 
 
@@ -526,10 +548,35 @@ def _crawl4ai_local(url: str, *, egress=None) -> dict:
             "browser; an unmanaged local browser is the thing this path exists to "
             "prevent, so this is a refusal and not a degraded mode")
     from crawl4ai import AsyncWebCrawler, BrowserConfig
+    from research_adapter_crawl4ai import (
+        LOCAL_CRAWL_NOT_SAFE_TO_RUN,
+        _managed_browser_url,
+        browser_launch_violations,
+        hardened_browser_extra_args,
+    )
+
+    # This path used to hand ``egress.browser_config_kwargs()`` straight to
+    # ``BrowserConfig``. That binding predates the WebRTC/DNS guards, so this
+    # reachable entry would have launched Chromium without them while the
+    # adapter's own path was hardened — a green suite over a live bypass.
+    # Refuse before construction; there is no direct fallback.
+    try:
+        _managed_browser_url(url)
+    except ValueError as exc:
+        raise ValueError(str(exc)) from None
+    egress_kwargs = dict(egress.browser_config_kwargs())
+    violations = browser_launch_violations(egress_kwargs)
+    if violations:
+        raise ValueError(
+            f"{LOCAL_CRAWL_NOT_SAFE_TO_RUN}: managed browser launch config "
+            f"rejected ({', '.join(violations)}); no direct fallback")
+    browser_kwargs = dict(egress_kwargs)
+    browser_kwargs["extra_args"] = hardened_browser_extra_args(egress_kwargs)
+    browser_kwargs["headless"] = True
 
     async def crawl() -> dict:
         async with AsyncWebCrawler(
-                config=BrowserConfig(**egress.browser_config_kwargs(), headless=True)) as crawler:
+                config=BrowserConfig(**browser_kwargs)) as crawler:
             result = await crawler.arun(url=url)
             status = getattr(result, "status_code", None)
             if status in {401, 403, 429}:
@@ -564,7 +611,8 @@ def _crawl4ai_local(url: str, *, egress=None) -> dict:
         return asyncio.run(crawl())
     except ValueError as exc:
         if str(exc) in {"SOURCE_ACCESS_BLOCKED", "SOURCE_CHALLENGE_PAGE",
-                        "SOURCE_EMPTY_EXTRACT", "LOCAL_CRAWL_FAILED"}:
+                        "SOURCE_EMPTY_EXTRACT", "LOCAL_CRAWL_FAILED",
+                        "LOCAL_CRAWL_NOT_SAFE_TO_RUN", "EGRESS_REFUSED"}:
             raise
         raise ValueError("LOCAL_CRAWL_RUNTIME_FAILED") from None
     except Exception as exc:

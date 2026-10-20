@@ -51,7 +51,12 @@ def view(root, *, task_kind=None):
     settings = runtime.config(root)
     if task_kind is not None and task_kind not in ROUTES:
         raise ValueError("UNKNOWN_RESEARCH_TASK_KIND")
-    budget = usage(root, settings["max_calls"])
+    current = runtime.status(root)
+    # The project counter is measured against the project ceiling, not the
+    # historical single ``max_calls``. Reading the wrong one made a run-level
+    # bound look like a project-wide one, and the ``remaining`` number disagreed
+    # with what the ledger would actually allow.
+    budget = usage(root, settings.get("project_max_calls", settings["max_calls"]))
     matrix = {}
     for capability in sorted(runtime.CORE):
         verdict = runtime.admission(root, capability)
@@ -65,14 +70,24 @@ def view(root, *, task_kind=None):
             "implemented_in_lite": True, "capability": capability, "status": state,
             "reason_code": verdict["reason_code"], "detail": verdict["detail"],
             "authorization_verified": allowed, "authentication_verified": False,
-            "credits_verified": False, "dollar_limit_enforced": False,
+            "credits_verified": False,
+            # Read from the same consent the ledger enforces. A hard-coded
+            # ``False`` here disagreed with ``runtime.status`` the moment an
+            # operator stated a USD cap, and the matrix is what a client reads.
+            "dollar_limit_enforced": bool(current.get("dollar_limit_enforced")),
+            "dollar_limit_enforcement": current.get("dollar_limit_enforcement"),
+            "budget_mode": current.get("budget_mode"),
+            "run_max_calls": current.get("run_max_calls"),
+            "project_max_calls": current.get("project_max_calls"),
+            "usd_caps": current.get("usd_caps"),
+            "pricing_source": current.get("pricing_source"),
         }
     route = None if task_kind is None else {
         "task_kind": task_kind, "mode": "MANAGED_FINITE_REQUESTS",
         "candidates": [matrix[name] for name in ROUTES[task_kind]],
         "instruction": "Choose an admitted capability; source quality and actual charges remain independently checked.",
     }
-    return {"runtime": runtime.status(root), "capability_matrix": matrix,
+    return {"runtime": current, "capability_matrix": matrix,
             "budgets": {"managed": budget}, "routing_advice": route,
             "providers": {
                 "serper": {"transport": "MANAGED_REST"},

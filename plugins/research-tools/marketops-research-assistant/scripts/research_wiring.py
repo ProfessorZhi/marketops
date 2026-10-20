@@ -488,14 +488,23 @@ class _GatewayAfterTheGate:
         if settings:
             import research_usage_ledger as usage
             project = usage.project_for_root(self._root)
-            ceiling = settings["max_calls"]
-            provider_ceiling = settings.get("provider_limits", {}).get(kwargs["account_ref"], ceiling)
-            for kind, key, limit in (("project", project, ceiling),
-                    ("run", f"{project}/{kwargs['run_id']}", ceiling),
-                    ("provider_account", f"{project}/{kwargs['account_ref']}/{kwargs['account_ref']}", provider_ceiling),
+            # The consent record is the single source of the run and project
+            # bounds. They are independent there, and the same call states any
+            # USD cap the operator consented to. Re-stating ``max_calls`` for
+            # both (the old code) silently widened a smaller run bound and
+            # dropped the money column on every managed call.
+            plan = runtime.state_ledger_caps(self._root, kwargs["run_id"],
+                                             project=project, ledger=self._built.ledger)
+            provider_ceiling = settings.get("provider_limits", {}).get(
+                kwargs["account_ref"], plan["max_calls"])
+            for kind, key, limit in (
+                    ("provider_account",
+                     f"{project}/{kwargs['account_ref']}/{kwargs['account_ref']}",
+                     provider_ceiling),
                     ("operation", f"{project}/*", 1)):
-                self._built.ledger.set_cap(kind, key, ceiling_calls=limit,
-                                           source="LOCAL_REQUEST_COUNT_CONSENT")
+                runtime.set_call_cap_preserving_money(
+                    self._built.ledger, kind, key, ceiling_calls=limit,
+                    source="LOCAL_REQUEST_COUNT_CONSENT")
         return self._built.invoke(**kwargs)
 
 

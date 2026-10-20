@@ -1,5 +1,10 @@
 # MarketOps RC 发行卫生与 release-readiness（2026-10-20）
 
+> **历史记录（Lane H / 0.5.6-rc1）。** RC2 已在独立分支
+> `rc/marketops-0.5.6-rc2-20261020` 上把版本推进到 `0.5.6-rc2`；
+> 本文保留 rc1 当时的证据，不重写。RC2 的集成与验证见
+> [`RC2-INTEGRATION.md`](RC2-INTEGRATION.md)。
+
 状态：**本 lane 的最小充分实现已完成；RC 仍为 DRAFT，不是正式发行批准。**
 
 - RC 基线：`rc/marketops-release-candidate-20261020@bf33e958e1c1906bd1d681362f3edf99bf473979`
@@ -30,7 +35,8 @@ semver 后缀，因此采用 `0.5.6-rc1`。新增
 ### 1.2 Lane B 合成私钥夹具的 gitleaks REVIEW
 
 原夹具是 `tests/test_client_view_generation.py` 中的
-`-----BEGIN RSA PRIVATE KEY-----\nMIIBsynthetic`，用于证明客户视图拒绝私钥材料。
+一段合成的 RSA 私钥头（仅含 `BEGIN … PRIVATE KEY` 字样，正文是无效 base64），
+用于证明客户视图拒绝私钥材料。此处不重复字面量，避免文档本身触发凭证扫描。
 它不是可用密钥（payload 不是合法 base64），但原先没有按 `REDACTION.md` 的惯例
 标注。现在：
 
