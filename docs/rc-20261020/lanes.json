@@ -15,7 +15,9 @@
         "plugins/research-tools/marketops-research-assistant/tests/test_research_delivery.py",
         "plugins/research-tools/marketops-research-assistant/tests/test_delivery_admission_gate.py"
       ],
-      "commits": []
+      "commits": [
+        "6b2548991acddc52d1efce0e344b3d8f704ece40"
+      ]
     },
     {
       "id": "B",
