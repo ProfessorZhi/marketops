@@ -16,6 +16,7 @@ from contextlib import closing
 from pathlib import Path
 
 import research_lite_store as store
+import research_source_selection as source_selection
 from research_event_journal import append_event, append_note
 
 MAX_ROWS = 20_000
@@ -327,8 +328,36 @@ def assess_records(run_id: str, records: list[dict], *, limit: int = 25) -> dict
             "warning": "Source presence and candidate disposition do not validate facts, SOP grade or market coverage."}
 
 
+def _advisory_selection(records: list[dict], result: dict, links: dict[str, set[str]],
+                        *, budget: dict | None, blocked_domains) -> dict | None:
+    """Bounded source advisory over the existing rows; never writes or searches."""
+    kind = result.get("target_kind")
+    if kind not in {"organization", "venue"}:
+        return None
+    active, _conflicts = active_records(records)
+    candidates = [row for row in active if row["kind"] == kind]
+    related_by_org = defaultdict(list)
+    for row in active:
+        if row["kind"] in {"person", "role", "contact_point", "relationship"}:
+            organization = (row.get("data") or {}).get("organization_id")
+            if isinstance(organization, str):
+                related_by_org[organization].append(row)
+    org_by_key = {row["entity_key"]: row for row in active if row["kind"] == "organization"}
+    sources = [row for row in active if row["kind"] == "source"]
+    blocked = source_selection.blocked_domains_from_sources(sources)
+    for domain in blocked_domains or ():
+        if isinstance(domain, str) and domain.strip():
+            blocked.add(domain.strip().casefold().removeprefix("www."))
+    return source_selection.select_next_sources(
+        brief=result, candidates=candidates,
+        related_by_org=related_by_org, org_by_key=org_by_key,
+        links_by_record=links, sources=sources,
+        budget=budget or {}, blocked_domains=blocked)
+
+
 def next_step(root: Path | str, run_id: str, limit: int = 25,
-              previous_snapshot_id: str = "", after_attempt: bool = False) -> dict:
+              previous_snapshot_id: str = "", after_attempt: bool = False, *,
+              budget: dict | None = None, blocked_domains=None) -> dict:
     """Read-only progress guard; no hidden scheduler or extra mutable state.
 
     An unchanged record snapshot after an attempted batch is a stop/switch
@@ -347,7 +376,15 @@ def next_step(root: Path | str, run_id: str, limit: int = 25,
             "SELECT record_id,stage,kind,status,entity_key,payload_json,artifact_ids_json "
             "FROM records WHERE run_id=? ORDER BY record_id LIMIT ?", (run_id, MAX_ROWS + 1)
         ).fetchall()
-    result = assess_records(run_id, [_decode(r) for r in rows], limit=limit)
+        link_rows = db.execute(
+            "SELECT record_id,field FROM evidence_links WHERE run_id=?", (run_id,)
+        ).fetchall()
+    records = [_decode(r) for r in rows]
+    links_by_record: dict[str, set[str]] = defaultdict(set)
+    for record_id, field in link_rows:
+        if isinstance(field, str):
+            links_by_record[record_id].add(field)
+    result = assess_records(run_id, records, limit=limit)
     if result.get("stage") in {"entities", "acquisition", "people", "review"}:
         result["candidate_write_contract"] = {
             "tool": "marketops_propose_batch",
@@ -380,6 +417,11 @@ def next_step(root: Path | str, run_id: str, limit: int = 25,
                              for row in rows if row[0] == result.get("brief_record_id")), {})
         if isinstance(requirements, dict):
             result["candidate_write_contract"]["brief_evidence_requirements"] = requirements
+    selection = _advisory_selection(records, result, links_by_record,
+                                    budget=budget, blocked_domains=blocked_domains)
+    if selection is not None:
+        result["source_selection"] = selection
+        result["next_best_source_action"] = selection.get("next_action")
     unchanged = bool(previous_snapshot_id) and previous_snapshot_id == result["snapshot_id"]
     if after_attempt and unchanged:
         return {**result, "progress_state": "NO_NEW_PERSISTED_RECORD_AFTER_ATTEMPT",

@@ -63,15 +63,30 @@ class ActiveWorkbookTests(unittest.TestCase):
             issues = list(csv.DictReader(f))
         self.assertFalse(any(row.get("对象ID") == "venue-v1" for row in issues))
 
+    def _seed_historical_branch(self):
+        """Seed a fork directly, as legacy data would have left it.
+
+        New writes refuse this shape (``test_rc4_supersedes_write_guard``); the
+        export path must still keep an *existing* fork in the audit rather than
+        picking a winner, which is what this test verifies.
+        """
+        import json
+        from datetime import datetime, timezone
+        with store._connection(self.root) as db:
+            db.execute("INSERT INTO records VALUES (?,?,?,?,?,?,?,?,?)", (
+                "venue-branch2", self.run_id, "entities", "venue",
+                "candidate_with_material", "sample-venue",
+                json.dumps({"name": "Branch Two", "supersedes": "venue-v1"},
+                           sort_keys=True),
+                json.dumps(["art-1"]),
+                datetime.now(timezone.utc).isoformat()))
+
     def test_fork_kept_in_audit_but_neither_branch_exported(self):
         store.put_candidate(self.root, self.run_id, "venue-branch1", "entities",
                             "venue", "sample-venue", {
                                 "name": "Branch One", "supersedes": "venue-v1",
                             }, ["art-1"])
-        store.put_candidate(self.root, self.run_id, "venue-branch2", "entities",
-                            "venue", "sample-venue", {
-                                "name": "Branch Two", "supersedes": "venue-v1",
-                            }, ["art-1"])
+        self._seed_historical_branch()
         _, records, _ = delivery._read_snapshot(self.root, self.run_id)
         active, conflicts = workflow.active_records(records)
         self.assertEqual(1, len(conflicts))

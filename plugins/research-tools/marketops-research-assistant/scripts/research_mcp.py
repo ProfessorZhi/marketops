@@ -31,7 +31,8 @@ from research_experience_summary import refresh_quietly as refresh_summary
 
 def next_step(run_id, limit=10, previous_snapshot_id="", after_attempt=False):
     """Bounded tasks; an unchanged snapshot after work triggers a stop/switch hint."""
-    result = workflow.next_step(root(), run_id, limit, previous_snapshot_id, after_attempt)
+    result = workflow.next_step(root(), run_id, limit, previous_snapshot_id, after_attempt,
+                                budget=_source_selection_budget(run_id))
     result["experience"] = _experience_view(run_id, stage=result.get("stage", "intake"))
     return result
 
@@ -196,6 +197,44 @@ def _capacity(limit: int, used: int | None) -> dict:
             "metric": "attempts_not_currency"}
 
 
+def _unknown_held(run_id: str) -> int | None:
+    """Read-only count of a Run's UNKNOWN charge rows; never creates the ledger."""
+    try:
+        path = root() / "state" / "usage-ledger.sqlite3"
+    except (ValueError, OSError):
+        return None
+    if not path.is_file():
+        return 0
+    try:
+        with sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=2) as db:
+            return int(db.execute(
+                "SELECT COUNT(*) FROM operations WHERE run_id=? AND charge_state='UNKNOWN'",
+                (run_id,)).fetchone()[0])
+    except (sqlite3.Error, OSError):
+        return None
+
+
+def _source_selection_budget(run_id: str) -> dict:
+    """Local budget facts for the advisory; a missing value stays None, never 0."""
+    try:
+        search = dual_search_mcp._configuration()
+        search_remaining = _capacity(
+            search["max_total_reserved_calls"],
+            _ledger_usage("dual-search-ledger.sqlite3", "search_attempts"))["remaining"]
+    except Exception:  # noqa: BLE001 - an unavailable budget is unknown, not zero
+        search_remaining = None
+    try:
+        provider_remaining = _capacity(
+            extra._limit(),
+            _ledger_usage("provider-reservations.sqlite3",
+                          "provider_reservations"))["remaining"]
+    except Exception:  # noqa: BLE001
+        provider_remaining = None
+    return {"search_remaining": search_remaining,
+            "provider_remaining": provider_remaining,
+            "unknown_held": _unknown_held(run_id)}
+
+
 # --- the converged read model ---------------------------------------------
 # One number for a run's metered operations, across every transport and every
 # provider. Before this, a run's spending was only visible per ledger file, so
@@ -345,7 +384,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         configured_root = None
     if configured_root is not None and runtime_setup.config(configured_root):
         from research_runtime_status import view
-        return {"product": "MarketOps Research MCP", "version": "0.5.6-rc3",
+        return {"product": "MarketOps Research MCP", "version": "0.5.6-rc4",
                 **view(configured_root, task_kind=task_kind),
                 "external_host": _external_inventory(host_observed_tools),
                 "embedded_official_mcp": provider_policy.embedded_official_mcp_capabilities(),
@@ -420,7 +459,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         if task_kind else None)
     return {
         "product": "MarketOps Lite Research MCP",
-        "version": "0.5.6-rc3",
+        "version": "0.5.6-rc4",
         "providers": {
             "serpapi": {"transport": "REST through local MCP", **search["serpapi"]},
             "serper": {"transport": "REST through local MCP", **search["serper"]},
@@ -796,7 +835,7 @@ def handoff(run_id, operation_id):
     try:
         experience_result = draft_experience(
             r, run_id=run_id, scope=head["scope"],
-            rule_version=head["rule_version"], skill_version="0.5.6-rc3",
+            rule_version=head["rule_version"], skill_version="0.5.6-rc4",
             output=experience_path)
         result["experience_candidate"] = str(experience_path)
         result["experience_incidents"] = experience_result["incidents"]
@@ -915,7 +954,7 @@ def build_server():
     from research_credentials import load_into_environment
     load_into_environment()
     from mcp.server import MCPServer
-    mcp = MCPServer("MarketOps Lite Research", version="0.5.6-rc3")
+    mcp = MCPServer("MarketOps Lite Research", version="0.5.6-rc4")
 
     def tool(fn):
         return mcp.tool()(_guarded(fn))
@@ -1219,7 +1258,7 @@ def build_server():
             raise ValueError("EXPERIENCE_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT")
         output.parent.mkdir(parents=True, exist_ok=True)
         return draft_experience(r, run_id=run_id, scope=scope,
-                                rule_version=rule_version, skill_version="0.5.6-rc3",
+                                rule_version=rule_version, skill_version="0.5.6-rc4",
                                 output=output)
 
     @tool

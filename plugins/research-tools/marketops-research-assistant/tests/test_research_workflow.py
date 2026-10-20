@@ -140,13 +140,17 @@ class WorkflowTests(unittest.TestCase):
         self.disposition("RESEARCHED_CANDIDATE", rid="review-r2", supersedes="review-r")
         self.assertTrue(workflow.next_step(self.root, "run-a")["goal_satisfied"])
 
-    def test_forked_dispositions_are_conflicts(self):
+    def test_forked_dispositions_are_refused_at_write_time(self):
         self.brief()
         self.organization()
         self.disposition("HOLD")
-        self.disposition("EXCLUDED", rid="review-r2")
-        result = workflow.next_step(self.root, "run-a")
-        self.assertIn("disposition_version_conflict", result["gap_counts"])
+        with self.assertRaises(ValueError) as ctx:
+            self.disposition("EXCLUDED", rid="review-r2")
+        self.assertIn("TARGET_DISPOSITION_ALREADY_EXISTS", str(ctx.exception))
+        # The first disposition is still the only one; history was not rewritten.
+        rows = store.list_run(self.root, "run-a", limit=100)["records"]
+        self.assertEqual(["review-r"],
+                         [row["record_id"] for row in rows if row["kind"] == "review"])
 
     def test_invalid_brief_and_boolean_integer_rejected(self):
         self.brief(minimum=True)

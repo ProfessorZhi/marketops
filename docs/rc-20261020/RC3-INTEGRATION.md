@@ -1,5 +1,8 @@
 # MarketOps 0.5.6-rc3 集成记录（2026-10-20）
 
+> **历史记录（RC3）。** 后续写入时 supersedes 校验与缺口驱动来源选择见
+> [`RC4-INTEGRATION.md`](RC4-INTEGRATION.md)。
+
 状态：**DRAFT / RC3 candidate — 不是正式发布**。未合并 `main`，未创建 GitHub Release，
 未调用真实付费 Provider，未发邮件，未改共享凭据、系统策略或全局配置。
 

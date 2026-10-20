@@ -87,6 +87,10 @@ class ToolSurfaceTests(unittest.TestCase):
                              result["assessment_scope"])
             self.assertIn(result["status"], {"READY_FOR_CANDIDATE_REVIEW",
                                              "MORE_RESEARCH_REQUIRED", "STOPPED_WITH_GAPS"})
+            self.assertIn("source_selection", result)
+            self.assertEqual("marketops.source-selection/1",
+                             result["source_selection"]["schema"])
+            self.assertIn("budget", result["source_selection"])
 
     def test_next_refuses_a_missing_store_instead_of_reporting_success(self):
         with tempfile.TemporaryDirectory() as tmp, isolated(tmp) as (data, _exp):

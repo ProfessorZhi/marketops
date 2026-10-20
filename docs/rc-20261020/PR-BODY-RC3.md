@@ -1,5 +1,8 @@
 # MarketOps 0.5.6-rc3 — P0 evidence fixes and automatic client view (DRAFT)
 
+> Historical RC3 body. The current candidate is 0.5.6-rc4; see
+> [`PR-BODY-RC4.md`](PR-BODY-RC4.md) and [`RC4-INTEGRATION.md`](RC4-INTEGRATION.md).
+
 **Status: DRAFT — not a release. Do not merge to `main`. Do not publish or overwrite
 the existing `0.5.5`, `0.5.6-rc1` or `0.5.6-rc2` ZIPs.**
 

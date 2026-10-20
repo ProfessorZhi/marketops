@@ -64,6 +64,8 @@ LANE_TESTS = (
     ("G13-RC3", "rc3-evidence-p0", ["test_rc3_evidence_p0.py"]),
     ("G14-RC3", "rc3-release-qa", ["test_rc3_release_qa.py"]),
     ("G16-RC3", "rc3-release-gate-status", ["test_rc3_release_gate_status.py"]),
+    ("G17-RC4", "rc4-supersedes-guard", ["test_rc4_supersedes_write_guard.py"]),
+    ("G18-RC4", "rc4-source-selection", ["test_rc4_source_selection.py"]),
 )
 
 _SECRET_PATTERNS = (

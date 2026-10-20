@@ -260,6 +260,178 @@ def save_artifact(root: Path | str | None, run_id: str, artifact_id: str,
             "storage_status": "SAVED_NOT_BUSINESS_VERIFIED"}
 
 
+def _supersedes_error(code: str, detail: str) -> ValueError:
+    """Stable, material-free refusal text; the caller can act on the code."""
+    return ValueError(code + ": " + detail)
+
+
+def _validate_supersedes(db: sqlite3.Connection, run_id: str, record_id: str,
+                         stage: str, kind: str, entity_key: str,
+                         payload: dict) -> None:
+    """Validate an append-only correction *inside* the write transaction.
+
+    The Essex run wrote seven review revisions whose ``supersedes`` pointed at an
+    old record but whose ``entity_key`` was new. The old write accepted them and
+    the fork only became visible at export (``DISPOSITION_VERSION_CONFLICT``),
+    after the paid work was done. A correction must reuse the previous version's
+    run, kind, stage and entity_key; the caller may not "inherit" a new entity key
+    by assertion. Nothing here rewrites the caller's facts or touches old rows.
+    """
+    parent = payload.get("supersedes")
+    if parent is None or parent == "":
+        # A first disposition is legal; a second one for the same target is a
+        # fork even without `supersedes`, because the export cannot choose.
+        if kind == "review" and payload.get("review_type") == "target_disposition":
+            target_kind = payload.get("target_kind")
+            target_key = payload.get("target_entity_key")
+            if not isinstance(target_kind, str) or not isinstance(target_key, str):
+                raise _supersedes_error(
+                    "TARGET_DISPOSITION_FIELDS_INVALID",
+                    "target_disposition needs target_kind and target_entity_key")
+            siblings = db.execute(
+                "SELECT record_id,payload_json FROM records WHERE run_id=? AND kind='review'",
+                (run_id,)).fetchall()
+            for sibling_id, sibling_body in siblings:
+                try:
+                    sibling = json.loads(sibling_body)
+                except (TypeError, ValueError):
+                    continue
+                if (isinstance(sibling, dict)
+                        and sibling.get("review_type") == "target_disposition"
+                        and sibling.get("target_kind") == target_kind
+                        and sibling.get("target_entity_key") == target_key):
+                    raise _supersedes_error(
+                        "TARGET_DISPOSITION_ALREADY_EXISTS",
+                        f"target {target_kind}/{target_key} already has disposition "
+                        f"{sibling_id}; append a revision with facts.supersedes={sibling_id} "
+                        "and reuse its entity_key")
+        return
+    if not isinstance(parent, str) or not ID.fullmatch(parent):
+        raise _supersedes_error(
+            "SUPERSEDES_INVALID",
+            "facts.supersedes must be an existing record_id string")
+    if parent == record_id:
+        raise _supersedes_error(
+            "SUPERSEDES_SELF_REFERENCE",
+            "a record cannot supersede itself; append a new record_id")
+    row = db.execute(
+        "SELECT run_id,stage,kind,entity_key,payload_json FROM records WHERE record_id=?",
+        (parent,)).fetchone()
+    if row is None:
+        raise _supersedes_error(
+            "SUPERSEDES_UNKNOWN_RECORD",
+            f"previous record {parent} does not exist in this store; append a new "
+            "candidate instead of inventing a parent")
+    p_run, p_stage, p_kind, p_entity, p_body = row
+    if p_run != run_id:
+        raise _supersedes_error(
+            "SUPERSEDES_CROSS_RUN",
+            f"previous record {parent} belongs to another run; corrections stay "
+            "inside one run")
+    if p_kind != kind:
+        raise _supersedes_error(
+            "SUPERSEDES_KIND_MISMATCH",
+            f"reuse kind {p_kind} from {parent}")
+    if p_stage != stage:
+        raise _supersedes_error(
+            "SUPERSEDES_STAGE_MISMATCH",
+            f"reuse stage {p_stage} from {parent}")
+    if p_entity != entity_key:
+        raise _supersedes_error(
+            "SUPERSEDES_ENTITY_KEY_MISMATCH",
+            f"reuse entity_key from {parent}")
+    # The parent must be the unique live tip of its own kind/entity group. A
+    # parent that is already superseded, or a group with a fork, would create a
+    # second branch; refuse rather than pick a winner.
+    group = db.execute(
+        "SELECT record_id,payload_json FROM records WHERE run_id=? AND kind=? AND "
+        "entity_key=?", (run_id, kind, entity_key)).fetchall()
+    parents = set()
+    for group_id, body in group:
+        try:
+            data = json.loads(body)
+        except (TypeError, ValueError):
+            data = {}
+        value = data.get("supersedes") if isinstance(data, dict) else None
+        if isinstance(value, str) and value:
+            parents.add(value)
+    tips = {group_id for group_id, _ in group if group_id not in parents}
+    if len(tips) != 1:
+        raise _supersedes_error(
+            "SUPERSEDES_FORKED_HISTORY",
+            f"{kind}/{entity_key} already has {len(tips)} live tips; resolve the "
+            "existing fork before appending another revision")
+    if parent not in tips:
+        tip = next(iter(tips))
+        raise _supersedes_error(
+            "SUPERSEDES_NOT_CURRENT_TIP",
+            f"previous record {parent} is not the current tip; append against {tip}")
+    # Walk the chain for a cycle. The table is bounded by MAX_ROWS in the read
+    # model, and a small cap here stops a corrupted chain from looping.
+    seen = {record_id, parent}
+    current = parent
+    for _ in range(1000):
+        body = db.execute("SELECT payload_json FROM records WHERE record_id=?",
+                          (current,)).fetchone()
+        if body is None:
+            break
+        try:
+            data = json.loads(body[0])
+        except (TypeError, ValueError):
+            break
+        nxt = data.get("supersedes") if isinstance(data, dict) else None
+        if not isinstance(nxt, str) or not nxt:
+            break
+        if nxt in seen:
+            raise _supersedes_error(
+                "SUPERSEDES_CYCLE",
+                f"the supersedes chain through {parent} is cyclic")
+        seen.add(nxt)
+        current = nxt
+
+    if kind == "review" and payload.get("review_type") == "target_disposition":
+        target_kind = payload.get("target_kind")
+        target_key = payload.get("target_entity_key")
+        if not isinstance(target_kind, str) or not isinstance(target_key, str):
+            raise _supersedes_error(
+                "TARGET_DISPOSITION_FIELDS_INVALID",
+                "target_disposition needs target_kind and target_entity_key")
+        try:
+            parent_data = json.loads(p_body)
+        except (TypeError, ValueError):
+            parent_data = {}
+        if (not isinstance(parent_data, dict)
+                or parent_data.get("review_type") != "target_disposition"
+                or parent_data.get("target_kind") != target_kind
+                or parent_data.get("target_entity_key") != target_key):
+            raise _supersedes_error(
+                "SUPERSEDES_REVIEW_TARGET_MISMATCH",
+                f"reuse review target from {parent}; a revision may not move to a "
+                "different target entity")
+        # One live disposition per target. A different review record already
+        # holding this target is a fork, even if it is not the parent.
+        siblings = db.execute(
+            "SELECT record_id,payload_json FROM records WHERE run_id=? AND kind='review'",
+            (run_id,)).fetchall()
+        for sibling_id, sibling_body in siblings:
+            # Ancestors of this parent are history, not a competing branch.
+            if sibling_id in seen:
+                continue
+            try:
+                sibling = json.loads(sibling_body)
+            except (TypeError, ValueError):
+                continue
+            if (isinstance(sibling, dict)
+                    and sibling.get("review_type") == "target_disposition"
+                    and sibling.get("target_kind") == target_kind
+                    and sibling.get("target_entity_key") == target_key):
+                raise _supersedes_error(
+                    "TARGET_DISPOSITION_ALREADY_EXISTS",
+                    f"target {target_kind}/{target_key} already has disposition "
+                    f"{sibling_id}; append a revision with facts.supersedes={sibling_id} "
+                    "and reuse its entity_key")
+
+
 def _insert_candidate(db: sqlite3.Connection, run_id: str, record_id: str,
                       stage: str, kind: str, entity_key: str, payload: dict,
                       artifact_ids: list[str] | None = None) -> dict:
@@ -291,6 +463,7 @@ def _insert_candidate(db: sqlite3.Connection, run_id: str, record_id: str,
         if prior != (run_id, stage, kind, entity_key, body, refs):
             raise ValueError("RECORD_ID_COLLISION_OR_CROSS_RUN: append a new ID")
         return {"record_id": record_id, "status": "IDEMPOTENT"}
+    _validate_supersedes(db, run_id, record_id, stage, kind, entity_key, payload)
     status = "candidate_with_material" if ids else "candidate_unverified"
     db.execute("INSERT INTO records VALUES (?,?,?,?,?,?,?,?,?)",
                (record_id, run_id, stage, kind, status, entity_key,
