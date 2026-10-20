@@ -1,15 +1,73 @@
 """No-network installation and metadata conformance tests."""
 from __future__ import annotations
+import contextlib
+import importlib.util
+import io
 import json
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import setup_clients as install
 import build_client_bundles as bundles
+
+
+class RefusalReportingTests(unittest.TestCase):
+    """A refused install must say what to do next, and never quote a provider."""
+
+    @staticmethod
+    def _blocked(exc):
+        buffer = io.StringIO()
+        argv = ["setup_clients.py", "--destination", "/tmp/marketops-unused",
+                "--client", "claude"]
+        with mock.patch.object(install, "plan", side_effect=exc),                 mock.patch.object(sys, "argv", argv),                 contextlib.redirect_stderr(buffer):
+            status = install.main()
+        lines = [line for line in buffer.getvalue().splitlines() if line.startswith("{")]
+        return status, json.loads(lines[-1]), buffer.getvalue()
+
+    def test_a_missing_venv_component_names_the_component_to_install(self):
+        # A stock Ubuntu 24.04 has python3.12 without ensurepip; the old output was
+        # a bare code, which tells the customer nothing they can act on.
+        status, report, text = self._blocked(
+            ValueError("PYTHON_ENSUREPIP_UNAVAILABLE: install the Python 3.12 venv component"))
+        self.assertEqual(2, status)
+        self.assertEqual("PYTHON_ENSUREPIP_UNAVAILABLE", report["code"])
+        self.assertIn("python3.12-venv", report["detail"])
+        self.assertIn("python3.12-venv", text, "the console line must carry it too")
+
+    def test_the_venv_check_raises_a_code_the_report_can_match(self):
+        with tempfile.TemporaryDirectory() as tmp,                 mock.patch.object(importlib.util, "find_spec", return_value=None):
+            with self.assertRaises(ValueError) as caught:
+                install.plan(Path(tmp) / "app", "claude")
+        code = str(caught.exception).split(":", 1)[0]
+        self.assertEqual("PYTHON_ENSUREPIP_UNAVAILABLE", code)
+        self.assertIn(code, install.REMEDIES)
+
+    def test_an_occupied_destination_is_a_code_rather_than_a_sentence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "app"
+            target.mkdir()
+            (target / "keep.txt").write_text("x", encoding="utf-8")
+            with self.assertRaises(FileExistsError) as caught:
+                install.plan(target, "claude")
+        self.assertEqual("INSTALL_TARGET_NOT_OWNED", str(caught.exception))
+
+    def test_a_message_that_is_not_a_code_is_not_reported_as_one(self):
+        status, report, _ = self._blocked(ValueError("Requires Python 3.11"))
+        self.assertEqual(2, status)
+        self.assertEqual("INSTALL_CONFIGURATION_INVALID", report["code"])
+        self.assertNotIn("detail", report)
+
+    def test_an_unknown_code_carries_no_exception_text(self):
+        status, report, text = self._blocked(ValueError("PROVIDER_SAID: token=sk-live-9f"))
+        self.assertEqual(2, status)
+        self.assertEqual("PROVIDER_SAID", report["code"])
+        self.assertNotIn("sk-live-9f", text, "command and provider text is never echoed")
+        self.assertNotIn("detail", report)
 
 
 class StartHereGuideTests(unittest.TestCase):

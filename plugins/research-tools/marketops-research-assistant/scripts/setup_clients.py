@@ -8,6 +8,7 @@ import importlib.util
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -19,6 +20,47 @@ VERSION = "0.5.4"
 CLIENTS = ("codex", "workbuddy", "both", "claude", "all")
 STATE_FILE = "INSTALL_STATE.json"
 STATE_OWNER = "marketops.setup_clients.v1"
+
+#: One sentence the customer can act on, per refusal this installer decides.
+#:
+#: Only these texts are ever printed back. Command output and provider errors
+#: are not: they can carry this machine's paths and credentials.
+REMEDIES = {
+    "PYTHON_312_64BIT_REQUIRED":
+        "Install 64-bit Python 3.12 (python.org or uv) and run the installer again.",
+    "PYTHON_ENSUREPIP_UNAVAILABLE":
+        "The Python 3.12 venv component is missing. Ubuntu/Debian: "
+        "sudo apt install python3.12-venv; or use a python.org/uv Python 3.12.",
+    "SUPPORTED_PLATFORM_WINDOWS_OR_LINUX_X64_REQUIRED":
+        "This package installs on Windows or Linux, x64 only.",
+    "DESTINATION_OVERLAPS_SOURCE":
+        "Choose an installation directory separate from the unpacked package.",
+    "UNSUPPORTED_SETUP_CLIENT":
+        "Use --client claude, codex, workbuddy, both or all.",
+    "INSTALL_TARGET_NOT_OWNED":
+        "The destination is not empty. Use an empty directory, or --resume on the "
+        "destination this package installed before.",
+    "SYMLINK_IN_PACKAGE":
+        "Re-extract the package: a symlink inside it means the download was modified.",
+    "BUILD_QA_STALE_OR_INVALID":
+        "Re-download the release: the QA receipt does not describe these files.",
+    "PLATFORM_DEPENDENCY_LOCK_MISSING":
+        "Re-extract the package: its dependency lock for this platform is missing.",
+}
+
+
+def _refusal_code(exc: BaseException) -> str:
+    """The stable code a customer, a support thread or a test can match on.
+
+    Anything not shaped like ``CAPS_WITH_UNDERSCORES`` before the first colon is
+    reported as a configuration problem rather than echoed as if it were a code.
+    """
+    if isinstance(exc, (ValueError, FileExistsError)):
+        head = str(exc).split(":", 1)[0].strip()
+        if re.fullmatch(r"[A-Z][A-Z0-9_]{2,80}", head):
+            return head
+        return "INSTALL_CONFIGURATION_INVALID"
+    return "INSTALL_STEP_FAILED"
 
 
 def source_files():
@@ -83,9 +125,9 @@ def plan(destination: Path, client: str, *, resume: bool = False) -> dict:
         raise ValueError("UNSUPPORTED_SETUP_CLIENT")
     dest = destination.expanduser().resolve()
     if dest == SOURCE or SOURCE in dest.parents or dest in SOURCE.parents:
-        raise ValueError("Destination must not overwrite or nest within plugin checkout")
+        raise ValueError("DESTINATION_OVERLAPS_SOURCE")
     if sys.version_info[:2] != (3, 12):
-        raise ValueError("Requires Python 3.12 (64-bit)")
+        raise ValueError("PYTHON_312_64BIT_REQUIRED")
     if sys.platform not in {"win32", "linux"} or platform.machine().lower() not in {"amd64", "x86_64"}:
         raise ValueError("SUPPORTED_PLATFORM_WINDOWS_OR_LINUX_X64_REQUIRED")
     if importlib.util.find_spec("ensurepip") is None:
@@ -93,7 +135,7 @@ def plan(destination: Path, client: str, *, resume: bool = False) -> dict:
     if dest.exists() and any(dest.iterdir()):
         state_path = dest / STATE_FILE
         if not resume or not state_path.is_file() or state_path.is_symlink():
-            raise FileExistsError("Refusing to replace an unowned or existing install; use --resume only for this installer")
+            raise FileExistsError("INSTALL_TARGET_NOT_OWNED")
         state = json.loads(state_path.read_text(encoding="utf-8"))
         if (state.get("owner") != STATE_OWNER or state.get("source_sha256") != source_digest()
                 or state.get("client") != client or state.get("destination") != str(dest)):
@@ -440,11 +482,14 @@ def main() -> int:
         return 2 if result.get("status") == "INSTALL_VALIDATION_INCOMPLETE" else 0
     except (OSError, ValueError, subprocess.CalledProcessError) as exc:
         # Error output deliberately excludes stdout/stderr from command execution.
-        code = str(exc).split(":", 1)[0] if isinstance(exc, ValueError) else "INSTALL_STEP_FAILED"
-        if not code or any(ch not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ_" for ch in code):
-            code = "INSTALL_CONFIGURATION_INVALID"
-        print(json.dumps({"status": "INSTALL_BLOCKED",
-                          "reason_type": type(exc).__name__, "code": code}), file=sys.stderr)
+        code = _refusal_code(exc)
+        remedy = REMEDIES.get(code)
+        if remedy:
+            print(f"INSTALL_BLOCKED: {code}: {remedy}", file=sys.stderr)
+        report = {"status": "INSTALL_BLOCKED", "reason_type": type(exc).__name__, "code": code}
+        if remedy:
+            report["detail"] = remedy
+        print(json.dumps(report), file=sys.stderr)
         return 2
 
 

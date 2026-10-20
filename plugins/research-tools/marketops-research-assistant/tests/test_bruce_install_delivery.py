@@ -124,8 +124,14 @@ class DeliveryTests(unittest.TestCase):
 
     def test_unsupported_python_is_rejected_before_writing(self):
         with tempfile.TemporaryDirectory() as tmp, patch.object(setup_clients.sys, "version_info", (3, 11, 9)):
-            with self.assertRaisesRegex(ValueError, "Python 3.12"):
+            with self.assertRaisesRegex(ValueError, "PYTHON_312_64BIT_REQUIRED") as caught:
                 setup_clients.plan(Path(tmp) / "new", "codex")
+        self.assertIn("PYTHON_312_64BIT_REQUIRED", setup_clients.REMEDIES)
+        self.assertIn("Python 3.12", setup_clients.REMEDIES["PYTHON_312_64BIT_REQUIRED"])
+
+    def test_an_overlapping_destination_is_a_code_the_report_can_carry(self):
+        with self.assertRaisesRegex(ValueError, "DESTINATION_OVERLAPS_SOURCE"):
+            setup_clients.plan(setup_clients.SOURCE / "app", "codex")
 
     def test_owned_partial_install_can_resume_after_failure(self):
         with tempfile.TemporaryDirectory() as tmp:
