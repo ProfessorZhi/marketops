@@ -78,7 +78,8 @@ __all__ = [
     "MICRO", "ID", "ChargeState", "ActualSource", "Price", "PricingCatalog",
     "PricingConfigInvalid", "OperationRequest", "Operation", "Usage", "UsageLedger",
     "LedgerRefused", "default_path", "for_root", "project_for_root",
-    "documented_pricing", "DOCUMENTED_CREDIT_RATES", "main",
+    "documented_pricing", "configured_pricing", "usd_cap_basis",
+    "EXECUTION_OUTCOMES", "DOCUMENTED_CREDIT_RATES", "main",
     # the campaign floor: 20% of a frozen B0, and TinyFish's explicit US$0.20
     "USD_MICROS", "CAMPAIGN_FLOOR_RATIO", "CAMPAIGN_MAX_DRAWDOWN_RATIO",
     "TINYFISH_MINIMUM_USD", "TINYFISH_MINIMUM_MICROS", "TINYFISH_PROVIDER",
@@ -102,8 +103,15 @@ _CEILING_CODE = {
     "project": "BUDGET_PROJECT_CEILING",
 }
 NO_CHARGE_REASONS = frozenset({"PRE_DISPATCH_REFUSAL"})
+#: Why the *charge* is uncertain. ``PROVIDER_ERROR_UNVERIFIED`` is an execution
+#: failure whose billing cannot be established; ``CHARGE_UNVERIFIED_AFTER_SUCCESS``
+#: is the separate case where the call succeeded and only its cost is unknown.
 UNKNOWN_REASONS = frozenset({"PROVIDER_TIMEOUT", "PROCESS_DIED", "PROVIDER_ERROR_UNVERIFIED",
-                             "AMBIGUOUS_RESPONSE"})
+                             "CHARGE_UNVERIFIED_AFTER_SUCCESS", "AMBIGUOUS_RESPONSE"})
+#: What the adapter observed about execution, kept apart from the charge state. An
+#: empty value means nobody recorded it (for example an imported legacy row or a
+#: process that died before the outcome was known).
+EXECUTION_OUTCOMES = frozenset({"OK", "FAILED", "BLOCKED", "UNKNOWN"})
 MAX_ARGS_BYTES = 64 * 1024
 
 #: The units a vendor counts in. Closed list, because a free-form label lets a
@@ -134,6 +142,27 @@ def _usd_price_is_known(price: "Price") -> bool:
     calls while its committed dollars stayed at zero.
     """
     return bool(price.free_tier or price.unit_micros > 0)
+
+
+def usd_cap_basis(price: "Price | None") -> tuple[bool, str]:
+    """Whether a recorded rate is a *provable* upper bound for a USD ceiling.
+
+    A money ceiling is a promise that no call can exceed a dollar amount. That
+    promise needs a rate the ledger can multiply by the request's units before
+    dispatch; a placeholder zero (``unit_micros=0``, ``free_tier=False``) or an
+    unverified rate cannot support it. Returning the basis rather than a bare
+    boolean keeps the refusal actionable: "no price" and "price nobody confirmed"
+    are different repairs.
+    """
+    if price is None:
+        return False, "PRICE_MISSING"
+    if not price.free_tier and price.unit_micros <= 0:
+        return False, "PRICE_PLACEHOLDER_ZERO"
+    if not price.verified:
+        return False, "PRICE_UNVERIFIED"
+    if price.free_tier:
+        return True, "VERIFIED_FREE_TIER"
+    return True, "VERIFIED_RATE"
 
 
 def display_actual_micros(operation):
@@ -419,6 +448,11 @@ class Operation:
     dispatch_intent_at: str | None
     settled_at: str | None
     reconciled_at: str | None
+    #: Execution state as the adapter observed it (``OK``/``FAILED``/``UNKNOWN``),
+    #: or empty when nobody recorded one. Deliberately not the same column as
+    #: ``outcome``: ``charge_state``/``outcome`` say what is known about the money,
+    #: this says what happened.
+    execution_outcome: str = ""
 
     @property
     def held_micros(self) -> int:
@@ -449,6 +483,9 @@ class Usage:
     calls_used: int
     seconds_used: int
     quota_units: int
+    #: Whether this ceiling was explicitly declared a USD ceiling. A call-count
+    #: ceiling is a non-dollar mode even when a micro-USD column exists.
+    usd_enforced: bool = False
 
     @property
     def held_micros(self) -> int:
@@ -802,7 +839,8 @@ class UsageLedger:
                 origin TEXT NOT NULL DEFAULT 'native', legacy_ref TEXT,
                 counts_against_caps INTEGER NOT NULL DEFAULT 1,
                 created_at TEXT NOT NULL, dispatch_intent_at TEXT,
-                settled_at TEXT, reconciled_at TEXT
+                settled_at TEXT, reconciled_at TEXT,
+                execution_outcome TEXT NOT NULL DEFAULT ''
             )""")
         # The same logical operation may not be bought twice in a run, whatever
         # operation_id it arrives under and whichever transport carries it.
@@ -827,14 +865,36 @@ class UsageLedger:
                 # duplicate is the success case rather than an initialisation failure.
                 if "duplicate column" not in str(exc).casefold():
                     raise
+        if "execution_outcome" not in present:
+            # Kept beside the money columns rather than folded into ``outcome``:
+            # a successful call with an unknown charge and a failed call with an
+            # unknown charge are different facts, and one column cannot hold both.
+            try:
+                db.execute("ALTER TABLE operations ADD COLUMN execution_outcome TEXT "
+                           "NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError as exc:
+                if "duplicate column" not in str(exc).casefold():
+                    raise
         db.execute("""
             CREATE TABLE IF NOT EXISTS caps (
                 scope_kind TEXT NOT NULL, scope_key TEXT NOT NULL, window TEXT NOT NULL,
                 period_key TEXT NOT NULL DEFAULT '',
                 ceiling_micros INTEGER, ceiling_calls INTEGER, ceiling_seconds INTEGER,
+                usd_enforced INTEGER NOT NULL DEFAULT 0,
                 source TEXT NOT NULL, updated_at TEXT NOT NULL,
                 PRIMARY KEY (scope_kind, scope_key, window)
             )""")
+        cap_columns = {row["name"] for row in db.execute("PRAGMA table_info(caps)")}
+        if "usd_enforced" not in cap_columns:
+            # A database written before this column existed keeps its old caps. They
+            # stay non-dollar ceilings rather than being retroactively read as a
+            # promise nobody made.
+            try:
+                db.execute("ALTER TABLE caps ADD COLUMN usd_enforced INTEGER NOT NULL "
+                           "DEFAULT 0")
+            except sqlite3.OperationalError as exc:
+                if "duplicate column" not in str(exc).casefold():
+                    raise
         db.execute("""
             CREATE TABLE IF NOT EXISTS events (
                 seq INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -984,19 +1044,33 @@ class UsageLedger:
             ceiling_seconds=cap["ceiling_seconds"], source=cap["source"],
             spent_micros=row["spent"], reserved_micros=row["reserved"],
             unknown_micros=row["unknown"], calls_used=row["calls"],
-            seconds_used=row["seconds"], quota_units=row["quota"])
+            seconds_used=row["seconds"], quota_units=row["quota"],
+            usd_enforced=bool(cap["usd_enforced"]))
 
     def set_cap(self, scope_kind: str, scope_key: str, *, ceiling_micros: int | None = None,
                 ceiling_calls: int | None = None, ceiling_seconds: int | None = None,
-                window: str = "total", source: str) -> Usage:
+                window: str = "total", source: str,
+                usd_enforced: bool = False) -> Usage:
         """State a ceiling, and name who stated it.
 
         A ceiling without a name is not readable later: "who allowed this run to
         spend 200 USD" has to be answerable from the ledger itself.
+
+        ``usd_enforced`` is the operator's explicit statement that ``ceiling_micros``
+        is a dollar promise rather than a number nobody relies on. Only then does
+        ``reserve`` require a provable USD rate; every other ceiling remains a
+        request/credit bound (the default deployment's mode).
         """
         self._scope_where(scope_kind, scope_key)
         if window not in WINDOWS:
             raise LedgerRefused("INVALID_REQUEST", f"unknown cap window {window!r}")
+        if type(usd_enforced) is not bool:
+            raise LedgerRefused("INVALID_REQUEST", "usd_enforced must be bool")
+        if usd_enforced and ceiling_micros is None:
+            raise LedgerRefused(
+                "USD_ENFORCEMENT_REQUIRES_CEILING",
+                "usd_enforced=True without ceiling_micros would claim a dollar bound "
+                "that has no amount; state the ceiling or leave the flag off")
         if not isinstance(source, str) or not source.strip():
             raise LedgerRefused("CAP_SOURCE_REQUIRED",
                                 "a ceiling must name the operator or policy that set it")
@@ -1025,14 +1099,17 @@ class UsageLedger:
                                     f"{scope_key} has already used {current.calls_used} calls")
             db.execute(
                 "INSERT INTO caps (scope_kind, scope_key, window, period_key, ceiling_micros,"
-                " ceiling_calls, ceiling_seconds, source, updated_at) VALUES (:kind, :key,"
-                " :window, :period, :money, :calls, :seconds, :source, :now)"
+                " ceiling_calls, ceiling_seconds, usd_enforced, source, updated_at)"
+                " VALUES (:kind, :key, :window, :period, :money, :calls, :seconds,"
+                " :usd_enforced, :source, :now)"
                 " ON CONFLICT (scope_kind, scope_key, window) DO UPDATE SET"
                 " ceiling_micros=excluded.ceiling_micros, ceiling_calls=excluded.ceiling_calls,"
-                " ceiling_seconds=excluded.ceiling_seconds, source=excluded.source,"
+                " ceiling_seconds=excluded.ceiling_seconds,"
+                " usd_enforced=excluded.usd_enforced, source=excluded.source,"
                 " updated_at=excluded.updated_at",
                 {"kind": scope_kind, "key": scope_key, "window": window, "period": period,
                  "money": ceiling_micros, "calls": ceiling_calls, "seconds": ceiling_seconds,
+                 "usd_enforced": int(usd_enforced),
                  "source": source.strip(), "now": self._now().isoformat()})
         return self.remaining(scope_kind, scope_key, window=window)
 
@@ -1153,12 +1230,19 @@ class UsageLedger:
         quota: dict[str, int] = {}
         providers: dict[str, dict[str, int]] = {}
         evidence = {"verified": 0, "unverified": 0}
+        by_unknown_reason: dict[str, int] = {}
+        by_execution_outcome: dict[str, int] = {}
         legacy = 0
         legacy_unverified_zeros = 0
         for row in rows:
             historical_zero = row.actual_micros == 0 and display_actual_micros(row) is None
             legacy_unverified_zeros += int(historical_zero)
             states[row.charge_state] = states.get(row.charge_state, 0) + 1
+            if row.charge_state == "UNKNOWN":
+                by_unknown_reason[row.outcome] = by_unknown_reason.get(row.outcome, 0) + 1
+            if row.execution_outcome:
+                by_execution_outcome[row.execution_outcome] = (
+                    by_execution_outcome.get(row.execution_outcome, 0) + 1)
             money["estimated_micros"] += row.estimated_micros
             if row.charge_state in ("SETTLED", "FREE_TIER"):
                 money["actual_micros"] += row.actual_micros or 0
@@ -1240,6 +1324,8 @@ class UsageLedger:
             "operations": len(rows),
             "legacy_operations": legacy,
             "by_charge_state": states,
+            "by_unknown_reason": by_unknown_reason,
+            "by_execution_outcome": by_execution_outcome,
             "money": {**money, "basis": basis, "basis_code": basis_code},
             "quota_units": quota,
             "by_provider": providers,
@@ -1503,6 +1589,22 @@ class UsageLedger:
                     "CAP_NOT_CONFIGURED",
                     f"no ceiling is set for run {key}; an unset ceiling is not an unlimited one")
             caps.extend((kind, key, row) for row in rows)
+        # An explicit USD ceiling is only a bound if this operation has a rate the
+        # ledger can multiply by its units *before* dispatch. Checking the rate
+        # here, before the money comparison, is what stops a placeholder zero from
+        # reading as "reserve US$0.00" and leaving a dollar promise unenforced.
+        usd_caps = [(kind, key, cap) for kind, key, cap in caps if cap["usd_enforced"]]
+        if usd_caps:
+            provable, basis = usd_cap_basis(price)
+            if not provable:
+                kind, key, cap = usd_caps[0]
+                raise LedgerRefused(
+                    "PRICE_UNKNOWN",
+                    f"{request.provider}/{request.capability} has no provable dollar bound "
+                    f"({basis}); the explicit USD ceiling at {kind} {key} "
+                    f"({cap['ceiling_micros']} micro-USD) cannot be enforced without one, so "
+                    "the operation is refused rather than promised protection it does not have",
+                    dimension="money")
         for kind, key, cap in caps:
             found = self._usage_in(db, kind, key, cap["window"],
                                    self._period_key(cap["window"], self._now()))
@@ -1779,15 +1881,30 @@ class UsageLedger:
             event="prove_no_charge", code=reason, detail_ref=reference,
             guard=self._guard_no_dispatch)
 
-    def mark_unknown(self, operation_id: str, *, reason: str) -> Operation:
-        """A dispatched call whose cost nobody knows. It keeps its hold."""
+    def mark_unknown(self, operation_id: str, *, reason: str,
+                     execution_outcome: str = "") -> Operation:
+        """A dispatched call whose cost nobody knows. It keeps its hold.
+
+        ``execution_outcome`` is the adapter's own result (``OK``/``FAILED``/
+        ``UNKNOWN``) when the caller knows it. Recording it here is what stops a
+        successful call whose price is unknown from looking exactly like a provider
+        error in the ledger; an empty value honestly means "not observed".
+        """
         if reason not in UNKNOWN_REASONS:
             raise LedgerRefused("REASON_NOT_ACCEPTED",
                                 f"{reason!r} is not a recognised unknown-charge reason (expected "
                                 f"one of {sorted(UNKNOWN_REASONS)})")
-        return self._transition(operation_id, kinds=("RESERVED",),
-                                changes={"charge_state": ChargeState.UNKNOWN.value,
-                                         "outcome": reason},
+        if execution_outcome:
+            if (not isinstance(execution_outcome, str)
+                    or execution_outcome not in EXECUTION_OUTCOMES):
+                raise LedgerRefused(
+                    "INVALID_REQUEST",
+                    f"execution_outcome {execution_outcome!r} is outside the recorded set "
+                    f"{sorted(EXECUTION_OUTCOMES)}; it says what happened, not what it cost")
+        changes = {"charge_state": ChargeState.UNKNOWN.value, "outcome": reason}
+        if execution_outcome:
+            changes["execution_outcome"] = execution_outcome
+        return self._transition(operation_id, kinds=("RESERVED",), changes=changes,
                                 event="mark_unknown", code=reason,
                                 guard=self._guard_dispatched)
 
@@ -2303,6 +2420,7 @@ REFUSAL_DISPOSITION: dict[str, str] = {
     "CAP_BELOW_HELD": "",
     "CAP_HAS_NO_LIMIT": "",
     "CAP_SOURCE_REQUIRED": "",
+    "USD_ENFORCEMENT_REQUIRES_CEILING": "",
     "CAMPAIGN_BUDGET_INVALID": "",
     "CAMPAIGN_FLOOR_INVALID": "",
 }
@@ -2348,6 +2466,16 @@ def _pricing_from_environment() -> PricingCatalog:
     if not raw or re.fullmatch(r"\$\{[A-Z][A-Z0-9_]*\}", raw):
         return PricingCatalog(())
     return PricingCatalog.from_path(raw)
+
+
+def configured_pricing() -> PricingCatalog:
+    """The operator's price catalog, or an empty one when none is configured.
+
+    Empty is the answer that matters: it means the ledger is running on the
+    documented credit baseline, so a dollar ceiling has no provable rate and must
+    refuse rather than print a protection it cannot provide.
+    """
+    return _pricing_from_environment()
 
 
 PROJECT_ENV = "MARKETOPS_RESEARCH_PROJECT"

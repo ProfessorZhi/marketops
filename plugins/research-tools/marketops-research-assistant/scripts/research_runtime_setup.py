@@ -2,14 +2,19 @@
 """Local product admission: tested build, finite consent and observed MCP schemas.
 
 REQUEST_COUNT bounds operations; it does not invent dollar prices, account
-balances or a wallet floor. This file is deliberately not an MCP consent tool.
-Legacy campaign evidence remains supported by research_s0_preflight_gate.
+balances or a wallet floor. A USD ceiling is optional and explicit: it carries
+an amount the operator stated, and the ledger refuses any call whose dollar cost
+cannot be proved from a reviewed rate. Without one the mode is request-count,
+and status says so rather than claiming dollar protection. This file is
+deliberately not an MCP consent tool. Legacy campaign evidence remains supported
+by research_s0_preflight_gate.
 """
 from __future__ import annotations
 
 import argparse
 import asyncio
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation, ROUND_CEILING
 import hashlib
 import importlib.util
 import json
@@ -74,8 +79,111 @@ def config(root=None):
     return _read(_path(root, CONFIG_NAME))
 
 
+def _calls_limit(name, value, *, upper):
+    if type(value) is not int or isinstance(value, bool) or not 1 <= value <= upper:
+        raise ValueError("BUDGET_LIMITS_INVALID: " + name)
+    return value
+
+
+def _usd_limit(name, value):
+    if value is None:
+        return None
+    if type(value) is not int or isinstance(value, bool) or value < 0:
+        raise ValueError("USD_CAP_INVALID: " + name)
+    return value
+
+
+def cap_plan(settings):
+    """The effective call and dollar ceilings of one consent record.
+
+    Call ceilings are always finite: ``run_max_calls <= project_max_calls <=
+    max_calls``. The independent keys are optional, so a record written before
+    they existed keeps its old meaning (both equal ``max_calls``) instead of
+    inheriting a limit nobody stated.
+
+    Dollar ceilings are optional and ``None`` means **not configured**, which is
+    the non-dollar mode. They are not defaulted from the call ceiling: a request
+    count is not a dollar amount, and inventing a conversion would be inventing a
+    price.
+    """
+    max_calls = settings.get("max_calls")
+    if type(max_calls) is not int or isinstance(max_calls, bool) or not 1 <= max_calls <= 500:
+        raise ValueError("BUDGET_LIMITS_INVALID: max_calls")
+    project_calls = _calls_limit("project_max_calls",
+                                 settings.get("project_max_calls", max_calls),
+                                 upper=max_calls)
+    run_calls = _calls_limit("run_max_calls",
+                             settings.get("run_max_calls", project_calls),
+                             upper=project_calls)
+    project_usd = _usd_limit("project_max_usd_micros",
+                             settings.get("project_max_usd_micros"))
+    run_usd = _usd_limit("run_max_usd_micros", settings.get("run_max_usd_micros"))
+    if run_usd is not None and project_usd is not None and run_usd > project_usd:
+        raise ValueError("CAPS_INCOHERENT: a run USD cap cannot exceed the project cap")
+    return {
+        "max_calls": max_calls,
+        "project_max_calls": project_calls,
+        "run_max_calls": run_calls,
+        "project_max_usd_micros": project_usd,
+        "run_max_usd_micros": run_usd,
+        # Derived from the amounts actually present, never trusted from the file:
+        # an old record that says "USD mode" but carries no amount is a count mode.
+        "budget_mode": ("REQUEST_COUNT_AND_USD_CAP"
+                        if project_usd is not None or run_usd is not None
+                        else "REQUEST_COUNT"),
+    }
+
+
+def _existing_cap(ledger, scope_kind, scope_key):
+    """The money/seconds part of an existing ceiling, so stating calls keeps it.
+
+    ``set_cap`` replaces a whole row. Stating the independent call ceilings must
+    not silently erase an operator's dollar or time ceiling, so the parts this
+    function does not decide are carried forward. A read failure is raised, not
+    swallowed: configuring with a ledger it cannot read must stop, because the
+    alternative is replacing an unknown ceiling with "none".
+    """
+    rows = ledger.usage(scope_kind, scope_key, window="total")
+    if not rows:
+        return None, False, None
+    row = rows[0]
+    return row.ceiling_micros, row.usd_enforced, row.ceiling_seconds
+
+
+def state_ledger_caps(root, run_id, *, project=None, ledger=None):
+    """State this consent record's call and dollar ceilings for one run.
+
+    This is the one interface a managed-call path needs. It reads the *local
+    consent* rather than an environment variable, so the run and project bounds
+    cannot disagree with what the user confirmed. Both are persisted in the
+    ledger, which is what makes them survive a crash and apply across runs.
+    """
+    import research_usage_ledger as usage
+    settings = config(root)
+    if not settings:
+        raise ValueError("RUNTIME_CONFIG_REQUIRED")
+    plan = cap_plan(settings)
+    project = project or usage.project_for_root(root)
+    ledger = ledger if ledger is not None else usage.for_root(root)
+
+    def state(kind, key, calls, usd_micros):
+        money, usd_enforced, seconds = _existing_cap(ledger, kind, key)
+        if usd_micros is not None:
+            money, usd_enforced = usd_micros, True
+        ledger.set_cap(kind, key, ceiling_calls=calls, ceiling_micros=money,
+                       ceiling_seconds=seconds, usd_enforced=usd_enforced,
+                       source="LOCAL_CONSENT")
+
+    state("run", f"{project}/{run_id}", plan["run_max_calls"],
+          plan["run_max_usd_micros"])
+    state("project", project, plan["project_max_calls"],
+          plan["project_max_usd_micros"])
+    return {"project": project, "run_id": run_id, **plan}
+
+
 def configure(root, *, providers, domains, max_calls, task, confirm=False, amend=False,
-              provider_limits=None):
+              provider_limits=None, run_max_calls=None, project_max_calls=None,
+              project_max_usd_micros=None, run_max_usd_micros=None):
     if confirm is not True or type(max_calls) is not int or not 1 <= max_calls <= 500:
         raise ValueError("FINITE_LOCAL_CONSENT_REQUIRED")
     selected = sorted(set("typesafe_jev" if x == "jev" else x for x in providers))
@@ -87,8 +195,25 @@ def configure(root, *, providers, domains, max_calls, task, confirm=False, amend
         raise ValueError("TASK_SCOPE_REQUIRED")
     path = _path(root, CONFIG_NAME)
     old = _read(path)
-    # Omission on resume preserves previously granted provider bounds. It must
-    # not silently erase a smaller supplier allowance back to the global cap.
+    # Omission on resume preserves previously granted bounds. It must not
+    # silently erase a smaller supplier allowance back to the global cap, nor
+    # widen a run/project bound the user stated explicitly.
+    project_calls = (old.get("project_max_calls", max_calls)
+                     if project_max_calls is None else project_max_calls)
+    run_calls = (old.get("run_max_calls", project_calls)
+                 if run_max_calls is None else run_max_calls)
+    project_calls = _calls_limit("project_max_calls", project_calls, upper=max_calls)
+    run_calls = _calls_limit("run_max_calls", run_calls, upper=project_calls)
+    # USD ceilings are optional. None means "not configured", and omission
+    # preserves a previously confirmed amount rather than removing protection.
+    project_usd = (old.get("project_max_usd_micros")
+                   if project_max_usd_micros is None else project_max_usd_micros)
+    run_usd = (old.get("run_max_usd_micros")
+               if run_max_usd_micros is None else run_max_usd_micros)
+    project_usd = _usd_limit("project_max_usd_micros", project_usd)
+    run_usd = _usd_limit("run_max_usd_micros", run_usd)
+    if run_usd is not None and project_usd is not None and run_usd > project_usd:
+        raise ValueError("CAPS_INCOHERENT: a run USD cap cannot exceed the project cap")
     raw_limits = ({p: n for p, n in old.get("provider_limits", {}).items() if p in selected}
                   if provider_limits is None else provider_limits)
     if not isinstance(raw_limits, dict):
@@ -101,13 +226,36 @@ def configure(root, *, providers, domains, max_calls, task, confirm=False, amend
         if provider in limits:
             raise ValueError("PROVIDER_LIMITS_DUPLICATE_ALIAS")
         limits[provider] = limit
+    budget_mode = ("REQUEST_COUNT_AND_USD_CAP"
+                   if project_usd is not None or run_usd is not None
+                   else "REQUEST_COUNT")
     proposed = {"schema": "marketops.runtime.v1", "providers": selected,
                 "allowed_domains": allowed, "max_calls": max_calls,
                 "provider_limits": dict(sorted(limits.items())),
-                "task": task.strip(), "budget_mode": "REQUEST_COUNT",
+                "task": task.strip(), "budget_mode": budget_mode,
+                "project_max_usd_micros": project_usd,
+                "run_max_usd_micros": run_usd,
                 "network_enabled": True, "paid_agent_enabled": False}
+    # Persist the independent call bounds only when the user stated them (or a
+    # previous consent did). A record that never had them keeps following
+    # max_calls, which is the old and still coherent meaning of the total cap.
+    if project_max_calls is not None or "project_max_calls" in old:
+        proposed["project_max_calls"] = project_calls
+    if run_max_calls is not None or "run_max_calls" in old:
+        proposed["run_max_calls"] = run_calls
     if old:
-        previous = {k: old.get(k, {} if k == "provider_limits" else None) for k in proposed}
+        previous = {}
+        for key in proposed:
+            if key == "provider_limits":
+                previous[key] = old.get(key, {})
+            elif key == "project_max_calls":
+                previous[key] = old.get(key, old.get("max_calls"))
+            elif key == "run_max_calls":
+                previous[key] = old.get(key, old.get("project_max_calls", old.get("max_calls")))
+            elif key == "budget_mode":
+                previous[key] = old.get(key, "REQUEST_COUNT")
+            else:
+                previous[key] = old.get(key)
         if previous != proposed:
             if not amend:
                 raise ValueError("RUNTIME_CONSENT_ALREADY_EXISTS: use --amend --confirm; max-calls is the total cumulative ceiling")
@@ -120,16 +268,28 @@ def configure(root, *, providers, domains, max_calls, task, confirm=False, amend
                 project = usage.project_for_root(root)
                 # Validate every cumulative lower bound before changing any cap.
                 # UNKNOWN and RESERVED operations remain counted by the ledger.
-                if any(row.calls_used > max_calls for row in ledger.usage("project", project)):
+                if any(row.calls_used > project_calls for row in ledger.usage("project", project)):
                     raise ValueError("CAP_BELOW_HELD")
                 for provider in selected:
                     if ledger.account_totals(provider, provider).calls > limits.get(provider, max_calls):
                         raise ValueError("CAP_BELOW_HELD")
+                project_money, project_usd_enforced, project_seconds = _existing_cap(
+                    ledger, "project", project)
+                if project_usd is not None:
+                    project_money, project_usd_enforced = project_usd, True
                 ledger.set_cap("project", project,
-                               ceiling_calls=max_calls, source="LOCAL_CONSENT_AMENDMENT")
+                               ceiling_calls=project_calls, ceiling_micros=project_money,
+                               ceiling_seconds=project_seconds,
+                               usd_enforced=project_usd_enforced,
+                               source="LOCAL_CONSENT_AMENDMENT")
                 for provider in selected:
-                    ledger.set_cap("provider_account", f"{project}/{provider}/{provider}",
-                        ceiling_calls=limits.get(provider, max_calls), source="LOCAL_CONSENT_AMENDMENT")
+                    key = f"{project}/{provider}/{provider}"
+                    money, usd_enforced, seconds = _existing_cap(ledger, "provider_account", key)
+                    ledger.set_cap("provider_account", key,
+                        ceiling_calls=limits.get(provider, max_calls),
+                        ceiling_micros=money, ceiling_seconds=seconds,
+                        usd_enforced=usd_enforced,
+                        source="LOCAL_CONSENT_AMENDMENT")
             history = _path(root, "runtime-consent-history.jsonl")
             history.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
             with open(history, "a", encoding="utf-8") as out:
@@ -348,8 +508,10 @@ def admission(root, capability_id):
         return denied("RESEARCH_NETWORK_DISABLED", "run local runtime configure first")
     if entry.provider not in settings.get("providers", ()):
         return denied("POLICY_TIER_NOT_GRANTED", "provider not in local consent")
-    if type(settings.get("max_calls")) is not int or not 1 <= settings["max_calls"] <= 500:
-        return denied("BUDGET_PROJECT_CEILING", "finite request limit required")
+    try:
+        plan = cap_plan(settings)
+    except ValueError as exc:
+        return denied("BUDGET_PROJECT_CEILING", str(exc).split(":", 1)[0])
     if not verify_build_receipt()["ok"]:
         return denied("CAPABILITY_NOT_AVAILABLE", "BUILD_QA_MISSING_OR_STALE")
     if not _credential_present(entry.provider):
@@ -371,17 +533,76 @@ def admission(root, capability_id):
             return denied("CAPABILITY_SCHEMA_DRIFT", "run local bootstrap; schema absent, stale or incompatible")
     if entry.provider == "crawl4ai" and importlib.util.find_spec("crawl4ai") is None:
         return denied("CRAWL4AI_LOCAL_NOT_INSTALLED", "install local crawl runtime")
-    return {"allowed": True, "reason_code": "", "detail": "REQUEST_COUNT_ONLY",
-            "provider": entry.provider, "balance": None, "dollar_limit_enforced": False}
+    usd_configured = (plan["project_max_usd_micros"] is not None
+                      or plan["run_max_usd_micros"] is not None)
+    enforced = bool(usd_configured
+                    and _pricing_status()["source"] == "OPERATOR_CATALOG")
+    return {"allowed": True, "reason_code": "",
+            "detail": "REQUEST_COUNT_AND_USD_CAP" if enforced else "REQUEST_COUNT_ONLY",
+            "provider": entry.provider, "balance": None,
+            "budget_mode": plan["budget_mode"],
+            "project_max_calls": plan["project_max_calls"],
+            "run_max_calls": plan["run_max_calls"],
+            "usd_caps": {"project_max_usd_micros": plan["project_max_usd_micros"],
+                         "run_max_usd_micros": plan["run_max_usd_micros"]},
+            "dollar_limit_enforced": enforced,
+            "dollar_limit_enforcement": ("ENFORCED" if enforced else
+                                         "FAIL_CLOSED_PRICING_SOURCE_MISSING"
+                                         if usd_configured else "NOT_CONFIGURED")}
+
+
+def _pricing_status():
+    """What the ledger would price this data root with, without opening it."""
+    try:
+        import research_usage_ledger as usage
+        configured = usage.configured_pricing()
+        if len(configured):
+            return {"source": "OPERATOR_CATALOG", "entries": len(configured)}
+        return {"source": "DOCUMENTED_CREDIT_BASELINE", "entries": 0}
+    except Exception:
+        # A catalog that exists but cannot be read is not a catalog. Saying so
+        # keeps the dollar claim false instead of turning an error into a rate.
+        return {"source": "UNREADABLE", "entries": 0}
 
 
 def status(root=None):
     settings = config(root)
     observations = {p: _read(_path(root, p + "-account.json")) for p in PROVIDERS}
+    pricing = _pricing_status()
+    caps_error = ""
+    try:
+        plan = cap_plan(settings) if settings else None
+    except ValueError as exc:
+        plan = None
+        caps_error = str(exc).split(":", 1)[0]
+    usd_caps = {"project_max_usd_micros": (plan or {}).get("project_max_usd_micros"),
+                "run_max_usd_micros": (plan or {}).get("run_max_usd_micros")}
+    usd_configured = (usd_caps["project_max_usd_micros"] is not None
+                      or usd_caps["run_max_usd_micros"] is not None)
+    dollar_limit_enforced = bool(usd_configured
+                                 and pricing["source"] == "OPERATOR_CATALOG")
+    if dollar_limit_enforced:
+        enforcement = "ENFORCED"
+    elif usd_configured:
+        enforcement = "FAIL_CLOSED_PRICING_SOURCE_MISSING"
+    else:
+        enforcement = "NOT_CONFIGURED"
     return {"schema": "marketops.runtime-status.v1", "configured": bool(settings),
-            "budget_mode": settings.get("budget_mode"), "max_calls": settings.get("max_calls"),
+            "budget_mode": (plan or {}).get("budget_mode", settings.get("budget_mode")),
+            "max_calls": settings.get("max_calls"),
+            "project_max_calls": (plan or {}).get("project_max_calls",
+                                                  settings.get("max_calls")),
+            "run_max_calls": (plan or {}).get("run_max_calls",
+                                              settings.get("project_max_calls",
+                                                           settings.get("max_calls"))),
+            "caps_error": caps_error,
+            "usd_caps": usd_caps,
+            "pricing_source": pricing["source"],
+            "pricing_entries": pricing["entries"],
+            "dollar_limit_enforced": dollar_limit_enforced,
+            "dollar_limit_enforcement": enforcement,
             "provider_limits": settings.get("provider_limits", {}),
-            "dollar_limit_enforced": False, "wallet_floor_enforced": bool(any(observations.values())),
+            "wallet_floor_enforced": bool(any(observations.values())),
             "qa": verify_build_receipt(), "providers": {
                 p: {"selected": p in settings.get("providers", ()),
                     "max_calls": settings.get("provider_limits", {}).get(p, settings.get("max_calls"))
@@ -502,6 +723,24 @@ def ledger_for(root, provider):
     return usage.for_root(root, campaign_budgets={(provider, provider): budget})
 
 
+def _usd_text_to_micros(text):
+    """Parse a decimal USD amount into integer micro-USD, rounding **up**.
+
+    Rounding up is the conservative direction for a ceiling: a cap of 0.0000001
+    USD becomes 1 micro-USD rather than 0, so the amount the operator typed is
+    never understated by the conversion.
+    """
+    if text is None:
+        return None
+    try:
+        value = Decimal(str(text).strip())
+    except (InvalidOperation, ValueError):
+        raise ValueError("USD_CAP_INVALID: not a decimal amount") from None
+    if not value.is_finite() or value < 0:
+        raise ValueError("USD_CAP_INVALID: must be a finite nonnegative amount")
+    return int((value * 1_000_000).to_integral_value(rounding=ROUND_CEILING))
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("configure", "status", "bootstrap", "verify-build", "observe-account"))
@@ -509,6 +748,14 @@ def main(argv=None):
     parser.add_argument("--provider", action="append", choices=(*PROVIDERS, "jev"))
     parser.add_argument("--domains", default="")
     parser.add_argument("--max-calls", type=int, default=0)
+    parser.add_argument("--run-max-calls", type=int,
+                        help="optional per-run request ceiling; defaults to the project ceiling")
+    parser.add_argument("--project-max-calls", type=int,
+                        help="optional cumulative project request ceiling; defaults to max-calls")
+    parser.add_argument("--run-usd",
+                        help="optional per-run USD ceiling (decimal); requires a reviewed pricing catalog")
+    parser.add_argument("--project-usd",
+                        help="optional cumulative project USD ceiling (decimal); requires a reviewed pricing catalog")
     parser.add_argument("--provider-limit", action="append", metavar="PROVIDER=N",
                         help="cumulative supplier limit (repeatable); omitted providers inherit max-calls")
     parser.add_argument("--task", default="")
@@ -541,7 +788,11 @@ def main(argv=None):
             result = configure(args.data_root, providers=args.provider or [],
                 domains=[x.strip() for x in args.domains.split(",") if x.strip()],
                 max_calls=args.max_calls, task=args.task, confirm=args.confirm, amend=args.amend,
-                provider_limits=limits)
+                provider_limits=limits,
+                run_max_calls=args.run_max_calls,
+                project_max_calls=args.project_max_calls,
+                run_max_usd_micros=_usd_text_to_micros(args.run_usd),
+                project_max_usd_micros=_usd_text_to_micros(args.project_usd))
         elif args.command == "observe-account":
             if len(args.provider or []) != 1:
                 raise ValueError("ONE_PROVIDER_REQUIRED")
