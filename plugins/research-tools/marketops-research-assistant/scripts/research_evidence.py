@@ -25,7 +25,9 @@ def _norm(value: str) -> str:
     return " ".join(html.unescape(value).casefold().split())
 
 
-_MAILTO_ANCHOR = re.compile(r"""(<a\b[^>]*\bhref\s*=\s*["']mailto:([^"'?#\s]+)[^"']*["'][^>]*>)""", re.I)
+_MAILTO_ANCHOR = re.compile(
+    r"""(<a\b[^>]*\bhref\s*=\s*["']mailto:([^"'?#\s]+)[^"']*["'][^>]*>)((?:(?!</a\s*>).){0,400})""",
+    re.I | re.S)
 
 
 def mailto_visible(html_text: str) -> str:
@@ -36,24 +38,34 @@ def mailto_visible(html_text: str) -> str:
     address (the largest historical yield loss). The address is inserted as it
     appears in the href, never decoded from obfuscation.
     """
-    return _MAILTO_ANCHOR.sub(lambda m: m.group(1) + " " + html.unescape(m.group(2)) + " ", html_text)
+    def show(match):
+        address = html.unescape(match.group(2))
+        inner = match.group(3)
+        if address.casefold() in html.unescape(inner).casefold():
+            return match.group(0)  # the link text already prints it; do not repeat it
+        return match.group(1) + " " + address + " " + inner
+    return _MAILTO_ANCHOR.sub(show, html_text)
 
 
-def _text(artifact: dict) -> str:
-    text = artifact.get("text", "")
-    if artifact.get("kind") == "provider_extracted":
+def readable_text(kind: str, text: str) -> str:
+    """The page text exactly as the evidence gate reads it, case preserved."""
+    if kind == "provider_extracted":
         try:
             parsed = json.loads(text)
             if isinstance(parsed, dict):
                 text = parsed.get("markdown", text)
         except (ValueError, TypeError):
             pass
-    if artifact.get("kind") in {"rendered_html", "raw_response", "provider_html"}:
-        # Rendered HTML is NOT the original on-the-wire HTTP response.
+    if kind in {"rendered_html", "raw_response", "provider_html"}:
         text = re.sub(r"(?is)<(?:script|style)[^>]*>.*?</(?:script|style)>", " ", text)
         text = mailto_visible(text)
         text = re.sub(r"<[^>]+>", " ", text)
-    return _norm(text if isinstance(text, str) else "")
+    return " ".join(html.unescape(text if isinstance(text, str) else "").split())
+
+
+def _text(artifact: dict) -> str:
+    # Rendered HTML is NOT the original on-the-wire HTTP response.
+    return _norm(readable_text(artifact.get("kind", ""), artifact.get("text", "")))
 
 
 def _brief_rules(records: list[dict]) -> tuple[dict, bool]:
@@ -231,17 +243,9 @@ def excerpts(root: Path | str, run_id: str, artifact_ids: list[str],
             source = target.read_bytes()
             if hashlib.sha256(source).hexdigest() != row[1]:
                 raise ValueError("EXCERPT_SOURCE_HASH_MISMATCH")
-            text = source.decode("utf-8", errors="replace")
-            if row[0] == "provider_extracted":
-                try:
-                    parsed = json.loads(text)
-                    if isinstance(parsed, dict):
-                        text = parsed.get("markdown", text)
-                except ValueError:
-                    pass
-            if row[0] in {"rendered_html", "provider_html"}:
-                text = html.unescape(re.sub(r"<[^>]+>", " ", text))
-            text = " ".join(text.split())
+            # The same text the gate matches quotes against, so a quote copied
+            # from here is accepted and a verifier sees what the gate saw.
+            text = readable_text(row[0], source.decode("utf-8", errors="replace"))
             clips = []
             for query in queries or [""]:
                 start = 0

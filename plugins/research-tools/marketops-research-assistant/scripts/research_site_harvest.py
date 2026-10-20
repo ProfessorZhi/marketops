@@ -69,24 +69,8 @@ class _Links(HTMLParser):
 
 
 def _readable(kind: str, raw: str) -> str:
-    """The delivery gate's normalised text without case folding.
-
-    Quotes are compared after ``research_evidence._norm``; cutting them from the
-    same text with its original case keeps the client-facing evidence readable.
-    """
-    text = raw
-    if kind == "provider_extracted":
-        try:
-            parsed = json.loads(raw)
-            if isinstance(parsed, dict) and isinstance(parsed.get("markdown"), str):
-                text = parsed["markdown"]
-        except ValueError:
-            pass
-    if kind in {"rendered_html", "raw_response", "provider_html"}:
-        text = re.sub(r"(?is)<(?:script|style)[^>]*>.*?</(?:script|style)>", " ", text)
-        text = evidence.mailto_visible(text)
-        text = re.sub(r"<[^>]+>", " ", text)
-    return " ".join(html_lib.unescape(text).split())
+    """The delivery gate's text without case folding, so cut quotes stay readable."""
+    return evidence.readable_text(kind, raw)
 
 
 _CFEMAIL = re.compile(r"""data-cfemail\s*=\s*["'][0-9a-fA-F]+["']""")
@@ -251,6 +235,18 @@ def admission_for(root, run_id: str, record_ids) -> list[dict]:
             for d in manifest["admission"]["decisions"] if d["record_id"] in wanted]
 
 
+def _redirect_refused(receipt: dict) -> bool:
+    return any(a.get("primary_reason_code") == "CRAWL_REDIRECT_REFUSED"
+               for a in receipt.get("attempts") or [])
+
+
+def _www_twin(url: str) -> str:
+    parts = urlsplit(url)
+    host = parts.hostname or ""
+    twin = host[4:] if host.startswith("www.") else "www." + host
+    return parts._replace(netloc=twin).geturl()
+
+
 def _evidence_artifact(receipt: dict) -> str:
     for key in ("primary_artifact_ids", "provider_html_artifact_ids", "artifact_ids"):
         values = receipt.get(key) or []
@@ -284,6 +280,11 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
         page_url = queue.pop(0)
         child = f"{operation_id}-p{len(pages) + 1}"
         receipt = fetch(page_url, child)
+        if not pages and _redirect_refused(receipt):
+            # club.co.uk -> www.club.co.uk is one site; the browser refuses to follow
+            # any redirect, so ask for the other spelling of the same host once.
+            page_url = _www_twin(page_url)
+            receipt = fetch(page_url, child + "w")
         artifact_id = _evidence_artifact(receipt) if receipt.get("status") == "SUCCESS_CANDIDATE" else ""
         page = {"url": page_url, "status": receipt.get("status"),
                 "reason_code": receipt.get("reason_code", ""), "artifact_id": artifact_id or None}

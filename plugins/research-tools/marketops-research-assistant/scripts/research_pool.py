@@ -211,6 +211,23 @@ def claim(root, *, pool_id: str, worker_id: str, count: int = 20,
             "claimed": len(targets), "targets": targets}
 
 
+def release(root, *, pool_id: str, worker_id: str, target_keys: list[str]) -> int:
+    """Hand targets this worker never started back to the pool, uncounted."""
+    _id(pool_id, "pool_id"); _id(worker_id, "worker_id")
+    if not target_keys:
+        return 0
+    with closing(_db(_root(root))) as db:
+        db.execute("BEGIN IMMEDIATE")
+        released = 0
+        for key in target_keys:
+            released += db.execute(
+                "UPDATE pool_targets SET status='pending', claimed_by='', lease_until='', "
+                "attempts=MAX(attempts-1,0), updated_at=? WHERE pool_id=? AND target_key=? AND "
+                "status='claimed' AND claimed_by=?", (_stamp(), pool_id, key, worker_id)).rowcount
+        db.commit()
+    return released
+
+
 def renew(root, *, pool_id: str, worker_id: str, lease_minutes: int = 30) -> dict:
     """Extend every live lease this worker holds (call between long batches)."""
     _id(pool_id, "pool_id"); _id(worker_id, "worker_id")

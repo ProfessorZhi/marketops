@@ -142,6 +142,33 @@ class BatchHarvestTests(unittest.TestCase):
         self.assertEqual(0, again["claimed"])
         self.assertTrue(again["next_action"].startswith("POOL_EMPTY"))
 
+    def test_each_saved_organisation_gets_a_disposition_in_the_run(self):
+        import research_lite_store as store
+        batch.harvest_batch(self.root, pool_id="uk", worker_id="w1", run_id="run-w",
+                            fetch=self.fetch, count=10)
+        rows = store.list_run(self.root, "run-w", limit=200)
+        rows = rows.get("records", rows) if isinstance(rows, dict) else rows
+        orgs = {r["entity_key"] for r in rows if r["kind"] == "organization"}
+        decided = {r["data"]["target_entity_key"]: r["data"]["disposition"]
+                   for r in rows if r["kind"] == "review"}
+        self.assertTrue(orgs)
+        self.assertEqual(orgs, set(decided))
+        self.assertTrue(set(decided.values()) <= {"RESEARCHED_CANDIDATE", "HOLD"})
+
+    def test_a_slow_batch_returns_before_the_host_timeout_and_hands_back_the_rest(self):
+        # Live run: Claude Code ends a tool call at 60 s; the batch kept its leases.
+        import time
+
+        def slow(url, op):
+            time.sleep(0.6)
+            return self.fetch(url, op)
+        started = time.monotonic()
+        result = batch.harvest_batch(self.root, pool_id="uk", worker_id="w1", run_id="run-w",
+                                     fetch=slow, count=10, concurrency=1, deadline_seconds=0.3)
+        self.assertLess(time.monotonic() - started, 8)
+        self.assertGreater(result["returned_unstarted"], 0)
+        self.assertGreater(pool.status(self.root, pool_id="uk")["by_status"]["pending"], 0)
+
     def test_named_roles_tag_each_email_with_a_jev_role_guess(self):
         asked = []
 

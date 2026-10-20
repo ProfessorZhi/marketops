@@ -43,6 +43,26 @@ class PdfFetchTests(unittest.TestCase):
         self.assertEqual(("tinyfish.fetch_content",), walls.preferred_route("/nonexistent", PDF, route))
 
 
+class VerifierSeesWhatTheGateSawTests(unittest.TestCase):
+    """Live run: the verifier read Billericay's "Email" links as missing addresses."""
+
+    PAGE = (b'<p>Secretary Rob Rayner <a href="mailto:sec@billericaycc.example">Email</a></p>'
+            b'<p>Fixtures <a href="mailto:fix@billericaycc.example">fix@billericaycc.example</a></p>')
+
+    def test_excerpt_shows_link_addresses_once(self):
+        import tempfile
+        import research_evidence as evidence
+        import research_lite_store as store
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store.start_run(root, "r", "clubs", "objective", "v1")
+            store.save_artifact(root, "r", "a1", "crawl4ai", "https://billericaycc.example/contact",
+                                self.PAGE, "rendered_html")
+            snippet = evidence.excerpts(root, "r", ["a1"], ["Rob Rayner"])["results"][0]["snippets"][0]
+        self.assertIn("Secretary Rob Rayner sec@billericaycc.example Email", snippet)
+        self.assertEqual(1, snippet.count("fix@billericaycc.example"))
+
+
 class PublishedNameTests(unittest.TestCase):
     """The list says "Essex County Cricket Club"; the club's own site says "Essex Cricket"."""
 
@@ -70,6 +90,29 @@ class PublishedNameTests(unittest.TestCase):
         self.assertEqual("Essex Cricket", result["identity"]["published_name"])
         self.assertEqual("ASSIGN_ROLE_AND_GRADE_FROM_CONTEXT", result["next_action"])
         self.assertIn("stuart.kerrison@essexcricket.example", [r["value"] for r in result["routes"]])
+
+    def test_a_refused_apex_to_www_redirect_retries_the_www_twin(self):
+        import tempfile
+        import research_lite_store as store
+        import research_site_harvest as harvest
+        asked = []
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store.start_run(root, "r", "clubs", "objective", "v1")
+
+            def fetch(url, op):
+                asked.append(url)
+                if url == "https://harlowcc.example/":
+                    return {"status": "HOLD", "attempts": [
+                        {"primary_reason_code": "CRAWL_REDIRECT_REFUSED"}]}
+                store.save_artifact(root, "r", "a-" + op, "crawl4ai", url,
+                                    b"<p>Harlow Cricket Club: info@harlowcc.example</p>", "rendered_html")
+                return {"status": "SUCCESS_CANDIDATE", "artifact_ids": ["a-" + op]}
+            result = harvest.harvest(root, run_id="r", operation_id="h", organization_name="Harlow CC",
+                                     organization_key="org-h", url="https://harlowcc.example/",
+                                     fetch=fetch, max_pages=1)
+        self.assertEqual(["https://harlowcc.example/", "https://www.harlowcc.example/"], asked)
+        self.assertEqual("Harlow Cricket Club", result["identity"]["published_name"])
 
     def test_a_village_hall_name_is_not_shortened(self):
         import research_site_harvest as harvest
