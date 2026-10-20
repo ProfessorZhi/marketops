@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import urlsplit
 
 import research_pool as pool
 import research_site_harvest as site_harvest
@@ -37,6 +38,11 @@ def harvest_batch(data_root, *, pool_id: str, worker_id: str, run_id: str, fetch
         if not target.get("website"):
             return {"target": target, "outcome": "hold", "reason": "NO_OFFICIAL_SITE_IN_POOL",
                     "org_key": org_key, "record_ids": [], "routes": []}
+        if site_harvest.delivery.shared_host(urlsplit(target["website"]).hostname or ""):
+            # A Facebook page or a directory entry is not the organisation's own site;
+            # find its real site (Serper) or record the HOLD.
+            return {"target": target, "outcome": "hold", "org_key": org_key, "record_ids": [],
+                    "routes": [], "reason": "WEBSITE_IS_SOCIAL_OR_DIRECTORY"}
         op = "b-" + hashlib.sha256(f"{run_id}:{target['target_key']}:{target['attempts']}"
                                    .encode()).hexdigest()[:24]
         try:

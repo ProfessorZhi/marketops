@@ -96,7 +96,7 @@ class PoolTests(unittest.TestCase):
         state = pool.status(self.root, pool_id="uk")
         self.assertEqual({"pending": 0, "claimed": 1, "done": 1, "hold": 1},
                          {k: state["by_status"][k] for k in ("pending", "claimed", "done", "hold")})
-        self.assertEqual(1.0, state["hit_rate"])
+        self.assertEqual(0.5, state["hit_rate"])  # 1 of 2 researched targets
         self.assertEqual({"w": 1}, state["active_workers"])
 
 

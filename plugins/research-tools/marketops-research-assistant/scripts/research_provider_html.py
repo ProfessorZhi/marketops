@@ -18,6 +18,12 @@ def canonical_url(value):
         raise ValueError("PROVIDER_HTML_URL_INVALID") from None
 
 
+def _same_site(left, right):
+    def host(value):
+        return (urlsplit(value).hostname or "").casefold().removeprefix("www.")
+    return bool(host(left)) and host(left) == host(right)
+
+
 def validate_content(value):
     if not isinstance(value, str) or len(value.encode("utf-8")) > 4_000_000:
         raise ValueError("PROVIDER_HTML_INVALID_CONTENT")
@@ -66,7 +72,9 @@ def extract_pages(payload, requested_urls):
         if url not in requested or url in seen:
             raise ValueError("PROVIDER_HTML_URL_MISMATCH")
         for key in ("final_url", "redirected_url", "resolved_url"):
-            if row.get(key) and canonical_url(row[key]) != url:
+            # A redirect inside the same site (http->https, www<->apex, a landing
+            # path) is the same source; a redirect to another host is not.
+            if row.get(key) and not _same_site(canonical_url(row[key]), url):
                 raise ValueError("PROVIDER_HTML_URL_MISMATCH")
         status = row.get("status_code", row.get("http_status", row.get("http_status_code")))
         if status is not None and (type(status) is not int or not 200 <= status < 300):

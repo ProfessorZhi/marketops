@@ -36,6 +36,20 @@ class LiveVendorShapeTests(unittest.TestCase):
                                             ["https://writtlevillagehall.co.uk/"])
         self.assertIn("writtlevillagehall2019@gmail.com", pages[0]["html"])
 
+    def test_same_site_redirect_is_accepted_and_cross_site_refused(self):
+        same = {**TINYFISH_ROW, "final_url": "https://www.writtlevillagehall.co.uk/index.php"}
+        self.assertTrue(provider_html.extract_pages({"results": [same]},
+                                                    ["https://writtlevillagehall.co.uk/"]))
+        other = {**TINYFISH_ROW, "final_url": "https://parking-page.example/"}
+        with self.assertRaisesRegex(ValueError, "PROVIDER_HTML_URL_MISMATCH"):
+            provider_html.extract_pages({"results": [other]}, ["https://writtlevillagehall.co.uk/"])
+
+    def test_social_and_directory_hosts_are_not_own_sites(self):
+        import research_delivery as delivery
+        self.assertTrue(delivery.shared_host("www.facebook.com"))
+        self.assertTrue(delivery.shared_host("essexrcc.org.uk"))
+        self.assertFalse(delivery.shared_host("writtlevillagehall.co.uk"))
+
     def test_markdown_in_text_is_still_refused(self):
         row = {**TINYFISH_ROW, "text": "# Writtle Village Hall\nEmail: x@y.example"}
         with self.assertRaises(ValueError):

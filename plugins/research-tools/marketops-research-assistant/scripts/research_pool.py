@@ -299,7 +299,10 @@ def status(root, *, pool_id: str) -> dict:
         "by_status": {s: counts.get(s, 0) for s in ("pending", "claimed", *sorted(OUTCOMES))},
         "expired_leases": expired, "progress": round(finished / total, 3) if total else 0.0,
         "targets_with_routes": routes[1], "routes": routes[0],
-        "hit_rate": round(routes[1] / counts["done"], 3) if counts.get("done") else None,
+        # Share of researched targets that yielded at least one admitted route
+        # (Member A's account rate); excluded/duplicate targets are not attempts.
+        "hit_rate": (round(routes[1] / (counts.get("done", 0) + counts.get("hold", 0)), 3)
+                     if counts.get("done", 0) + counts.get("hold", 0) else None),
         "active_workers": {w: n for w, n in workers},
         "sources": [{"source_id": s[0], "provider": s[1], "listed": s[2], "imported": s[3],
                      "duplicates": s[4], "rejected": s[5],

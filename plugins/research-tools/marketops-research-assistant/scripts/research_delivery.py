@@ -347,18 +347,30 @@ def _record_identity_value(record: dict) -> tuple[str, bool]:
 
 
 _DIRECTORY_PATH_SEGMENTS = ("/directory", "/listing", "/listings", "/venues", "/places",
-                            "/search", "/results")
+                            "/search", "/results", "/find-a-", "/community-buildings")
+#: Hosts that list many organisations or host their profiles: never an
+#: organisation's "own site", whatever a map listing calls its website.
+SHARED_HOSTS = ("facebook.com", "instagram.com", "twitter.com", "x.com", "linkedin.com",
+                "yelp.com", "yell.com", "tripadvisor.com", "tripadvisor.co.uk", "google.com",
+                "hallshire.com", "hirespace.com", "essexrcc.org.uk", "e-voice.org.uk",
+                "freeindex.co.uk", "nextdoor.com", "wikipedia.org")
+
+
+def shared_host(host: str) -> bool:
+    host = host.casefold().removeprefix("www.")
+    return any(host == item or host.endswith("." + item) for item in SHARED_HOSTS)
 
 
 def _artifact_site(asset: dict | None) -> tuple[str, bool]:
-    """(host without www., directory-shaped path?) of a saved artifact's URL."""
+    """(host without www., directory-shaped or shared host?) of a saved artifact's URL."""
     url = (asset or {}).get("url") or ""
     parts = urlsplit(url)
     host = (parts.hostname or "").casefold()
     if host.startswith("www."):
         host = host[4:]
     path = (parts.path or "/").casefold()
-    return host, any(segment in path for segment in _DIRECTORY_PATH_SEGMENTS)
+    return host, (shared_host(host)
+                  or any(segment in path for segment in _DIRECTORY_PATH_SEGMENTS))
 
 
 def _binding_supported(record: dict, organization: dict,
