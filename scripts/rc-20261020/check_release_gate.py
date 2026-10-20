@@ -68,6 +68,8 @@ LANE_TESTS = (
     ("G18-RC4", "rc4-source-selection", ["test_rc4_source_selection.py"]),
     ("G19-RC5", "rc5-review-type-guard", ["test_rc5_review_type_guard.py"]),
     ("G20-RC5", "rc5-source-evidence", ["test_rc5_source_evidence.py"]),
+    ("G21-RC5", "rc5-venue-binding-regression",
+     ["test_rc5_venue_binding_regression.py"]),
 )
 
 _SECRET_PATTERNS = (
