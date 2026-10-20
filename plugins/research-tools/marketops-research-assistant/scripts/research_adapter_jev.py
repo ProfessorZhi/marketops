@@ -89,10 +89,18 @@ PRIMITIVE_FOR_CAPABILITY = {capability: primitive
 #: The registry is the authority; a request that reaches this adapter with a key
 #: outside the set is refused rather than forwarded, because the gateway's own check
 #: is one component and a second one costs nothing.
+#:
+#: `evidence_query` is a locator for saved text, not a second way to supply the
+#: material. It is accepted on the three text primitives only. The registry entry
+#: still has to list it for the gateway route to admit the key; this mirror refuses
+#: every other name and every use on a box capability regardless.
 ALLOWED_PARAMS = {
-    "jev.choice": frozenset({"artifact_id", "question", "options"}),
-    "jev.noul": frozenset({"artifact_id", "question"}),
-    "jev.score": frozenset({"artifact_id", "question", "scale"}),
+    # `evidence_query` is a locator into saved material, never the material itself.
+    # It is a reviewed parameter for text judgments only; a box reads a whole image
+    # and has no text span to locate inside.
+    "jev.choice": frozenset({"artifact_id", "question", "options", "evidence_query"}),
+    "jev.noul": frozenset({"artifact_id", "question", "evidence_query"}),
+    "jev.score": frozenset({"artifact_id", "question", "scale", "evidence_query"}),
     "jev.box": frozenset({"artifact_id", "target"}),
 }
 
@@ -104,6 +112,11 @@ MAX_ARTIFACTS = 3
 MIN_SPAN_CHARS = 20
 #: The upstream text bound for a single judgment, matching the previous adapter.
 MAX_SPAN_CHARS = 4000
+#: Bounds of an evidence locator. They mirror `research_evidence.excerpts`, which
+#: receives the locator as a query; keeping the two equal means a locator this
+#: adapter accepts is one the extractor can serve.
+MIN_LOCATOR_CHARS = 2
+MAX_LOCATOR_CHARS = 60
 NAME = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
 
 #: The contract's §5.3 closed set. `research_contract.py` (W-B) does not exist yet,
@@ -150,6 +163,7 @@ JEV_REFUSAL_CODES = (
     "JEV_BOX_CANNOT_SHARE_A_TEXT_BATCH",
     "JEV_EVIDENCE_BINDING_REQUIRED",
     "JEV_EVIDENCE_LOCATOR_INVALID",
+    "JEV_EVIDENCE_LOCATOR_NO_MATCH",
     "JEV_EVIDENCE_ARTIFACT_NOT_IN_RUN",
     "JEV_EVIDENCE_READBACK_MISMATCH",
     "JEV_EVIDENCE_SPAN_MISMATCH",
@@ -207,7 +221,8 @@ CONTRACT_CODE_FOR_JE: dict[str, str] = {
         "JEV_QUESTION_NAME_DUPLICATE", "JEV_QUESTIONS_REQUIRED", "JEV_BATCH_TOO_LARGE",
         "JEV_PRIMITIVE_INVALID", "JEV_BOX_IMAGE_ARTIFACT_INVALID",
         "JEV_BOX_CANNOT_SHARE_A_TEXT_BATCH", "JEV_EVIDENCE_BINDING_REQUIRED",
-        "JEV_EVIDENCE_LOCATOR_INVALID", "JEV_EVIDENCE_ARTIFACT_NOT_IN_RUN",
+        "JEV_EVIDENCE_LOCATOR_INVALID", "JEV_EVIDENCE_LOCATOR_NO_MATCH",
+        "JEV_EVIDENCE_ARTIFACT_NOT_IN_RUN",
         "JEV_EVIDENCE_READBACK_MISMATCH", "JEV_EVIDENCE_SPAN_MISMATCH",
         "JEV_EVIDENCE_SPAN_TOO_SHORT", "JEV_TEXT_JUDGMENT_REQUIRES_TEXT_EVIDENCE",
         "JEV_BOX_REQUIRES_AN_IMAGE_ARTIFACT", "JEV_BOX_ARTIFACT_MISMATCH",
@@ -467,11 +482,47 @@ class EvidenceBinding:
         return self.locator_kind == "asset"
 
 
+def _checked_locator(query: object) -> str:
+    """Validate a locator without ever treating it as content.
+
+    A locator is a short, printable phrase that must occur in the saved material.
+    Anything else — a document, a multi-line block, a control character, a value
+    that is not a string — is refused before extraction, so a caller cannot smuggle
+    free text in under the name of a locator.
+    """
+    if not isinstance(query, str) or not MIN_LOCATOR_CHARS <= len(query) <= MAX_LOCATOR_CHARS:
+        raise JevRefusal("JEV_EVIDENCE_LOCATOR_INVALID")
+    if not query.strip() or any(not char.isprintable() for char in query):
+        raise JevRefusal("JEV_EVIDENCE_LOCATOR_INVALID")
+    if not any(char.isalnum() for char in query):
+        raise JevRefusal("JEV_EVIDENCE_LOCATOR_INVALID")
+    return query
+
+
 def _extract_span(store_root: Path, run_id: str, artifact_id: str, query: str) -> str:
     """The server-side extraction. The caller never supplies the text itself."""
     result = research_evidence.excerpts(
         store_root, run_id, [artifact_id], [query] if query else [])
-    return "\n".join(result["results"][0]["snippets"]).strip()
+    row = result["results"][0]
+    # A locator that matches nothing must not degrade into "the head" or an empty
+    # span: either would send a judgment about material the caller did not select.
+    if query and not row["query_hits"]:
+        raise ValueError("EXCERPT_QUERY_NO_MATCH")
+    return "\n".join(row["snippets"]).strip()
+
+
+def _extracted_span(store_root: Path, run_id: str, artifact_id: str, query: str) -> str:
+    """`_extract_span`, with the extractor's refusals in this adapter's code space."""
+    try:
+        return _extract_span(store_root, run_id, artifact_id, query)
+    except ValueError as exc:
+        if str(exc) == "EXCERPT_SOURCE_HASH_MISMATCH":
+            raise JevRefusal("JEV_EVIDENCE_READBACK_MISMATCH") from None
+        if str(exc) == "EXCERPT_ARTIFACT_NOT_IN_RUN":
+            raise JevRefusal("JEV_EVIDENCE_ARTIFACT_NOT_IN_RUN") from None
+        if str(exc) == "EXCERPT_QUERY_NO_MATCH":
+            raise JevRefusal("JEV_EVIDENCE_LOCATOR_NO_MATCH") from None
+        raise
 
 
 def _readback(store_root: Path, run_id: str, artifact_id: str) -> dict:
@@ -488,7 +539,8 @@ def bind_evidence(root: Path | str | None, run_id: str, artifact_id: str,
     """Bind a judgment input to a saved artifact, extracting the span server-side.
 
     `query` is a *locator*, not content: it selects which part of the saved material
-    the judgment should read. An empty query takes the head of the material.
+    the judgment should read. An empty query takes the head of the material, which
+    is the backward-compatible default; a non-empty query must match the saved bytes.
     """
     store_root = _root(root)
     store._id(run_id, "run_id")
@@ -496,8 +548,11 @@ def bind_evidence(root: Path | str | None, run_id: str, artifact_id: str,
         store._id(artifact_id, "artifact_id")
     except ValueError:
         raise JevRefusal("JEV_EVIDENCE_ARTIFACT_NOT_IN_RUN") from None
-    if not isinstance(query, str) or len(query) > 60 or (query and len(query) < 2):
+    if query is None:
+        query = ""
+    if not isinstance(query, str):
         raise JevRefusal("JEV_EVIDENCE_LOCATOR_INVALID")
+    query = _checked_locator(query) if query else ""
     material = _readback(store_root, run_id, artifact_id)
 
     if material["material_kind"] == "image":
@@ -509,14 +564,7 @@ def bind_evidence(root: Path | str | None, run_id: str, artifact_id: str,
                                material["content_sha256"], "asset", "", "image",
                                EXTRACTOR_IMAGE)
 
-    try:
-        span = _extract_span(store_root, run_id, artifact_id, query)
-    except ValueError as exc:
-        if str(exc) == "EXCERPT_SOURCE_HASH_MISMATCH":
-            raise JevRefusal("JEV_EVIDENCE_READBACK_MISMATCH") from None
-        if str(exc) == "EXCERPT_ARTIFACT_NOT_IN_RUN":
-            raise JevRefusal("JEV_EVIDENCE_ARTIFACT_NOT_IN_RUN") from None
-        raise
+    span = _extracted_span(store_root, run_id, artifact_id, query)
     if len(span) < MIN_SPAN_CHARS:
         raise JevRefusal("JEV_EVIDENCE_SPAN_TOO_SHORT")
     span = span[:MAX_SPAN_CHARS]
@@ -537,8 +585,8 @@ def _reverify(store_root: Path, binding: EvidenceBinding) -> str:
         raise JevRefusal("JEV_EVIDENCE_READBACK_MISMATCH")
     if binding.is_image:
         return ""
-    span = _extract_span(store_root, binding.run_id, binding.artifact_id,
-                         binding.locator)[:MAX_SPAN_CHARS]
+    span = _extracted_span(store_root, binding.run_id, binding.artifact_id,
+                           binding.locator)[:MAX_SPAN_CHARS]
     if hashlib.sha256(span.encode("utf-8")).hexdigest() != binding.span_sha256:
         raise JevRefusal("JEV_EVIDENCE_SPAN_MISMATCH")
     return span
@@ -731,8 +779,13 @@ class JevAdapter:
             raise JevRefusal("JEV_EVIDENCE_BINDING_REQUIRED", "artifact_id is required")
 
         # The input is the *saved* artifact; the question is the only free text.
+        # `evidence_query` is a locator: it selects a span inside those saved bytes
+        # and is re-derived from disk before dispatch. It is never accepted as the
+        # text itself, and it is not carried for a box capability (the allowlist
+        # above refuses it there).
         question = self._question_for(capability_id, primitive, params, artifact_id)
-        binding = bind_evidence(self._root, run_id, artifact_id)
+        evidence_query = params.get("evidence_query", "")
+        binding = bind_evidence(self._root, run_id, artifact_id, query=evidence_query)
         return self._run(self._root, run_id=run_id, operation_id=operation_id,
                          bindings=[binding], questions=[question])
 
