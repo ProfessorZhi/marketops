@@ -26,7 +26,7 @@ EXPECTED_TOOLS = {
     "marketops_events", "marketops_export", "marketops_export_xlsx", "marketops_handoff",
     "marketops_experience_draft", "marketops_next", "marketops_propose_batch",
     "marketops_material_excerpt", "marketops_evidence_audit",
-    "marketops_managed_call", "marketops_evidence_workbook",
+    "marketops_managed_call", "marketops_evidence_workbook", "marketops_site_harvest",
 }
 
 

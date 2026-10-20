@@ -94,7 +94,7 @@ def _refusal_code(exc: BaseException) -> str:
 
 def source_files():
     """Explicit distributable roots; private runtime directories never ship."""
-    roots = ("scripts", "references", "skills", ".claude-plugin", ".codex-plugin")
+    roots = ("scripts", "references", "skills", "agents", "commands", ".claude-plugin", ".codex-plugin")
     excluded = {"__pycache__", ".pytest_cache", ".venv", ".git", "data", "state",
                 "runs", "scratch", "artifacts", "exports", "tests"}
     for root in roots:

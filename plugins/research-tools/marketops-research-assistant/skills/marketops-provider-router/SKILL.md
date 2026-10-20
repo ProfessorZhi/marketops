@@ -18,6 +18,9 @@ description: Select one actually available, authorized provider capability for a
 | `source_discovery` | Serper → SerpApi → TinyFish Search | query、Brief 的 country/language，不猜 US |
 | `known_public_url` / `batch_public_pages` | Crawl4AI → TinyFish Fetch | 当前一个 url；批次逐页使用独立步骤 |
 | `semantic_choice` | Jev Choice → 原文/人工复核 HOLD | 已保存 artifact_id、question、options |
+| 机构自有官网（联系/人员/租用页） | `marketops_site_harvest`：Crawl4AI → TinyFish Fetch，一次调用含引文、写入和准入 | 官网 url、官网上的机构原名、organization_key；名录页不用它 |
+| 场地列举 | SerpApi `engine:google_maps`（`marketops_serpapi_mcp_search`） | 区域 + 场地类型；结果仍需官网原文核实 |
+| 角色定向 | Serper `site:域名 "Grounds Manager" OR "Facilities"` | 机构官网域名 + 角色词 |
 
 仅未配置/未获准的供应商可跳过；明确普通技术失败或有回执的空材料才换下一家。403/401/429、WAF、
 CAPTCHA、域名/出口政策拒绝立即停止该来源，不能换工具绕过。TIMEOUT、UNKNOWN、调用中断或不能分类的

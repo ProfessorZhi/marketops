@@ -9,6 +9,7 @@
 | 开始/继续 | `marketops_start`、`marketops_status`、`marketops_next` | 保存 Brief、读取候选、给出下一阶段和适用经验；status 的 kind=artifact 可找回原文资料元数据 |
 | 当前能力 | `marketops_capabilities` | 与调用相同的本地准入、依赖和累计请求台账；身份/余额未知不假绿 |
 | 有界降级 | `marketops_research_step` | 在已准入渠道中有限尝试，保留每次原因、结果和回执 |
+| 官网挖掘 | `marketops_site_harvest` | 一次调用抓取机构自有官网的联系/人员/租用页，切出原文引文，写入候选并返回每条准入结论 |
 | 单次调用 | `marketops_managed_call` | 统一 Registry/Policy/Ledger/Adapter，返回业务数据和持久资料引用 |
 | 搜索 | `marketops_search`、`marketops_serpapi_mcp_search` | Serper REST / SerpApi 内嵌官方 MCP，兼容名称使用同一调用链 |
 | 抓取 | `marketops_crawl`、`marketops_tinyfish` | 本地 Crawl4AI / TinyFish 内嵌 MCP；保留来源种类、时间和 hash |

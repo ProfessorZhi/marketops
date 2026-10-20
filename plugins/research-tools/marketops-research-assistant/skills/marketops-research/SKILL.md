@@ -7,6 +7,20 @@ description: Single entry for one human-initiated MarketOps candidate research R
 
 未配置时先调用 `marketops_setup_status` 并只问数据根与经验文件两个绝对路径；已配置不再问。新会话先 `marketops_runs(limit=10)` 查看已有任务，按需使用返回的 cursor 翻页；续跑现有 Run，不因模型重启另建或重抓。同类新批沿用已确认的 `scope/rule_version`，不要为批次号重命名它们；业务范围或规则确实改变时显式记录差异。新 Run 必须用 `marketops_start(..., brief={record_type:'research_brief', target_kind, goal, require_named_person, minimum_targets:null, evidence_requirements:{organization:['identity']}})` **一并保存目标**，确认 `next_status` 不等于 BRIEF_REQUIRED；再按需加载 `marketops-intake`。未知国家/产品/场景保持未知，**不默认绑定任何固定市场 Profile**。
 
+## 自主运行：一次确认，整段完成
+
+目标是用户少干、agent 多干。开始时**只确认一次**缺失的必要信息：范围（地区/实体/角色）、交付形式、本次预算上限；已给出的不再问。之后连续执行到交付，不逐批请示、不停下来等「继续」。只在以下情况停下询问：预算上限即将触达；需要付费层级（如 TinyFish Agent）但未授权；同类判据冲突反复出现（RULES_UNKNOWN 成批）；凭证/配置缺失。其余问题自行选择已授权的替代来源或记 HOLD 后继续下一个机构，结束时统一汇报。
+
+## 最快路径：来源池 → 场地/机构池 → 分诊 → 逐机构深挖 → 候选池
+
+效果优先，成本其次；每一步都用最擅长的 provider：
+
+1. **来源池**：Serper 广撒网找批量来源（名录、协会成员页、规划/场地清单 PDF）；SerpApi（`marketops_serpapi_mcp_search`，`engine:google_maps`）按区域列举场地，带官网和电话，作为独立全集互相对照。名录页用 `marketops_research_step`/`marketops_crawl` 保存。每个来源记下「列出数」，交付前对账：列出 = 入池 + 排除 + HOLD。
+2. **分诊**：已保存摘要上用 `marketops_jev_choice` 判断类型/优先级（例如真草/3G/室内/高尔夫），只用于排序，不是事实；不确定的由你读原文判断。
+3. **逐机构深挖**：有官网的机构直接调用 `marketops_site_harvest(run_id, operation_id, organization_name=官网上的原名, organization_key, url=官网, max_pages=6)`。一次完成抓取（Crawl4AI，失败自动 TinyFish fetch）、联系/人员/租用页跟进、原文引文、候选写入和准入检查。你只做判断：读每条 route 的 `context` 定角色和级别（Brief/验收配置的规则）；缺关键角色时用 Serper `site:域名 "Grounds Manager" OR "Facilities"` 找职员页，再对该页 harvest。
+4. **并行**：宿主能启动子代理时（Claude Code 的 `account-researcher`），每批把 5–10 个机构分给子代理，主会话只分派和汇总；不能时（Codex、WorkBuddy）按同一第 3 步逐个机构执行。
+5. **每个机构都有结果**：已准入的联系渠道，或 HOLD 加原因与已试页面。总机/泛邮箱单独计，不包装成关键联系人；禁猜邮箱。
+
 ## 小批次：只取需要的信息
 
 1. 每批 `marketops_next(run_id, limit=10)`；先阅读 start/next 返回的有限经验建议，只加载当前推荐的阶段 Skill（需要语义解释时才读单个 reference）。需要按工具细化时调用 `marketops_experience_recall(run_id, stage, provider, query, limit=5)`，不要 dump 历史；已知对象直接用过滤的 `marketops_status(limit=20)`。

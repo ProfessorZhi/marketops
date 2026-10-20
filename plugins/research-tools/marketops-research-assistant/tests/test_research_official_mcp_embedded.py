@@ -214,7 +214,7 @@ class EmbeddedMCPTests(unittest.TestCase):
         self.assertIn("marketops_serpapi_mcp_search",tools)
         self.assertIn("marketops_tinyfish_agent",tools)
         self.assertIn("marketops_tinyfish_agent_wait",tools)
-        self.assertEqual(30,len(tools))
+        self.assertEqual(31,len(tools))
 
 
 if __name__=="__main__":

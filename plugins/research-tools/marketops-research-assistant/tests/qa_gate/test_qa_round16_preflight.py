@@ -217,13 +217,15 @@ PROVIDER_CAPABLE = {
     "marketops_tinyfish_agent", "marketops_tinyfish_agent_wait",
     "marketops_serpapi_mcp_search", "marketops_tinyfish", "marketops_crawl",
     "marketops_jev_choice", "marketops_search", "marketops_managed_call", "marketops_research_step",
+    # Composite: every fetch goes through research_fallback.research_step.
+    "marketops_site_harvest",
 }
 
 
-def test_the_visible_surface_is_30_and_local_tools_are_not_provider_bypasses(clean_env):
+def test_the_visible_surface_is_31_and_local_tools_are_not_provider_bypasses(clean_env):
     mcp = _mod("research_mcp")
     tools = mcp.build_server()._tool_manager._tools
-    assert len(tools) == 30, sorted(tools)
+    assert len(tools) == 31, sorted(tools)
     assert "marketops_evidence_workbook" in tools, sorted(tools)
 
     reachable = set()

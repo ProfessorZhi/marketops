@@ -1195,6 +1195,36 @@ def build_server():
             country=country, language=language, limit=limit, max_attempts=max_attempts)
 
     @tool
+    def marketops_site_harvest(run_id: str, operation_id: str, organization_name: str,
+                               organization_key: str, url: str, max_pages: int = 6,
+                               write: bool = True) -> dict:
+        """Harvest one organisation's OWN site into quoted, gate-checked candidates.
+
+        Fetches url, then up to max_pages-1 same-host contact/people/hire pages
+        (Crawl4AI, TinyFish fetch fallback), cuts literal quotes for the name and
+        every email/phone, stages organization + contact_point candidates and
+        returns each record's delivery-gate decision. Each route carries its
+        surrounding context: you assign role and grade. Never use on a directory.
+        """
+        import research_fallback
+        import research_runtime_setup
+        import research_site_harvest
+        data_root = root()
+        _require_brief_for_network(data_root, run_id)
+
+        def fetch(page_url, child):
+            return research_fallback.research_step(
+                data_root, run_id=run_id, operation_id=child, task_kind="known_public_url",
+                managed_call=managed_call,
+                admission=lambda capability: research_runtime_setup.admission(data_root, capability),
+                url=page_url, max_attempts=2)
+
+        return research_site_harvest.harvest(
+            data_root, run_id=run_id, operation_id=operation_id,
+            organization_name=organization_name, organization_key=organization_key,
+            url=url, fetch=fetch, max_pages=max_pages, write=write)
+
+    @tool
     def marketops_runs(limit: int = 10, cursor: str = "", scope: str = "") -> dict:
         """Find saved tasks before resuming or starting a related batch. Read-only and paginated."""
         return store.list_runs(None, limit=limit, cursor=cursor, scope=scope)
