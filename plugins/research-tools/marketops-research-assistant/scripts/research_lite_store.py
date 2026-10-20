@@ -485,6 +485,20 @@ def _insert_candidate(db: sqlite3.Connection, run_id: str, record_id: str,
     return {"record_id": record_id, "status": status, "artifact_ids": ids}
 
 
+_DISPOSITIONS = ("RESEARCHED_CANDIDATE", "HOLD", "EXCLUDED", "DUPLICATE")
+
+
+def _disposition_caveat(kind: str, payload: dict) -> str:
+    """Name the four legal dispositions the moment an unknown one is written."""
+    if kind != "review" or (payload or {}).get("review_type") != "target_disposition":
+        return ""
+    if payload.get("disposition") in _DISPOSITIONS:
+        return ""
+    return ("DISPOSITION_INVALID: disposition must be one of " + ", ".join(_DISPOSITIONS)
+            + " (RESEARCHED_CANDIDATE = researched, routes recorded). Resubmit with a new "
+              "record_id and facts.supersedes=<this record_id>.")
+
+
 def _miss_caveat(miss: dict) -> str:
     """One claim that did not link, with the page's own nearby text to copy from."""
     if miss.get("problem") != "QUOTE_NOT_IN_ARTIFACT":
@@ -565,7 +579,7 @@ def put_candidate(root: Path | str | None, run_id: str, record_id: str, stage: s
                                        misses=misses)
         db.commit()
     caveat = _span_caveat(kind, payload, artifact_ids, linked)
-    caveats = [caveat] if caveat else []
+    caveats = [c for c in (caveat, _disposition_caveat(kind, payload)) if c]
     caveats += [_miss_caveat(miss) for miss in misses]
     return {**result, "caveats": caveats} if caveats else result
 
@@ -606,6 +620,9 @@ def put_candidates_batch(root: Path | str | None, run_id: str,
             caveat = _span_caveat(item["kind"], item["facts"], item.get("artifact_ids"), linked)
             if caveat:
                 caveats.append(item["record_id"] + " " + caveat)
+            disposition = _disposition_caveat(item["kind"], item["facts"])
+            if disposition:
+                caveats.append(item["record_id"] + " " + disposition)
             caveats += [item["record_id"] + " " + _miss_caveat(miss) for miss in misses]
         db.commit()
     report = {"status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED",

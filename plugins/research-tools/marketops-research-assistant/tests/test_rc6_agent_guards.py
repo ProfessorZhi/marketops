@@ -47,6 +47,20 @@ class QuoteFeedbackTests(unittest.TestCase):
         self.assertIn("Do not read plugin source", caveat)
 
 
+class DispositionFeedbackTests(unittest.TestCase):
+    def test_unknown_disposition_names_the_legal_values(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store.start_run(root, "r", "s", "objective", "v1")
+            result = store.put_candidates_batch(root, "r", [{
+                "record_id": "rev-1", "stage": "review", "kind": "review", "entity_key": "rev-org",
+                "artifact_ids": [], "facts": {"review_type": "target_disposition",
+                                              "target_kind": "organization",
+                                              "target_entity_key": "org", "disposition": "ADMITTED",
+                                              "reason": "routes found"}}])
+        self.assertIn("RESEARCHED_CANDIDATE", " ".join(result["caveats"]))
+
+
 class HookTests(unittest.TestCase):
     def test_reading_plugin_source_is_blocked(self):
         result = hook("Bash", {"command": f"sed -n 1,80p {ROOT}/scripts/research_delivery.py"})

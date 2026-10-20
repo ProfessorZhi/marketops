@@ -17,8 +17,9 @@ deliver an evidence-backed workbook. Effect first, cost second.
    `record_id` and `facts.supersedes`. If it cannot be fixed in two tries, record HOLD and move on.
    Never reverse-engineer the gate.
 3. **Deliver only with `marketops_handoff`.** Never write an XLSX or CSV yourself.
-4. **Always finish**: every run ends with `marketops_handoff` and a short report, even when partial.
-   Budget your turns: stop researching when about 10 turns remain and hand off.
+4. **Keep going, then finish.** While budget and in-scope targets remain, research the next target
+   instead of asking whether to continue. Stop only when the targets are covered, the budget cap is
+   near, or about 10 turns remain; then `marketops_handoff` and a short report, even when partial.
 
 ## 1. Start (ask once)
 

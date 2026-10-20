@@ -18,8 +18,9 @@ read the databases or plugin code; the handoff applies the evidence gate you wou
 ]}
 ```
 
-   `EXCLUDED` needs an `exclusion` quote; `DUPLICATE` names the kept record. Correct a review with
-   `facts.supersedes`.
+   The four dispositions: `RESEARCHED_CANDIDATE` (researched, routes recorded), `HOLD` (unresolved,
+   give the reason), `EXCLUDED` (needs an `exclusion` quote), `DUPLICATE` (names the kept record).
+   No other value exists. Correct a review with a new `record_id` and `facts.supersedes`.
 
 2. **Reconcile.** For each source: listed = saved + excluded + HOLD. Any gap means rows were lost;
    find them before delivering.
