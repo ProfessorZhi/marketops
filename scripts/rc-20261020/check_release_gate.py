@@ -157,11 +157,20 @@ def check_targeted(env: dict[str, str]) -> list[dict]:
     for check_id, name, files in LANE_TESTS:
         if files is None:
             # Lane D names its test when it commits; find it by intent rather than
-            # hard-coding a filename the Lane has not agreed to yet.
+            # hard-coding a filename the Lane has not agreed to yet.  It must be a
+            # file this branch ADDS: a baseline test that happens to contain the
+            # word "transport" is not Lane D's evidence and must not read as green.
+            added = subprocess.run(
+                ["git", "-C", str(REPO), "diff", "--name-only", "--diff-filter=A",
+                 BASELINE, "--", str((PLUGIN / "tests").relative_to(REPO))],
+                text=True, capture_output=True)
+            added_names = {Path(line).name for line in added.stdout.splitlines()
+                           if line.strip()}
             files = [path.name for path in sorted((PLUGIN / "tests").glob("test_*.py"))
-                     if any(token in path.name for token in
-                            ("dedup", "transport", "reserve", "double_charge",
-                             "no_double_charge"))]
+                     if path.name in added_names
+                     and any(token in path.name for token in
+                             ("dedup", "transport", "reserve", "double_charge",
+                              "no_double_charge"))]
             if not files:
                 checks.append(result(check_id, name, "BLOCKED",
                                      "Lane has not delivered a committed search-dedup test"))
