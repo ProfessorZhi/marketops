@@ -1499,6 +1499,25 @@ def build_server():
         return research_pool.status(root(), pool_id=pool_id)
 
     @tool
+    def marketops_suppression(action: str = "status", entries: list[str] | None = None,
+                              reason: str = "", source: str = "", note: str = "") -> dict:
+        """The shared No-Go / unsubscribe / complaint list every Run's delivery obeys.
+
+        action="status": entry counts; NO_LIST means none was loaded, not clean.
+        action="add": entries are emails or domains (example.org / @example.org);
+        reason is unsubscribe|complaint|no_go|competitor|bounce|other; source says
+        where the list came from. Matching routes never reach a client sheet.
+        Removing an entry is a person's decision and is not offered here.
+        """
+        import research_suppression
+        if action == "status":
+            return research_suppression.status(root())
+        if action == "add":
+            return research_suppression.add_entries(
+                root(), entries=list(entries or []), reason=reason, source=source, note=note)
+        raise ValueError("SUPPRESSION_ACTION_INVALID: status or add")
+
+    @tool
     def marketops_harvest_batch(pool_id: str, worker_id: str, run_id: str, count: int = 20,
                                 concurrency: int = 4, max_pages: int = 5,
                                 roles_wanted: str = "") -> dict:

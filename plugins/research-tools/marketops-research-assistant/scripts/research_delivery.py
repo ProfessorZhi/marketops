@@ -754,6 +754,17 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
     organizations = admitted_by_kind["organization"]
     venues = admitted_by_kind["venue"]
     contacts = admitted_by_kind["contact_point"]
+    # The shared No-Go / unsubscribe / complaint list is read here, inside the one
+    # gate, so a suppressed route can never reach a client sheet. "No list" is
+    # reported as NO_LIST, never as clean.
+    import research_suppression as suppression
+    suppression_check = suppression.check(
+        root, [str(c["data"].get("value", c["data"].get("email", ""))) for c in contacts])
+    suppressed_ids = {c["record_id"] for c in contacts
+                      if str(c["data"].get("value", c["data"].get("email", "")))
+                      in suppression_check["hits"]}
+    suppressed = [c for c in contacts if c["record_id"] in suppressed_ids]
+    contacts = [c for c in contacts if c["record_id"] not in suppressed_ids]
     people = admitted_by_kind["person"] + admitted_by_kind["role"]
     # Admitted relationships are reported in the manifest; the fixed nine-sheet
     # contract has no client relationship sheet, so no row is invented for them.
@@ -782,6 +793,14 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
                       "同一组织实体键出现多条候选记录，禁止静默覆盖",
                       "人工核实组织及版本", entity_key=org["entity_key"])
         seen_orgs.add(org["entity_key"])
+    for candidate in suppressed:
+        value = str(candidate["data"].get("value", candidate["data"].get("email", "")))
+        hit = suppression_check["hits"][value]
+        add_issue("抑制名单命中", candidate["record_id"],
+                  f"{hit['match_kind']} {hit['matched']} 在抑制名单上（{hit['reason']}）",
+                  "不进入交付；移出名单只能由人决定",
+                  entity_key=candidate["entity_key"],
+                  organization_id=_field_text(candidate["data"], "organization_id") or None)
     for decision in admission["decisions"]:
         if decision["admitted"]:
             continue
@@ -987,6 +1006,10 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
                              and admission["version_conflict_record_count"] == 0
                              else "HELD_ROWS_EXCLUDED_FROM_CLIENT_TABLES"),
         "goal_assessment": goal,
+        "suppression": {"list_status": suppression_check["list_status"],
+                        "entries_checked_against": suppression_check["entries_checked_against"],
+                        "contacts_checked": suppression_check["values_checked"],
+                        "contacts_excluded": len(suppressed)},
         "evidence_link_count": len(links),
         "evidence_spanless_record_count": len(spanless),
         "evidence_envelopes": envelopes,
