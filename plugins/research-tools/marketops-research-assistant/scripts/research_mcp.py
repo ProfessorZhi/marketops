@@ -1027,6 +1027,8 @@ PUBLIC_TOOLS = frozenset({
     "marketops_site_harvest", "marketops_jev_choice", "marketops_material_excerpt",
     "marketops_propose_batch", "marketops_evidence_audit", "marketops_note",
     "marketops_handoff", "marketops_experience_recall", "marketops_experience_feedback",
+    "marketops_pool_import", "marketops_pool_claim", "marketops_pool_complete",
+    "marketops_pool_status", "marketops_harvest_batch",
 })
 
 
@@ -1034,7 +1036,7 @@ PUBLIC_TOOLS = frozenset({
 #: an Agent sees cost as it works instead of discovering exhaustion later.
 BUDGETED_TOOLS = frozenset({
     "marketops_search", "marketops_serpapi_mcp_search", "marketops_research_step",
-    "marketops_site_harvest", "marketops_jev_choice",
+    "marketops_site_harvest", "marketops_jev_choice", "marketops_harvest_batch",
 })
 
 
@@ -1306,6 +1308,75 @@ def build_server():
             data_root, run_id=run_id, operation_id=operation_id,
             organization_name=organization_name, organization_key=organization_key,
             url=url, fetch=fetch, max_pages=max_pages, write=write)
+
+    def _fetcher(data_root, run_id):
+        import research_fallback
+        import research_runtime_setup
+
+        def fetch(page_url, child):
+            return research_fallback.research_step(
+                data_root, run_id=run_id, operation_id=child, task_kind="known_public_url",
+                managed_call=managed_call,
+                admission=lambda capability: research_runtime_setup.admission(data_root, capability),
+                url=page_url, max_attempts=2)
+        return fetch
+
+    @tool
+    def marketops_pool_import(pool_id: str, source_id: str, source_url: str, provider: str,
+                              listed_count: int | None, targets: list[dict],
+                              objective: str = "", scene: str = "") -> dict:
+        """Add one source's targets to the shared pool every window works from.
+
+        targets: [{name, website?, address?, kind?, priority?}]. listed_count is how
+        many entities the source itself listed; the reply says whether imported +
+        duplicates + rejected reconcile with it. Dedupe: name + postcode/region.
+        """
+        import research_pool
+        return research_pool.import_targets(
+            root(), pool_id=pool_id, source_id=source_id, source_url=source_url,
+            provider=provider, listed_count=listed_count, targets=targets,
+            objective=objective, scene=scene)
+
+    @tool
+    def marketops_pool_claim(pool_id: str, worker_id: str, count: int = 20,
+                             lease_minutes: int = 30) -> dict:
+        """Lease up to `count` targets to this window; expired leases are re-claimable."""
+        import research_pool
+        return research_pool.claim(root(), pool_id=pool_id, worker_id=worker_id,
+                                   count=count, lease_minutes=lease_minutes)
+
+    @tool
+    def marketops_pool_complete(pool_id: str, worker_id: str, results: list[dict]) -> dict:
+        """Report outcomes for targets this window holds.
+
+        results: [{target_key, outcome: done|hold|excluded|duplicate, reason, run_id,
+        organization_key, routes}]. A reason is required for anything but done.
+        """
+        import research_pool
+        return research_pool.complete(root(), pool_id=pool_id, worker_id=worker_id,
+                                      results=results)
+
+    @tool
+    def marketops_pool_status(pool_id: str) -> dict:
+        """Shared progress: counts by status, sources reconciled, active windows, hit rate."""
+        import research_pool
+        return research_pool.status(root(), pool_id=pool_id)
+
+    @tool
+    def marketops_harvest_batch(pool_id: str, worker_id: str, run_id: str, count: int = 20,
+                                concurrency: int = 4, max_pages: int = 5) -> dict:
+        """Claim `count` targets and harvest each own site in one call; summary only.
+
+        Each target's routes are quoted, staged in run_id and gate-checked; outcomes
+        go back to the pool (done / hold with reason). Call again for the next batch.
+        """
+        import research_batch
+        data_root = root()
+        _require_brief_for_network(data_root, run_id)
+        return research_batch.harvest_batch(
+            data_root, pool_id=pool_id, worker_id=worker_id, run_id=run_id,
+            fetch=_fetcher(data_root, run_id), count=count, concurrency=concurrency,
+            max_pages=max_pages)
 
     @tool
     def marketops_runs(limit: int = 10, cursor: str = "", scope: str = "") -> dict:

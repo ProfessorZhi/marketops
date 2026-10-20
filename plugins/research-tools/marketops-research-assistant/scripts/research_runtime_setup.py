@@ -28,6 +28,8 @@ import tempfile
 
 PLUGIN = Path(__file__).resolve().parents[1]
 CONFIG_NAME = "runtime-config.json"
+#: Large pools need tens of thousands of requests; the cap stays explicit and user-set.
+MAX_CALLS_CEILING = 100_000
 KEYS = {"serper": "SERPER_API_KEY", "serpapi": "SERPAPI_API_KEY",
         "tinyfish": "TINYFISH_API_KEY", "typesafe_jev": "TYPESAFE_API_KEY"}
 PROVIDERS = (*KEYS, "crawl4ai")
@@ -108,7 +110,7 @@ def cap_plan(settings):
     price.
     """
     max_calls = settings.get("max_calls")
-    if type(max_calls) is not int or isinstance(max_calls, bool) or not 1 <= max_calls <= 500:
+    if type(max_calls) is not int or isinstance(max_calls, bool) or not 1 <= max_calls <= MAX_CALLS_CEILING:
         raise ValueError("BUDGET_LIMITS_INVALID: max_calls")
     project_calls = _calls_limit("project_max_calls",
                                  settings.get("project_max_calls", max_calls),
@@ -228,7 +230,7 @@ def fetch_allowlist(settings, urls=()):
 def configure(root, *, providers, domains, max_calls, task, confirm=False, amend=False,
               provider_limits=None, run_max_calls=None, project_max_calls=None,
               project_max_usd_micros=None, run_max_usd_micros=None, public_web_fetch=None):
-    if confirm is not True or type(max_calls) is not int or not 1 <= max_calls <= 500:
+    if confirm is not True or type(max_calls) is not int or not 1 <= max_calls <= MAX_CALLS_CEILING:
         raise ValueError("FINITE_LOCAL_CONSENT_REQUIRED")
     selected = sorted(set("typesafe_jev" if x == "jev" else x for x in providers))
     if not selected or not set(selected) <= set(PROVIDERS):

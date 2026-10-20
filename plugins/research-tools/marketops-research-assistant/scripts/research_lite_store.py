@@ -64,6 +64,7 @@ def _connection(root: Path) -> sqlite3.Connection:
             stage TEXT NOT NULL, kind TEXT NOT NULL, status TEXT NOT NULL,
             entity_key TEXT NOT NULL, payload_json TEXT NOT NULL,
             artifact_ids_json TEXT NOT NULL, created_at TEXT NOT NULL);
+        CREATE INDEX IF NOT EXISTS records_run_entity ON records(run_id, entity_key);
         CREATE TABLE IF NOT EXISTS evidence_links (
             link_id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES runs(run_id),
             record_id TEXT NOT NULL, artifact_id TEXT NOT NULL,

@@ -79,8 +79,8 @@ Bruce 这类销售提出调研需求后，agent 自主把整件事做完：从�
 
 ## 9. 任务清单（按顺序，接手者从第一个未勾选项开始）
 
-- [ ] **T1 共享任务池**：`research_pool.py` + 工具 `marketops_pool_import / pool_claim / pool_complete / pool_status`；租约、规范化去重、来源列出数对账。验收：两个进程并发领取不重复，崩溃后租约过期可重领，对账公式成立。
-- [ ] **T2 批量挖掘**：`marketops_harvest_batch`（工具内部并发，全局限速，只返回摘要）；修复 site_harvest 只读 500 条记录的问题；准入改为只检查新写入的记录；放开 500 次额度上限（可配置到 10 万）。验收：200 家合成站点的回放测试耗时线性增长。
+- [x] **T1 共享任务池**（见本提交）：`research_pool.py` + 工具 `marketops_pool_import / pool_claim / pool_complete / pool_status`；租约、规范化去重、来源列出数对账。验收：两个进程并发领取不重复，崩溃后租约过期可重领，对账公式成立。
+- [x] **T2 批量挖掘**（见本提交）：`marketops_harvest_batch`（工具内部并发，全局限速，只返回摘要）；修复 site_harvest 只读 500 条记录的问题；准入改为只检查新写入的记录；放开 500 次额度上限（可配置到 10 万）。验收：200 家合成站点的回放测试耗时线性增长。
 - [ ] **T3 碰壁记录 + 域名记忆**：`wall_events` 表，由 fallback 和 harvest 自动写入；域名记忆影响升级起点；`marketops_lessons_report`。验收：被拦域名第二次直接走 TinyFish；报告能导出。
 - [ ] **T4 Jev 批量**：`marketops_jev_triage`（多问题批量、置信度阈值）；site_harvest 可选用 Jev 判断页面价值和角色。验收：真实 Jev 调用批量返回，低置信度项被标出。
 - [ ] **T5 第三档攻坚**：TinyFish 浏览器 Agent 接入升级阶梯，带攻坚预算和授权开关。

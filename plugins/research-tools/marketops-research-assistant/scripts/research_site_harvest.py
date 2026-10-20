@@ -202,6 +202,26 @@ def _envelope_links(root, run_id: str, receipt: dict) -> list[str]:
     return links
 
 
+def _exists(root, run_id: str, column: str, value: str, *, kind: str = "") -> bool:
+    """Key lookup instead of listing the Run: a Run can hold tens of thousands of rows."""
+    from contextlib import closing
+    with closing(store._connection(root)) as db:
+        return db.execute(
+            f"SELECT 1 FROM records WHERE run_id=? AND {column}=? AND (?='' OR kind=?) LIMIT 1",
+            (run_id, value, kind, kind)).fetchone() is not None
+
+
+def admission_for(root, run_id: str, record_ids) -> list[dict]:
+    """The delivery gate's decision for these records (one snapshot read per call)."""
+    wanted = set(record_ids)
+    if not wanted:
+        return []
+    _sheets, manifest = delivery.build_delivery(root, run_id)
+    return [{"record_id": d["record_id"], "kind": d["kind"], "admitted": d["admitted"],
+             "reason_codes": d["reason_codes"]}
+            for d in manifest["admission"]["decisions"] if d["record_id"] in wanted]
+
+
 def _evidence_artifact(receipt: dict) -> str:
     for key in ("primary_artifact_ids", "provider_html_artifact_ids", "artifact_ids"):
         values = receipt.get(key) or []
@@ -212,7 +232,7 @@ def _evidence_artifact(receipt: dict) -> str:
 
 def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str,
             organization_key: str, url: str, fetch, max_pages: int = 6,
-            write: bool = True) -> dict:
+            write: bool = True, check_admission: bool = True) -> dict:
     """Fetch, extract and (optionally) stage one organisation's own-site routes.
 
     ``fetch(url, operation_id)`` is the managed known-public-URL step; it must
@@ -274,10 +294,8 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
     if not write or not identity:
         return result
 
-    existing = {row["entity_key"] for row in store.list_run(root, run_id, limit=500)["records"]
-                if row["kind"] == "organization"}
     items = []
-    if organization_key not in existing:
+    if not _exists(root, run_id, "entity_key", organization_key, kind="organization"):
         items.append({"record_id": _record_id(run_id, organization_key, "org"), "stage": "entities",
                       "kind": "organization", "entity_key": organization_key,
                       "facts": {"name": name, "website": url, "claims": [
@@ -295,17 +313,14 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
                                             "quote": route["quote"]}]},
                       "artifact_ids": [route["artifact_id"]]})
     if items:
-        current = {row["record_id"] for row in store.list_run(root, run_id, limit=500)["records"]}
-        fresh = [item for item in items if item["record_id"] not in current]
+        fresh = [item for item in items
+                 if not _exists(root, run_id, "record_id", item["record_id"])]
         for start in range(0, len(fresh), 20):  # the store's atomic batch bound
             store.put_candidates_batch(root, run_id, fresh[start:start + 20])
         result["written"] = [item["record_id"] for item in fresh]
-        _sheets, manifest = delivery.build_delivery(root, run_id)
-        wanted = {item["record_id"] for item in items}
-        result["admission"] = [
-            {"record_id": d["record_id"], "kind": d["kind"], "admitted": d["admitted"],
-             "reason_codes": d["reason_codes"]}
-            for d in manifest["admission"]["decisions"] if d["record_id"] in wanted]
+        result["record_ids"] = [item["record_id"] for item in items]
+        if check_admission:
+            result["admission"] = admission_for(root, run_id, result["record_ids"])
     result["next_action"] = ("ASSIGN_ROLE_AND_GRADE_FROM_CONTEXT" if result["routes"] else
                              "NO_PUBLIC_ROUTE_ON_SITE: record HOLD with the pages tried, or try a "
                              "role search on this domain")
