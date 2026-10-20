@@ -21,6 +21,7 @@ from collections import Counter, defaultdict
 from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlsplit
 from xml.etree import ElementTree as ET
 
 import research_lite_store as store
@@ -345,9 +346,26 @@ def _record_identity_value(record: dict) -> tuple[str, bool]:
     return "", False
 
 
+_DIRECTORY_PATH_SEGMENTS = ("/directory", "/listing", "/listings", "/venues", "/places",
+                            "/search", "/results")
+
+
+def _artifact_site(asset: dict | None) -> tuple[str, bool]:
+    """(host without www., directory-shaped path?) of a saved artifact's URL."""
+    url = (asset or {}).get("url") or ""
+    parts = urlsplit(url)
+    host = (parts.hostname or "").casefold()
+    if host.startswith("www."):
+        host = host[4:]
+    path = (parts.path or "/").casefold()
+    return host, any(segment in path for segment in _DIRECTORY_PATH_SEGMENTS)
+
+
 def _binding_supported(record: dict, organization: dict,
                        valid_claims: list[tuple[str, str, str]],
-                       relationship_edges: dict[str, list[dict]]) -> bool:
+                       relationship_edges: dict[str, list[dict]],
+                       site_owner: dict[str, str] | None = None,
+                       assets: dict | None = None) -> bool:
     """Does the *quoted* evidence tie this record to the organisation it names?
 
     A shared artifact id is not ownership. A public directory page can list many
@@ -391,6 +409,20 @@ def _binding_supported(record: dict, organization: dict,
 
     if any(supports(quote) for quote in org_quotes):
         return True
+
+    # 3. **The organisation's own site.** A contact block on a hall's own page
+    # rarely repeats the trust's full name, so shape 1 rejected nearly every
+    # real booking address. A literal quoted from a host on which this
+    # organisation, and no other organisation in the Run, has an admitted
+    # identity quote binds to it. Directory-shaped paths never qualify, and a
+    # host claimed by two organisations falls back to shapes 1 and 2.
+    if literal and site_owner and assets:
+        for _field, quote, artifact_id in valid_claims:
+            host, directory = _artifact_site(assets.get(artifact_id))
+            if (host and not directory
+                    and site_owner.get(host) == organization["entity_key"]
+                    and _literal_in(quote, own_value)):
+                return True
 
     for reference in (record.get("record_id"), record.get("entity_key")):
         if not isinstance(reference, str) or not reference:
@@ -551,6 +583,16 @@ def evaluate_admission(records: list[dict], artifacts, links: list[dict],
             else:
                 org_by_key[row["entity_key"]] = row
 
+    # Hosts on which exactly one admitted organisation has an identity quote.
+    site_claims: dict[str, set[str]] = defaultdict(set)
+    for key, org in org_by_key.items():
+        for field, _quote, artifact_id in prepared[org["record_id"]][3]:
+            host, directory = _artifact_site(assets.get(artifact_id))
+            if field == "identity" and host and not directory:
+                site_claims[host].add(key)
+    site_owner = {host: next(iter(keys)) for host, keys in site_claims.items()
+                  if len(keys) == 1}
+
     # Named relationship edges: an admitted relationship row may bind a contact
     # (or venue/person/role) to its organisation only when the relationship quote
     # itself names both sides. The edge is indexed by every identifier the row
@@ -593,7 +635,7 @@ def evaluate_admission(records: list[dict], artifacts, links: list[dict],
             if organization is None:
                 codes.add("ORGANIZATION_NOT_ADMITTED")
             elif not _binding_supported(row, organization, valid_claims,
-                                         relationship_edges):
+                                         relationship_edges, site_owner, assets):
                 codes.add("ORGANIZATION_PROVENANCE_MISMATCH")
         decisions.append({
             "record_id": row["record_id"], "kind": kind,
@@ -641,7 +683,8 @@ _ADMISSION_ISSUE_TYPE = {
 _ADMISSION_ACTION = {
     "organization": "补充组织身份页面引文与跨度后重新提交；不得进入客户总表",
     "venue": "补充场地身份页面引文并解除 HOLD；不得进入场地与资产",
-    "contact_point": "回到原始页面取得含该字面值的具名引文；不得晋升联系人",
+    "contact_point": ("引文须含该字面值，并且：同一引文含组织全名，或来自该组织已有身份引文的同一官网"
+                      "（非名录页、无他组织共用），或经 relationship 记录绑定；不得晋升联系人"),
     "person": "补充人员或角色的页面引文与岗位证据；不得进入人员岗位",
     "role": "补充人员或角色的页面引文与岗位证据；不得进入人员岗位",
     "relationship": "核实关联双方并补充同一来源跨度；不得进入关联结论",
@@ -755,11 +798,20 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
                   _plain(other["data"].get("reason")), "人工决策并记录审批来源",
                   entity_key=other["entity_key"])
 
-    venue_counts = Counter()
+    # A venue joins its organisation either by its own organization_id or by an
+    # admitted relationship row naming both; the skills teach the second form.
+    venue_orgs: dict[str, set[str]] = defaultdict(set)
     for venue in venues:
         org_key = _field_text(venue["data"], "organization_id")
         if org_key:
-            venue_counts[org_key] += 1
+            venue_orgs[venue["entity_key"]].add(org_key)
+    venue_keys = {venue["entity_key"] for venue in venues}
+    for relation in admitted_by_kind["relationship"]:
+        data = relation.get("data") or {}
+        venue_key, org_key = _field_text(data, "venue_id"), _field_text(data, "organization_id")
+        if venue_key in venue_keys and org_key:
+            venue_orgs[venue_key].add(org_key)
+    venue_counts = Counter(org for orgs in venue_orgs.values() for org in orgs)
     contact_counts = Counter()
     for candidate in contacts:
         org_key = _field_text(candidate["data"], "organization_id")
@@ -809,7 +861,7 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
 
     venue_rows = [(
         x["entity_key"], _plain(x["data"].get("name")),
-        _plain(_field_text(x["data"], "organization_id") or None),
+        _plain("; ".join(sorted(venue_orgs.get(x["entity_key"], ()))) or None),
         "CANDIDATE_NOT_APPROVED", "; ".join(x["artifact_ids"]) or "NONE",
     ) for x in venues]
 

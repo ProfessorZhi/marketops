@@ -563,6 +563,11 @@ def _require_brief_for_network(root_path, run_id: str) -> None:
 def start(run_id, scope, objective, rule_version, brief=None):
     """Start/resume one Run and atomically stage its validated structured goal."""
     r = root()
+    if (type(brief) is dict and brief.get("minimum_targets") is not None
+            and "minimum_targets_unit" not in brief):
+        # A new Brief states its quantity in its own target unit. The unit review
+        # exists for legacy Runs; asking a fresh Brief for it only stalled intake.
+        brief = {**brief, "minimum_targets_unit": brief.get("target_kind")}
     if brief is not None:
         _valid_brief(run_id, brief)
     result = store.start_run(r, run_id, scope, objective, rule_version)
