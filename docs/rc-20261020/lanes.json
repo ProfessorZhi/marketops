@@ -1,0 +1,73 @@
+{
+  "schema": "marketops.rc-integration-manifest/1",
+  "baseline": "4f87bc3306b90d55bfd0332ef1efc8b97f1dcc44",
+  "baseline_branch": "feat/bruce-plugin-delivery-20261020",
+  "rc_branch": "rc/marketops-release-candidate-20261020",
+  "note": "commits 只填已落到 Lane 分支的精确 SHA；空列表表示该 Lane 尚未交付，不猜测、不代填。",
+  "lanes": [
+    {
+      "id": "A",
+      "name": "delivery-admission-gate",
+      "branch": "fix/marketops-rc-delivery-gate-20261020",
+      "worktree": "/data/home/vince/workspace/worktrees/marketops/rc-gate-20261020",
+      "owned_paths": [
+        "plugins/research-tools/marketops-research-assistant/scripts/research_delivery.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_research_delivery.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_delivery_admission_gate.py"
+      ],
+      "commits": []
+    },
+    {
+      "id": "B",
+      "name": "client-view",
+      "branch": "fix/marketops-rc-client-view-20261020",
+      "worktree": "/data/home/vince/workspace/worktrees/marketops/rc-clientview-20261020",
+      "owned_paths": [
+        "plugins/research-tools/marketops-research-assistant/scripts/research_client_view.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_client_view_generation.py",
+        "plugins/research-tools/marketops-research-assistant/references/CLIENT_VIEW_CONTRACT.md"
+      ],
+      "commits": []
+    },
+    {
+      "id": "C",
+      "name": "installer-optin",
+      "branch": "fix/marketops-rc-installer-20261020",
+      "worktree": "/data/home/vince/workspace/worktrees/marketops/rc-installer-20261020",
+      "owned_paths": [
+        "plugins/research-tools/marketops-research-assistant/install.sh",
+        "plugins/research-tools/marketops-research-assistant/scripts/setup_clients.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_installer_optin_security.py"
+      ],
+      "commits": []
+    },
+    {
+      "id": "D",
+      "name": "search-transport-dedup",
+      "branch": "fix/marketops-rc-search-cost-20261020",
+      "worktree": "/data/home/vince/workspace/worktrees/marketops/rc-search-cost-20261020",
+      "owned_paths": [
+        "plugins/research-tools/marketops-research-assistant/scripts/search_canonical.py"
+      ],
+      "commits": []
+    },
+    {
+      "id": "E",
+      "name": "jev-evidence-locator",
+      "branch": "fix/marketops-rc-jev-target-20261020",
+      "worktree": "/data/home/vince/workspace/worktrees/marketops/rc-jev-target-20261020",
+      "owned_paths": [
+        "plugins/research-tools/marketops-research-assistant/scripts/research_adapter_jev.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_jev_targeted_excerpt.py"
+      ],
+      "commits": []
+    }
+  ],
+  "qa": {
+    "id": "Q",
+    "branch": "qa/marketops-rc-customer-gate-20261020",
+    "worktree": "/data/home/vince/workspace/worktrees/marketops/rc-independent-qa-20261020",
+    "artifact": "tests/test_customer_delivery_boundary_qa.py",
+    "integrate_into_product_branch": false
+  }
+}
