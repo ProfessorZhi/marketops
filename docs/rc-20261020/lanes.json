@@ -53,9 +53,14 @@
       "branch": "fix/marketops-rc-search-cost-20261020",
       "worktree": "/data/home/vince/workspace/worktrees/marketops/rc-search-cost-20261020",
       "owned_paths": [
-        "plugins/research-tools/marketops-research-assistant/scripts/search_canonical.py"
+        "plugins/research-tools/marketops-research-assistant/scripts/search_canonical.py",
+        "plugins/research-tools/marketops-research-assistant/scripts/dual_search_mcp.py",
+        "plugins/research-tools/marketops-research-assistant/scripts/research_provider_extensions.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_serpapi_cross_transport_no_double_charge.py"
       ],
-      "commits": []
+      "commits": [
+        "eefd8b6a4ae14fff7c8e6caed3bc2e1a2027f38c"
+      ]
     },
     {
       "id": "E",
@@ -76,6 +81,11 @@
     "branch": "qa/marketops-rc-customer-gate-20261020",
     "worktree": "/data/home/vince/workspace/worktrees/marketops/rc-independent-qa-20261020",
     "artifact": "tests/test_customer_delivery_boundary_qa.py",
-    "integrate_into_product_branch": false
+    "acceptance_doc": "docs/RC_CUSTOMER_DELIVERY_ACCEPTANCE.md",
+    "commits": [
+      "cdb1d9a3f7c4b9d7c8d12923364bcd091fcd2a95"
+    ],
+    "integrate_into_product_branch": false,
+    "run_against": "RC plugin root via MARKETOPS_QA_PLUGIN_ROOT; never copies QA files into the product branch"
   }
 }
