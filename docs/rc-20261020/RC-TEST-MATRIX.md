@@ -1,10 +1,10 @@
 # MarketOps RC 测试矩阵（2026-10-20）
 
-状态：**RC2 executed — DRAFT，不是正式发布**。结果与证据路径见下；证据根为
-`$ARTIFACTS_ROOT/skills/marketops-rc2/20261020/`。
+状态：**RC3 executed — DRAFT，不是正式发布**。结果与证据路径见下；证据根为
+`$ARTIFACTS_ROOT/skills/marketops-rc3/20261020/`。
 
 基线：`4f87bc3306b90d55bfd0332ef1efc8b97f1dcc44`（PR9）。
-RC2 base：`38dcef853f526f64f669c475c96ad9c3bad3ad47`（H）。
+RC3 base：`38dcef853f526f64f669c475c96ad9c3bad3ad47`（H）。
 解释器：`$TOOLCHAINS_ROOT/marketops-research-plugin-e2e/bin/python`
 （插件套件必须用 e2e venv；用 mvp venv 会多出 3 条 error，那是量具差异，不是回归）。
 
@@ -12,21 +12,25 @@ RC2 base：`38dcef853f526f64f669c475c96ad9c3bad3ad47`（H）。
 
 | # | RC 判据 | Lane | 定向判据 | 状态 |
 | --- | --- | --- | --- | --- |
-| R1 | release manifest / hash 可复核，既有 0.5.5/rc1 zip 不被覆盖 | 集成 | G7：`build_source()` 到仓库外；逐文件哈希、`.sha256`、zip 哈希一致 | PASS（hygiene gate；version `0.5.6-rc2`；未覆盖任何旧 ZIP） |
-| R2 | 真正自动生成客户视图 | A+B | G6：`build_delivery` → 四张业务表 → `write_client_view` → `verify_client_view` | PASS（Ran 5 OK） |
-| R3 | P0 伪造数据绝不进入业务表 | A+Q | A 的 admission 测试 + Q 的边界测试 + G6 负例 | PASS（QA #15 9/9；G6 负例） |
-| R4 | 合格样本能进入，而不是被门禁一刀切 | A+I | A 的正例测试 + G6 正例（4/4 admitted） | PASS |
+| R1 | release manifest / hash 可复核，既有 0.5.5/rc1 zip 不被覆盖 | 集成 | G7：`build_source()` 到仓库外；逐文件哈希、`.sha256`、zip 哈希一致 | PASS（hygiene gate；version `0.5.6-rc3`；未覆盖任何旧 ZIP） |
+| R2 | 真正自动生成客户视图 | A+B+I | `write_delivery` 内部自动调用 `write_client_view`；顶 MANIFEST 收录 `client-view/*` 哈希 | PASS（hygiene H8：4 admitted / 4 held，8 文件） |
+| R3 | P0 伪造数据绝不进入业务表 | A+Q+I | A 的 admission 测试 + Q 的边界测试 + G6/P0 负例 | PASS（产品 P0 负例全绿；QA #15 冻结夹具 3 红，见 R15） |
+| R4 | 合格样本能进入，而不是被门禁一刀切 | A+I | A 的正例测试 + G6 正例 + 长页 4 条合法正向 | PASS（`test_rc3_evidence_p0.PositiveControls` 4/4） |
 | R5 | 安装明确 opt-in | C | G3：无 `--apply` 不落盘；非交互无 destination 被拒；全局 Codex 注册默认 no | PASS（Ran 21 OK） |
 | R6 | SerpApi 不重复 reserve | D | G4：REST 与 embedded 同 signature；同一 operation 只一条 reserve | PASS（Ran 23 OK） |
 | R7 | Jev evidence locator | E | G5：locator 2–60、未命中 `JEV_EVIDENCE_LOCATOR_NO_MATCH`、box 拒绝 | PASS（Ran 19 OK） |
-| R8 | 所有相关定向测试 | 全部 | G1–G6 + F/G/RC2 | PASS（A 3 / B 11 / C 21 / D 23 / E 19 / G6 5 / F 16 / G 19 / RC2 12） |
-| R9 | 完整 offline plugin suite 一次 | 集成 | G8：`python -m unittest discover -s tests -v` | PASS（working tree with RC2 seams；Ran 2187 tests, 0 failures, 0 errors, 30 skipped） |
+| R8 | 所有相关定向测试 | 全部 | G1–G6 + F/G/RC2/RC3 | PASS（A 3 / B 11 / C 21 / D 23 / E 19 / G6 5 / F 16 / G 19 / RC2 12 / RC3 19 / RC3 QA 6） |
+| R9 | 完整 offline plugin suite 一次 | 集成 | G8：`python -m unittest discover -s tests -v` | PASS（Ran 2212 tests, 0 failures, 0 errors, 30 skipped） |
 | R10 | 不引入私有数据 / 密钥 | 集成 | G9：只扫本分支新增行；私钥/token 为 FAIL，个人邮箱/手机号为 REVIEW | PASS（0 secret-level，1 review-level：已 inline allowlist 的合成测试夹具）；**gitleaks CLI 缺失，不能宣称 gitleaks 通过** |
 | R11 | 基线红如实区分 | 集成 | G8 + `--baseline-failures N`；只有“总数等于声明基线”才记 `BASELINE_RED_NOT_NEW` | PASS（见 §4；23 条与 `main@63a5fe48`、`4f87bc33` 逐条相同） |
 | R12 | 不合并 main / 不发布 / 不付费 / 不外发 | 集成 | PR 保持 Draft；无 Provider key、无真实邮箱；gate 强制网络开关为 0 | 约束已生效（真实 Provider 调用 0） |
 | R13 | F：run/project 次数独立，USD 帽 fail-closed | F+I | `test_runtime_dollar_cap_contract.py` + `test_rc2_integration_seams.py` | PASS（16 + 12 tests） |
 | R14 | G：WebRTC/代理旗标覆盖所有可达 Crawl4AI 入口 | G+I | `test_crawl_browser_webrtc_egress.py` + RC2 接缝负例 | PASS（19 + 12 tests；`_crawl4ai_local` 已加固且无直连回退） |
-| R15 | QA #15 在最终 RC 9/9 绿 | Q | `tests/test_customer_delivery_boundary_qa.py`，`MARKETOPS_QA_PLUGIN_ROOT` 指向 RC 插件 | PASS（Ran 9 tests OK） |
+| R15 | QA #15 在独立夹具升级后 9/9 绿 | Q | `tests/test_customer_delivery_boundary_qa.py`，`MARKETOPS_QA_PLUGIN_ROOT` 指向 RC 插件 | **BLOCKED**：冻结夹具的 venue/contact/person quote 不含组织名+值同跨度，3 个用例失败；未改 QA 工件、未放宽产品核验。需 QA 方升级夹具或提供具名关系 |
+| R16 | 字段级身份支持 | I | 组织/场地 name、人员/岗位每个展示字段必须出现在其 linked quote | PASS（`test_rc3_evidence_p0.FieldSupportTests` 7 tests） |
+| R17 | 实体/关系级归属 | I | 同页两组织、错绑、共享 artifact、具名 relation | PASS（`BindingTests` 3 tests；长页正向 4/4） |
+| R18 | 自动 client-view + 完整 MANIFEST | I | `write_delivery` / `mcp.handoff` 产出 client-view 与哈希 | PASS（`AutomaticClientViewTests` 3 tests；hygiene H8/H10） |
+| R19 | 独立 QA 门禁 | I | `qa_verified=false` → BLOCKED/NOT_RELEASE_READY；签名校验 | PASS（`test_rc3_release_qa.py` 6 tests；hygiene H12 BLOCKED） |
 
 ## 2. 执行顺序
 
@@ -41,7 +45,7 @@ git ls-remote origin refs/heads/fix/marketops-rc-release-hygiene-20261020 \
 # 2) 定向与跨 Lane 门禁（不跑全量）
 $TOOLCHAINS_ROOT/marketops-research-plugin-e2e/bin/python \
   scripts/rc-20261020/check_release_gate.py \
-  --evidence-dir $ARTIFACTS_ROOT/skills/marketops-rc2/20261020/gate
+  --evidence-dir $ARTIFACTS_ROOT/skills/marketops-rc3/20261020/gate
 
 # 3) 全量 offline plugin suite，只跑一次
 $TOOLCHAINS_ROOT/marketops-research-plugin-e2e/bin/python -m unittest discover -s tests -v
@@ -49,12 +53,12 @@ $TOOLCHAINS_ROOT/marketops-research-plugin-e2e/bin/python -m unittest discover -
 # 4) 构建 + 解包 + 离线 stdio + 混合 client-view
 $TOOLCHAINS_ROOT/marketops-research-plugin-e2e/bin/python \
   scripts/rc-20261020/check_release_hygiene.py \
-  --evidence-dir $ARTIFACTS_ROOT/skills/marketops-rc2/20261020/hygiene \
-  --work-dir $ARTIFACTS_ROOT/skills/marketops-rc2/20261020/hygiene-work \
+  --evidence-dir $ARTIFACTS_ROOT/skills/marketops-rc3/20261020/hygiene \
+  --work-dir $ARTIFACTS_ROOT/skills/marketops-rc3/20261020/hygiene-work \
   --python $TOOLCHAINS_ROOT/marketops-research-plugin-e2e/bin/python
 
 # 5) QA #15（QA 工件只在 artifacts 中，绝不复制进产品分支）
-cd $ARTIFACTS_ROOT/skills/marketops-rc2/20261020/qa
+cd $ARTIFACTS_ROOT/skills/marketops-rc3/20261020/qa
 MARKETOPS_QA_PLUGIN_ROOT=<RC plugin root> \
   $TOOLCHAINS_ROOT/marketops-research-plugin-e2e/bin/python \
   -m unittest test_customer_delivery_boundary_qa -v

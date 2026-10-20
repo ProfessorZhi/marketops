@@ -1,11 +1,18 @@
 """Customer setup behavior; never use real credentials or a real keyring."""
 from __future__ import annotations
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+
+try:
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+except ImportError:  # pragma: no cover - the e2e venv ships cryptography
+    Ed25519PrivateKey = None
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -69,10 +76,40 @@ class DeliveryTests(unittest.TestCase):
             qa = base / "external-qa.json"
             qa.write_text(json.dumps(receipt), encoding="utf-8")
             result = build_client_bundles.build_source(base / "valid", qa_receipt=qa)
-            self.assertTrue(result["qa_verified"])
+            # Matching the bytes is not an independent QA pass. A receipt the
+            # same tree can generate stays a preview until an external signer
+            # attests it.
+            self.assertFalse(result["qa_verified"])
+            self.assertEqual("SOURCE_PACKAGE_PREVIEW_BUILT", result["status"])
+            self.assertEqual("INDEPENDENT_QA_ATTESTATION_MISSING",
+                             result["qa_attestation"]["reason"])
             copied = Path(result["directory"]) / "references/BUILD_QA.json"
             self.assertEqual(qa.read_bytes(), copied.read_bytes())
             self.assertTrue(runtime.verify_build_receipt(Path(result["directory"]))["ok"])
+
+            if Ed25519PrivateKey is not None:
+                key = Ed25519PrivateKey.generate()
+                block = {"schema": "marketops.independent-qa.v1",
+                         "signed_by": "synthetic-independent-reviewer",
+                         "source_revision": "a" * 40,
+                         "log_sha256": "b" * 64, "tests_run": 1}
+                payload = json.dumps(block, sort_keys=True, separators=(",", ":"),
+                                     ensure_ascii=True).encode("utf-8")
+                block["signature"] = key.sign(payload).hex()
+                receipt["independent_qa"] = block
+                qa.write_text(json.dumps(receipt), encoding="utf-8")
+                public_hex = key.public_key().public_bytes(
+                    Encoding.Raw, PublicFormat.Raw).hex()
+                with patch.dict(os.environ, {"MARKETOPS_QA_PUBLIC_KEY": public_hex}):
+                    signed = build_client_bundles.build_source(base / "signed",
+                                                               qa_receipt=qa)
+                self.assertTrue(signed["qa_verified"])
+                self.assertTrue(signed["qa_attestation"]["verified"])
+                self.assertEqual("synthetic-independent-reviewer",
+                                 signed["qa_attestation"]["signed_by"])
+                # Restore the unsigned fixture for the stale/invalid cases below.
+                receipt.pop("independent_qa", None)
+                qa.write_text(json.dumps(receipt), encoding="utf-8")
             receipt["files"][next(iter(receipt["files"]))] = "0" * 64
             qa.write_text(json.dumps(receipt), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "BUILD_QA_STALE_OR_INVALID"):

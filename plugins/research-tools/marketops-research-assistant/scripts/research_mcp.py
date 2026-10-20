@@ -345,7 +345,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         configured_root = None
     if configured_root is not None and runtime_setup.config(configured_root):
         from research_runtime_status import view
-        return {"product": "MarketOps Research MCP", "version": "0.5.6-rc2",
+        return {"product": "MarketOps Research MCP", "version": "0.5.6-rc3",
                 **view(configured_root, task_kind=task_kind),
                 "external_host": _external_inventory(host_observed_tools),
                 "embedded_official_mcp": provider_policy.embedded_official_mcp_capabilities(),
@@ -420,7 +420,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         if task_kind else None)
     return {
         "product": "MarketOps Lite Research MCP",
-        "version": "0.5.6-rc2",
+        "version": "0.5.6-rc3",
         "providers": {
             "serpapi": {"transport": "REST through local MCP", **search["serpapi"]},
             "serper": {"transport": "REST through local MCP", **search["serper"]},
@@ -761,6 +761,16 @@ def handoff(run_id, operation_id):
         "artifacts": workbook["saved_artifact_count"],
         "workbook_xlsx": workbook["xlsx_path"],
         "workbook_directory": workbook["directory"],
+        # The client view is produced by write_delivery from the filtered business
+        # sheets, not by the caller. Expose its path and content hash so the
+        # handoff receipt describes the same bytes a customer would receive.
+        "client_view_directory": workbook.get("client_view_directory"),
+        "client_view_manifest": workbook.get("client_view_manifest"),
+        "client_view_manifest_sha256": (workbook.get("client_view") or {}).get(
+            "manifest_sha256"),
+        "client_view_status": (workbook.get("client_view") or {}).get("status"),
+        "client_view_send_authorized": (workbook.get("client_view") or {}).get(
+            "send_authorized"),
         "candidate_csv": str(Path(workbook["directory"]) / "候选数据审计.csv"),
         "candidate_csv_schema": "audit_csv_from_this_workbook_not_a_second_snapshot",
         "goal_assessment": workbook.get("goal_assessment"),
@@ -786,7 +796,7 @@ def handoff(run_id, operation_id):
     try:
         experience_result = draft_experience(
             r, run_id=run_id, scope=head["scope"],
-            rule_version=head["rule_version"], skill_version="0.5.6-rc2",
+            rule_version=head["rule_version"], skill_version="0.5.6-rc3",
             output=experience_path)
         result["experience_candidate"] = str(experience_path)
         result["experience_incidents"] = experience_result["incidents"]
@@ -905,7 +915,7 @@ def build_server():
     from research_credentials import load_into_environment
     load_into_environment()
     from mcp.server import MCPServer
-    mcp = MCPServer("MarketOps Lite Research", version="0.5.6-rc2")
+    mcp = MCPServer("MarketOps Lite Research", version="0.5.6-rc3")
 
     def tool(fn):
         return mcp.tool()(_guarded(fn))
@@ -1209,7 +1219,7 @@ def build_server():
             raise ValueError("EXPERIENCE_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT")
         output.parent.mkdir(parents=True, exist_ok=True)
         return draft_experience(r, run_id=run_id, scope=scope,
-                                rule_version=rule_version, skill_version="0.5.6-rc2",
+                                rule_version=rule_version, skill_version="0.5.6-rc3",
                                 output=output)
 
     @tool

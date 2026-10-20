@@ -26,7 +26,9 @@ import research_lite_store as store  # noqa: E402
 
 PAGE_A = (b"<html><body><h1>Real Widgets Ltd</h1>"
           b"<p>Real Widgets Ltd operates the Riverside Works.</p>"
-          b"<p>Contact sales@realwidgets.example for enquiries.</p></body></html>")
+          b"<p>Alex Sample is the Site manager at Real Widgets Ltd.</p>"
+          b"<p>Contact Real Widgets Ltd at sales@realwidgets.example for enquiries.</p>"
+          b"</body></html>")
 PAGE_B = (b"<html><body><h1>Other Corp</h1>"
           b"<p>Other Corp operates the Hill Depot.</p>"
           b"<p>Contact hello@othercorp.example for enquiries.</p></body></html>")
@@ -34,7 +36,8 @@ PAGE_B = (b"<html><body><h1>Other Corp</h1>"
 ORG_A_QUOTE = "Real Widgets Ltd"
 ORG_B_QUOTE = "Other Corp operates the Hill Depot."
 VENUE_QUOTE = "Real Widgets Ltd operates the Riverside Works."
-EMAIL_QUOTE = "Contact sales@realwidgets.example for enquiries."
+EMAIL_QUOTE = "Contact Real Widgets Ltd at sales@realwidgets.example for enquiries."
+PERSON_QUOTE = "Alex Sample is the Site manager at Real Widgets Ltd."
 REL_QUOTE = "Real Widgets Ltd operates the Riverside Works."
 
 
@@ -238,7 +241,7 @@ class SampleWindowTests(GateCase):
                      ["page-a"])
         for index in range(10):
             self.put(f"venue-ok-{index}", "venue", f"ok-venue-{index}",
-                     {"name": f"Good Venue {index}",
+                     {"name": "Riverside Works",
                       "claims": [{"field": "identity", "artifact_id": "page-a",
                                   "quote": VENUE_QUOTE}]}, ["page-a"])
         result = self.deliver()
@@ -268,7 +271,7 @@ class CountAndCollisionTests(GateCase):
                  {"name": "Alex Sample", "role_title": "Site manager",
                   "organization_id": "real-widgets",
                   "claims": [{"field": "role_title", "artifact_id": "page-a",
-                              "quote": "Real Widgets Ltd operates the Riverside Works."}]},
+                              "quote": PERSON_QUOTE}]},
                  ["page-a"])
         self.put("contact-1", "contact_point", "sales-route",
                  {"organization_id": "real-widgets", "type": "email",

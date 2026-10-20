@@ -29,13 +29,15 @@ import research_lite_store as store  # noqa: E402
 
 PAGE = (b"<html><body><h1>Example Borough Council</h1>"
         b"<h2>Example Sports Ground</h2>"
-        b"<p>Grounds Management is the responsible department.</p>"
-        b"<p>Contact grounds@example.org for grounds enquiries.</p></body></html>")
+        b"<p>Example Sports Ground is operated by Example Borough Council.</p>"
+        b"<p>Grounds Management at Example Borough Council is the responsible department.</p>"
+        b"<p>Contact Example Borough Council at grounds@example.org for grounds enquiries.</p>"
+        b"</body></html>")
 
 ORG_QUOTE = "Example Borough Council"
-VENUE_QUOTE = "Example Sports Ground"
-PERSON_QUOTE = "Grounds Management is the responsible department."
-CONTACT_QUOTE = "Contact grounds@example.org for grounds enquiries."
+VENUE_QUOTE = "Example Sports Ground is operated by Example Borough Council."
+PERSON_QUOTE = "Grounds Management at Example Borough Council is the responsible department."
+CONTACT_QUOTE = "Contact Example Borough Council at grounds@example.org for grounds enquiries."
 
 
 class CandidateDeliveryE2E(unittest.TestCase):
@@ -65,7 +67,7 @@ class CandidateDeliveryE2E(unittest.TestCase):
                                  "quote": VENUE_QUOTE}]},
                     ["art-public"])
         mcp.propose("run-test", "person-dept", "people", "person", "grounds-dept",
-                    {"department": "Grounds Management", "role_title": "Grounds management team",
+                    {"department": "Grounds Management", "role_title": "Grounds Management",
                      "organization_id": "example-borough",
                      "claims": [{"field": "role_title", "artifact_id": "art-public",
                                  "quote": PERSON_QUOTE}]}, ["art-public"])

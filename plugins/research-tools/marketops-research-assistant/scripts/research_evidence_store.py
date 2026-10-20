@@ -85,13 +85,13 @@ def link_evidence(root: Path | str | None, run_id: str, record_id: str, artifact
                 db.commit()
             if tuple(prior) != values:
                 raise ValueError("EVIDENCE_LINK_COLLISION")
-            return {"link_id": link_id, "status": "IDEMPOTENT"}
+            return {"link_id": link_id, "status": "IDEMPOTENT", "field": field}
         db.execute("INSERT INTO evidence_links VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                    (link_id, run_id, record_id, artifact_id, *values,
                     datetime.now(timezone.utc).isoformat()))
         if _db is None:
             db.commit()
-    return {"link_id": link_id, "status": "LINKED"}
+    return {"link_id": link_id, "status": "LINKED", "field": field}
 
 
 def link_candidate_claims(root, db, run_id, record_id, payload, artifact_ids):

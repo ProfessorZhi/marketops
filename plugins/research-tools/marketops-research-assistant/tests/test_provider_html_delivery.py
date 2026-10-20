@@ -23,7 +23,7 @@ import research_delivery as delivery
 
 URL = "https://example.org/sports"
 HTML = ("<main><h1>Example School</h1><p>Example School operates the Sports Ground.</p>"
-        "<p>Grounds manager: Alex Sample. Public contact grounds@example.org</p></main>")
+        "<p>Grounds manager: Alex Sample. Example School public contact grounds@example.org</p></main>")
 
 
 class ProviderHtmlTests(unittest.TestCase):
@@ -67,7 +67,7 @@ class ProviderHtmlTests(unittest.TestCase):
               "quote": "Example School operates the Sports Ground."}]}, [aid])
         mcp.propose("run", "contact", "routes", "contact_point", "grounds",
             {"organization_id": "school", "type": "email", "value": "grounds@example.org", "claims": [
-                {"field": "email", "artifact_id": aid, "quote": "Public contact grounds@example.org"}]}, [aid])
+                {"field": "email", "artifact_id": aid, "quote": "Example School public contact grounds@example.org"}]}, [aid])
         result = delivery.write_delivery(self.root, "run", "delivery")
         self.assertEqual(2, result["evidence_link_count"])
         self.assertEqual(0, result["evidence_spanless_record_count"])

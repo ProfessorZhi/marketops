@@ -1,5 +1,8 @@
 # MarketOps 0.5.6-rc2 — final delivery candidate (DRAFT)
 
+> Historical RC2 PR body. The current candidate is 0.5.6-rc3; see
+> [`PR-BODY-RC3.md`](PR-BODY-RC3.md) and [`RC3-INTEGRATION.md`](RC3-INTEGRATION.md).
+
 **Status: DRAFT — not a release. Do not merge to `main`. Do not publish or overwrite
 the existing `0.5.5` / `0.5.6-rc1` ZIPs.**
 

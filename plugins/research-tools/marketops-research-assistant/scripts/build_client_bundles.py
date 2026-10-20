@@ -23,7 +23,7 @@ META = {
     "description_en": "Research business workflow, five-provider routing and bounded evidence-first local MCP.",
     "source": "marketops-research-assistant-lite",
     "type": "skill-only",
-    "version": "0.5.6-rc2",
+    "version": "0.5.6-rc3",
     "minWorkbuddyVersion": "4.24.0",
     "examples_zh": [
         "调查指定地区的场地和运营组织，先列官方来源，将待核实项标为HOLD。",
@@ -374,17 +374,22 @@ def build_source(output: Path, qa_receipt: Path | None = None) -> dict:
         shutil.copy2(source, copied)
     qa_verified = False
     qa_sha256 = None
+    qa_attestation = {"verified": False, "reason": "NO_QA_RECEIPT"}
     if qa_receipt is not None:
         receipt_copy = target / "references" / "BUILD_QA.json"
         shutil.copy2(qa_receipt, receipt_copy)
-        from research_runtime_setup import verify_build_receipt
+        from research_runtime_setup import verify_build_receipt, verify_independent_qa
         if not verify_build_receipt(target)["ok"]:
             raise ValueError("BUILD_QA_STALE_OR_INVALID")
-        qa_verified = True
+        # A receipt that matches these bytes is still self-generated unless an
+        # external signer attests it. Only that attestation may set qa_verified.
+        qa_attestation = verify_independent_qa(target)
+        qa_verified = bool(qa_attestation.get("verified"))
         qa_sha256 = hashlib.sha256(receipt_copy.read_bytes()).hexdigest()
     manifest = {"schema": "marketops.source-package.v1", "version": META["version"],
                 "source_sha256": source_digest(), "portable": True,
                 "qa_verified": qa_verified, "qa_receipt_sha256": qa_sha256,
+                "qa_attestation": qa_attestation,
                 "files": {p.relative_to(target).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
                           for p in sorted(target.rglob("*")) if p.is_file()}}
     (target / "SOURCE_MANIFEST.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
@@ -394,6 +399,7 @@ def build_source(output: Path, qa_receipt: Path | None = None) -> dict:
     return {"status": "SOURCE_PACKAGE_BUILT" if qa_verified else "SOURCE_PACKAGE_PREVIEW_BUILT",
             "portable": True, "directory": str(target),
             "qa_verified": qa_verified, "qa_receipt_sha256": qa_sha256,
+            "qa_attestation": qa_attestation,
             "zip": str(archive), "zip_sha256": sha,
             "source_sha256": manifest["source_sha256"],
             "supported_runtime": "Python 3.12; Windows/Linux x64",

@@ -1,5 +1,8 @@
 # MarketOps 0.5.6-rc2 最终集成记录（2026-10-20）
 
+> **历史记录（RC2）。** 后续 P0 修复与 0.5.6-rc3 见
+> [`RC3-INTEGRATION.md`](RC3-INTEGRATION.md)。本文保留 rc2 当时的证据，不重写。
+
 状态：**DRAFT / RC2 candidate — 不是正式发布**。未合并 `main`，未创建 GitHub Release，
 未调用任何真实付费 Provider，未发邮件，未改全局配置或密钥。
 

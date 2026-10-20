@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import base64
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
 import hashlib
@@ -351,6 +352,66 @@ def verify_build_receipt(plugin=PLUGIN):
             and bool(re.fullmatch(r"[0-9a-f]{64}", test.get("log_sha256", ""))))
     return {"ok": bool(okay), "reason": "" if okay else "BUILD_QA_MISSING_OR_STALE",
             "source_revision": receipt.get("source_revision") if okay else None}
+
+
+INDEPENDENT_QA_SCHEMA = "marketops.independent-qa.v1"
+
+
+def verify_independent_qa(plugin=PLUGIN):
+    """Verify an *external* QA attestation inside ``BUILD_QA.json``.
+
+    ``verify_build_receipt`` answers "does this receipt match these bytes?" It
+    cannot answer "who says so", because the same tree can generate its own
+    receipt. A package may only call itself QA-verified when the receipt carries
+    an ``independent_qa`` block signed by a key the caller supplies. No key, no
+    signature, or a mismatched revision/log means **not verified**; the caller
+    must report ``NOT_RELEASE_READY`` rather than promote ZIP/hash checks to QA.
+    """
+    receipt = _read(Path(plugin) / "references" / "BUILD_QA.json")
+    block = receipt.get("independent_qa")
+    if not isinstance(block, dict):
+        return {"verified": False,
+                "reason": "INDEPENDENT_QA_ATTESTATION_MISSING"}
+    if block.get("schema") != INDEPENDENT_QA_SCHEMA:
+        return {"verified": False, "reason": "INDEPENDENT_QA_SCHEMA_INVALID"}
+    signed_by = block.get("signed_by")
+    if not isinstance(signed_by, str) or not signed_by.strip():
+        return {"verified": False, "reason": "INDEPENDENT_QA_SIGNER_MISSING"}
+    if block.get("source_revision") != receipt.get("source_revision"):
+        return {"verified": False, "reason": "INDEPENDENT_QA_REVISION_MISMATCH",
+                "signed_by": signed_by.strip()}
+    test = receipt.get("test") or {}
+    if block.get("log_sha256") != test.get("log_sha256"):
+        return {"verified": False, "reason": "INDEPENDENT_QA_LOG_MISMATCH",
+                "signed_by": signed_by.strip()}
+    tests_run = block.get("tests_run")
+    if type(tests_run) is not int or tests_run <= 0:
+        return {"verified": False, "reason": "INDEPENDENT_QA_TESTS_INVALID",
+                "signed_by": signed_by.strip()}
+    signature = block.get("signature")
+    if not isinstance(signature, str) or not re.fullmatch(r"[0-9a-fA-F]+", signature):
+        return {"verified": False, "reason": "INDEPENDENT_QA_SIGNATURE_MISSING",
+                "signed_by": signed_by.strip()}
+    public = os.environ.get("MARKETOPS_QA_PUBLIC_KEY", "").strip()
+    if not public:
+        return {"verified": False, "reason": "INDEPENDENT_QA_PUBLIC_KEY_MISSING",
+                "signed_by": signed_by.strip()}
+    try:
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+        raw = (bytes.fromhex(public) if re.fullmatch(r"[0-9a-fA-F]{64}", public)
+               else base64.b64decode(public, validate=True))
+        key = Ed25519PublicKey.from_public_bytes(raw)
+        payload = json.dumps(
+            {name: value for name, value in block.items() if name != "signature"},
+            sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+        key.verify(bytes.fromhex(signature), payload)
+    except Exception as exc:  # noqa: BLE001 - any verification failure is NOT verified
+        return {"verified": False,
+                "reason": "INDEPENDENT_QA_SIGNATURE_INVALID:" + type(exc).__name__,
+                "signed_by": signed_by.strip()}
+    return {"verified": True, "signed_by": signed_by.strip(),
+            "source_revision": block.get("source_revision"),
+            "tests_run": tests_run, "log_sha256": block.get("log_sha256")}
 
 
 def verify_build(output, *, plugin=PLUGIN):

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline release-hygiene acceptance for the MarketOps 0.5.6-rc2 candidate.
+"""Offline release-hygiene acceptance for the MarketOps 0.5.6-rc3 candidate.
 
 What this proves, and what it deliberately does not:
 
@@ -43,8 +43,9 @@ PAGE = (
     b"<html><body>"
     b"<h1>Example Borough Council</h1>"
     b"<p>Example Sports Ground is operated by Example Borough Council.</p>"
-    b"<p>Grounds Management is the responsible department.</p>"
-    b"<p>Contact grounds@example.org for grounds enquiries.</p>"
+    b"<p>Alex Sample is the Site manager at Example Borough Council.</p>"
+    b"<p>Grounds Management at Example Borough Council is the responsible department.</p>"
+    b"<p>Contact Example Borough Council at grounds@example.org for grounds enquiries.</p>"
     b"<p>Evidence Only Holdings can be reached at evidence-only@example.net.</p>"
     b"</body></html>"
 )
@@ -122,12 +123,12 @@ def safe_extract(archive: Path, destination: Path) -> list[str]:
     return members
 
 
-def build_artifacts(work: Path) -> tuple[dict, list[dict], Path]:
+def build_artifacts(work: Path, qa_receipt: Path | None = None) -> tuple[dict, list[dict], Path]:
     sys.path.insert(0, str(PLUGIN / "scripts"))
     import build_client_bundles  # noqa: E402
 
     version = build_client_bundles.META["version"]
-    source = build_client_bundles.build_source(work / "source")
+    source = build_client_bundles.build_source(work / "source", qa_receipt=qa_receipt)
     bundle = build_client_bundles.build(work / "bundle", with_research_mcp=True)
     checks = []
 
@@ -193,11 +194,28 @@ def build_artifacts(work: Path) -> tuple[dict, list[dict], Path]:
         checks.append(check("H6-bundle", "WorkBuddy connector bundle", "FAIL",
                             "client-view helper absent or bundle hash mismatch"))
 
+    # A ZIP that hashes correctly is a *preview*, not a QA pass. Promotion to
+    # qa_verified requires an external, signed attestation; with none, this check
+    # is BLOCKED and the whole report is NOT_RELEASE_READY.
+    attestation = source.get("qa_attestation") or {}
+    qa_verified = bool(manifest.get("qa_verified"))
+    if qa_verified and attestation.get("verified"):
+        checks.append(check("H12-independent-qa", "independent QA attestation", "PASS",
+                            "signed_by=" + str(attestation.get("signed_by")),
+                            qa_attestation=attestation))
+    else:
+        checks.append(check(
+            "H12-independent-qa", "independent QA attestation", "BLOCKED",
+            "SOURCE_MANIFEST.qa_verified=false; ZIP/hash checks are NOT formal QA. "
+            "Supply an externally signed BUILD_QA receipt and MARKETOPS_QA_PUBLIC_KEY. "
+            "reason=" + str(attestation.get("reason") or "QA_NOT_VERIFIED"),
+            qa_attestation=attestation))
+
     evidence = {
         "version": version,
         "source": {key: source.get(key) for key in
                    ("status", "zip", "zip_sha256", "source_sha256",
-                    "qa_verified", "portable")},
+                    "qa_verified", "qa_attestation", "portable")},
         "bundle": {key: bundle.get(key) for key in
                    ("status", "zip", "zip_sha256", "machine_bound",
                     "mcp_servers_bundled")},
@@ -206,6 +224,8 @@ def build_artifacts(work: Path) -> tuple[dict, list[dict], Path]:
                             "file_count": len(manifest.get("files") or {}),
                             "qa_verified": manifest.get("qa_verified")},
         "member_count": len(members),
+        "formal_qa": "PASS" if qa_verified else "NOT_PERFORMED",
+        "release_readiness": "RELEASE_READY" if qa_verified else "NOT_RELEASE_READY",
     }
     return evidence, checks, archive
 
@@ -265,16 +285,16 @@ def _seed(plugin_root: Path, data: Path) -> None:
                          "quote": "Example Sports Ground is operated by Example Borough Council."}]},
             [ART])
     propose("person-legit", "people", "person", "grounds-management",
-            {"department": "Grounds Management", "role_title": "Grounds management team",
+            {"department": "Grounds Management", "role_title": "Grounds Management",
              "organization_id": "example-borough",
              "claims": [{"field": "role_title", "artifact_id": ART,
-                         "quote": "Grounds Management is the responsible department."}]},
+                         "quote": "Grounds Management at Example Borough Council is the responsible department."}]},
             [ART])
     propose("contact-legit", "routes", "contact_point", "grounds-contact",
             {"organization_id": "example-borough", "type": "email",
              "value": "grounds@example.org", "role_function": "Grounds Management",
              "claims": [{"field": "email", "artifact_id": ART,
-                         "quote": "Contact grounds@example.org for grounds enquiries."}]},
+                         "quote": "Contact Example Borough Council at grounds@example.org for grounds enquiries."}]},
             [ART])
     propose("org-fabricated", "entities", "organization", "totally-fabricated-org",
             {"name": "Totally Fabricated Org"}, [ART])
@@ -296,31 +316,35 @@ def client_view_journey(unpacked: Path, work: Path) -> tuple[dict, list[dict]]:
     import research_client_view as client_view
     import research_delivery as delivery
 
-    sheets, report = delivery.build_delivery(data, RUN_ID)
-    business = [sheet for sheet in sheets
-                if sheet.name in delivery.CLIENT_BUSINESS_SHEETS]
-    counts = {"business_sheets": len(business),
-              "admitted_records": report["admission"]["admitted_record_count"],
-              "rejected_records": report["admission"]["rejected_record_count"]}
+    # The real handoff path, not a hand-written view: write_delivery must build the
+    # workbook, filter the business sheets through admission, and create the
+    # client view itself. Calling write_client_view separately here would let a
+    # caller-side step stand in for the product behaviour being claimed.
+    result = delivery.write_delivery(data, RUN_ID, "rc-hygiene-delivery")
+    view = Path(result["client_view_directory"])
+    client = result.get("client_view") or {}
+    counts = {"business_sheets": len(client.get("counts") or {}),
+              "admitted_records": result["admission"]["admitted_record_count"],
+              "rejected_records": result["admission"]["rejected_record_count"]}
     modules = {
         "research_delivery": str(Path(delivery.__file__).resolve()),
         "research_client_view": str(Path(client_view.__file__).resolve()),
     }
     modules_from_unpacked = all(
         Path(path).is_relative_to(unpacked.resolve()) for path in modules.values())
-    if len(business) != 4 or not modules_from_unpacked:
-        checks.append(check("H8-delivery", "delivery business sheets", "FAIL",
-                            f"sheets={len(business)}; modules={modules}"))
+    expected_view = Path(result["directory"]) / "client-view"
+    inside_delivery = (view.is_dir()
+                       and view.resolve() == expected_view.resolve())
+    if counts["business_sheets"] != 4 or not modules_from_unpacked or not inside_delivery:
+        checks.append(check("H8-delivery", "delivery -> automatic client-view", "FAIL",
+                            f"sheets={counts['business_sheets']} inside={inside_delivery}; "
+                            f"modules={modules}"))
         return {**counts, "modules": modules}, checks
-
-    view = work / "client-view"
-    receipt = client_view.write_client_view(view, business, label=RUN_ID,
-                                            generated_at=STAMP)
     verified = client_view.verify_client_view(view)
-    checks.append(check("H8-delivery", "delivery -> client-view generation", "PASS",
+    checks.append(check("H8-delivery", "delivery -> automatic client-view", "PASS",
                         f"{counts['admitted_records']} admitted / "
                         f"{counts['rejected_records']} held; "
-                        f"{len(receipt['files'])} files"))
+                        f"{len(client.get('files') or {})} files inside {expected_view.name}"))
 
     blobs = b"\n".join(path.read_bytes() for path in sorted(view.iterdir())
                        if path.is_file())
@@ -343,16 +367,27 @@ def client_view_journey(unpacked: Path, work: Path) -> tuple[dict, list[dict]]:
         and sha256(view / name) == meta["sha256"]
         for name, meta in manifest["files"].items())
     tree_digest, files = tree_sha256(view)
-    checks.append(check("H10-manifest", "client-view manifest hashes",
-                        "PASS" if manifest_hashes_ok and verified["files_verified"] else "FAIL",
-                        f"manifest {receipt['manifest_sha256']}"))
+    # The delivery's final MANIFEST must carry the client-view files too, with
+    # the same hashes, or the customer receipt describes a different tree.
+    final_manifest = json.loads(
+        (Path(result["directory"]) / "MANIFEST.json").read_text(encoding="utf-8"))
+    final_ok = all(
+        relative in final_manifest.get("files", {})
+        and final_manifest["files"][relative]["sha256"] == sha256(Path(result["directory"]) / relative)
+        for relative in ("client-view/MANIFEST.json", "client-view/Client_View.xlsx",
+                         "client-view/客户总表.csv"))
+    checks.append(check("H10-manifest", "client-view + delivery manifest hashes",
+                        "PASS" if manifest_hashes_ok and verified["files_verified"]
+                        and final_ok else "FAIL",
+                        f"manifest {client.get('manifest_sha256')}"))
     return {
-        "status": receipt["status"],
-        "send_authorized": receipt["send_authorized"],
-        "formal_sop_claimed": receipt["formal_sop_claimed"],
-        "counts": receipt["counts"],
+        "status": client.get("status"),
+        "send_authorized": client.get("send_authorized"),
+        "formal_sop_claimed": client.get("formal_sop_claimed"),
+        "counts": client.get("counts"),
         "modules": modules,
-        "manifest_sha256": receipt["manifest_sha256"],
+        "directory": str(view),
+        "manifest_sha256": client.get("manifest_sha256"),
         "content_tree_sha256": tree_digest,
         "xlsx_sha256": sha256(view / "Client_View.xlsx"),
         "files": files,
@@ -368,6 +403,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="outside-repository scratch root (default: evidence/work)")
     parser.add_argument("--python", default=sys.executable,
                         help="interpreter with the MCP SDK, used only for the stdio smoke")
+    parser.add_argument("--qa-receipt", type=Path,
+                        help="external BUILD_QA receipt; must carry a signed independent_qa block "
+                             "and MARKETOPS_QA_PUBLIC_KEY to set qa_verified")
     args = parser.parse_args(argv)
 
     evidence_dir = outside_repository(args.evidence_dir, "--evidence-dir")
@@ -377,7 +415,10 @@ def main(argv: list[str] | None = None) -> int:
     work = Path(tempfile.mkdtemp(prefix="marketops-rc-hygiene-", dir=str(work_root)))
 
     checks: list[dict] = []
-    artifacts, artifact_checks, archive = build_artifacts(work)
+    qa_receipt = args.qa_receipt.expanduser().resolve() if args.qa_receipt else None
+    if qa_receipt is not None and not qa_receipt.is_file():
+        raise SystemExit(f"--qa-receipt is missing: {qa_receipt}")
+    artifacts, artifact_checks, archive = build_artifacts(work, qa_receipt)
     checks.extend(artifact_checks)
 
     unpacked = work / "unpacked"
@@ -418,6 +459,8 @@ def main(argv: list[str] | None = None) -> int:
         "version": artifacts["version"],
         "offline": True,
         "status": overall,
+        "formal_qa": artifacts.get("formal_qa", "NOT_PERFORMED"),
+        "release_readiness": artifacts.get("release_readiness", "NOT_RELEASE_READY"),
         "checks": checks,
         "artifacts": artifacts,
         "stdio": stdio,
@@ -442,6 +485,9 @@ def main(argv: list[str] | None = None) -> int:
         "client_view_content_tree_sha256": client_view.get("content_tree_sha256"),
         "client_view_xlsx_sha256": client_view.get("xlsx_sha256"),
         "client_view_files": client_view.get("files", {}),
+        "qa_verified": bool(artifacts.get("source", {}).get("qa_verified")),
+        "formal_qa": artifacts.get("formal_qa", "NOT_PERFORMED"),
+        "release_readiness": artifacts.get("release_readiness", "NOT_RELEASE_READY"),
         "formal_release_approved": False,
         "blocked_reasons": [item["detail"] for item in checks
                             if item["status"] == "BLOCKED"],

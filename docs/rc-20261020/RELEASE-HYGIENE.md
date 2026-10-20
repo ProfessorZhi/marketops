@@ -1,9 +1,9 @@
 # MarketOps RC 发行卫生与 release-readiness（2026-10-20）
 
-> **历史记录（Lane H / 0.5.6-rc1）。** RC2 已在独立分支
-> `rc/marketops-0.5.6-rc2-20261020` 上把版本推进到 `0.5.6-rc2`；
-> 本文保留 rc1 当时的证据，不重写。RC2 的集成与验证见
-> [`RC2-INTEGRATION.md`](RC2-INTEGRATION.md)。
+> **历史记录（Lane H / 0.5.6-rc1）。** 后续版本依次推进到 `0.5.6-rc2` 与
+> `0.5.6-rc3`，仍在 PR #22 的同一条产品分支上；本文保留 rc1 当时的证据，不重写。
+> RC2 见 [`RC2-INTEGRATION.md`](RC2-INTEGRATION.md)，RC3 见
+> [`RC3-INTEGRATION.md`](RC3-INTEGRATION.md)。
 
 状态：**本 lane 的最小充分实现已完成；RC 仍为 DRAFT，不是正式发行批准。**
 

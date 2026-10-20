@@ -31,7 +31,7 @@ from research_event_journal import _root, append_event, append_note
 from research_experience_summary import refresh_quietly as refresh_summary
 from _xlsx import Sheet, render_workbook
 
-VERSION = "0.5.6-rc2"
+VERSION = "0.5.6-rc3"
 EMAIL = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 FORMULA = ("=", "+", "-", "@")
 NAMESPACE = {"x": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
@@ -204,8 +204,73 @@ def _literal_in(text: str, value: str) -> bool:
     return value.casefold() in text.casefold()
 
 
+_VALUE_TOKEN = re.compile(r"[0-9a-z]+")
+
+#: A recorded name that is a *prefix* of a longer legal name is a partial match,
+#: not an identity. ``Acme Natural Grass`` must not be admitted by a quote naming
+#: ``Acme Natural Grass Ltd``. These tokens continue a legal entity name.
+_ENTITY_SUFFIXES = frozenset({
+    "ltd", "limited", "llc", "llp", "plc", "inc", "incorporated", "corp",
+    "corporation", "co", "company", "group", "holdings", "holding", "trust",
+    "foundation", "association", "society", "partners", "council", "authority",
+    "district", "borough", "county", "city",
+})
+
+
+def _value_tokens(text: str) -> tuple[str, ...]:
+    return tuple(_VALUE_TOKEN.findall(evidence._norm(text)))
+
+
+def _quote_supports(quote: str, value: str, *, distinctive: bool = False) -> bool:
+    """Does this quote *say* this value, or merely coexist with it?
+
+    The P0 defect was that any quote from any linked artifact admitted a record.
+    A quote supports a value only when the value's **complete token sequence**
+    appears contiguously. Substring matching is not enough: ``Acme Natural Grass``
+    must not support ``Acme Natural Grass Ltd``.
+
+    ``distinctive`` is for organisation/venue/person names. A single short token
+    (``Acme``, ``Club``) is an alias, not an identity: it can appear inside a
+    different entity's name, so it cannot carry the admission decision by itself.
+    """
+    value_tokens = _value_tokens(value)
+    if not value_tokens:
+        return False
+    if distinctive and len(value_tokens) == 1 and len(value_tokens[0]) < 6:
+        return False
+    quote_tokens = _value_tokens(quote)
+    width = len(value_tokens)
+    for index in range(max(0, len(quote_tokens) - width + 1)):
+        if quote_tokens[index:index + width] != value_tokens:
+            continue
+        if distinctive:
+            following = (quote_tokens[index + width]
+                         if index + width < len(quote_tokens) else "")
+            if following in _ENTITY_SUFFIXES:
+                # The quote names a longer legal entity; this is a partial match.
+                continue
+        return True
+    return False
+
+
+def _claims_support(valid_claims: list[tuple[str, str, str]], fields: set[str],
+                    value: str, *, distinctive: bool = False,
+                    literal: bool = False) -> bool:
+    """At least one *linked, SHA-verified* claim in ``fields`` says ``value``."""
+    for field, quote, _artifact_id in valid_claims:
+        if fields and field not in fields:
+            continue
+        if literal:
+            if _literal_in(quote, value):
+                return True
+        elif _quote_supports(quote, value, distinctive=distinctive):
+            return True
+    return False
+
+
 def _claim_evidence(record: dict, assets: dict[str, dict], normalized: dict[str, str],
-                    link_index: set[tuple]) -> tuple[set[str], set[str], list[str]]:
+                    link_index: set[tuple]
+                    ) -> tuple[set[str], set[str], list[str], list[tuple[str, str, str]]]:
     """Per-claim fail-closed checks; every reason code is an admission blocker.
 
     A quote must exist in the saved bytes, come from an admissible material kind,
@@ -216,6 +281,10 @@ def _claim_evidence(record: dict, assets: dict[str, dict], normalized: dict[str,
     codes: set[str] = set()
     matched_fields: set[str] = set()
     matched_quotes: list[str] = []
+    #: Only claims that passed every check, as (field, normalized quote, artifact).
+    #: Admission uses this list to decide whether a quote *supports a field value*;
+    #: a quote that merely exists in the material is not evidence for anything.
+    valid_claims: list[tuple[str, str, str]] = []
     ids = record.get("artifact_ids") or []
     claims = record["data"].get("claims")
     if not ids:
@@ -252,26 +321,85 @@ def _claim_evidence(record: dict, assets: dict[str, dict], normalized: dict[str,
             continue
         matched_fields.add(field)
         matched_quotes.append(wanted)
-    return codes, matched_fields, matched_quotes
+        valid_claims.append((field, wanted, artifact_id))
+    return codes, matched_fields, matched_quotes, valid_claims
+
+
+def _record_identity_value(record: dict) -> tuple[str, bool]:
+    """The value that must sit beside the organisation name in one quote.
+
+    Returns ``(value, literal)``. Contacts are matched with address boundaries;
+    named entities with complete token sequences. A record with no own identity
+    (a bare relationship row) returns an empty value.
+    """
+    kind, data = record.get("kind"), (record.get("data") or {})
+    if kind == "contact_point":
+        return _field_text(data, "value", "email"), True
+    if kind == "venue":
+        return _field_text(data, "name"), False
+    if kind == "person":
+        return _field_text(data, "name", "department",
+                           "role_title", "role_function"), False
+    if kind == "role":
+        return _field_text(data, "department", "role_title", "role_function"), False
+    return "", False
 
 
 def _binding_supported(record: dict, organization: dict,
-                       normalized: dict[str, str]) -> bool:
-    """Does the evidence tie this record to the organisation it names?
+                       valid_claims: list[tuple[str, str, str]],
+                       relationship_edges: dict[str, list[dict]]) -> bool:
+    """Does the *quoted* evidence tie this record to the organisation it names?
 
-    Either both records cite a common artifact, or the organisation's own recorded
-    name occurs in material this record cites. A bare `organization_id` string is
-    an assertion, not a binding; a wrong one must fail closed rather than attach a
-    contact or venue to a different institution.
+    A shared artifact id is not ownership. A public directory page can list many
+    organisations on one page, so "both rows cite page-a" used to attach a
+    contact to whichever organisation the caller typed. The P0 was exactly that:
+    ``_binding_supported`` returned True on ``ids & organization.artifact_ids``.
+
+    Accept exactly two shapes, both textual:
+
+    1. **One local span** carrying the organisation's admitted name and this
+       record's own value (contact literal, venue/person name, role title).
+    2. **A named relationship reference**: an admitted ``relationship`` record
+       whose quote also carries the organisation name and this record's value,
+       and whose data names this record by id or entity key.
+
+    The organisation name must itself be supported by that organisation's linked
+    ``identity`` quote before it can bind anyone; a rejected organisation never
+    lends its key.
     """
-    ids = set(record.get("artifact_ids") or ())
-    if ids & set(organization.get("artifact_ids") or ()):
-        return True
     name = organization["data"].get("name")
-    if isinstance(name, str) and len(name.strip()) >= 3:
-        wanted = evidence._norm(name)
-        if wanted and any(wanted in normalized.get(a, "") for a in ids):
-            return True
+    if not _is_meaningful(name):
+        return False
+    org_quotes = [quote for _field, quote, _artifact in valid_claims]
+    kind = record.get("kind")
+    if kind == "relationship":
+        # A relationship row has no own name; its `relationship` quote must name
+        # the organisation. What it relates is checked by the caller's graph.
+        return any(_quote_supports(quote, name, distinctive=True)
+                   for quote in org_quotes)
+
+    own_value, literal = _record_identity_value(record)
+    if not own_value:
+        return False
+
+    def supports(quote: str) -> bool:
+        if not _quote_supports(quote, name, distinctive=True):
+            return False
+        if literal:
+            return _literal_in(quote, own_value)
+        return _quote_supports(quote, own_value, distinctive=True)
+
+    if any(supports(quote) for quote in org_quotes):
+        return True
+
+    for reference in (record.get("record_id"), record.get("entity_key")):
+        if not isinstance(reference, str) or not reference:
+            continue
+        for edge in relationship_edges.get(reference, ()):
+            if edge["organization_id"] != organization["entity_key"]:
+                continue
+            if any(supports(quote) for quote in edge["quotes"]):
+                return True
     return False
 
 
@@ -319,14 +447,16 @@ def evaluate_admission(records: list[dict], artifacts, links: list[dict],
             if isinstance(target_kind, str) and isinstance(target_key, str):
                 disposition_conflicts.add((target_kind, target_key))
 
-    prepared: dict[str, tuple[set[str], set[str], list[str]]] = {}
+    prepared: dict[str, tuple[set[str], set[str], list[str],
+                              list[tuple[str, str, str]]]] = {}
     for row in records:
         kind = row.get("kind")
         if kind not in BUSINESS_KINDS:
             continue
         link_index = {(link["artifact_id"], link["field"], link["span_sha256"])
                       for link in links_by_record.get(row["record_id"], ())}
-        codes, fields, quotes = _claim_evidence(row, assets, normalized, link_index)
+        codes, fields, quotes, valid_claims = _claim_evidence(
+            row, assets, normalized, link_index)
         data = row.get("data") or {}
         if kind in {"organization", "venue"} and "identity" not in fields:
             codes.add("MISSING_REQUIRED_IDENTITY")
@@ -336,6 +466,15 @@ def evaluate_admission(records: list[dict], artifacts, links: list[dict],
             codes.add("ORGANIZATION_NAME_MISSING")
         if kind == "venue" and not _is_meaningful(data.get("name")):
             codes.add("VENUE_NAME_MISSING")
+        # Field-level support. A linked identity quote is not enough if it says
+        # something else: the quote must *contain the value being shown*. This is
+        # the first P0 — "a quote exists somewhere on the page" admitted an
+        # invented organisation/venue name.
+        if kind in {"organization", "venue"}:
+            name = data.get("name")
+            if _is_meaningful(name) and not _claims_support(
+                    valid_claims, {"identity"}, name, distinctive=True):
+                codes.add("IDENTITY_VALUE_NOT_IN_EXCERPT")
         if kind == "contact_point":
             value = _field_text(data, "value", "email")
             channel = _field_text(data, "type", "channel").casefold()
@@ -362,6 +501,33 @@ def evaluate_admission(records: list[dict], artifacts, links: list[dict],
             role = data.get("role_title", data.get("role_function"))
             if not _is_meaningful(name) and not _is_meaningful(role):
                 codes.add("PERSON_OR_ROLE_IDENTITY_MISSING")
+            # Every displayed person/role field needs its own support. Without
+            # this, a page about the organisation admitted an invented person
+            # and an invented job title.
+            # The claim's *label* need not equal the data key: a quote that names
+            # the person and their title may legitimately be filed as
+            # ``role_title``. What is required is that some linked quote says the
+            # displayed value. An unrelated quote cannot satisfy this.
+            if kind == "person":
+                if (_is_meaningful(data.get("name"))
+                        and not _claims_support(valid_claims, set(),
+                                                data["name"], distinctive=True)):
+                    codes.add("PERSON_NAME_NOT_IN_EXCERPT")
+                if (_is_meaningful(data.get("department"))
+                        and not _claims_support(valid_claims, set(),
+                                                data["department"])):
+                    codes.add("PERSON_DEPARTMENT_NOT_IN_EXCERPT")
+            else:
+                if (_is_meaningful(data.get("department"))
+                        and not _claims_support(valid_claims, set(),
+                                                data["department"])):
+                    codes.add("ROLE_DEPARTMENT_NOT_IN_EXCERPT")
+            displayed_role = (data.get("role_title") if _is_meaningful(data.get("role_title"))
+                              else data.get("role_function"))
+            if (_is_meaningful(displayed_role)
+                    and not _claims_support(valid_claims, set(), displayed_role)):
+                codes.add("PERSON_ROLE_NOT_IN_EXCERPT" if kind == "person"
+                          else "ROLE_TITLE_NOT_IN_EXCERPT")
         hold = held_targets.get((kind, row.get("entity_key")))
         if hold:
             codes.add(hold)
@@ -369,7 +535,7 @@ def evaluate_admission(records: list[dict], artifacts, links: list[dict],
             codes.add("DISPOSITION_VERSION_CONFLICT")
         if row["record_id"] in conflict_ids:
             codes.add("VERSION_CONFLICT")
-        prepared[row["record_id"]] = (codes, fields, quotes)
+        prepared[row["record_id"]] = (codes, fields, quotes, valid_claims)
 
     # Organisations are the root of the association graph: a venue or contact may
     # only bind to an organisation that is itself admitted. A rejected organisation
@@ -385,19 +551,49 @@ def evaluate_admission(records: list[dict], artifacts, links: list[dict],
             else:
                 org_by_key[row["entity_key"]] = row
 
+    # Named relationship edges: an admitted relationship row may bind a contact
+    # (or venue/person/role) to its organisation only when the relationship quote
+    # itself names both sides. The edge is indexed by every identifier the row
+    # offers, so a caller cannot claim a binding by typing an id alone.
+    relationship_edges: dict[str, list[dict]] = defaultdict(list)
+    for row in records:
+        if row.get("kind") != "relationship":
+            continue
+        codes, fields, _quotes, valid_claims = prepared[row["record_id"]]
+        if codes or "relationship" not in fields:
+            continue
+        data = row.get("data") or {}
+        organization = org_by_key.get(_field_text(data, "organization_id"))
+        if organization is None:
+            continue
+        references = {row.get("record_id"), row.get("entity_key")}
+        for key in ("venue_id", "contact_point_id", "contact_route_id", "person_id",
+                    "role_id", "subject_id", "target_id", "entity_key"):
+            value = data.get(key)
+            if isinstance(value, str):
+                references.add(value)
+        quotes = [quote for _field, quote, _artifact in valid_claims]
+        for reference in references:
+            if isinstance(reference, str) and reference:
+                relationship_edges[reference].append({
+                    "organization_id": organization["entity_key"],
+                    "quotes": quotes,
+                })
+
     decisions = []
     for row in records:
         kind = row.get("kind")
         if kind not in BUSINESS_KINDS:
             continue
-        codes, fields, _ = prepared[row["record_id"]]
+        codes, fields, _, valid_claims = prepared[row["record_id"]]
         data = row.get("data") or {}
         organization_id = _field_text(data, "organization_id")
         if organization_id and kind != "organization":
             organization = org_by_key.get(organization_id)
             if organization is None:
                 codes.add("ORGANIZATION_NOT_ADMITTED")
-            elif not _binding_supported(row, organization, normalized):
+            elif not _binding_supported(row, organization, valid_claims,
+                                         relationship_edges):
                 codes.add("ORGANIZATION_PROVENANCE_MISMATCH")
         decisions.append({
             "record_id": row["record_id"], "kind": kind,
@@ -779,11 +975,46 @@ def write_delivery(data_root: Path | str | None, run_id: str, delivery_id: str) 
                 if sum(1 for _ in csv.reader(handle)) != len(sheet.rows) + 1:
                     raise ValueError(f"CSV_READBACK_COUNT_MISMATCH:{sheet.name}")
             files.append(filepath)
+        # The client view is not a caller's optional post-processing step. It is
+        # generated from the *already filtered* business sheets inside this
+        # transaction, so a caller cannot hand-write a friendlier view, and a
+        # failed view leaves no partially deliverable directory behind.
+        import research_client_view as client_view
+        business = [sheet for sheet in sheets
+                    if sheet.name in CLIENT_BUSINESS_SHEETS]
+        client_receipt = client_view.write_client_view(
+            staging / "client-view", business,
+            label=f"{run_id}:{delivery_id}")
+        client_manifest = staging / "client-view" / "MANIFEST.json"
+        client_files = {
+            "client-view/" + name: meta
+            for name, meta in client_receipt["files"].items()
+        }
+        client_files["client-view/MANIFEST.json"] = {
+            "bytes": client_manifest.stat().st_size,
+            "sha256": hashlib.sha256(client_manifest.read_bytes()).hexdigest(),
+        }
+        generated_at = datetime.now(timezone.utc).isoformat()
         receipt = {**manifest, "format": "xlsx+csv+manifest",
-                   "generated_at": datetime.now(timezone.utc).isoformat(),
-                   "files": {f.name: {
-                       "bytes": f.stat().st_size, "sha256": hashlib.sha256(f.read_bytes()).hexdigest()
-                   } for f in files}}
+                   "generated_at": generated_at,
+                   "files": {
+                       **{f.name: {
+                           "bytes": f.stat().st_size,
+                           "sha256": hashlib.sha256(f.read_bytes()).hexdigest()
+                       } for f in files},
+                       **client_files,
+                   },
+                   "client_view": {
+                       "directory": "client-view",
+                       "manifest": "client-view/MANIFEST.json",
+                       "manifest_sha256": client_receipt["manifest_sha256"],
+                       "status": client_receipt["status"],
+                       "send_authorized": client_receipt["send_authorized"],
+                       "formal_sop_claimed": client_receipt["formal_sop_claimed"],
+                       "business_verification": client_receipt["business_verification"],
+                       "counts": client_receipt["counts"],
+                       "files": client_files,
+                   }}
         (staging / "MANIFEST.json").write_text(
             json.dumps(receipt, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         os.rename(staging, destination)
@@ -831,6 +1062,8 @@ def write_delivery(data_root: Path | str | None, run_id: str, delivery_id: str) 
                                + str(refresh.get("reason_code") or refresh.get("status")))
     return {**receipt, "directory": str(destination),
             "xlsx_path": str(destination / "Research_Result.xlsx"),
+            "client_view_directory": str(destination / "client-view"),
+            "client_view_manifest": str(destination / "client-view" / "MANIFEST.json"),
             "goal_gap_record": gap_record, "evidence_note": evidence_note,
             "experience_file": refresh.get("experience_file"),
             "experience_refresh": refresh,

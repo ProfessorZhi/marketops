@@ -1,6 +1,6 @@
 # MarketOps：安装、账号与启动
 
-> 版本 **0.5.6-rc2**（release candidate，不是 0.5.5）。请使用本包 ZIP 与随附 SHA256。
+> 版本 **0.5.6-rc3**（release candidate，不是 0.5.5）。请使用本包 ZIP 与随附 SHA256。
 
 Windows x64：解压整个源码包，双击 **Install.cmd**。选择安装目录；程序准备 Python 3.12、四家接入代码、Crawl4AI 和 Chromium，然后打开本地设置。没有 Python 时通过 Windows Package Manager 安装官方 Python；没有 winget 时按提示先安装 Python 3.12 x64。安装过程会下载软件，但不会购买额度或提交调研请求。
 

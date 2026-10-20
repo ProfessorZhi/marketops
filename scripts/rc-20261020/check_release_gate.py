@@ -32,11 +32,14 @@ REPO = Path(__file__).resolve().parents[2]
 PLUGIN = REPO / "plugins" / "research-tools" / "marketops-research-assistant"
 SCRIPTS = PLUGIN / "scripts"
 BASELINE = "4f87bc3306b90d55bfd0332ef1efc8b97f1dcc44"
-#: The exact Lane-H commit the RC2 candidate branches from.  Baseline ancestry
+#: The exact Lane-H commit the RC3 candidate branches from.  Baseline ancestry
 #: alone would still pass if the branch had quietly been rebuilt from an older
 #: point; this check pins the *base* the integrator was told to use.
-RC2_BASE = "38dcef853f526f64f669c475c96ad9c3bad3ad47"
-RC2_BRANCH = "rc/marketops-0.5.6-rc2-20261020"
+RC3_BASE = "38dcef853f526f64f669c475c96ad9c3bad3ad47"
+#: The single product development branch is the one PR #22 already has. It keeps
+#: its rc2 *name* while the product version advances to rc3; creating a second
+#: branch for a version bump is exactly the split this check exists to prevent.
+RC3_BRANCH = "rc/marketops-0.5.6-rc2-20261020"
 
 #: Lane test modules, in the order they must be green.  ``None`` means the Lane
 #: has not named its test yet; that is BLOCKED rather than silently omitted.
@@ -51,6 +54,8 @@ LANE_TESTS = (
     ("G10-F", "money-gate", ["test_runtime_dollar_cap_contract.py"]),
     ("G11-G", "browser-egress", ["test_crawl_browser_webrtc_egress.py"]),
     ("G12-RC2", "rc2-integration-seams", ["test_rc2_integration_seams.py"]),
+    ("G13-RC3", "rc3-evidence-p0", ["test_rc3_evidence_p0.py"]),
+    ("G14-RC3", "rc3-release-qa", ["test_rc3_release_qa.py"]),
 )
 
 _SECRET_PATTERNS = (
@@ -110,17 +115,17 @@ def check_repo_state() -> list[dict]:
     branch = subprocess.run(["git", "-C", str(REPO), "rev-parse", "--abbrev-ref", "HEAD"],
                             text=True, capture_output=True)
     checks.append(result("G0-branch", "RC branch", "PASS" if branch.stdout.strip()
-                         == RC2_BRANCH else "FAIL",
+                         == RC3_BRANCH else "FAIL",
                          branch.stdout.strip() or branch.stderr.strip()))
     ancestor = subprocess.run(["git", "-C", str(REPO), "merge-base", "--is-ancestor",
                                BASELINE, "HEAD"], capture_output=True)
     checks.append(result("G0-base", "baseline ancestry", "PASS" if ancestor.returncode == 0
                          else "FAIL", f"baseline {BASELINE} ancestor of HEAD"))
-    rc2_base = subprocess.run(["git", "-C", str(REPO), "merge-base", "--is-ancestor",
-                               RC2_BASE, "HEAD"], capture_output=True)
-    checks.append(result("G0-rc2-base", "Lane H base ancestry",
-                         "PASS" if rc2_base.returncode == 0 else "FAIL",
-                         f"Lane H {RC2_BASE} ancestor of HEAD"))
+    rc3_base = subprocess.run(["git", "-C", str(REPO), "merge-base", "--is-ancestor",
+                               RC3_BASE, "HEAD"], capture_output=True)
+    checks.append(result("G0-rc3-base", "Lane H base ancestry",
+                         "PASS" if rc3_base.returncode == 0 else "FAIL",
+                         f"Lane H {RC3_BASE} ancestor of HEAD"))
     return checks
 
 

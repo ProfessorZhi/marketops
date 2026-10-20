@@ -299,14 +299,20 @@ def _insert_candidate(db: sqlite3.Connection, run_id: str, record_id: str,
 
 
 def _span_caveat(kind: str, payload: dict, artifact_ids, linked) -> str:
-    """Say it at write time: material without a linked quote never reaches delivery.
+    """Say it at write time: material without a linked required claim stays out.
 
-    The delivery gate reports a "spanless" record only after the run has ended,
-    which is exactly when the Agent can no longer fix it. Staging such a record
-    stays legal — it simply does not reach the business tables — so this is a
-    caveat, never a refusal.
+    The delivery gate reports a missing required claim only after the run has
+    ended, which is exactly when the Agent can no longer fix it. Staging stays
+    legal — it simply does not reach the business tables — so this is a caveat,
+    never a refusal.
+
+    A *linked* quote is not the same as the *required* quote. An organisation
+    staged with ``field=name`` has a link, so the old caveat was empty; delivery
+    then refused it with ``MISSING_REQUIRED_IDENTITY`` after the work was spent.
+    The warning now names the missing field and the exact repair, and never
+    rewrites the caller's claims into a quote they did not supply.
     """
-    if not artifact_ids or linked:
+    if not artifact_ids:
         return ""
     if kind not in {"venue", "organization", "relationship", "person", "role",
                     "contact_point", "contact_route"}:
@@ -318,9 +324,29 @@ def _span_caveat(kind: str, payload: dict, artifact_ids, linked) -> str:
                 + "; add facts.claims=[{field, artifact_id, quote}] with a 12-600 character "
                   "quote taken from that artifact, or this record stays out of the "
                   "business tables")
-    return ("SPAN_NOT_RECORDED: " + str(len(claims)) + " claim(s) supplied but none linked; "
-            "each claim needs artifact_id from artifact_ids, a field matching "
-            "^[a-z][a-z0-9_]{0,39}$ and a 12-600 character quote found in that artifact")
+    linked_fields = {link.get("field") for link in (linked or ())
+                     if isinstance(link, dict)}
+    if not linked_fields:
+        return ("SPAN_NOT_RECORDED: " + str(len(claims)) + " claim(s) supplied but none linked; "
+                "each claim needs artifact_id from artifact_ids, a field matching "
+                "^[a-z][a-z0-9_]{0,39}$ and a 12-600 character quote found in that artifact")
+    supplied = sorted(str(claim.get("field")) for claim in claims
+                      if isinstance(claim, dict) and claim.get("field"))
+    artifact_hint = str(artifact_ids[0])
+    if kind in {"organization", "venue"} and "identity" not in linked_fields:
+        return ("MISSING_REQUIRED_IDENTITY: linked field(s)="
+                + (", ".join(supplied) or "<none>")
+                + " but no field=identity; add facts.claims field=identity with a "
+                  "12-600 character quote from " + artifact_hint
+                + " that contains the recorded name. field=name alone is not an "
+                  "identity claim")
+    if kind == "relationship" and "relationship" not in linked_fields:
+        return ("MISSING_REQUIRED_RELATIONSHIP: linked field(s)="
+                + (", ".join(supplied) or "<none>")
+                + " but no field=relationship; add facts.claims field=relationship "
+                  "with a 12-600 character quote from " + artifact_hint
+                + " that states the related entities")
+    return ""
 
 
 def put_candidate(root: Path | str | None, run_id: str, record_id: str, stage: str,

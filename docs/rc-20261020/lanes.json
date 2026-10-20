@@ -5,7 +5,7 @@
   "rc_branch": "rc/marketops-0.5.6-rc2-20261020",
   "base_commit": "38dcef853f526f64f669c475c96ad9c3bad3ad47",
   "base_branch": "fix/marketops-rc-release-hygiene-20261020",
-  "version": "0.5.6-rc2",
+  "version": "0.5.6-rc3",
   "note": "commits 只填已落到 Lane 分支的精确 SHA；空列表表示该 Lane 尚未交付，不猜测、不代填。",
   "lanes": [
     {
@@ -94,7 +94,7 @@
       "commits": [
         "38dcef853f526f64f669c475c96ad9c3bad3ad47"
       ],
-      "note": "RC2 integrates from this exact commit; it is the branch base of the final PR."
+      "note": "RC3 integrates from this exact commit; it is the branch base of the final PR."
     },
     {
       "id": "F",
@@ -133,7 +133,7 @@
     },
     {
       "id": "I",
-      "name": "rc2-final-integration",
+      "name": "rc3-final-integration",
       "branch": "rc/marketops-0.5.6-rc2-20261020",
       "worktree": "worktrees/marketops/rc-final-20261020",
       "base": "38dcef853f526f64f669c475c96ad9c3bad3ad47",
@@ -142,10 +142,19 @@
         "plugins/research-tools/marketops-research-assistant/scripts/research_provider_extensions.py",
         "plugins/research-tools/marketops-research-assistant/scripts/research_wiring.py",
         "plugins/research-tools/marketops-research-assistant/scripts/research_runtime_status.py",
-        "plugins/research-tools/marketops-research-assistant/tests/test_rc2_integration_seams.py"
+        "plugins/research-tools/marketops-research-assistant/scripts/research_delivery.py",
+        "plugins/research-tools/marketops-research-assistant/scripts/research_lite_store.py",
+        "plugins/research-tools/marketops-research-assistant/scripts/research_evidence_store.py",
+        "plugins/research-tools/marketops-research-assistant/scripts/research_runtime_setup.py",
+        "plugins/research-tools/marketops-research-assistant/scripts/build_client_bundles.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_rc2_integration_seams.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_rc3_evidence_p0.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_rc3_release_qa.py",
+        "scripts/rc-20261020/check_release_gate.py",
+        "scripts/rc-20261020/check_release_hygiene.py"
       ],
       "commits": [],
-      "note": "The only lane allowed to edit the seam files after F and G. Its commit SHA is filled in after the final candidate commit; an empty list means not yet committed."
+      "note": "The only lane allowed to edit the seam files after F and G. RC3 adds field/entity/relationship admission, automatic client view, and the independent-QA gate. Its commit SHA is filled in after the final candidate commit; an empty list means not yet committed."
     }
   ],
   "qa": {
@@ -159,5 +168,6 @@
     ],
     "integrate_into_product_branch": false,
     "run_against": "RC plugin root via MARKETOPS_QA_PLUGIN_ROOT; never copies QA files into the product branch"
-  }
+  },
+  "branch_name_note": "The PR #22 branch keeps its rc2 name; the product version is 0.5.6-rc3. One development branch only."
 }

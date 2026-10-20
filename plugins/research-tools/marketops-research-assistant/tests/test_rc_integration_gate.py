@@ -40,8 +40,8 @@ PAGE = (
     b"<html><body>"
     b"<h1>Example Borough Council</h1>"
     b"<p>Example Sports Ground is operated by Example Borough Council.</p>"
-    b"<p>Grounds Management is the responsible department.</p>"
-    b"<p>Contact grounds@example.org for grounds enquiries.</p>"
+    b"<p>Grounds Management at Example Borough Council is the responsible department.</p>"
+    b"<p>Contact Example Borough Council at grounds@example.org for grounds enquiries.</p>"
     b"</body></html>"
 )
 
@@ -85,17 +85,17 @@ class DeliveryToClientViewTests(unittest.TestCase):
             [ART])
         self._propose(
             "person-legit", "people", "person", "grounds-management",
-            {"department": "Grounds Management", "role_title": "Grounds management team",
+            {"department": "Grounds Management", "role_title": "Grounds Management",
              "organization_id": LEGIT_ORG_KEY,
              "claims": [{"field": "role_title", "artifact_id": ART,
-                         "quote": "Grounds Management is the responsible department."}]},
+                         "quote": "Grounds Management at Example Borough Council is the responsible department."}]},
             [ART])
         self._propose(
             "contact-legit", "routes", "contact_point", "grounds-contact",
             {"organization_id": LEGIT_ORG_KEY, "type": "email",
              "value": "grounds@example.org", "role_function": "Grounds Management",
              "claims": [{"field": "email", "artifact_id": ART,
-                         "quote": "Contact grounds@example.org for grounds enquiries."}]},
+                         "quote": "Contact Example Borough Council at grounds@example.org for grounds enquiries."}]},
             [ART])
         # P0 negatives: no quote, an address that is not a literal, and an
         # organisation that cites material but never ties its own name to it.
