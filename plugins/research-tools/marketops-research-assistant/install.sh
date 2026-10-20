@@ -174,7 +174,8 @@ trap 'rm -f "$log"' EXIT HUP INT TERM
 if "$python_exe" "$package_dir/scripts/setup_clients.py" \
         --destination "$destination" --client "$client" \
         --apply --bootstrap-runtime --resume $register_args >"$log" 2>&1; then
-    cat "$log"
+    # The full JSON receipt is in INSTALL_RECEIPT.json; the customer only needs the outcome.
+    grep -m 1 -E '^  "status": ' "$log" | sed 's/^ *"status": "\(.*\)",*$/Installed: \1/' || true
 else
     status=$?
     # Print only our own one-line refusal. Child output (pip, providers, a
@@ -184,6 +185,12 @@ else
         printf '%s\n' "$blocked" >&2
     else
         printf 'INSTALL_BLOCKED: INSTALL_STEP_FAILED: Re-run install.sh: it resumes the same destination. If it stops again, open INSTALL_STATE.json beside the destination.\n' >&2
+    fi
+    # Keep the full log on this machine so the cause is never lost; it is not
+    # printed here because it can carry tokens or local paths.
+    kept="$destination.install-failed.log"
+    if cp "$log" "$kept" 2>/dev/null; then
+        printf 'Full installer log (check it before sharing): %s\n' "$kept" >&2
     fi
     exit "$status"
 fi
