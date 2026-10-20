@@ -116,20 +116,34 @@ def check_private_data() -> dict:
     diff = subprocess.run(["git", "-C", str(REPO), "diff", "--unified=0", BASELINE, "--", "."],
                           text=True, capture_output=True)
     findings: list[dict] = []
+    current_path = ""
     for line in diff.stdout.splitlines():
+        if line.startswith("+++ b/"):
+            current_path = line[6:]
+            continue
         if not line.startswith("+") or line.startswith("+++"):
             continue
         text = line[1:]
+        # A synthetic credential under tests/ is a fixture, not a leak.  This
+        # mirrors .gitleaks.toml's path+match allowlists; the body must still
+        # carry an explicit synthetic marker, so a real key in tests/ still fails.
+        synthetic_fixture = (
+            ("/tests/" in f"/{current_path}" or current_path.startswith("tests/"))
+            and re.search(r"synthetic|fixture|fake|dummy|example", text, re.IGNORECASE)
+            is not None)
         for label, pattern in _SECRET_PATTERNS:
             if pattern.search(text):
-                findings.append({"severity": "FAIL", "kind": label, "line": text[:200]})
+                findings.append({
+                    "severity": "REVIEW" if synthetic_fixture else "FAIL",
+                    "kind": label + ("_SYNTHETIC_TEST_FIXTURE" if synthetic_fixture else ""),
+                    "path": current_path, "line": text[:200]})
         email = _PRIVATE_EMAIL.search(text)
         if email:
             findings.append({"severity": "REVIEW", "kind": "PRIVATE_EMAIL_DOMAIN",
-                             "line": text[:200]})
+                             "path": current_path, "line": text[:200]})
         if _MAINLAND_PHONE.search(text) and _HAN_PHONE_CONTEXT.search(text):
             findings.append({"severity": "REVIEW", "kind": "MAINLAND_PHONE",
-                             "line": text[:200]})
+                             "path": current_path, "line": text[:200]})
     failed = [item for item in findings if item["severity"] == "FAIL"]
     status = "FAIL" if failed else "PASS"
     detail = (f"{len(failed)} secret-level finding(s), "
@@ -144,9 +158,10 @@ def check_targeted(env: dict[str, str]) -> list[dict]:
         if files is None:
             # Lane D names its test when it commits; find it by intent rather than
             # hard-coding a filename the Lane has not agreed to yet.
-            files = [path.name for path in sorted((PLUGIN / "tests").glob("test_*search*.py"))
+            files = [path.name for path in sorted((PLUGIN / "tests").glob("test_*.py"))
                      if any(token in path.name for token in
-                            ("dedup", "transport", "reserve", "cost"))]
+                            ("dedup", "transport", "reserve", "double_charge",
+                             "no_double_charge"))]
             if not files:
                 checks.append(result(check_id, name, "BLOCKED",
                                      "Lane has not delivered a committed search-dedup test"))

@@ -2,14 +2,15 @@
 
 状态：**OPEN / 等待 Lane 交付**。只记录事实与判据，不把“未完成”写成“通过”。
 
-## B-01 五条 Lane 均尚未提交（阻断集成）
+## B-01 Lane 交付状态（分批集成中）
 
-- 观察时间：2026-10-20 13:07–13:10 CST。
-- A/B/C/D/E 工作树 HEAD 都停在基线 `4f87bc33`；改动全部是工作树内的 modified/untracked 文件。
-- 文件 mtime 持续更新（A 13:06、B 13:07:15、E 13:07:48、Q 13:07:49、C/D 随后开始），
-  说明 Agent 仍在工作。
-- 结论：**不 cherry-pick、不复制工作树内容、不猜测 SHA**。集成脚本此时返回
-  `INTEGRATION_PENDING`（exit 4）。
+- 2026-10-20 13:08:52：Lane B 提交 `76991cb7`（client-view，3 文件 / +1007）。
+- 2026-10-20 13:09:35：Lane E 提交 `da300501`（Jev locator，2 文件 / +461/-18）。
+- 两者工作树均已干净；已按精确 SHA cherry-pick 为 RC `b0749936` / `38c717df`。
+- 定向测试：B `Ran 11 tests OK`；E `Ran 19 tests OK`。
+- 截至 13:1x，A/C/D/Q 仍停在基线 `4f87bc33`，改动只在工作树内（未提交）。
+- 结论：不复制工作树内容、不猜测 SHA。A/C/D 提交前，集成脚本对它们是
+  `INTEGRATION_PENDING`；已交付的 B/E 不阻塞后续追加。
 
 ## B-02 `origin/feat` 曾短暂指向非基线提交（已澄清）
 
@@ -40,11 +41,13 @@
 - 结论：G6 用合法行 + 伪造行混合夹具实证；若触发，停止并交 A/B 双方裁决，
   集成者不私改任一侧过滤规则。
 
-## B-06 D 的测试模块尚未命名
+## B-06 D 的测试尚未提交
 
-- Lane D 目前只改了 `search_canonical.py`，尚无测试文件。
-- 结论：`check_release_gate.py` 按意图自动发现 `test_*search*{dedup,transport,reserve,cost}*.py`；
-  找不到即 `G4-D = BLOCKED`，不跳过。
+- Lane D 工作树已有未跟踪的 `tests/test_serpapi_cross_transport_no_double_charge.py`，
+  但 HEAD 仍在基线，尚未提交。
+- 结论：`check_release_gate.py` 按意图自动发现 `test_*` 中含
+  `transport` / `double_charge` / `dedup` / `reserve` 的文件；找不到即
+  `G4-D = BLOCKED`，不跳过。D 提交后才可集成。
 
 ## B-07 全量 offline plugin suite 尚未运行
 
@@ -63,3 +66,14 @@
 
 - G6 / G3–G5 全部离线；gate 将 `MARKETOPS_*_ALLOW_NETWORK` 与调用上限设为 0。
 - 结论：本轮没有真实 Provider、付费调用、生产部署或真实客户邮箱外发。
+
+## B-10 B 的测试夹具含合成私钥字符串（REVIEW，非泄露）
+
+- `tests/test_client_view_generation.py:205`：
+  `"-----BEGIN RSA PRIVATE KEY-----\nMIIBsynthetic"`，用于测试 helper 拒绝私钥材料。
+- 判定：路径在 `tests/` 且正文含 `synthetic`，门禁记为
+  `PRIVATE_KEY_SYNTHETIC_TEST_FIXTURE`（REVIEW），不是 FAIL。正文不是可用密钥。
+- 与仓库惯例的差异：`REDACTION.md` 规定合成夹具用行内 `# gitleaks:allow`；该行没有。
+  gitleaks 未接入 CI workflow，因此不阻断本轮。
+- 结论：不静默改 B 的文件。最终集成时由 B 或集成者按 `REDACTION.md` 惯例补行内标记，
+  或在 `.gitleaks.toml` 增加与既有条目同形状的 path+match allowlist；二选一需在 PR 说明。
