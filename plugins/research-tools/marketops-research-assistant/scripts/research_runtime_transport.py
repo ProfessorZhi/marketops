@@ -97,10 +97,10 @@ def tinyfish_runner(root):
 
 def tinyfish_target_guard(root):
     def guard(value, *, resolve=True, resolver=None):
-        from research_runtime_setup import config
+        from research_runtime_setup import config, fetch_allowlist
         from research_egress import approved_url
         return approved_url(value, resolve=resolve, resolver=resolver,
-                            allowlist=frozenset(config(root).get("allowed_domains", ())))
+                            allowlist=fetch_allowlist(config(root), [value]))
     return guard
 
 
@@ -246,8 +246,9 @@ class RuntimeCrawlAdapter:
         from research_adapter_crawl4ai import Crawl4AIAdapter
         import research_egress as egress
         from research_crawl4ai_binding import binding_for
-        from research_runtime_setup import config, _root
-        domains = frozenset(config(self.root).get("allowed_domains", ()))
+        from research_runtime_setup import config, fetch_allowlist, _root
+        from research_policy import _urls_in
+        domains = fetch_allowlist(config(self.root), _urls_in(request.params))
         def save_primary(run_id, operation_id, url, body):
             import hashlib
             import research_lite_store as store

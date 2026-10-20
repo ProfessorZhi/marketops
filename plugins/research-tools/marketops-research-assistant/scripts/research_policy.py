@@ -247,10 +247,13 @@ class Policy:
     def __init__(self, *, registry: CapabilityRegistry,
                  grants: Mapping[str, PolicyGrant] | Callable[[str], PolicyGrant | None] | None = None,
                  allowed_domains: Iterable[str] = (), network_enabled: bool = False,
-                 clock: Callable[[], datetime] | None = None):
+                 clock: Callable[[], datetime] | None = None,
+                 domain_scope: Callable[[tuple[str, ...]], Iterable[str]] | None = None):
         self._registry = registry
         self._grants = grants
         self._allowed_domains = tuple(allowed_domains)
+        # Optional: the runtime's consent-aware scope for the URLs of one call.
+        self._domain_scope = domain_scope
         self._network_enabled = bool(network_enabled)
         self._clock = clock
 
@@ -358,6 +361,8 @@ class Policy:
             return None, ""
         allowed = (grant.allowed_domains if grant is not None and grant.allowed_domains
                    else self._allowed_domains)
+        if self._domain_scope is not None and not (grant is not None and grant.allowed_domains):
+            allowed = tuple(self._domain_scope(tuple(str(url) for url in urls)))
         if not allowed:
             return "POLICY_DOMAIN_NOT_ALLOWED", _host(str(urls[0]))
         for url in urls:

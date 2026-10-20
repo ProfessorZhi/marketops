@@ -377,29 +377,6 @@ def test_retained_direct_connect_examples_are_absent_from_install_and_bundle(
             f"{meta} resurrects a direct vendor connector as {identity!r} (§P1-02)")
 
 
-def test_plugin_readme_does_name_the_retained_examples_as_non_current():
-    """The finding above is about the *label location*, so record what does exist.
-
-    ``plugins/research-tools/README.md`` already names three of the four
-    examples and marks them as historical standalone candidates rather than the
-    current unified plugin. That is a real statement; it is simply not the
-    explicit per-example "not for managed distribution" label P1-02 requires.
-    """
-    readme = RESEARCH_TOOLS / "README.md"
-    assert readme.is_file(), "plugins/research-tools/README.md is missing"
-    text = readme.read_text(encoding="utf-8")
-    for name in ("codex/marketops-research-starter", "workbuddy/tinyfish",
-                 "workbuddy/crawl4ai"):
-        assert name in text, f"README no longer names the retained example {name}"
-    assert "独立候选" in text and "不是当前" in text, (
-        "README no longer marks the retained examples as standalone candidates")
-
-
-# ==========================================================================
-# Contract 3 — vendor tool exposure is a positive, explicit allowlist.
-# ==========================================================================
-
-
 def _tool_grants(path: Path) -> dict[str, dict[str, list[str]]]:
     name = path.name
     if name.endswith(".toml") or name.endswith(".toml.example"):

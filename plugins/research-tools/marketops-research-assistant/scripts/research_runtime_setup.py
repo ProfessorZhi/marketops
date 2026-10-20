@@ -200,9 +200,34 @@ def set_call_cap_preserving_money(ledger, scope_kind, scope_key, *, ceiling_call
                    usd_enforced=usd_enforced, source=source)
 
 
+def fetch_allowlist(settings, urls=()):
+    """Domains a fetch may reach under the user's consent.
+
+    ``public_web_fetch`` is the user's explicit grant for open research: every
+    public site the Run discovers may be fetched, so each requested URL's own
+    host joins the configured list. Everything else still applies downstream:
+    port 443 only, no IP literals or reserved names, every resolved address must
+    be global, the connection is pinned to it and each redirect is re-checked.
+    """
+    from urllib.parse import urlsplit
+    from research_egress import allowed_domains_from_env
+    configured = frozenset(settings.get("allowed_domains", ()))
+    if settings.get("public_web_fetch") is not True:
+        return configured
+    hosts = set()
+    for url in urls:
+        host = (urlsplit(url).hostname or "") if isinstance(url, str) else ""
+        host = host.casefold().removeprefix("www.")
+        try:
+            hosts |= allowed_domains_from_env(host)
+        except Exception:  # noqa: BLE001 - an IP literal or malformed host stays out
+            continue
+    return configured | frozenset(hosts)
+
+
 def configure(root, *, providers, domains, max_calls, task, confirm=False, amend=False,
               provider_limits=None, run_max_calls=None, project_max_calls=None,
-              project_max_usd_micros=None, run_max_usd_micros=None):
+              project_max_usd_micros=None, run_max_usd_micros=None, public_web_fetch=None):
     if confirm is not True or type(max_calls) is not int or not 1 <= max_calls <= 500:
         raise ValueError("FINITE_LOCAL_CONSENT_REQUIRED")
     selected = sorted(set("typesafe_jev" if x == "jev" else x for x in providers))
@@ -254,7 +279,9 @@ def configure(root, *, providers, domains, max_calls, task, confirm=False, amend
                 "task": task.strip(), "budget_mode": budget_mode,
                 "project_max_usd_micros": project_usd,
                 "run_max_usd_micros": run_usd,
-                "network_enabled": True, "paid_agent_enabled": False}
+                "network_enabled": True, "paid_agent_enabled": False,
+                "public_web_fetch": (old.get("public_web_fetch") is True
+                                     if public_web_fetch is None else public_web_fetch is True)}
     # Persist the independent call bounds only when the user stated them (or a
     # previous consent did). A record that never had them keeps following
     # max_calls, which is the old and still coherent meaning of the total cap.
@@ -837,6 +864,9 @@ def main(argv=None):
                         help="optional cumulative project USD ceiling (decimal); requires a reviewed pricing catalog")
     parser.add_argument("--provider-limit", action="append", metavar="PROVIDER=N",
                         help="cumulative supplier limit (repeatable); omitted providers inherit max-calls")
+    parser.add_argument("--public-web", action="store_true", default=None,
+                        help="allow fetching any public site the research discovers "
+                             "(private networks, IP literals and non-443 ports stay refused)")
     parser.add_argument("--task", default="")
     parser.add_argument("--confirm", action="store_true")
     parser.add_argument("--amend", action="store_true",
@@ -871,7 +901,8 @@ def main(argv=None):
                 run_max_calls=args.run_max_calls,
                 project_max_calls=args.project_max_calls,
                 run_max_usd_micros=_usd_text_to_micros(args.run_usd),
-                project_max_usd_micros=_usd_text_to_micros(args.project_usd))
+                project_max_usd_micros=_usd_text_to_micros(args.project_usd),
+                public_web_fetch=args.public_web)
         elif args.command == "observe-account":
             if len(args.provider or []) != 1:
                 raise ValueError("ONE_PROVIDER_REQUIRED")

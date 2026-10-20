@@ -478,7 +478,9 @@ class _GatewayAfterTheGate:
                 registry = research_capability_registry.DEFAULT_REGISTRY
                 policy = research_policy.Policy(registry=registry,
                     network_enabled=settings.get("network_enabled") is True,
-                    allowed_domains=settings.get("allowed_domains", ()))
+                    allowed_domains=settings.get("allowed_domains", ()),
+                    domain_scope=lambda urls: runtime.fetch_allowlist(
+                        runtime.config(self._root), urls))
                 self._built = build_gateway(root=self._root, policy=policy,
                     ledger=runtime.ledger_for(self._root, kwargs["account_ref"]))
             else:
