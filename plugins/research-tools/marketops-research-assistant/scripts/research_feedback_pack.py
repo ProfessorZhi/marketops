@@ -57,7 +57,10 @@ def build(data_root=None, *, reporter: str = "", out_dir: Path | None = None) ->
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     target = Path(out_dir) if out_dir else root / "feedback"
     target.mkdir(parents=True, exist_ok=True)
-    notes = read_notes(root)
+    # Automatic step receipts that merely say a page was read are not blockers.
+    notes = [n for n in read_notes(root)
+             if not ("SUCCESS_CANDIDATE" in n["observed_result"]
+                     and n["problem"].startswith("Bounded research step"))]
     by_category: dict[str, list[dict]] = defaultdict(list)
     for note in notes:
         by_category[note["category"]].append(note)
@@ -81,9 +84,12 @@ def build(data_root=None, *, reporter: str = "", out_dir: Path | None = None) ->
         if category == "human_correction" or not items:
             continue
         lines.append(f"### {CATEGORY_ZH.get(category, category)}（{len(items)}）")
-        lines += [f"- [{n['run_id']} / {n['stage']}] {n['problem']} → {n['observed_result']}"
-                  + (f"（猜测原因：{n['hypothesis']}）" if n["hypothesis"] else "")
-                  for n in items[-15:]]
+        # The same blocker from many targets is one line with a count.
+        counted = Counter(f"{n['problem']} → {n['observed_result']}"
+                          + (f"（猜测原因：{n['hypothesis']}）" if n["hypothesis"] else "")
+                          for n in items)
+        lines += [f"- {text}" + (f" ×{count}" if count > 1 else "")
+                  for text, count in counted.most_common(15)]
         lines.append("")
     lines += ["## 3. 五家供应商调用次数", ""]
     lines += [f"- {p}: {n}" for p, n in usage.items()] or ["- 读不到调用台账"]

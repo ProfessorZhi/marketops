@@ -36,10 +36,14 @@ def mailto_visible(html_text: str) -> str:
     A site that links "Email the secretary" to mailto:x@y publishes x@y as
     plainly as one that prints it; stripping tags used to discard every such
     address (the largest historical yield loss). The address is inserted as it
-    appears in the href, never decoded from obfuscation.
+    appears in the href, never decoded from obfuscation. Percent-encoding
+    (``sport%40ranst.be``) is how a URL spells "@", not obfuscation, so it is
+    read the way every mail client reads that link.
     """
+    from urllib.parse import unquote
+
     def show(match):
-        address = html.unescape(match.group(2))
+        address = unquote(html.unescape(match.group(2)))
         inner = match.group(3)
         if address.casefold() in html.unescape(inner).casefold():
             return match.group(0)  # the link text already prints it; do not repeat it
