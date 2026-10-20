@@ -124,6 +124,11 @@ class EssexReplayTests(unittest.TestCase):
                 "target_entity_key": "org-delta", "disposition": "HOLD",
                 "reason": "Official site blocked (SOURCE_ACCESS_BLOCKED); no other public route."}}])
 
+        state = self.call("marketops_next", run_id=RUN)
+        self.assertLess(len(str(state)), 4000, "next must stay small in the Agent's context")
+        self.assertIn("budget", state["source_selection"])
+        self.assertIn("budget_after", results["org-alpha"])
+
         delivered = self.call("marketops_handoff", run_id=RUN, operation_id="handoff-1")
         workbook = Path(delivered["workbook_xlsx"])
         self.assertTrue(workbook.is_file())

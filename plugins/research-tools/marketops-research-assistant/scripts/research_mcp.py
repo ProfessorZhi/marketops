@@ -37,6 +37,40 @@ def next_step(run_id, limit=10, previous_snapshot_id="", after_attempt=False):
     return result
 
 
+#: Constant disclaimers the skills already state once; repeating them on every
+#: next call only spent the Agent's context.
+_NEXT_CONSTANT_FIELDS = ("business_verified", "coverage_complete", "send_authorized",
+                         "assessment_scope", "allowed_capabilities", "network_authorization",
+                         "warning", "next_best_source_action", "candidate_write_contract")
+
+
+def compact_next(result: dict) -> dict:
+    """What an Agent needs from next: status, gaps, targets, the next action, budget."""
+    view = {key: value for key, value in result.items() if key not in _NEXT_CONSTANT_FIELDS}
+    selection = result.get("source_selection")
+    if isinstance(selection, dict):
+        view["source_selection"] = {
+            "next_action": selection.get("next_action"),
+            "budget": selection.get("budget"),
+            "blocked_domains": selection.get("blocked_domains"),
+            "budget_note": selection.get("budget_note"),
+            "candidates": [{key: item.get(key) for key in
+                            ("entity_key", "completeness", "missing_fields")}
+                           for item in (selection.get("candidates") or [])[:5]],
+        }
+    experience = result.get("experience")
+    if isinstance(experience, dict):
+        view["experience"] = {
+            "status": experience.get("status"),
+            "tips": [{"id": item.get("experience_id"), "do": item.get("do")}
+                     for item in experience.get("experiences", [])],
+            "more": "marketops_experience_recall" if experience.get("more_available") else None,
+        }
+    if "candidate_write_contract" in result:
+        view["write_help"] = "marketops-accounts skill: claims, joins and examples"
+    return view
+
+
 def _experience_view(run_id, *, stage="intake"):
     """A failed advisory lookup must be visible without losing durable research."""
     try:
@@ -993,6 +1027,28 @@ PUBLIC_TOOLS = frozenset({
 })
 
 
+#: Tools that can spend: their result carries the budget left afterwards, so
+#: an Agent sees cost as it works instead of discovering exhaustion later.
+BUDGETED_TOOLS = frozenset({
+    "marketops_search", "marketops_serpapi_mcp_search", "marketops_research_step",
+    "marketops_site_harvest", "marketops_jev_choice",
+})
+
+
+def _with_budget(fn):
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        result = fn(*args, **kwargs)
+        run_id = kwargs.get("run_id")
+        if isinstance(result, dict) and isinstance(run_id, str):
+            try:
+                result["budget_after"] = _source_selection_budget(run_id)
+            except Exception:  # noqa: BLE001 - an unreadable budget is unknown
+                result["budget_after"] = {"source": "UNAVAILABLE"}
+        return result
+    return wrapper
+
+
 def build_server():
     from research_credentials import load_into_environment
     load_into_environment()
@@ -1002,6 +1058,8 @@ def build_server():
     def tool(fn):
         if fn.__name__ not in PUBLIC_TOOLS:
             return fn
+        if fn.__name__ in BUDGETED_TOOLS:
+            return mcp.tool()(_guarded(_with_budget(fn)))
         return mcp.tool()(_guarded(fn))
 
     @tool
@@ -1260,8 +1318,12 @@ def build_server():
     @tool
     def marketops_next(run_id: str, limit: int = 10,
                        previous_snapshot_id: str = "", after_attempt: bool = False) -> dict:
-        """Bounded task batch; after_attempt+prior snapshot detects lack of durable progress."""
-        return next_step(run_id, limit, previous_snapshot_id, after_attempt)
+        """Status, gaps, next suggested action and remaining budget for the Run.
+
+        Pass the previous snapshot_id with after_attempt=true after a provider
+        call: NO_NEW_PERSISTED_RECORD_AFTER_ATTEMPT means change source or target.
+        """
+        return compact_next(next_step(run_id, limit, previous_snapshot_id, after_attempt))
 
     @tool
     def marketops_events(run_id: str) -> dict:
