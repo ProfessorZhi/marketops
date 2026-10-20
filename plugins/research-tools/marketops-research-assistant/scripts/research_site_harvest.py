@@ -29,6 +29,7 @@ from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
 import research_delivery as delivery
+import research_evidence as evidence
 import research_lite_store as store
 
 __all__ = ["harvest", "candidate_links", "extract_routes", "MAX_PAGES"]
@@ -83,8 +84,17 @@ def _readable(kind: str, raw: str) -> str:
             pass
     if kind in {"rendered_html", "raw_response", "provider_html"}:
         text = re.sub(r"(?is)<(?:script|style)[^>]*>.*?</(?:script|style)>", " ", text)
+        text = evidence.mailto_visible(text)
         text = re.sub(r"<[^>]+>", " ", text)
     return " ".join(html_lib.unescape(text).split())
+
+
+_CFEMAIL = re.compile(r"""data-cfemail\s*=\s*["'][0-9a-fA-F]+["']""")
+
+
+def obfuscated_email_count(raw: str) -> int:
+    """Protected addresses on the page. Member A's rule: never decode them."""
+    return len(_CFEMAIL.findall(raw))
 
 
 def _host(url: str) -> str:
@@ -190,7 +200,7 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
     name = " ".join(organization_name.split())
     root = Path(store._root(data_root))
 
-    pages, queue, routes, identity = [], [url], {}, None
+    pages, queue, routes, identity, obfuscated = [], [url], {}, None, 0
     while queue and len(pages) < max_pages:
         page_url = queue.pop(0)
         child = f"{operation_id}-p{len(pages) + 1}"
@@ -212,6 +222,7 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
             quote = _identity_quote(text, name)
             if quote:
                 identity = {"artifact_id": artifact_id, "quote": quote, "url": page_url}
+        obfuscated += obfuscated_email_count(raw)
         for route in extract_routes(text):
             key = (route["type"], route["value"].casefold())
             if key not in routes:
@@ -219,6 +230,7 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
 
     result = {"run_id": run_id, "operation_id": operation_id, "organization_key": organization_key,
               "pages": pages, "identity": identity, "routes": list(routes.values()),
+              "obfuscated_emails_not_decoded": obfuscated,
               "business_verified": False, "written": [], "admission": []}
     if not pages[0]["artifact_id"]:
         result["next_action"] = ("SITE_UNREACHABLE: " + (pages[0]["reason_code"] or "NO_MATERIAL")

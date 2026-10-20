@@ -34,6 +34,10 @@ Prefer one complete source over many guesses. In order:
    (Crawl4AI, falls back to TinyFish fetch). Follow actual links and pagination; guessing paths
    rarely works.
 
+Whole-list endpoints beat crawling: association search pages, `/wp-json/wp/v2/<type>` (check the
+`X-WP-Total` header), open-data portals, content-type sitemaps. See
+[lessons](../../references/MEMBER_A_LESSONS.md#discovery-find-the-list-dont-guess-it).
+
 For every source, record how many entities it lists. Before delivery the count must reconcile:
 listed = saved candidates + excluded + HOLD. A gap means rows were dropped; find them.
 

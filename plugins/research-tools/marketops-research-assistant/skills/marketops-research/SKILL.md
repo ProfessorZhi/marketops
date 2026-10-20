@@ -30,7 +30,7 @@ deliver an evidence-backed workbook. Effect first, cost second.
 | Delivery | reconcile counts, verify a sample, hand off once | `marketops_handoff`; see `marketops-delivery` |
 
 Load `marketops-discovery`, `marketops-accounts`, `marketops-providers` or `marketops-delivery`
-only when you reach that stage. Use `marketops_next(run_id)` to see gaps and the suggested next action.
+only when you reach that stage. Past runs' pitfalls, by stage: [lessons](../../references/MEMBER_A_LESSONS.md). Use `marketops_next(run_id)` to see gaps and the suggested next action.
 
 **Parallel accounts.** If the host can start subagents (Claude Code: `account-researcher`), give
 each subagent 1–3 organisations with `run_id`, published name, `organization_key` and website, in

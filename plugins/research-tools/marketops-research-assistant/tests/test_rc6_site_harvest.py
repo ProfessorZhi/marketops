@@ -103,6 +103,18 @@ class SiteHarvestCase(unittest.TestCase):
         self.assertEqual([HOME + "contact", HOME + "staff"],
                          harvest.candidate_links(HOME, html, 5))
 
+    def test_mailto_link_address_is_quoted_and_obfuscated_is_not_decoded(self):
+        self.site[HOME + "contact-us"] = (
+            '<p>Write to us: <a href="mailto:secretary@alphahall.example">email the secretary</a>'
+            ' or <span class="__cf_email__" data-cfemail="ab1234">[email protected]</span></p>')
+        result = self.run_harvest()
+        routes = {r["value"]: r for r in result["routes"]}
+        self.assertIn("secretary@alphahall.example", routes)
+        self.assertIn("email the secretary", routes["secretary@alphahall.example"]["quote"])
+        self.assertEqual(1, result["obfuscated_emails_not_decoded"])
+        admitted = {d["record_id"]: d["admitted"] for d in result["admission"]}
+        self.assertTrue(all(admitted.values()), result["admission"])
+
     def test_short_numbers_are_not_phones(self):
         routes = harvest.extract_routes("Registered charity 300123, founded 1921, call 01245 223456 today.")
         self.assertEqual([("phone", "01245 223456")], [(r["type"], r["value"]) for r in routes])

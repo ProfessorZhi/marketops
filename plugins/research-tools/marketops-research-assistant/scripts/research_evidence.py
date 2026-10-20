@@ -25,6 +25,20 @@ def _norm(value: str) -> str:
     return " ".join(html.unescape(value).casefold().split())
 
 
+_MAILTO_ANCHOR = re.compile(r"""(<a\b[^>]*\bhref\s*=\s*["']mailto:([^"'?#\s]+)[^"']*["'][^>]*>)""", re.I)
+
+
+def mailto_visible(html_text: str) -> str:
+    """Print a mailto: link's address next to its anchor text.
+
+    A site that links "Email the secretary" to mailto:x@y publishes x@y as
+    plainly as one that prints it; stripping tags used to discard every such
+    address (the largest historical yield loss). The address is inserted as it
+    appears in the href, never decoded from obfuscation.
+    """
+    return _MAILTO_ANCHOR.sub(lambda m: m.group(1) + " " + html.unescape(m.group(2)) + " ", html_text)
+
+
 def _text(artifact: dict) -> str:
     text = artifact.get("text", "")
     if artifact.get("kind") == "provider_extracted":
@@ -37,6 +51,7 @@ def _text(artifact: dict) -> str:
     if artifact.get("kind") in {"rendered_html", "raw_response", "provider_html"}:
         # Rendered HTML is NOT the original on-the-wire HTTP response.
         text = re.sub(r"(?is)<(?:script|style)[^>]*>.*?</(?:script|style)>", " ", text)
+        text = mailto_visible(text)
         text = re.sub(r"<[^>]+>", " ", text)
     return _norm(text if isinstance(text, str) else "")
 
