@@ -114,6 +114,8 @@ def candidate_links(page_url: str, html: str, limit: int) -> list[str]:
         if href.startswith(("mailto:", "tel:", "javascript:", "#")):
             continue
         url = urljoin(page_url, href).split("#")[0]
+        if url.startswith("http://"):
+            url = "https://" + url[len("http://"):]
         parts = urlsplit(url)
         if parts.scheme not in {"http", "https"} or _host(url) != home:
             continue
@@ -174,6 +176,32 @@ def _record_id(*parts: str) -> str:
     return "harvest-" + hashlib.sha256("\x1f".join(parts).encode()).hexdigest()[:24]
 
 
+def _envelope_links(root, run_id: str, receipt: dict) -> list[str]:
+    """Links a vendor returned beside its cleaned HTML (TinyFish strips anchors)."""
+    links = []
+    for artifact_id in receipt.get("artifact_ids") or []:
+        try:
+            material = store.read_artifact(root, run_id, artifact_id)
+        except ValueError:
+            continue
+        if material["material_kind"] != "provider_extracted":
+            continue
+        try:
+            payload = json.loads(material["content"].decode("utf-8", errors="replace"))
+        except ValueError:
+            continue
+        stack = [payload]
+        while stack:
+            node = stack.pop()
+            if isinstance(node, dict):
+                if isinstance(node.get("links"), list):
+                    links += [x for x in node["links"] if isinstance(x, str)]
+                stack.extend(node.values())
+            elif isinstance(node, list):
+                stack.extend(node)
+    return links
+
+
 def _evidence_artifact(receipt: dict) -> str:
     for key in ("primary_artifact_ids", "provider_html_artifact_ids", "artifact_ids"):
         values = receipt.get(key) or []
@@ -198,6 +226,8 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
     if urlsplit(url).scheme not in {"http", "https"}:
         raise ValueError("HARVEST_URL_INVALID: an http(s) page on the organisation's own site")
     name = " ".join(organization_name.split())
+    # Map listings often carry http:// sites; the fetch path accepts HTTPS only.
+    url = "https://" + url[len("http://"):] if url.startswith("http://") else url
     root = Path(store._root(data_root))
 
     pages, queue, routes, identity, obfuscated = [], [url], {}, None, 0
@@ -217,7 +247,9 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
         raw = material["content"].decode("utf-8", errors="replace")
         text = _readable(material["material_kind"], raw)
         if len(pages) == 1:
-            queue.extend(candidate_links(material["origin_url"] or page_url, raw, max_pages - 1))
+            anchors = raw + "".join(f'<a href="{link}"></a>'
+                                    for link in _envelope_links(root, run_id, receipt))
+            queue.extend(candidate_links(material["origin_url"] or page_url, anchors, max_pages - 1))
         if identity is None:
             quote = _identity_quote(text, name)
             if quote:

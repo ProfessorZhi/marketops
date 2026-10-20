@@ -53,7 +53,8 @@ own context is the most expensive resource; let tools do loops and return summar
   fallback when Crawl4AI cannot render. Fetched `provider_html` is vendor-cleaned HTML: fine for
   literal quotes, not the original page bytes. The paid browser Agent is separate (wallet, per-step
   billing) and off by default.
-- **Jev**: `choice` picks one option (always include `none`/`unknown`); `noul` gives a yes/no
+- **Jev**: input is a saved `artifact_id` as `source_excerpt`; `options` are snake_case labels
+  (`hourly_hire`, `events_only`, `unknown`). `choice` picks one option (always include `none`/`unknown`); `noul` gives a yes/no
   probability (near 0.5 = unsure, not "medium"); `score` rates against ordered descriptions. Put
   identity, role, document date and the question in clearly separated text. Batch independent
   questions; never let Jev decide a fact, a grade on its own, or a dedupe.

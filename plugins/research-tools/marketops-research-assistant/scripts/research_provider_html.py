@@ -80,6 +80,10 @@ def extract_pages(payload, requested_urls):
         body = row.get("html", row.get("content"))
         if row.get("html") is not None and row.get("content") is not None and row["html"] != row["content"]:
             raise ValueError("PROVIDER_HTML_AMBIGUOUS_CONTENT")
+        if body is None and row.get("format") in (None, "html"):
+            # TinyFish returns the requested HTML in `text`; validate_content still
+            # requires real markup, so Markdown cannot be relabelled as HTML.
+            body = row.get("text")
         results.append({"url": url, "html": validate_content(body)})
         seen.add(url)
     if seen != requested:

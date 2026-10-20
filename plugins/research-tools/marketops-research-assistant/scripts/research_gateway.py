@@ -271,7 +271,14 @@ class CapabilityGateway:
                                   result=result, caveats=tuple(caveats), **base)
 
         if outcome == "BLOCKED":
-            code = self._result_refusal_code(result)
+            try:
+                code = self._result_refusal_code(result)
+            except ContractViolation:
+                # A BLOCKED result never reached the provider: release the
+                # reservation before surfacing the adapter bug, so one bad
+                # result cannot pin the operation as RESERVED forever.
+                self._settle_terminal(ledger_id, "BLOCKED", None, None, None, None)
+                raise
             caveats += self._settle_terminal(ledger_id, "BLOCKED", None, None, None, None)
             return GatewayOutcome(status="BLOCKED", reason_code=code, result=result,
                                   caveats=tuple(caveats), **base)

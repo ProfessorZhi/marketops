@@ -42,6 +42,8 @@ TECHNICAL = frozenset({"LOCAL_CRAWL_RUNTIME_FAILED", "LOCAL_CRAWL_FAILED", "SOUR
     "UPSTREAM_MCP_EMPTY_RESULT", "UPSTREAM_MCP_TOOL_FAILED", "SERPER_HTTP_ERROR",
     "SERPER_UPSTREAM_ERROR", "SERPAPI_UPSTREAM_FAILED", "SERPAPI_DECLARED_ERROR"})
 MAX_BYTES = 4_000_000
+#: Capabilities executed on this machine with no provider account behind them.
+LOCAL_CAPABILITIES = frozenset({"crawl4ai.fetch_page"})
 
 
 def _digest(value):
@@ -161,7 +163,7 @@ def _params(capability, request):
     if capability == "crawl4ai.fetch_page":
         return {"url": request["url"]}
     if capability == "tinyfish.fetch_content":
-        return {"urls": [request["url"]], "format": "html", "links": False,
+        return {"urls": [request["url"]], "format": "html", "links": True,
                 "image_links": False, "iframe_links": False, "page_metadata": False}
     return {k: request[k] for k in ("artifact_id", "question", "options")}
 
@@ -365,6 +367,12 @@ def research_step(data_root, *, run_id, operation_id, task_kind, managed_call, a
             response = {"status": "UNKNOWN", "reason_code": "FALLBACK_CALLBACK_FAILED",
                         "gateway_invoked": None, "actual_usd": None}
             action, reason = "STOP", "FALLBACK_UNKNOWN_OUTCOME_HOLD"
+            if capability in LOCAL_CAPABILITIES:
+                # The local crawler runs on this machine and bills nobody: a
+                # failure is technical, so the chain continues to the next
+                # provider instead of holding a charge that cannot exist.
+                response.update(status="FAILED", actual_usd=0)
+                action, reason = "NEXT", "LOCAL_CRAWL_RUNTIME_FAILED"
         amount = _amount(response.get("actual_usd"))
         from research_runtime_results import diagnostic_reason_codes
         diagnostics = diagnostic_reason_codes(response.get("payload"),

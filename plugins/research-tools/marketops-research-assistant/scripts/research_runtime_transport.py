@@ -226,7 +226,10 @@ def _blocked_browser(blockers: tuple[str, ...], *, detail: str = ""):
             "detail": detail or "受管浏览器出口不合格；这一次没有启动浏览器。",
             "egress_violations": list(blockers),
         },
-        caveats=(LOCAL_CRAWL_NOT_SAFE_TO_RUN,
+        # The closed-set code comes first: the gateway reads caveats[0], and a
+        # browser that could not start is an unavailable local capability, so
+        # the fallback chain moves on to TinyFish fetch instead of holding.
+        caveats=("CAPABILITY_NOT_AVAILABLE", LOCAL_CRAWL_NOT_SAFE_TO_RUN,
                  "BROWSER_EGRESS_POLICY_UNVERIFIED",
                  "没有回退到直连：浏览器没有被启动。"),
     )

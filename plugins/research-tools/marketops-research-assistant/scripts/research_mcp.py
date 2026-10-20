@@ -1181,7 +1181,13 @@ def build_server():
     def marketops_jev_choice(run_id: str, operation_id: str, source_excerpt: str,
                              question: str, options: list[str],
                              primitive: str = "choice") -> dict:
-        """Jev Choice/Noul/Score via one metered API; never a fact or SOP verdict."""
+        """Jev choice / noul / score on one saved page; ranks and filters, never a fact.
+
+        source_excerpt: a saved artifact_id of this Run (or a quote that occurs
+        in exactly one saved artifact). options: snake_case labels such as
+        ["hourly_hire", "events_only", "unknown"]; noul takes [], score takes
+        ordered level labels.
+        """
         return invoke("jev_choice", run_id, operation_id, document=source_excerpt,
                       question=question, options=options, primitive=primitive)
 

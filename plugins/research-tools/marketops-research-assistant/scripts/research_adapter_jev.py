@@ -911,8 +911,10 @@ class JevAdapter:
         sdk = _sdk_module()
         with sdk.TypeSafeClient(
             api_key=self._api_key,
-            base_url=self._base_url or sdk.DEFAULT_BASE_URL,
-            model=self._model or sdk.DEFAULT_MODEL,
+            # None lets the SDK apply its own defaults (typesafe_sdk.constants in
+            # 0.7.5); the module has no top-level DEFAULT_* names to read.
+            base_url=self._base_url,
+            model=self._model,
             timeout=self._timeout,
             # One dispatch is one charge; a retry inside the SDK is invisible to the
             # budget, so retrying is the caller's explicit decision, not this layer's.

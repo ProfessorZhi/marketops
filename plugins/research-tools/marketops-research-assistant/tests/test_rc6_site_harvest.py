@@ -119,6 +119,11 @@ class SiteHarvestCase(unittest.TestCase):
         routes = harvest.extract_routes("Registered charity 300123, founded 1921, call 01245 223456 today.")
         self.assertEqual([("phone", "01245 223456")], [(r["type"], r["value"]) for r in routes])
 
+    def test_http_site_is_fetched_over_https(self):
+        result = self.run_harvest(url="http://www.alphahall.example/")
+        self.assertEqual(HOME, self.calls[0])
+        self.assertTrue(result["identity"])
+
     def test_bounds_are_refused_with_a_fix(self):
         with self.assertRaisesRegex(ValueError, "HARVEST_MAX_PAGES_INVALID"):
             self.run_harvest(max_pages=0)
