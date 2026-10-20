@@ -1535,7 +1535,7 @@ class EvidenceManifest:
 
 #: Crawl4AI 在本 Wave 里的能力面。**这是给 W-G 打包 Skill 用的输入**，
 #: 不是一份安装说明。``scripts/`` 下的文件由 W-E 拥有，
-#: ``plugins/research-tools/**`` 的其余部分（含 ``skills/marketops-crawl4ai``
+#: ``plugins/research-tools/**`` 的其余部分（含 ``skills/marketops-providers``
 #: 与 ``references/providers/crawl4ai.md``）由 W-G 拥有 —— 见 §3 所有权表。
 CRAWL4AI_CAPABILITY_REFERENCE: Mapping[str, Any] = {
     "provider": PROVIDER,

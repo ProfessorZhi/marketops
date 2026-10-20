@@ -1,6 +1,6 @@
 # 业务执行手册：一项研究从需求到交付
 
-这是本插件业务层的统一阅读入口，8个业务Skills按任务展开，不建立第二份SOP。依据和边界见 [MEMBER_A_SKILL_ANALYSIS](MEMBER_A_SKILL_ANALYSIS.md)。运行前先读 [PROVIDER_ROUTING](PROVIDER_ROUTING.md) 与 [DATA_HANDOFF](DATA_HANDOFF.md)。
+这是本插件业务层的统一阅读入口，8个业务Skills按任务展开，不建立第二份SOP。依据和边界见 MEMBER_A_SKILL_ANALYSIS (repository `docs/research-plugin-history/MEMBER_A_SKILL_ANALYSIS.md`)。运行前先读 [PROVIDER_ROUTING](PROVIDER_ROUTING.md) 与 [DATA_HANDOFF](DATA_HANDOFF.md)。
 
 ## 1. 半自动的准确含义
 

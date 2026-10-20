@@ -56,7 +56,7 @@ Windows 的 `Install.ps1` 在找不到 Python 3.12 x64 时**不会**静默运行
 - marketops_propose 仅写 candidate；
 - marketops_status / marketops_events 可读回实际数据；
 - marketops_handoff 同时生成候选 CSV 与未审批经验草稿，业务审核之后才能正式交付；
-- 按 [RELEASE_GATE](RELEASE_GATE.md) 完成 Codex 与 WorkBuddy 两端的完整测试。
+- 按 RELEASE_GATE (repository `docs/research-plugin-history/RELEASE_GATE.md`) 完成 Codex 与 WorkBuddy 两端的完整测试。
 
 用户不需要提供完整聊天原始日志、公开客户列表或任何密码给 MarketOps 项目维护者。真实源网页、雇员联系方式等业务资料只保存在客户自行控制的受限数据根中。不要把本地 SQLite 经网络共享，不自动上传 GitHub。
 

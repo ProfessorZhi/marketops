@@ -576,7 +576,7 @@ class CleanArchiveTests(unittest.TestCase):
             with zipfile.ZipFile(archive) as z:
                 z.extractall(root)
             tree = root / ROOT.name
-            self.assertEqual(17, len(list((tree / "skills").glob("*/SKILL.md"))))
+            self.assertEqual(6, len(list((tree / "skills").glob("*/SKILL.md"))))
             self.assertEqual(1, len(list(tree.rglob("mcp.json"))))
             for config in tree.rglob("*.json"):
                 try:

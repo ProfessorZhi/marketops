@@ -15,12 +15,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_SKILLS = {
-    "marketops-research", "marketops-intake", "marketops-source-discovery",
-    "marketops-venue-account", "marketops-person-research", "marketops-evidence",
-    "marketops-excel", "marketops-handoff", "marketops-provider-router",
-    "marketops-serpapi", "marketops-serper", "marketops-crawl4ai",
-    "marketops-tinyfish", "marketops-jev", "marketops-research-retrospective",
-    "marketops-setup", "marketops-research-acceptance",
+    "marketops-research", "marketops-setup", "marketops-discovery",
+    "marketops-accounts", "marketops-providers", "marketops-delivery",
 }
 EXPECTED_VARS = {
     "SERPAPI_API_KEY", "SERPER_API_KEY", "TINYFISH_API_KEY",

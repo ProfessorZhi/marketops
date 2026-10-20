@@ -149,7 +149,7 @@ def build(output: Path, *, with_search_mcp: bool = False,
             "type": "mcp",
             "auth_mode": "token",
             "description": "One local Research MCP with five optional provider adapters, guided onboarding, typed Jev judgments and network off by default." if with_research_mcp else "One local Search MCP for SerpApi or Serper; paid network calls default off.",
-            "description_zh": "统一调研 MCP + 17 项业务和工具 Skills；五家 Provider 任选，联网默认关闭。" if with_research_mcp else "本地双搜索 MCP + 17 项 Skills，联网默认关闭。",
+            "description_zh": "统一调研 MCP + 6 项 Skills；五家 Provider 任选，联网默认关闭。" if with_research_mcp else "本地双搜索 MCP + 6 项 Skills，联网默认关闭。",
         })
     (target / "connector-meta.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     (target / "icon.svg").write_text(ICON, encoding="utf-8")

@@ -1891,7 +1891,7 @@ _REQUEST_FIELDS = ("capability_id", "params", "run_id", "operation_id",
 # MarketOps operation, in the integration's own vocabulary. It lives here so the
 # handoff to the Integrator is machine-checkable rather than prose: a test
 # validates each shape against this adapter's argument contract, and the
-# integration patches in `references/patches/` bring the caller to match.
+# integration patches in `docs/research-plugin-history/patches/` bring the caller to match.
 #
 # Values are synthetic; nothing here is a credential or an account identifier.
 SHIPPING_CALL_SHAPES = {

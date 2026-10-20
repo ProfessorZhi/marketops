@@ -1,0 +1,38 @@
+---
+name: marketops-delivery
+description: Close a MarketOps Run - dispositions for every target, count reconciliation, independent sample check, one handoff to the audited XLSX, and an honest report. Use when research is done or the budget is spent.
+---
+
+# Close, check, deliver
+
+1. **Every target has a disposition.** Admitted routes, or a review record. A missing contact is a
+   HOLD, not an omitted row:
+
+<!-- tested-example:target-hold-review -->
+```json
+{"run_id":"run-example","items":[
+  {"record_id":"review-example-hold","stage":"review","kind":"review","entity_key":"review-org-example","facts":{"review_type":"target_disposition","target_kind":"organization","target_entity_key":"org-example","disposition":"HOLD","reason":"The saved organization source does not establish a role-bound public contact; approved research is exhausted."},"artifact_ids":[]}
+]}
+```
+
+   `EXCLUDED` needs an `exclusion` quote; `DUPLICATE` names the kept record. Correct a review with
+   `facts.supersedes`.
+
+2. **Reconcile.** For each source: listed = saved + excluded + HOLD. Any gap means rows were lost;
+   find them before delivering.
+3. **Check.** `marketops_evidence_audit(run_id)`; on hosts with subagents, run `research-verifier`
+   on a sample (all A/B rows if fewer than 20). Fix or HOLD what fails.
+4. **Hand off once.** `marketops_handoff(run_id, operation_id)` writes the nine-sheet XLSX, CSVs,
+   manifest, client-view files (business rows only) and the experience draft. A `PARTIAL_HANDOFF_*`
+   status is reported as partial, never as clean. Do not start new discovery just to avoid a
+   partial result.
+5. **Report** in plain terms: targets covered; admitted routes by grade; generic inboxes counted
+   separately; HOLD/EXCLUDED with reasons; sources blocked; provider calls and known spend (unknown
+   stays unknown); what the user should review. Workbook rows are candidates for human review, not
+   approved contacts, and row counts are not market coverage.
+
+Editing a client template: keep the original, diff before writing, never delete HOLD/UNKNOWN rows
+and never promote a candidate with a formula.
+
+Afterwards: one `marketops_note` per notable incident (blocked source, provider switch, user
+correction) and `marketops_experience_feedback` for lessons you actually used.

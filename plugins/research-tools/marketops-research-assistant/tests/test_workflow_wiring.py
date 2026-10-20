@@ -385,11 +385,11 @@ class BundleTests(unittest.TestCase):
                         broken.append((md.relative_to(target).as_posix(), ref))
             self.assertEqual([], broken)
 
-    def test_skills_stay_at_seventeen(self):
+    def test_skill_count_matches_the_source_tree(self):
         import build_client_bundles as bundles
         with tempfile.TemporaryDirectory() as tmp:
             receipt = bundles.build(Path(tmp) / "b", with_research_mcp=True)
-            self.assertEqual(17, receipt["skills"])
+            self.assertEqual(6, receipt["skills"])
 
 
 class PackagedProviderDocsTests(unittest.TestCase):

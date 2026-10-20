@@ -22,10 +22,10 @@ from research_event_journal import append_event, append_note
 MAX_ROWS = 20_000
 DISPOSITIONS = frozenset({"RESEARCHED_CANDIDATE", "HOLD", "EXCLUDED", "DUPLICATE"})
 SKILLS = {
-    "intake": "marketops-intake", "discovery": "marketops-source-discovery",
-    "entities": "marketops-venue-account", "acquisition": "marketops-evidence",
-    "people": "marketops-person-research", "review": "marketops-research-acceptance",
-    "handoff": "marketops-handoff",
+    "intake": "marketops-discovery", "discovery": "marketops-discovery",
+    "entities": "marketops-accounts", "acquisition": "marketops-accounts",
+    "people": "marketops-accounts", "review": "marketops-delivery",
+    "handoff": "marketops-delivery",
 }
 
 

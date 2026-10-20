@@ -57,7 +57,7 @@ class ManifestTests(unittest.TestCase):
         self.assertIn("MARKETOPS_RESEARCH_CONFIG", preflight.EXPECTED_VARS)
         outcome = preflight.report()
         self.assertEqual([], outcome["errors"])
-        self.assertEqual(17, outcome["skills"])   # still 17: no eighteenth Skill
+        self.assertEqual(6, outcome["skills"])
 
 
 if __name__ == "__main__":

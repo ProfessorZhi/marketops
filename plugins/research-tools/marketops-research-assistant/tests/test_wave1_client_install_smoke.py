@@ -310,7 +310,7 @@ class HostManifestTests(unittest.TestCase):
     def test_skills_are_well_formed_and_provider_detail_stays_in_references(self):
         report = probe.audit_skills(ROOT)
         self.assertTrue(report["ok"], report["findings"])
-        self.assertEqual(17, report["skill_count"])
+        self.assertEqual(6, report["skill_count"])
         for provider in ("tinyfish", "serpapi", "serper", "crawl4ai", "jev"):
             self.assertTrue((ROOT / "references" / "providers" / f"{provider}.md").is_file(),
                             provider)
@@ -319,7 +319,7 @@ class HostManifestTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             receipt = bundles.build(Path(tmp) / "bundle")
             self.assertEqual(0, receipt["mcp_servers_bundled"])
-            self.assertEqual(17, receipt["skills"])
+            self.assertEqual(6, receipt["skills"])
 
 
 if __name__ == "__main__":

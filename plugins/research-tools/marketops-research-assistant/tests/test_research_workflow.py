@@ -77,7 +77,7 @@ class WorkflowTests(unittest.TestCase):
         self.brief()
         self.organization()
         result = workflow.next_step(self.root, "run-a")
-        self.assertEqual("marketops-person-research", result["recommended_skill"])
+        self.assertEqual("marketops-accounts", result["recommended_skill"])
         self.assertEqual(["org"], result["target_ids"])
 
     def test_missing_entity_material_selects_evidence(self):

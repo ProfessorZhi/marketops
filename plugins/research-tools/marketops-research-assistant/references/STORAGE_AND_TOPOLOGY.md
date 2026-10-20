@@ -83,4 +83,4 @@ flowchart TD
 - 经验候选不自动上传GitHub，不自动修改正式SOP/Skills或批准外联。
 - 源码存在/能 import/MCP可列出/供应商认证/真实调用/业务交付是不同验收层。当前尚未完成 Codex 与 WorkBuddy 真机端到端。
 
-安装看 [MEMBER_A_INSTALL](MEMBER_A_INSTALL.md)，工具契约看 [MCP_TOOL_CATALOG](MCP_TOOL_CATALOG.md)，发布前门禁看 [RELEASE_GATE](RELEASE_GATE.md)。
+安装看 [MEMBER_A_INSTALL](MEMBER_A_INSTALL.md)，工具契约看 [MCP_TOOL_CATALOG](MCP_TOOL_CATALOG.md)，发布前门禁看 RELEASE_GATE (repository `docs/research-plugin-history/RELEASE_GATE.md`)。

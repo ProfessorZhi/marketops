@@ -135,7 +135,7 @@
         "claude_code": [],
         "codex": []
       },
-      "skills": "MarketOps marketops-serper; do not mislabel community MCP as official",
+      "skills": "MarketOps marketops-providers; do not mislabel community MCP as official",
       "capabilities": [
         {
           "name": "google_search_categories",
@@ -175,7 +175,7 @@
         "needs_browser": "PLAYWRIGHT_CHROMIUM",
         "requires_cloud_key": false
       },
-      "skills": "MarketOps marketops-crawl4ai; official Docker self-hosted and Cloud MCP optional",
+      "skills": "MarketOps marketops-providers; official Docker self-hosted and Cloud MCP optional",
       "capabilities": [
         {
           "name": "local_crawl",

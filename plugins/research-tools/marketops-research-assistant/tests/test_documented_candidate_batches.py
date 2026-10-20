@@ -55,8 +55,8 @@ class DocumentedCandidateBatchTests(unittest.TestCase):
         self.assertTrue(delivered["unresolved_business_review"])
 
     def test_stage_batches_preserve_entity_and_contact_joins(self):
-        self.write("skills/marketops-venue-account/SKILL.md", "venue-organization-relation")
-        self.write("skills/marketops-person-research/SKILL.md", "department-role-contact")
+        self.write("skills/marketops-accounts/SKILL.md", "venue-organization-relation")
+        self.write("skills/marketops-accounts/SKILL.md", "department-role-contact")
         audit = mcp.evidence_audit("run-example")
         self.assertEqual({}, audit["gap_counts"], audit)
         records = store.list_run(self.root, "run-example", limit=20)["records"]
@@ -65,7 +65,7 @@ class DocumentedCandidateBatchTests(unittest.TestCase):
         for kind in ("venue", "relationship", "role", "contact_point"):
             self.assertEqual(org, by_kind[kind]["data"]["organization_id"])
         self.assertNotIn("person_id", by_kind["contact_point"]["data"])
-        self.write("skills/marketops-handoff/SKILL.md", "target-hold-review")
+        self.write("skills/marketops-delivery/SKILL.md", "target-hold-review")
         self.assertEqual(1, mcp.next_step("run-example")["disposition_counts"]["HOLD"])
 
     def test_unknown_target_example_remains_a_visible_hold_with_missing_evidence(self):
