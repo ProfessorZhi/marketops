@@ -63,7 +63,10 @@ def main(argv=None):
         print(format_text(report(client="codex")))
         stored = research_config.load()
         if stored:
-            print("保留已有研究数据与经验文件配置。")
+            print("保留已有研究数据与经验文件配置：")
+            print(f"  数据目录：{stored['data_root']}")
+            print(f"  经验文件：{stored['experience_file']}")
+            print("  如果不是本次安装要用的位置，请删除该配置文件后重新运行本脚本。")
         else:
             root = input("研究数据保存目录（绝对路径）: ").strip()
             experience = input("经验汇总文件（研究目录之外的绝对路径，文件名 Research_Experience.md）: ").strip()

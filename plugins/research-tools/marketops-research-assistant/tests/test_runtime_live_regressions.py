@@ -43,6 +43,10 @@ class NativePathRegressionTests(unittest.TestCase):
         denied = mcp.managed_call("tinyfish.fetch_content", {**params, "urls": ["https://unapproved.example.net/"]},
                                  "run", "unapproved")
         self.assertEqual("POLICY_DOMAIN_NOT_ALLOWED", denied["reason_code"])
+        # The refusal names the host, so a customer can see which site fell
+        # outside the allowlist instead of re-reading the whole list.
+        self.assertIn("POLICY_DOMAIN_BLOCKED_HOST:unapproved.example.net",
+                      denied.get("caveats") or ())
         self.assertEqual(1, len(self.calls))
         self.assertEqual("", os.environ["MARKETOPS_FETCH_ALLOWED_DOMAINS"])
         from _tinyfish_egress_fixture import FakeResolver

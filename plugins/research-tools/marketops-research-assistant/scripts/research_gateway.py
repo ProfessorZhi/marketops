@@ -183,9 +183,12 @@ class CapabilityGateway:
                            ("PARAMS_NOT_A_MAPPING",))
         surplus = sorted({str(k) for k in params} - set(entry.allowed_params))
         if surplus:
-            # Key names only: a rejected value may itself be the secret.
+            # Key names only: a rejected value may itself be the secret. The
+            # names are what makes the refusal actionable: "not allowed" over a
+            # set the caller cannot see is a refusal it can only guess at.
             return blocked("CAPABILITY_PARAM_NOT_ALLOWED", entry.provider, entry.transport,
-                           ("PARAMS_OUTSIDE_ALLOWED_SUBSET",))
+                           ("PARAMS_OUTSIDE_ALLOWED_SUBSET",)
+                           + tuple("POLICY_PARAM_NOT_ALLOWED:" + name for name in surplus))
 
         availability = str(_value(entry.availability))
         if availability == "SCHEMA_DRIFT":
@@ -214,7 +217,8 @@ class CapabilityGateway:
         if verdict not in {"ALLOW", "DENY", "REQUIRE_HUMAN_GRANT"}:
             raise ContractViolation(f"policy verdict outside closed set: {verdict!r}")
         if verdict != "ALLOW":
-            return blocked(self._policy_code(decision), entry.provider, entry.transport)
+            return blocked(self._policy_code(decision), entry.provider, entry.transport,
+                           self._policy_detail(decision))
 
         ledger_caveats: list[str] = []
         try:
@@ -295,6 +299,21 @@ class CapabilityGateway:
         return self.ledger_request(entry, request)
 
     # -- refusals, and the refusal to invent one -----------------------------
+    @staticmethod
+    def _policy_detail(decision: Any) -> tuple[str, ...]:
+        """Name what the refusal was about, when the policy recorded it.
+
+        The reason code stays inside the closed set; these strings only say
+        which parameter or host was refused, so the caller need not guess.
+        """
+        constraints = getattr(decision, "constraints", None) or {}
+        details = ["POLICY_PARAM_NOT_ALLOWED:" + str(name)
+                   for name in (constraints.get("disallowed_params") or ())]
+        host = constraints.get("refused_host")
+        if host:
+            details.append("POLICY_DOMAIN_BLOCKED_HOST:" + str(host))
+        return tuple(details)
+
     @staticmethod
     def _policy_code(decision: Any) -> str:
         code = getattr(decision, "reason_code", None)

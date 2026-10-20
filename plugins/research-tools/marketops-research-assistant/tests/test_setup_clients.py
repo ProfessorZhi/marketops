@@ -12,6 +12,38 @@ import setup_clients as install
 import build_client_bundles as bundles
 
 
+class StartHereGuideTests(unittest.TestCase):
+    """The post-install guide must read as steps, whichever clients were set up."""
+
+    @staticmethod
+    def _numbers(text):
+        return [line.split(".")[0][3:] for line in text.splitlines()
+                if line.startswith("## ") and line[3:4].isdigit()]
+
+    def _guide(self, **extra):
+        result = {"customer_setup_argv": ["python", "customer_setup.py"],
+                  "codex_next_argv": ["codex"], "codex_install_argv": ["codex", "plugin"]} | extra
+        return install._start_here(result)
+
+    def test_a_claude_only_install_does_not_skip_a_number(self):
+        # A customer who installs for Claude Code alone has no Codex or WorkBuddy
+        # block; the old literal headings went 1 -> 4.
+        text = self._guide(claude_next_argv=["claude"])
+        self.assertEqual(["1", "2"], self._numbers(text))
+        self.assertIn("## 2. Claude Code", text)
+
+    def test_b_every_client_present_is_numbered_in_order(self):
+        text = self._guide(claude_next_argv=["claude"],
+                           codex_marketplace={"root": "x"},
+                           workbuddy_bundle={"directory": "/tmp/out"})
+        self.assertEqual(["1", "2", "3", "4"], self._numbers(text))
+
+    def test_c_a_codex_only_install_numbers_the_codex_step_two(self):
+        text = self._guide(codex_marketplace={"root": "x"})
+        self.assertEqual(["1", "2"], self._numbers(text))
+        self.assertIn("## 2. Codex", text)
+
+
 class LocalInstallTests(unittest.TestCase):
     def test_dry_run_creates_nothing(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -32,7 +64,7 @@ class LocalInstallTests(unittest.TestCase):
             source = Path(result["plugin_copy"])
             self.assertTrue((source / "skills" / "marketops-setup" / "SKILL.md").exists())
             manifest = json.loads((source / "plugin.json").read_text(encoding="utf-8"))
-            self.assertEqual("0.5.3", manifest["version"])
+            self.assertEqual("0.5.4", manifest["version"])
             for filename in ("mcp.json", ".mcp.json"):
                 config = json.loads((source / filename).read_text(encoding="utf-8"))
                 server = next(iter((config.get("mcpServers") or config.get("mcp_servers")).values()))

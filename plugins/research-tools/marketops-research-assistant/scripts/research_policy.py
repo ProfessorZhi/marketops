@@ -283,7 +283,11 @@ class Policy:
             # The gateway checks this too, against this same table; applying the
             # same rule twice cannot disagree, and it keeps this module safe when
             # something other than the gateway calls it.
-            return PolicyDecision(PolicyVerdict.DENY, "CAPABILITY_PARAM_NOT_ALLOWED", tier)
+            # The names travel with the refusal: "a parameter is not allowed"
+            # without saying which one leaves the caller guessing at a closed
+            # set it cannot see.
+            return PolicyDecision(PolicyVerdict.DENY, "CAPABILITY_PARAM_NOT_ALLOWED", tier,
+                                  constraints={"disallowed_params": tuple(surplus)})
         availability = entry.availability
         if availability is Availability.SCHEMA_DRIFT:
             if tier_rank(tier) >= tier_rank(Tier.T2):
@@ -312,10 +316,12 @@ class Policy:
             return PolicyDecision(PolicyVerdict.DENY, code, tier, grant.grant_ref
                                   if grant else None)
 
-        domain_problem = self._domain_problem(request.params, grant)
+        domain_problem, refused_host = self._domain_problem(request.params, grant)
         if domain_problem is not None:
-            return PolicyDecision(PolicyVerdict.DENY, domain_problem, tier,
-                                  grant.grant_ref if grant else None)
+            return PolicyDecision(
+                PolicyVerdict.DENY, domain_problem, tier,
+                grant.grant_ref if grant else None,
+                {"refused_host": refused_host} if refused_host else {})
 
         constraints = {
             "allowed_domains": tuple(grant.allowed_domains) if grant
@@ -340,17 +346,22 @@ class Policy:
             return "POLICY_TIER_NOT_GRANTED"
         return None
 
-    def _domain_problem(self, params: Mapping[str, object], grant: PolicyGrant | None) -> str | None:
-        """Every URL the call would fetch must be inside the applicable allowlist."""
+    def _domain_problem(self, params: Mapping[str, object],
+                        grant: PolicyGrant | None) -> tuple[str | None, str]:
+        """Every URL the call would fetch must be inside the applicable allowlist.
+
+        Returns the reason code and the host that failed it, so a refusal can
+        name the site instead of only saying that something was outside.
+        """
         urls = _urls_in(params)
         if not urls:
-            return None
-        allowed = grant.allowed_domains if grant is not None and grant.allowed_domains \
-            else self._allowed_domains
+            return None, ""
+        allowed = (grant.allowed_domains if grant is not None and grant.allowed_domains
+                   else self._allowed_domains)
         if not allowed:
-            return "POLICY_DOMAIN_NOT_ALLOWED"
+            return "POLICY_DOMAIN_NOT_ALLOWED", _host(str(urls[0]))
         for url in urls:
             host = _host(url)
             if not host or not host_allowed(host, allowed):
-                return "POLICY_DOMAIN_NOT_ALLOWED"
-        return None
+                return "POLICY_DOMAIN_NOT_ALLOWED", host
+        return None, ""

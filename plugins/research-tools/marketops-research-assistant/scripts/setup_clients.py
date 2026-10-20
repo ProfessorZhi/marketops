@@ -15,7 +15,7 @@ import venv
 from pathlib import Path
 
 SOURCE = Path(__file__).resolve().parents[1]
-VERSION = "0.5.3"
+VERSION = "0.5.4"
 CLIENTS = ("codex", "workbuddy", "both", "claude", "all")
 STATE_FILE = "INSTALL_STATE.json"
 STATE_OWNER = "marketops.setup_clients.v1"
@@ -360,6 +360,15 @@ def _command(argv):
 
 
 def _start_here(result):
+    # The numbered sections are conditional: a Claude-only install has no Codex
+    # or WorkBuddy block, so a literal "2/3/4" would ship a guide whose steps
+    # jump from 1 to 4. The counter makes the numbers follow the blocks present.
+    counter = {"n": 1}
+
+    def heading(title):
+        counter["n"] += 1
+        return f"## {counter['n']}. {title}"
+
     lines = ["# MarketOps 安装后从这里开始", "",
              "这是本机安装目录，请保留；其他电脑需要重新运行源码包的安装入口。",
              "[四账户、申请 Key 与新用户额度](plugins/marketops-research-assistant/references/FOUR_ACCOUNT_START.md)", "",
@@ -368,19 +377,19 @@ def _start_here(result):
              _command(result["customer_setup_argv"]), "```", "",
              "配置保存后，新的宿主会话会读取系统凭据库。Crawl4AI 本地无需第五个账户。", ""]
     if "codex_marketplace" in result:
-        lines.extend(["## 2. Codex", "", "安装器支持当前 CLI 时已执行下列两步；未执行时可在本机运行：", "", "```",
+        lines.extend([heading("Codex"), "", "安装器支持当前 CLI 时已执行下列两步；未执行时可在本机运行：", "", "```",
                       _command(result["codex_next_argv"]), _command(result["codex_install_argv"]), "```", "",
                       "完全退出并重开 Codex，打开 Plugins，选择 marketops-local → MarketOps Research Assistant；确认已安装且启用。",
                       "旧版 CLI 没有 plugin add 时：在该 Plugins 来源打开插件详情，点击 Install 并启用，再新建会话。",
                       f"安装状态：{result.get('codex_plugin_install_status', 'PENDING_HOST_INSTALL')}。", ""])
     if "workbuddy_bundle" in result:
-        lines.extend(["## 3. WorkBuddy", "", "WorkBuddy 4.24.0+：连接器管理 → 添加/导入自定义连接器 → 选择本机生成目录：", "",
+        lines.extend([heading("WorkBuddy"), "", "WorkBuddy 4.24.0+：连接器管理 → 添加/导入自定义连接器 → 选择本机生成目录：", "",
                       "```", result["workbuddy_bundle"]["directory"], "```", "",
                       "导入后启用连接器，新建会话。四个 Key 已保存在系统凭据库时，密码字段可留空。",
                       "若该客户端提供的是选择 ZIP，请选择同目录生成的 ZIP；两种方式均只能用于这台机器。",
                       "界面名称随 WorkBuddy 版本可能变化；安装回执保持 PENDING_HOST_IMPORT，直到在宿主看见并调用 MarketOps。", ""])
     if "claude_next_argv" in result:
-        lines.extend(["## 4. Claude Code", "", "每次使用可从以下命令开启会话：", "", "```",
+        lines.extend([heading("Claude Code"), "", "每次使用可从以下命令开启会话：", "", "```",
                       _command(result["claude_next_argv"]), "```", ""])
     lines.extend(["## 开始第一次调研", "",
                   "> 使用 MarketOps，先检查数据路径、凭据、授权额度和供应商连接。按我的目标保存 Research Brief，先做 3 个候选；保存原文、事实引文和责任关系，无法核实的标 HOLD。导出 Excel，记录此次方法和卡点，并在下一批检索可复用经验。", "",

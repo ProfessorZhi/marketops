@@ -176,7 +176,22 @@ def status(env: dict | None = None, platform: str = sys.platform,
     if experience_value:
         result["experience_file"] = (_redact(str(experience_value), env) if redact
                                      else str(experience_value))
+    stored_root = (stored or {}).get("data_root")
+    if env_root_usable and stored_root and not _same_location(env_root.strip(), stored_root, platform):
+        # The env override moves new material but not the experience file, which
+        # still comes from the stored config. A run then reads one root and
+        # writes its summary under another installation's directory. Say so
+        # instead of reporting a pair that looks consistent.
+        result["data_root_mismatch"] = True
+        result["stored_data_root"] = (_redact(str(stored_root), env) if redact
+                                      else str(stored_root))
     return result
+
+
+def _same_location(left: str, right: str, platform: str = sys.platform) -> bool:
+    """Whether two configured paths name the same directory, without touching disk."""
+    normalise = (lambda text: os.path.normpath(text).casefold()) if platform.startswith("win")         else (lambda text: os.path.normpath(text))
+    return normalise(str(left)) == normalise(str(right))
 
 
 def _redact(text: str, env: dict) -> str:

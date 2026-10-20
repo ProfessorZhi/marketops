@@ -191,6 +191,9 @@ class ManagedGatewayTests(_NetworkAllowed):
                 intent_fingerprint="i2")
             self.assertEqual("BLOCKED", outcome.status, outcome)
             self.assertEqual("CAPABILITY_PARAM_NOT_ALLOWED", outcome.reason_code)
+            # Naming the parameter is the difference between a closed set the
+            # caller can act on and one it has to guess at.
+            self.assertIn("POLICY_PARAM_NOT_ALLOWED:batch_id", outcome.caveats)
             self.assertEqual([], runner.calls, "the registry let batch_id through")
             self.assertEqual((), tuple(ledger.operations()))
 

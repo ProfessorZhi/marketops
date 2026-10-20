@@ -49,7 +49,15 @@ def compact_provider_response(root, run_id, response, *, max_rows=10,
         full = json.loads(retained["content"])
     except (OSError, ValueError, KeyError, TypeError):
         raise ValueError("RESPONSE_VIEW_REQUIRES_SAVED_PAYLOAD") from None
-    if full != payload:
+    # ``research_runtime_results.persist`` writes the artifact with
+    # ``json.dumps(..., sort_keys=True, default=str)``, so a value that is a
+    # tuple in memory comes back as a list. Comparing the readback with the live
+    # object refused every Serper response (``credit_estimate.applied_rules`` is
+    # a tuple) even though the bytes on disk were exactly what was returned.
+    # Both sides are compared in the form that was actually persisted; a real
+    # difference still differs here.
+    saved_form = json.loads(json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str))
+    if full != saved_form:
         raise ValueError("RESPONSE_VIEW_SAVED_PAYLOAD_MISMATCH")
 
     result = copy.deepcopy(response)

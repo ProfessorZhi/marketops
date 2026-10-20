@@ -64,6 +64,30 @@ class ProviderViewTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,"SAVED_PAYLOAD"):
                 views.compact_provider_response(root,"view-run",response)
 
+    def test_a_payload_holding_a_tuple_is_not_a_storage_mismatch(self):
+        # Persist writes with json.dumps, so an in-memory tuple is saved as a
+        # list. Serper's `credit_estimate.applied_rules` is a tuple, and the raw
+        # comparison refused every Serper search as "saved payload mismatch".
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            payload = {"credit_estimate": {"applied_rules": ("rule-a", "rule-b")},
+                       "results": [{"url": "https://example.invalid/a"}]}
+            result = views.compact_provider_response(root, "view-run", self.saved(root, payload))
+            # The view keeps the live object; what the host receives is its
+            # persisted form, which is the list written to the artifact.
+            self.assertEqual(["rule-a", "rule-b"],
+                             json.loads(json.dumps(result["payload"]["credit_estimate"]["applied_rules"])))
+
+    def test_a_real_difference_is_still_refused_next_to_a_tuple(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            response = self.saved(root, {"credit_estimate": {"applied_rules": ("rule-a",)},
+                                         "results": []})
+            response["payload"] = {"credit_estimate": {"applied_rules": ("rule-b",)},
+                                   "results": []}
+            with self.assertRaisesRegex(ValueError, "SAVED_PAYLOAD"):
+                views.compact_provider_response(root, "view-run", response)
+
     def test_failure_response_is_untouched(self):
         response={"status":"FAILED","reason_code":"SOURCE_ASSOCIATION_FAILED","payload":{"error":"retain"},"actual_usd":"0.2"}
         self.assertEqual(response, views.compact_provider_response(Path('/unused'),"r",response))

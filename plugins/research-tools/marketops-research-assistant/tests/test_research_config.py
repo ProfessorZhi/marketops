@@ -14,6 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import research_config as cfg
+from research_config import DATA_ROOT_ENV
 
 POSIX = "linux"
 
@@ -183,6 +184,29 @@ class CompatibilityTests(unittest.TestCase):
             self.assertEqual((Path(tmp) / "from-env").resolve(),
                              cfg.data_root(env=env, platform=POSIX))
             self.assertEqual("env", cfg.status(env=env, platform=POSIX)["data_root_source"])
+
+    def test_a_data_root_env_that_disagrees_with_the_stored_config_is_reported(self):
+        # The env override moves new material but leaves experience_file on the
+        # stored config, so a run reads one root and writes its summary under
+        # another installation's directory. That split has to be visible.
+        with tempfile.TemporaryDirectory() as tmp:
+            env = env_for(tmp)
+            cfg.configure(str(Path(tmp) / "from-config"), str(Path(tmp) / "a.md"),
+                          env=env, platform=POSIX)
+            env[DATA_ROOT_ENV] = str(Path(tmp) / "from-env")
+            status = cfg.status(env=env, platform=POSIX)
+            self.assertTrue(status["data_root_mismatch"])
+            self.assertEqual(str(Path(tmp) / "from-config"), status["stored_data_root"])
+            self.assertEqual(str(Path(tmp) / "a.md"), status["experience_file"])
+
+    def test_a_data_root_env_matching_the_stored_config_is_not_a_mismatch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            env = env_for(tmp)
+            same = Path(tmp) / "same-root"
+            cfg.configure(str(same), str(Path(tmp) / "a.md"), env=env, platform=POSIX)
+            env[DATA_ROOT_ENV] = str(same) + "/"
+            status = cfg.status(env=env, platform=POSIX)
+            self.assertNotIn("data_root_mismatch", status)
 
     def test_explicit_config_env_selects_a_different_config_file(self):
         with tempfile.TemporaryDirectory() as tmp:

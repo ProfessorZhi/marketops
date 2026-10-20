@@ -183,6 +183,15 @@ def verify_build(output, *, plugin=PLUGIN):
         raise ValueError("QA_OUTPUT_MUST_BE_OUTSIDE_PLUGIN")
     output.mkdir(parents=True, exist_ok=True)
     before = source_manifest(plugin)
+    dirty = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no", "--", "."],
+                           cwd=plugin, capture_output=True, text=True)
+    if dirty.returncode == 0 and dirty.stdout.strip():
+        # The receipt names exactly one revision. An uncommitted tree is not that
+        # revision, so a package built from it would carry a provenance claim it
+        # does not have; commit first. Untracked files are ignored here and still
+        # covered by the source-manifest comparison below.
+        return {"ok": False, "reason": "QA_TREE_DIRTY",
+                "changed": [line[3:] for line in dirty.stdout.splitlines()[:20]]}
     started = now()
     removed_prefixes = ("SERPER", "SERPAPI", "TINYFISH", "TYPESAFE", "JEV_", "CRAWL4AI",
                         "CRAWL4_AI", "MARKETOPS_", "OPENAI_", "ANTHROPIC_")
