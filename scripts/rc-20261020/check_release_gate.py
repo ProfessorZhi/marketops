@@ -10,10 +10,10 @@ A missing Lane test is BLOCKED, never a skip dressed up as success.
 
 Typical use (run the full plugin suite exactly once):
 
-    /data/home/vince/toolchains/marketops-research-plugin-e2e/bin/python \
+    $TOOLCHAINS_ROOT/marketops-research-plugin-e2e/bin/python \
         scripts/rc-20261020/check_release_gate.py \
         --full-suite --baseline-failures 23 \
-        --evidence-dir /data/home/vince/artifacts/skills/marketops-rc/20261020
+        --evidence-dir $ARTIFACTS_ROOT/skills/marketops-rc/20261020
 """
 from __future__ import annotations
 

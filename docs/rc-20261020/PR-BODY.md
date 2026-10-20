@@ -41,6 +41,12 @@ The machine-readable ledger is `docs/rc-20261020/LANE-LEDGER.md`; the manifest i
   canonical operation signature; one reservation per logical query.
 - **Jev locator** — `evidence_query` is a bounded locator, must match saved bytes, never
   degrades to the head, and is refused for box capabilities.
+- **Full offline plugin suite (run once)** — `Ran 2135 tests ... OK (skipped=30)`, 0 failures
+  and 0 errors at HEAD `09494a66`. The claimed mainline “23 failures” did **not** reproduce
+  on this feature baseline; `main` was not re-run and no test was changed or skipped to
+  produce this result.
+- **Independent QA** — Lane Q's boundary suite was run against the RC plugin root
+  (`MARKETOPS_QA_PLUGIN_ROOT`), 9 tests OK; Q's files are not in the product branch.
 
 ## Deliberately not done
 
@@ -51,10 +57,15 @@ The machine-readable ledger is `docs/rc-20261020/LANE-LEDGER.md`; the manifest i
 
 ## Open QA blockers
 
-See `docs/rc-20261020/QA-BLOCKERS.md`. At the time of writing: A and D had not yet
-delivered commits; the full offline plugin suite had not been run (deliberately, to
-avoid running it concurrently with Lane agents); the synthetic private-key fixture in
-Lane B's test is classified REVIEW, not FAIL.
+See `docs/rc-20261020/QA-BLOCKERS.md`. All five product Lanes and the QA Lane have
+delivered; the full offline plugin suite is green on the feature baseline. Remaining
+non-blocking notes:
+
+- The synthetic private-key fixture in Lane B's test is classified REVIEW, not FAIL;
+  it does not follow `REDACTION.md`'s inline `# gitleaks:allow` convention yet.
+- The release version remains `0.5.5`; this RC must not be published under that name
+  and must not overwrite the existing `0.5.5` ZIP.
+- The “23 failures” baseline was not reproduced here; `main` was not re-run.
 
 ## Review notes
 

@@ -55,12 +55,16 @@
   `transport` / `double_charge` / `dedup` / `reserve` 的文件；找不到即
   `G4-D = BLOCKED`，不跳过。D 提交后才可集成。
 
-## B-07 全量 offline plugin suite 尚未运行
+## B-07 全量 offline plugin suite 结果（已运行一次）
 
-- 为遵守“不要高并发运行完整 pytest”，Lane 活跃期间不跑全量。
-- 用户声明基线可能有 23 failures；本机尚未复核。
-- 结论：Lane 全部提交后只跑一次，使用 `--baseline-failures 23`；
-  红项逐条区分“基线同样红 / RC 新增红 / 无法判定”，不改测试、不加 skip。
+- Lane 全部提交后只跑一次：HEAD `09494a66`，
+  `Ran 2135 tests in 126.973s`，`OK (skipped=30)`，0 failures / 0 errors。
+- 这与“主线既有 23 failures”的说法**不一致**。本 RC 基线是
+  `feat/bruce-plugin-delivery-20261020@4f87bc33`，不是 `main`；`main` 未复跑。
+- 没有修改任何测试、没有新增 skip 来制造绿色；30 个 skip 是套件自身行为
+  （`OK (skipped=30)`），定向门禁 G1–G6 中没有 skip。
+- 结论：如实记录为“基线分支全绿，23 的说法未被复现”；若发布负责人要求在
+  `main` 上复核，需要另行授权并再跑一次，不能用本次结果代替 `main`。
 
 ## B-08 版本号仍是 0.5.5，RC 产物不得按该名称发布
 

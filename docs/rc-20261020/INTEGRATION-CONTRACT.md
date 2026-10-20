@@ -5,7 +5,7 @@
 - 仓库：`https://github.com/ProfessorZhi/marketops`
 - 基线：`feat/bruce-plugin-delivery-20261020@4f87bc3306b90d55bfd0332ef1efc8b97f1dcc44`（PR #9）
 - RC 分支：`rc/marketops-release-candidate-20261020`
-- RC worktree：`/data/home/vince/workspace/worktrees/marketops/rc-integrator-20261020`
+- RC worktree：`worktrees/marketops/rc-integrator-20261020`
 - 最终 PR base：`feat/bruce-plugin-delivery-20261020`（**不是** `main`）
 
 ## 1. 所有权与边界
@@ -107,7 +107,8 @@ assert client_view.verify_client_view(destination / "client-view")
 | G8 | 完整 offline plugin suite | `python -m unittest discover -s tests -v`（只跑一次，不并发） |
 
 G8 基线红必须逐条列出并与 `4f87bc33` 上的同一命令对照；不得改测试、不得标记 skip 冒充通过。
-已知基线（待本机实测确认）：插件套件存在既有 failure/error，RC 只允许“不新增”。
+2026-10-20 实测（RC 树，HEAD `09494a66`）：`Ran 2135 tests, 0 failures, 0 errors,
+30 skipped`。用户提到的“主线 23 failures”未在本基线分支复现；`main` 未复跑。
 
 ## 5. 非目标（本轮硬边界）
 

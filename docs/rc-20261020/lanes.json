@@ -9,7 +9,7 @@
       "id": "A",
       "name": "delivery-admission-gate",
       "branch": "fix/marketops-rc-delivery-gate-20261020",
-      "worktree": "/data/home/vince/workspace/worktrees/marketops/rc-gate-20261020",
+      "worktree": "worktrees/marketops/rc-gate-20261020",
       "owned_paths": [
         "plugins/research-tools/marketops-research-assistant/scripts/research_delivery.py",
         "plugins/research-tools/marketops-research-assistant/tests/test_research_delivery.py",
@@ -23,7 +23,7 @@
       "id": "B",
       "name": "client-view",
       "branch": "fix/marketops-rc-client-view-20261020",
-      "worktree": "/data/home/vince/workspace/worktrees/marketops/rc-clientview-20261020",
+      "worktree": "worktrees/marketops/rc-clientview-20261020",
       "owned_paths": [
         "plugins/research-tools/marketops-research-assistant/scripts/research_client_view.py",
         "plugins/research-tools/marketops-research-assistant/tests/test_client_view_generation.py",
@@ -37,7 +37,7 @@
       "id": "C",
       "name": "installer-optin",
       "branch": "fix/marketops-rc-installer-20261020",
-      "worktree": "/data/home/vince/workspace/worktrees/marketops/rc-installer-20261020",
+      "worktree": "worktrees/marketops/rc-installer-20261020",
       "owned_paths": [
         "plugins/research-tools/marketops-research-assistant/install.sh",
         "plugins/research-tools/marketops-research-assistant/scripts/setup_clients.py",
@@ -51,7 +51,7 @@
       "id": "D",
       "name": "search-transport-dedup",
       "branch": "fix/marketops-rc-search-cost-20261020",
-      "worktree": "/data/home/vince/workspace/worktrees/marketops/rc-search-cost-20261020",
+      "worktree": "worktrees/marketops/rc-search-cost-20261020",
       "owned_paths": [
         "plugins/research-tools/marketops-research-assistant/scripts/search_canonical.py",
         "plugins/research-tools/marketops-research-assistant/scripts/dual_search_mcp.py",
@@ -66,7 +66,7 @@
       "id": "E",
       "name": "jev-evidence-locator",
       "branch": "fix/marketops-rc-jev-target-20261020",
-      "worktree": "/data/home/vince/workspace/worktrees/marketops/rc-jev-target-20261020",
+      "worktree": "worktrees/marketops/rc-jev-target-20261020",
       "owned_paths": [
         "plugins/research-tools/marketops-research-assistant/scripts/research_adapter_jev.py",
         "plugins/research-tools/marketops-research-assistant/tests/test_jev_targeted_excerpt.py"
@@ -79,7 +79,7 @@
   "qa": {
     "id": "Q",
     "branch": "qa/marketops-rc-customer-gate-20261020",
-    "worktree": "/data/home/vince/workspace/worktrees/marketops/rc-independent-qa-20261020",
+    "worktree": "worktrees/marketops/rc-independent-qa-20261020",
     "artifact": "tests/test_customer_delivery_boundary_qa.py",
     "acceptance_doc": "docs/RC_CUSTOMER_DELIVERY_ACCEPTANCE.md",
     "commits": [
