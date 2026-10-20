@@ -60,8 +60,10 @@ semver 后缀，因此采用 `0.5.6-rc1`。新增
 
 ## 2. 实测证据
 
-证据目录：`/data/home/vince/artifacts/skills/marketops-rc/20261020/hygiene/`
-（仓库外）。以下哈希来自本次运行；提交后会用同一脚本在最终 HEAD 上重跑一次。
+证据目录：`/data/home/vince/artifacts/skills/marketops-rc/20261020/hygiene/final-fef0a4bb/`
+（仓库外）。以下哈希来自本 lane 的验收运行。**Source ZIP 与 client-view 内容在各次
+运行间逐字节一致**；bundle ZIP 的 `mcp.json` 绑定本次临时构建的绝对路径，因此
+bundle 哈希是 run-local 的，不能当作跨机器发布哈希。
 
 | 项目 | 结果 |
 | --- | --- |
@@ -69,7 +71,7 @@ semver 后缀，因此采用 `0.5.6-rc1`。新增
 | Source ZIP SHA-256 | `76823c758d65eedb1ca317a29162a0ad642c07a633e5b39a8bd017c827bbfb00` |
 | Source manifest | PASS；164 files；`source_sha256=fa43183bb2340fa8db218518d3548e8203ebcd463bbe226f41f16b4d9f913783` |
 | ZIP 成员 | PASS；165 members；含 `scripts/research_client_view.py`；无 tests/.git/.venv/data |
-| Connector bundle SHA-256 | `b77908994addc80dfd8c0cffe748dc8ffef39994abc9296ab0383f254aae0f48` |
+| Connector bundle SHA-256（run-local） | `b01ec6dcc3dbed7d018fd28136fe165b40e32f9d2da6ab1ef494742b0c29f918`；含本次临时绝对路径，不能跨机器复用 |
 | 解包 + 离线 stdio | PASS；server `MarketOps Lite Research 0.5.6-rc1`；30 tools；`CONFIG_REQUIRED`；provider calls 0 |
 | 自动客户视图 | PASS；4 admitted / 4 held；7 files；`CANDIDATE_NOT_APPROVED`；send_authorized=false |
 | 证据/HOLD 泄漏检查 | PASS；合格值在，HOLD/伪造值/仅证据邮箱与组织均不在 |
