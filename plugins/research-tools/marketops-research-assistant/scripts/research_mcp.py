@@ -139,10 +139,56 @@ def provider_events(run_id: str) -> dict:
             "external_official_mcp_activity": "NOT_MONITORED_BY_LITE"}
 
 
+PROVIDER_KEYS = {"serper": "SERPER_API_KEY", "serpapi": "SERPAPI_API_KEY",
+                 "tinyfish": "TINYFISH_API_KEY", "typesafe_jev": "TYPESAFE_API_KEY"}
+
+
+def provider_readiness() -> dict:
+    """Per provider, what this machine can tell without spending a call.
+
+    READY means: key present, enabled for this project with network on, and
+    (SerpApi/TinyFish) the connection check passed at setup; Crawl4AI needs no
+    key, only its local install. It is not a check of the account's credit.
+    """
+    import research_egress
+    import research_runtime_setup
+    try:
+        data_root = root()
+        settings = research_runtime_setup.config(data_root) or {}
+    except (ValueError, OSError):
+        data_root, settings = None, {}
+    enabled = set(settings.get("providers", ())) if settings.get("network_enabled") else set()
+    out = {}
+    for provider in ("serper", "serpapi", "tinyfish", "crawl4ai", "typesafe_jev"):
+        if provider == "crawl4ai":
+            state = "READY" if research_egress.crawl4ai_ready() else "NOT_INSTALLED"
+        elif not configured(PROVIDER_KEYS[provider]):
+            state = "KEY_MISSING"
+        else:
+            state = "READY"
+        if state == "READY" and provider not in enabled:
+            state = "NOT_ENABLED_FOR_PROJECT"
+        if (state == "READY" and provider in {"serpapi", "tinyfish"} and data_root is not None
+                and not (Path(data_root) / "state" / f"{provider}-schema.json").is_file()):
+            state = "CONNECTION_NOT_CHECKED"
+        out[provider] = state
+    fixes = {"KEY_MISSING": "rerun the local setup command (START_HERE.md) and enter the key",
+             "NOT_ENABLED_FOR_PROJECT": "rerun the local setup and answer y to enable research",
+             "CONNECTION_NOT_CHECKED": "rerun the local setup; check the key and the account",
+             "NOT_INSTALLED": "rerun the installer; it installs Crawl4AI and Chromium"}
+    return {"providers": out,
+            "how_to_fix": {p: fixes[s] for p, s in out.items() if s in fixes},
+            "note": "READY is local readiness, not a check of the account's remaining credit."}
+
+
 def setup_status():
     """Only two mandatory paths. Vendor account onboarding remains optional."""
     state = research_config.status(redact=True)
-    return {**state, "provider_onboarding": {
+    try:
+        readiness = provider_readiness()
+    except Exception as exc:  # noqa: BLE001 - status must answer even when this fails
+        readiness = {"providers": "UNKNOWN", "reason": type(exc).__name__}
+    return {**state, "provider_readiness": readiness, "provider_onboarding": {
         "state": "OPTIONAL_AFTER_LOCAL_SETUP",
         "guide": "references/CUSTOMER_QUICKSTART.md",
         "connection_catalog": "references/PROVIDER_CONNECTIONS.json",

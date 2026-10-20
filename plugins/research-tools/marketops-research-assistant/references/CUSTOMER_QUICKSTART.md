@@ -62,7 +62,7 @@ python scripts/provider_onboarding.py --client codex --provider all
 
 > 使用 MarketOps。先检查安装、数据位置、账号和本次授权；按我的目标建立 Research Brief。先调查 3 个候选，确认场地、责任组织、相关岗位及有出处的公开联系路线。保存原文和逐字段引文，缺项标 HOLD，导出 Excel，并记录有效方法、卡点与纠正。下一批先检索这些经验。
 
-工具列表应有 `marketops_setup_status`、`marketops_capabilities` 和研究工具。随后分别检查真实连接、材料保存、Excel 回读及经验复用。工具名出现、Key 存在、静态测试通过均不能代替这一验收。发布包需要实际测试生成的 `references/BUILD_QA.json`；缺失或过期的开发包只用于诊断。
+工具列表应有 `marketops_setup_status` 和研究工具；`marketops_setup_status` 的 `provider_readiness` 列出五个服务是否 READY。随后分别检查真实连接、材料保存、Excel 回读及经验复用。工具名出现、Key 存在、静态测试通过均不能代替这一验收。发布包需要实际测试生成的 `references/BUILD_QA.json`；缺失或过期的开发包只用于诊断。
 
 ## 中断、升级与排障
 

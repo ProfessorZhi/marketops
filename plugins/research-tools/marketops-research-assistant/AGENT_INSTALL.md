@@ -55,10 +55,10 @@ commands in PowerShell.
      into its MCP settings, and add the `skills` folder it lists to its skills/prompts (if it has no
      skills support, use `skills\marketops-research\SKILL.md` as the system prompt).
 
-5. **Check.** In a new conversation, call `marketops_setup_status`, then `marketops_capabilities`.
-   Report to the user which of Serper, SerpApi, TinyFish, Crawl4AI and Jev are ready. A provider
-   that is not ready usually means a mistyped key or no credit; rerun the setup command from the
-   install folder's START_HERE.md to change keys.
+5. **Check.** In a new conversation, call `marketops_setup_status` and read its
+   `provider_readiness`: report to the user which of Serper, SerpApi, TinyFish, Crawl4AI and Jev
+   are `READY`, and for any other state tell them the fix it lists (usually: rerun the setup
+   command from the install folder's START_HERE.md and re-enter that key).
 
 6. **Show the user how to start**, e.g.:
    > 用 MarketOps 调研：<地区> 的 <目标类型>，要找 <角色> 的邮箱。我们卖的是 <产品>，买来使用的是客户，卖同类产品的是竞品要排除。预算已授权，不要停下来问我，完成后给我 Excel、报告和反馈包。

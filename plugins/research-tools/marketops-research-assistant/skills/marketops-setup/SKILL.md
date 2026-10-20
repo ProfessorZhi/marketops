@@ -52,7 +52,7 @@ Do not submit forms, send messages, subscribe to plans, top up credits or access
 
 ## 五家可选 Provider：用户自己开通，不默认已登录
 
-首次双路径配置完成后，只读取 `marketops_capabilities`，按 [官方申请/API Key/MCP/登录态与费用指南](../../references/PROVIDER_ONBOARDING.md) 引导 Member-A **自行**决定启用哪些供应商。绝不要求一次填五个Key、不得自动注册、充值、下载或启用付费网络。每个项目的 provider 认证/配额/域名允许名单和TinyFish Browser Context Profile都需单独确认。
+首次双路径配置完成后，调用 `marketops_setup_status` 读取 `provider_readiness`（各服务 READY 或需要的修复），按 [官方申请/API Key/MCP/登录态与费用指南](../../references/PROVIDER_ONBOARDING.md) 引导 Member-A **自行**决定启用哪些供应商。绝不要求一次填五个Key、不得自动注册、充值、下载或启用付费网络。每个项目的 provider 认证/配额/域名允许名单和TinyFish Browser Context Profile都需单独确认。
 
 Claude Code 源码预览可用 `scripts/launch_research_mcp.sh`，缺 MCP SDK 就短码提示配置项目私有虚拟环境；安装程序生成可移植包时绑定绝对 venv Python。首用失败后须人工核对宿主 MCP连接状态和缓存，不得默默恢复为有权限的连接。
 
