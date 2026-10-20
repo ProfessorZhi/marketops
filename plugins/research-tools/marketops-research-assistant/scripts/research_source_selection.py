@@ -251,6 +251,47 @@ def _rate_covered(candidate: dict, links: dict[str, set[str]]) -> bool:
     return False
 
 
+
+def _venue_binding_ok(venue: dict, org_name: str,
+                      related_by_org: dict[str, list[dict]],
+                      links: dict[str, set[str]]) -> bool:
+    """Require a linked quote naming both venue and owner, not a link label."""
+    name = (venue.get("data") or {}).get("name")
+    if not _text(org_name) or not _text(name):
+        return False
+    linked_fields = links.get(venue["record_id"]) or set()
+    for claim in _claims(venue):
+        if claim.get("field") not in linked_fields:
+            continue
+        quote = claim.get("quote")
+        if _quote_supports(quote, org_name) and _quote_supports(quote, name):
+            return True
+
+    org_key = (venue.get("data") or {}).get("organization_id")
+    if not isinstance(org_key, str) or not org_key:
+        return False
+    refs = {key for key in (venue.get("record_id"), venue.get("entity_key"))
+            if isinstance(key, str) and key}
+    for edge in related_by_org.get(org_key, ()):
+        if edge.get("kind") != "relationship":
+            continue
+        data = edge.get("data") or {}
+        if data.get("organization_id") != org_key:
+            continue
+        if not any(data.get(key) in refs for key in
+                   ("venue_id", "subject_id", "target_id", "entity_key")):
+            continue
+        if "relationship" not in (links.get(edge["record_id"]) or set()):
+            continue
+        for claim in _claims(edge):
+            quote = claim.get("quote")
+            if (claim.get("field") == "relationship"
+                    and _quote_supports(quote, org_name)
+                    and _quote_supports(quote, name)):
+                return True
+    return False
+
+
 def _phone_covered(contact: dict, org_name: str,
                    related_by_org: dict[str, list[dict]],
                    links: dict[str, set[str]]) -> bool:
@@ -405,16 +446,9 @@ def _missing_fields(candidate: dict, *, org: dict | None, org_name: str,
         missing.append("organization_identity")
     if kind == "venue" and not _linked(links, candidate["record_id"], "identity"):
         missing.append("venue_identity")
-    if kind == "venue":
-        venue_binding = _linked(links, candidate["record_id"], "relationship")
-        if not venue_binding and _text(org_name):
-            for claim in _claims(candidate):
-                quote = claim.get("quote")
-                if _quote_supports(quote, org_name) and _quote_supports(quote, data.get("name")):
-                    venue_binding = True
-                    break
-        if not venue_binding:
-            missing.append("venue_org_relationship")
+    if kind == "venue" and not _venue_binding_ok(
+            candidate, org_name, related_by_org, links):
+        missing.append("venue_org_relationship")
     if not _rate_covered(candidate, links):
         missing.append("hourly_rate")
     org_key = data.get("organization_id") or candidate["entity_key"]
