@@ -38,6 +38,7 @@ somewhere else, and putting it here would create a second policy source.
 from __future__ import annotations
 
 import importlib
+import inspect
 from dataclasses import dataclass, field
 from typing import Any, Mapping, Sequence
 
@@ -260,7 +261,12 @@ class CapabilityGateway:
             caveats.append("SCHEMA_DRIFT_OBSERVED_AT_DISPATCH")
 
         if outcome == "UNKNOWN":
-            caveats += self._hold_terminal(ledger_id, "PROVIDER_TIMEOUT")
+            # The adapter executed and returned no classifiable result. That is an
+            # ambiguous response, not evidence of a timeout: the old hard-coded
+            # PROVIDER_TIMEOUT invented a cause. The execution state is recorded
+            # beside the charge state so the two are not conflated.
+            caveats += self._hold_terminal(ledger_id, "AMBIGUOUS_RESPONSE",
+                                           execution_outcome="UNKNOWN")
             return GatewayOutcome(status="UNKNOWN", reason_code="UNKNOWN_CHARGE_OUTSTANDING",
                                   result=result, caveats=tuple(caveats), **base)
 
@@ -420,10 +426,27 @@ class CapabilityGateway:
             return ["LEDGER_DISPATCH_INTENT_FAILED"]
         return []
 
-    def _hold_terminal(self, operation_id: str, reason: str) -> list[str]:
-        """A dispatched call whose charge cannot be established. The hold stays."""
+    def _hold_terminal(self, operation_id: str, reason: str,
+                       execution_outcome: str = "") -> list[str]:
+        """A dispatched call whose charge cannot be established. The hold stays.
+
+        ``execution_outcome`` is passed only to a ledger that declares the field.
+        A ledger without it still holds the charge; it simply cannot record what
+        the adapter observed, and this gateway does not pretend otherwise.
+        """
         try:
-            self.ledger.mark_unknown(operation_id, reason=reason)
+            try:
+                signature = inspect.signature(self.ledger.mark_unknown)
+                accepts = ("execution_outcome" in signature.parameters or any(
+                    parameter.kind is inspect.Parameter.VAR_KEYWORD
+                    for parameter in signature.parameters.values()))
+            except (TypeError, ValueError):
+                accepts = False
+            if accepts:
+                self.ledger.mark_unknown(operation_id, reason=reason,
+                                         execution_outcome=execution_outcome)
+            else:
+                self.ledger.mark_unknown(operation_id, reason=reason)
         except Exception:
             return ["LEDGER_MARK_UNKNOWN_FAILED"]
         return []
@@ -447,8 +470,14 @@ class CapabilityGateway:
             if micros is None:
                 # The call happened and nobody can say what it cost. Holding is
                 # the conservative answer; inventing a zero would be a refund.
-                self.ledger.mark_unknown(operation_id, reason="PROVIDER_ERROR_UNVERIFIED")
-                return ["LEDGER_HELD_ACTUAL_UNKNOWN"]
+                # A successful call and a failed call are different evidence, so
+                # they get different charge-uncertainty reasons instead of the one
+                # PROVIDER_ERROR_UNVERIFIED that used to mean both.
+                reason = ("CHARGE_UNVERIFIED_AFTER_SUCCESS" if outcome == "OK"
+                          else "PROVIDER_ERROR_UNVERIFIED")
+                caveats = self._hold_terminal(operation_id, reason,
+                                              execution_outcome=outcome)
+                return ["LEDGER_HELD_ACTUAL_UNKNOWN", *caveats]
             self.ledger.settle(
                 operation_id, actual_micros=micros, actual_source=source,
                 upstream_ref=upstream_ref or "",
