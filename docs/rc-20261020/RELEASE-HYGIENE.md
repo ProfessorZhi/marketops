@@ -60,7 +60,7 @@ semver 后缀，因此采用 `0.5.6-rc1`。新增
 
 ## 2. 实测证据
 
-证据目录：`/data/home/vince/artifacts/skills/marketops-rc/20261020/hygiene/final-fef0a4bb/`
+证据目录：`$ARTIFACTS_ROOT/skills/marketops-rc/20261020/hygiene/final-9d7917a4/`
 （仓库外）。以下哈希来自本 lane 的验收运行。**Source ZIP 与 client-view 内容在各次
 运行间逐字节一致**；bundle ZIP 的 `mcp.json` 绑定本次临时构建的绝对路径，因此
 bundle 哈希是 run-local 的，不能当作跨机器发布哈希。
