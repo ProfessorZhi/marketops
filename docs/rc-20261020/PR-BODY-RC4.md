@@ -1,5 +1,8 @@
 # MarketOps 0.5.6-rc4 — write-time version guard and gap-driven sources (DRAFT)
 
+> Historical RC4 body. The current candidate is 0.5.6-rc5; see
+> [`PR-BODY-RC5.md`](PR-BODY-RC5.md) and [`RC5-INTEGRATION.md`](RC5-INTEGRATION.md).
+
 **Status: DRAFT — not a release. Do not merge to `main`. Do not overwrite the
 existing `0.5.5`, `0.5.6-rc1`, `0.5.6-rc2` or `0.5.6-rc3` ZIPs.**
 

@@ -5,7 +5,7 @@
   "rc_branch": "rc/marketops-0.5.6-rc2-20261020",
   "base_commit": "38dcef853f526f64f669c475c96ad9c3bad3ad47",
   "base_branch": "fix/marketops-rc-release-hygiene-20261020",
-  "version": "0.5.6-rc4",
+  "version": "0.5.6-rc5",
   "note": "commits 只填已落到 Lane 分支的精确 SHA；空列表表示该 Lane 尚未交付，不猜测、不代填。",
   "lanes": [
     {
@@ -94,7 +94,7 @@
       "commits": [
         "38dcef853f526f64f669c475c96ad9c3bad3ad47"
       ],
-      "note": "RC4 integrates from this exact commit; it is the branch base of the final PR."
+      "note": "RC5 integrates from this exact commit; it is the branch base of the final PR."
     },
     {
       "id": "F",
@@ -133,7 +133,7 @@
     },
     {
       "id": "I",
-      "name": "rc4-final-integration",
+      "name": "rc5-final-integration",
       "branch": "rc/marketops-0.5.6-rc2-20261020",
       "worktree": "worktrees/marketops/rc-final-20261020",
       "base": "38dcef853f526f64f669c475c96ad9c3bad3ad47",
@@ -156,10 +156,12 @@
         "plugins/research-tools/marketops-research-assistant/scripts/research_workflow.py",
         "plugins/research-tools/marketops-research-assistant/scripts/research_mcp.py",
         "plugins/research-tools/marketops-research-assistant/tests/test_rc4_supersedes_write_guard.py",
-        "plugins/research-tools/marketops-research-assistant/tests/test_rc4_source_selection.py"
+        "plugins/research-tools/marketops-research-assistant/tests/test_rc4_source_selection.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_rc5_review_type_guard.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_rc5_source_evidence.py"
       ],
       "commits": [],
-      "note": "The only lane allowed to edit the seam files after F and G. RC4 adds write-time supersedes validation and the offline gap-driven source advisory. Its commit SHA is filled in after the final candidate commit."
+      "note": "The only lane allowed to edit the seam files after F and G. RC5 closes the review_type supersedes bypass and requires linked quote support for rate/phone/contact binding. Its commit SHA is filled in after the final candidate commit."
     }
   ],
   "qa": {
@@ -174,5 +176,5 @@
     "integrate_into_product_branch": false,
     "run_against": "RC plugin root via MARKETOPS_QA_PLUGIN_ROOT; never copies QA files into the product branch"
   },
-  "branch_name_note": "The PR #22 branch keeps its rc2 name; the product version is 0.5.6-rc4. One development branch only."
+  "branch_name_note": "The PR #22 branch keeps its rc2 name; the product version is 0.5.6-rc5. One development branch only."
 }

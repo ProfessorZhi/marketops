@@ -82,11 +82,13 @@ class GapPriorityTests(unittest.TestCase):
         self.assertFalse(action["requires_search"])
 
     def test_missing_email_prefers_the_official_contact_page(self):
-        candidate = org(hourly_rate="GBP 45 per hour")
+        candidate = org(hourly_rate="GBP 45",
+                        claims=[{"field": "hourly_rate", "artifact_id": "a1",
+                                 "quote": "Our rate is GBP 45 per hour."}])
         result = select(
             brief=ORG_BRIEF, candidates=[candidate],
             org_by_key={"org-1": candidate},
-            links_by_record={"org-1": {"identity"}},
+            links_by_record={"org-1": {"identity", "hourly_rate"}},
             sources=[source("contact", "https://example.org/contact-us")],
         )
         action = result["candidates"][0]["next_best_source_action"]

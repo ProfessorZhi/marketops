@@ -155,20 +155,111 @@ def _linked(links: dict[str, set[str]], record_id: str, *fields: str) -> bool:
     return any(field in present for field in fields)
 
 
+def _numbers(value: object) -> tuple[str, ...]:
+    import re
+    if not isinstance(value, str):
+        value = str(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else ""
+    return tuple(re.findall(r"\d+(?:[.,]\d+)?", value))
+
+
+def _rate_quote_supports(quote: object, value: object) -> bool:
+    """A rate quote must actually contain the stored number, not just 'a price'."""
+    if not isinstance(quote, str) or not isinstance(value, str):
+        return False
+    wanted = _numbers(value)
+    if not wanted:
+        return _quote_supports(quote, value)
+    observed = set(_numbers(quote))
+    return all(number in observed for number in wanted)
+
+
+def _contact_value(contact: dict) -> str:
+    data = contact.get("data") or {}
+    value = data.get("value") or data.get("email") or data.get("phone")
+    return value if isinstance(value, str) else (
+        str(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else "")
+
+
+def _contact_value_supported(contact: dict, value: str,
+                             links: dict[str, set[str]]) -> bool:
+    """A stored contact value counts only when a linked claim quote says it."""
+    linked_fields = links.get(contact["record_id"]) or set()
+    if not linked_fields:
+        return False
+    for claim in _claims(contact):
+        field = claim.get("field")
+        quote = claim.get("quote")
+        if field not in linked_fields or not isinstance(quote, str):
+            continue
+        if "@" in value:
+            if _literal_in(quote, value):
+                return True
+        elif _rate_quote_supports(quote, value):
+            return True
+    return False
+
+
 def _contact_binding_ok(contact: dict, org_name: str,
+                        related_by_org: dict[str, list[dict]],
                         links: dict[str, set[str]]) -> bool:
+    """Org attribution needs a named quote, not just a generic relationship link."""
     if not _text(org_name):
         return False
-    if _linked(links, contact["record_id"], "relationship"):
-        return True
-    value = (contact.get("data") or {}).get("value") or (contact.get("data") or {}).get("email")
+    value = _contact_value(contact)
     if not _text(value):
         return False
     for claim in _claims(contact):
+        field = claim.get("field")
         quote = claim.get("quote")
+        if field not in (links.get(contact["record_id"]) or set()):
+            continue
         if _quote_supports(quote, org_name) and _literal_in(quote, value):
             return True
+    org_key = (contact.get("data") or {}).get("organization_id")
+    if not isinstance(org_key, str):
+        return False
+    for row in related_by_org.get(org_key, ()):
+        if row.get("kind") != "relationship":
+            continue
+        data = row.get("data") or {}
+        if data.get("contact_point_id") not in {contact["record_id"], contact["entity_key"]} \
+                and data.get("contact_route_id") not in {contact["record_id"], contact["entity_key"]}:
+            continue
+        linked_fields = links.get(row["record_id"]) or set()
+        for claim in _claims(row):
+            if claim.get("field") != "relationship" or "relationship" not in linked_fields:
+                continue
+            quote = claim.get("quote")
+            if _quote_supports(quote, org_name) and _literal_in(quote, value):
+                return True
     return False
+
+
+def _rate_covered(candidate: dict, links: dict[str, set[str]]) -> bool:
+    data = candidate.get("data") or {}
+    linked_fields = links.get(candidate["record_id"]) or set()
+    for key in _RATE_KEYS:
+        value = data.get(key)
+        if not _text(value):
+            continue
+        for claim in _claims(candidate):
+            field = claim.get("field")
+            if field not in _RATE_KEYS or field not in linked_fields:
+                continue
+            if _rate_quote_supports(claim.get("quote"), value):
+                return True
+    return False
+
+
+def _phone_covered(contact: dict, org_name: str,
+                   related_by_org: dict[str, list[dict]],
+                   links: dict[str, set[str]]) -> bool:
+    value = _contact_value(contact)
+    if not _text(value):
+        return False
+    if not _contact_value_supported(contact, value, links):
+        return False
+    return _contact_binding_ok(contact, org_name, related_by_org, links)
 
 
 def blocked_domains_from_sources(sources: list[dict]) -> set[str]:
@@ -324,10 +415,7 @@ def _missing_fields(candidate: dict, *, org: dict | None, org_name: str,
                     break
         if not venue_binding:
             missing.append("venue_org_relationship")
-    rate = any(_text(data.get(key)) for key in _RATE_KEYS)
-    if not rate:
-        rate = any(_linked(links, candidate["record_id"], key) for key in _RATE_KEYS)
-    if not rate:
+    if not _rate_covered(candidate, links):
         missing.append("hourly_rate")
     org_key = data.get("organization_id") or candidate["entity_key"]
     contacts = _related_contacts(org_key, related_by_org)
@@ -337,19 +425,19 @@ def _missing_fields(candidate: dict, *, org: dict | None, org_name: str,
     phones = [row for row in contacts
               if str((row.get("data") or {}).get("type")
                      or (row.get("data") or {}).get("channel") or "").casefold() in _PHONE_TYPES]
-    email_linked = False
+    email_supported = False
     email_bound = False
     for row in emails:
-        value = (row.get("data") or {}).get("value") or (row.get("data") or {}).get("email")
-        if _text(value) and _linked(links, row["record_id"], "value", "email"):
-            email_linked = True
-            if _contact_binding_ok(row, org_name, links):
+        value = _contact_value(row)
+        if _text(value) and _contact_value_supported(row, value, links):
+            email_supported = True
+            if _contact_binding_ok(row, org_name, related_by_org, links):
                 email_bound = True
     if not emails:
         missing.append("official_email")
-    elif not email_linked or not email_bound:
+    elif not email_supported or not email_bound:
         missing.append("contact_binding")
-    if not phones:
+    if not any(_phone_covered(row, org_name, related_by_org, links) for row in phones):
         missing.append("phone")
     if brief.get("require_named_person") and not _has_person_chain(org_key, related_by_org, links):
         missing.append("named_person_contact_chain")

@@ -340,6 +340,24 @@ def _validate_supersedes(db: sqlite3.Connection, run_id: str, record_id: str,
         raise _supersedes_error(
             "SUPERSEDES_ENTITY_KEY_MISMATCH",
             f"reuse entity_key from {parent}")
+    try:
+        parent_data = json.loads(p_body)
+    except (TypeError, ValueError):
+        parent_data = {}
+    if not isinstance(parent_data, dict):
+        parent_data = {}
+    if kind == "review":
+        # A note may not replace a disposition (or vice versa). The two carry
+        # different authority; equality of kind/stage/entity_key alone let a
+        # `review_type=note` become the live tip over a HOLD disposition, which
+        # silently released a held venue in the real run.
+        parent_type = parent_data.get("review_type")
+        child_type = payload.get("review_type")
+        if parent_type != child_type:
+            raise _supersedes_error(
+                "SUPERSEDES_REVIEW_TYPE_MISMATCH",
+                f"reuse review_type {parent_type!r} from {parent}; a review may "
+                "only supersede the same review_type")
     # The parent must be the unique live tip of its own kind/entity group. A
     # parent that is already superseded, or a group with a fork, would create a
     # second branch; refuse rather than pick a winner.
@@ -396,12 +414,7 @@ def _validate_supersedes(db: sqlite3.Connection, run_id: str, record_id: str,
             raise _supersedes_error(
                 "TARGET_DISPOSITION_FIELDS_INVALID",
                 "target_disposition needs target_kind and target_entity_key")
-        try:
-            parent_data = json.loads(p_body)
-        except (TypeError, ValueError):
-            parent_data = {}
-        if (not isinstance(parent_data, dict)
-                or parent_data.get("review_type") != "target_disposition"
+        if (parent_data.get("review_type") != "target_disposition"
                 or parent_data.get("target_kind") != target_kind
                 or parent_data.get("target_entity_key") != target_key):
             raise _supersedes_error(

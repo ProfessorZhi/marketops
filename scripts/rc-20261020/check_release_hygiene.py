@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline release-hygiene acceptance for the MarketOps 0.5.6-rc4 candidate.
+"""Offline release-hygiene acceptance for the MarketOps 0.5.6-rc5 candidate.
 
 What this proves, and what it deliberately does not:
 
