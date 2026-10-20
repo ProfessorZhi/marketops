@@ -1,6 +1,12 @@
 """Source-bytes -> Lite SQLite candidates -> real XLSX/CSV -> independent readback.
 
 All example.org names/emails are synthetic; this test makes no network calls.
+
+The positive fixture is deliberately *complete*: every business record carries a
+quote that exists in saved material and a recorded span that binds the quote. A
+candidate without that chain is not a "minor gap" the workbook may print in a
+client table — it is excluded from the client sheets and kept in 排除与待确认 and
+候选数据审计. The negative-path tests below pin that boundary.
 """
 from __future__ import annotations
 
@@ -21,6 +27,17 @@ import research_delivery as delivery  # noqa: E402
 import research_lite_store as store  # noqa: E402
 
 
+PAGE = (b"<html><body><h1>Example Borough Council</h1>"
+        b"<h2>Example Sports Ground</h2>"
+        b"<p>Grounds Management is the responsible department.</p>"
+        b"<p>Contact grounds@example.org for grounds enquiries.</p></body></html>")
+
+ORG_QUOTE = "Example Borough Council"
+VENUE_QUOTE = "Example Sports Ground"
+PERSON_QUOTE = "Grounds Management is the responsible department."
+CONTACT_QUOTE = "Contact grounds@example.org for grounds enquiries."
+
+
 class CandidateDeliveryE2E(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -31,28 +48,37 @@ class CandidateDeliveryE2E(unittest.TestCase):
         env.start()
         self.addCleanup(env.stop)
         mcp.start("run-test", "GB-sports-grounds", "Find sports grounds and contacts", "SOP-PENDING")
-        body = (b"<html><h1>Example Borough sports ground</h1>"
-                b"<p>Example Borough Council, Grounds Management</p>"
-                b"<p>Contact grounds@example.org</p></html>")
         store.save_artifact(self.root, "run-test", "art-public",
                             "fixture-public-html", "https://example.org/grounds",
-                            body, "raw_response")
+                            PAGE, "rendered_html")
         mcp.propose("run-test", "src-1", "discovery", "source", "source-council",
                     {"title": "Sports grounds", "url": "https://example.org/grounds",
                      "provider": "fixture"})
         mcp.propose("run-test", "org-1", "entities", "organization", "example-borough",
-                    {"name": "Example Borough Council", "official_domain": "example.org"},
+                    {"name": "Example Borough Council",
+                     "claims": [{"field": "identity", "artifact_id": "art-public",
+                                 "quote": ORG_QUOTE}]},
                     ["art-public"])
         mcp.propose("run-test", "venue-1", "entities", "venue", "example-sports-ground",
-                    {"name": "Example Sports Ground", "organization_id": "example-borough"},
+                    {"name": "Example Sports Ground", "organization_id": "example-borough",
+                     "claims": [{"field": "identity", "artifact_id": "art-public",
+                                 "quote": VENUE_QUOTE}]},
                     ["art-public"])
         mcp.propose("run-test", "person-dept", "people", "person", "grounds-dept",
                     {"department": "Grounds Management", "role_title": "Grounds management team",
-                     "organization_id": "example-borough"}, ["art-public"])
+                     "organization_id": "example-borough",
+                     "claims": [{"field": "role_title", "artifact_id": "art-public",
+                                 "quote": PERSON_QUOTE}]}, ["art-public"])
         mcp.propose("run-test", "contact-1", "routes", "contact_point", "grounds-contact",
                     {"organization_id": "example-borough", "type": "email",
                      "value": "grounds@example.org", "role_function": "Grounds Management",
-                     "department": "Grounds Management"}, ["art-public"])
+                     "department": "Grounds Management",
+                     "claims": [{"field": "email", "artifact_id": "art-public",
+                                 "quote": CONTACT_QUOTE}]}, ["art-public"])
+
+    def sheet(self, directory, name):
+        with (Path(directory) / f"{name}.csv").open(encoding="utf-8-sig", newline="") as handle:
+            return list(csv.DictReader(handle))
 
     def test_delivers_real_xlsx_with_9_sheets_and_evidence(self):
         result = delivery.write_delivery(self.root, "run-test", "delivery-001")
@@ -61,25 +87,29 @@ class CandidateDeliveryE2E(unittest.TestCase):
         self.assertFalse(result["send_authorized"])
         self.assertEqual(1, result["counts"]["客户总表"])
         self.assertEqual(1, result["counts"]["联系人路线"])
+        self.assertEqual(1, result["counts"]["场地与资产"])
+        self.assertEqual(1, result["counts"]["人员岗位"])
+        # A quality sample is admitted, not emptied by the gate.
+        self.assertEqual(4, result["admission"]["evaluated_record_count"])
+        self.assertEqual(4, result["admission"]["admitted_record_count"])
+        self.assertEqual(0, result["admission"]["rejected_record_count"])
+        self.assertEqual("ALL_CLIENT_ROWS_ADMITTED", result["admission_status"])
         workbook = Path(result["xlsx_path"])
         self.assertTrue(workbook.exists())
         with zipfile.ZipFile(workbook) as z:
             self.assertIsNone(z.testzip())
             self.assertEqual(9, len([n for n in z.namelist()
                                      if n.startswith("xl/worksheets/sheet") and n.endswith(".xml")]))
-        with (workbook.parent / "联系人路线.csv").open(encoding="utf-8-sig", newline="") as f:
-            row = next(csv.DictReader(f))
+        row = next(iter(self.sheet(workbook.parent, "联系人路线")))
         self.assertEqual("grounds@example.org", row["公开字面值"])
-        # This fixture saves raw_response material, not the browser-rendered DOM.
-        # An email literal in non-rendered material is now an explicit evidence HOLD:
-        # the row stays visible and candidate-only, it is simply not treated as an
-        # anchored proof. A rendered_html fixture is what reaches the positive tier.
-        self.assertEqual("HOLD_EMAIL_NO_SOURCE_QUOTE", row["来源字面校验"])
+        self.assertEqual("RENDERED_EMAIL_LITERAL_NOT_BUSINESS_VERIFIED", row["来源字面校验"])
         self.assertEqual("RULES_UNKNOWN", row["研究评级"])
         self.assertEqual("CANDIDATE_NOT_APPROVED", row["业务状态"])
         receipt = json.loads((workbook.parent / "MANIFEST.json").read_text(encoding="utf-8"))
         self.assertIn("Research_Result.xlsx", receipt["files"])
         self.assertEqual(1, receipt["counts"]["客户总表"])
+        self.assertTrue(receipt["client_business_tables_admitted_only"])
+        self.assertEqual(receipt["admission"], result["admission"])
         with self.assertRaises(FileExistsError):
             delivery.write_delivery(self.root, "run-test", "delivery-001")
 
@@ -95,13 +125,20 @@ class CandidateDeliveryE2E(unittest.TestCase):
                     {"organization_id": "example-borough", "type": "email",
                      "value": "guessed@example.org"}, ["art-public"])
         result = delivery.write_delivery(self.root, "run-test", "delivery-hold")
-        self.assertEqual(2, result["counts"]["联系人路线"])
-        self.assertGreaterEqual(result["counts"]["排除与待确认"], 1)
-        with (Path(result["directory"]) / "联系人路线.csv").open(encoding="utf-8-sig", newline="") as f:
-            rows = list(csv.DictReader(f))
-        second = next(x for x in rows if x["渠道ID"] == "contact-2")
-        self.assertEqual("HOLD_NOT_LITERAL", second["来源字面校验"])
-        self.assertEqual("RULES_UNKNOWN", second["研究评级"])
+        # The held contact is not a second client row: it is excluded, visible to
+        # review, and still preserved in the internal audit sheet.
+        self.assertEqual(1, result["counts"]["联系人路线"])
+        self.assertEqual(1, result["admission"]["rejected_record_count"])
+        self.assertEqual(["contact-2"], result["admission"]["rejected_record_ids"])
+        self.assertEqual("HELD_ROWS_EXCLUDED_FROM_CLIENT_TABLES", result["admission_status"])
+        contact_rows = self.sheet(result["directory"], "联系人路线")
+        self.assertNotIn("contact-2", [row["渠道ID"] for row in contact_rows])
+        self.assertNotIn("guessed@example.org", repr(contact_rows))
+        issues = self.sheet(result["directory"], "排除与待确认")
+        held = next(row for row in issues if row["对象ID"] == "contact-2")
+        self.assertIn("NO_EXCERPT", held["问题或原因"])
+        audit = self.sheet(result["directory"], "候选数据审计")
+        self.assertIn("contact-2", [row["记录ID"] for row in audit])
 
 
 if __name__ == "__main__":
