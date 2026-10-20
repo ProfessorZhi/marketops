@@ -345,7 +345,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         configured_root = None
     if configured_root is not None and runtime_setup.config(configured_root):
         from research_runtime_status import view
-        return {"product": "MarketOps Research MCP", "version": "0.5.1-candidate",
+        return {"product": "MarketOps Research MCP", "version": "0.5.3-candidate",
                 **view(configured_root, task_kind=task_kind),
                 "external_host": _external_inventory(host_observed_tools),
                 "embedded_official_mcp": provider_policy.embedded_official_mcp_capabilities(),
@@ -420,7 +420,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         if task_kind else None)
     return {
         "product": "MarketOps Lite Research MCP",
-        "version": "0.5.1-candidate",
+        "version": "0.5.3-candidate",
         "providers": {
             "serpapi": {"transport": "REST through local MCP", **search["serpapi"]},
             "serper": {"transport": "REST through local MCP", **search["serper"]},
@@ -519,6 +519,32 @@ def start(run_id, scope, objective, rule_version, brief=None):
             "experience": _experience_view(run_id, stage="intake")}
 
 
+#: The ledger's own code for "this logical operation is already recorded in this
+#: run". It reaches a caller folded into ``DUPLICATE_OPERATION``, so the reason
+#: the two attempts are one operation is added back here rather than left as a
+#: bare code an agent can only answer by retrying.
+_DUPLICATE_SIGNATURE_CAVEAT = "LEDGER_CODE:DUPLICATE_OPERATION_SIGNATURE"
+
+_DUPLICATE_SIGNATURE_HINT = (
+    "DUPLICATE_SEARCH_SAME_RUN: this exact operation is already recorded in this run"
+    " (a refused attempt keeps its claim); use a new run_id or a different query")
+
+
+def _refusal_text(answer):
+    """One line a host can act on, built only from what the answer carries.
+
+    ``s0_failed`` names the gate that closed; ``caveats`` names what happened
+    after the gate, which is where the ledger's own code travels. Neither is
+    invented here: an empty refusal stays empty rather than acquiring a guess.
+    """
+    failed = list(answer.get("s0_failed") or ())
+    caveats = [str(item) for item in (answer.get("caveats") or ())]
+    detail = [item for item in failed + caveats if item]
+    if _DUPLICATE_SIGNATURE_CAVEAT in detail:
+        detail.append(_DUPLICATE_SIGNATURE_HINT)
+    return str(answer.get("reason_code") or "BLOCKED") + ": " + ",".join(detail)
+
+
 def _require_s0_for_provider(what):
     """The single S0 gate in front of every host-visible provider entry.
 
@@ -566,8 +592,10 @@ def managed_call(capability_id, params, run_id, operation_id, account_ref="",
     if capability_id in {"serper.search", "serpapi.search"}:
         for key, value in {"country": "US", "language": "en", "limit": 10}.items():
             arguments.setdefault(key, value)
+        import serpapi_engine_catalog as _catalog
         arguments.setdefault("mode" if capability_id == "serper.search" else "engine",
-                             "web" if capability_id == "serper.search" else "google_light")
+                             "web" if capability_id == "serper.search"
+                             else _catalog.DEFAULT_ENGINE)
     fingerprint = results.identity(capability_id, arguments)
     # IDs are run-scoped at the MCP boundary, ledger-scoped internally.
     ledger_operation = "op-" + hashlib.sha256((run_id + ":" + operation_id).encode()).hexdigest()[:40]
@@ -584,10 +612,12 @@ def search(provider, query, country, language, run_id, operation_id, mode="web",
     if provider == "serpapi" and mode != "web":
         raise ValueError("CAPABILITY_PARAM_NOT_ALLOWED: use an explicitly reviewed engine")
     params = {"query": query, "country": country, "language": language, "limit": limit}
-    params["mode" if provider == "serper" else "engine"] = mode if provider == "serper" else "google_light"
+    import serpapi_engine_catalog as _catalog
+    params["mode" if provider == "serper" else "engine"] = (
+        mode if provider == "serper" else _catalog.DEFAULT_ENGINE)
     answer = managed_call(provider + ".search", params, run_id, operation_id)
     if answer["status"] != "OK":
-        raise ValueError(answer["reason_code"] + ": " + ",".join(answer["s0_failed"]))
+        raise ValueError(_refusal_text(answer))
     return {**answer, **(answer.get("payload") or {}),
             "invocation": provider_policy.invocation_receipt(
                 "serpapi_mcp_search" if provider == "serpapi" else provider,
@@ -627,7 +657,7 @@ def invoke(action, run_id, operation_id, url="", query="", document="",
         raise ValueError("CAPABILITY_NOT_AVAILABLE: action is not in the initial product profile")
     answer = managed_call(capability, params, run_id, operation_id, grant_ref=ledger_grant)
     if answer["status"] != "OK":
-        raise ValueError(answer["reason_code"] + ": " + ",".join(answer["s0_failed"]))
+        raise ValueError(_refusal_text(answer))
     return {**answer, "status": "SAVED_MATERIAL_NOT_VERIFIED",
             "managed_status": answer["status"], "result": answer.get("payload")}
 
@@ -754,7 +784,7 @@ def handoff(run_id, operation_id):
     try:
         experience_result = draft_experience(
             r, run_id=run_id, scope=head["scope"],
-            rule_version=head["rule_version"], skill_version="0.5.1",
+            rule_version=head["rule_version"], skill_version="0.5.3",
             output=experience_path)
         result["experience_candidate"] = str(experience_path)
         result["experience_incidents"] = experience_result["incidents"]
@@ -873,7 +903,7 @@ def build_server():
     from research_credentials import load_into_environment
     load_into_environment()
     from mcp.server import MCPServer
-    mcp = MCPServer("MarketOps Lite Research", version="0.5.1")
+    mcp = MCPServer("MarketOps Lite Research", version="0.5.3")
 
     def tool(fn):
         return mcp.tool()(_guarded(fn))
@@ -1005,12 +1035,42 @@ def build_server():
     def marketops_propose(run_id: str, record_id: str, stage: str,
                           kind: str, entity_key: str, facts: dict,
                           artifact_ids: list[str] | None = None) -> dict:
-        """Write staged venue/organization/role/contact/review proposals only."""
+        """Persist one candidate now, including input targets; missing evidence remains unverified.
+
+        stage/kind: entities/organization (facts.name); people/role
+        (facts.organization_id, role_title OR role_function); routes/contact_point
+        (facts.organization_id, type, value); review/review (facts.review_type=
+        target_disposition, target_kind, target_entity_key, disposition, reason).
+        Joins use entity_key, never record_id. Named roles/contacts need person_id.
+        facts.claims=[{field,artifact_id,quote}], at most12; quote12..600 chars
+        from a listed same-Run artifact. Organization/venue require identity;
+        use the Brief's additional evidence fields. Unknowns must remain unknown.
+        Corrections: new record_id, same kind/entity_key, facts.supersedes=old ID.
+        All writes remain candidates; no approval or outreach authority.
+        """
         return propose(run_id, record_id, stage, kind, entity_key, facts, artifact_ids)
 
     @tool
     def marketops_propose_batch(run_id: str, items: list[dict]) -> dict:
-        """One atomic batch of 1–20 candidates; same checks as marketops_propose."""
+        """Persist 1–20 candidates atomically; do this after each 1–2 targets, before more searches.
+
+        Every item has record_id, stage, kind, entity_key, facts, artifact_ids.
+        Full example shape (replace every example value with actual input/evidence):
+        {record_id:'org-record-1',stage:'entities',kind:'organization',
+         entity_key:'org-1',facts:{name:'actual organization name',
+         claims:[{field:'identity',artifact_id:'actual-artifact-id',
+         quote:'actual published fragment, 12..600 chars'}]},
+         artifact_ids:['actual-artifact-id']}.
+        For input-only unknown targets, facts:{name:<input name>},artifact_ids:[]
+        is valid and remains unverified; do not wait for every website first.
+        Register all supplied target names first (batches <=20), then research
+        1..2 targets per batch. Other kinds/joins use marketops_next.candidate_write_contract. Use
+        stage='routes',kind='contact_point' for a literal contact channel.
+        A review uses facts:{review_type:'target_disposition',target_kind:
+        'organization',target_entity_key:<org entity_key>,disposition:'HOLD',
+        reason:<observed gap>}; no invented quote is needed for HOLD.
+        A failed item rolls back the whole batch; fix its error before retrying.
+        """
         return propose_batch(run_id, items)
 
     @tool
@@ -1147,7 +1207,7 @@ def build_server():
             raise ValueError("EXPERIENCE_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT")
         output.parent.mkdir(parents=True, exist_ok=True)
         return draft_experience(r, run_id=run_id, scope=scope,
-                                rule_version=rule_version, skill_version="0.5.1",
+                                rule_version=rule_version, skill_version="0.5.3",
                                 output=output)
 
     @tool

@@ -202,7 +202,7 @@ class EmbeddedSessionTests(unittest.TestCase):
             async def read_resource(self, uri):
                 loops.add(id(asyncio.get_running_loop()))
                 reads.append(str(uri))
-                value = {"engines": ["google_light"]} if str(uri) == INDEX_URI else {
+                value = {"engines": ["google", "google_light"]} if str(uri) == INDEX_URI else {
                     "type": "object", "properties": {"q": {"type": "string"}}}
                 return SimpleNamespace(contents=[SimpleNamespace(text=json.dumps(value),
                                                                   uri=uri)])

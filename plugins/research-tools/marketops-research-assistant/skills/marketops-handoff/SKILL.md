@@ -7,7 +7,37 @@ description: Check and transfer human-reviewed research-stage outputs between Co
 
 A research stage is not finished simply because a file exists or the Agent says completed. Verify actual nonempty source/entity rows (where stage intended to have them), durable IDs, evidence pointers, status counts and pending review queue.
 
-Run the local `research_pack.py validate` and `summary` against an explicit pack path before telling the next person to continue. Attach: objective/scope/revision, completed verified objects, HOLD/UNKNOWN cases, stop reason, observed provider spend if available, important source URLs, named reviewer and next recommended action.
+For this MCP Run, use `marketops_evidence_audit` and `marketops_next`; do not run
+legacy `research_pack.py` commands against the MCP database. Report the
+objective/scope/revision, sourced candidates, HOLD/UNKNOWN cases, stop reason,
+observed costs and next review action. State when human review is pending;
+never invent a reviewer or describe a candidate as already verified.
+
+## Save dispositions, then hand off
+
+Every requested target should have its organization/venue record and a review
+disposition. A missing contact is a reason to save HOLD and deliver a partial
+result, not to omit the target or keep rereading sources. This complete
+`marketops_propose_batch` assumes `org-example` already exists in the same Run:
+
+<!-- tested-example:target-hold-review -->
+```json
+{"run_id":"run-example","items":[
+  {"record_id":"review-example-hold","stage":"review","kind":"review","entity_key":"review-org-example","facts":{"review_type":"target_disposition","target_kind":"organization","target_entity_key":"org-example","disposition":"HOLD","reason":"The saved organization source does not establish a role-bound public contact; approved research is exhausted."},"artifact_ids":[]}
+]}
+```
+
+Replace example IDs and the reason with the actual target and observed gap. If
+you are correcting an existing review, add its record ID as `facts.supersedes`.
+RESEARCHED_CANDIDATE needs the actual source/role/contact structure; EXCLUDED
+needs an `exclusion` quote. HOLD needs no invented evidence.
+
+Next call `marketops_evidence_audit(run_id="run-example")`, then
+`marketops_handoff(run_id="run-example", operation_id="handoff-001")` using
+your actual Run and a new operation ID. Do this once even when some targets
+remain HOLD; report the returned gaps and partial status alongside the real
+workbook. Do not start another discovery batch merely to avoid an honest partial
+handoff.
 
 **The primary final path is `marketops_handoff(run_id, operation_id)`.** It takes exactly one research snapshot —
 the evidence-audited workbook — and then the experience draft plus the configured summary refresh. The legacy

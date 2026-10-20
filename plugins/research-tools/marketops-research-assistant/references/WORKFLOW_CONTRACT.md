@@ -1,6 +1,6 @@
 # Unified Lite Research workflow contract
 
-Version: 2026-10-16. This contract governs the **Research MCP path**, not the optional legacy portable CSV-pack commands. Skills teach methods; the store holds candidate state; deterministic checks recommend work; source review and authorized SOP review remain separate.
+Version: 2026-10-20. This contract governs the **Research MCP path**, not the optional legacy portable CSV-pack commands. Skills teach methods; the store holds candidate state; deterministic checks recommend work; source review and authorized SOP review remain separate.
 
 ## Progressive loading and reference resolution
 
@@ -37,6 +37,78 @@ All stage outputs use `marketops_propose` and the same SQLite Run, **not hand-ed
 | contact_point | routes | organization_id, type, value; person_id for a named contact |
 | contact_route | routes | source-backed proposed relationship, never a formal grade |
 | review | review | reason and the unresolved IDs; schema below for target disposition |
+
+### Write one target before researching the next batch
+
+Use `marketops_status(run_id, kind="artifact")` to find this Run's saved material
+IDs, then `marketops_material_excerpt` with at most 3 artifact IDs and 3 queries.
+After one or two targets have usable quotes or a clear unresolved gap, call
+`marketops_propose_batch` immediately. A retrieved page alone is not an
+organization, role or contact candidate. Do not defer all candidate writes until
+every target has been researched, and do not read implementation files to learn
+the write format: the complete format is below.
+
+`items` contains 1–20 objects. Each item has exactly these keys:
+`record_id`, `stage`, `kind`, `entity_key`, `facts`, `artifact_ids`.
+The business fields and `claims` go **inside `facts`**. Each claim has
+`field`, `artifact_id`, `quote`; use at most 12 claims, each quote 12–600
+characters, copied from the same Run's saved material. The claim's `artifact_id`
+must also occur in that item's `artifact_ids`. Do not supply `approved`, `ready`,
+`verified`, `send_authorized` or `reviewed_by`.
+
+**Synthetic example only.** Suppose the saved `rendered_html` artifact
+`art-example` in `run-example` contains this page. In a real Run, replace all
+example IDs, facts and quotations with values actually read from that Run;
+never write this example as research evidence.
+
+<!-- tested-source:example-material -->
+```html
+<main><p>Example Community Trust operates Example Centre.</p><p>The Facilities team at Example Community Trust manages the centre.</p><p>Contact the Facilities team at facilities@example.org.</p></main>
+```
+
+For an organization-contact Brief with `require_named_person=false`, this is a
+complete `marketops_propose_batch` call. Joins use the organization's
+**entity_key**, not its record ID. A department route has no `person_id`.
+
+<!-- tested-example:department-route -->
+```json
+{
+  "run_id": "run-example",
+  "items": [
+    {"record_id":"org-example-v1","stage":"entities","kind":"organization","entity_key":"org-example","facts":{"name":"Example Community Trust","claims":[{"field":"identity","artifact_id":"art-example","quote":"Example Community Trust operates Example Centre."}]},"artifact_ids":["art-example"]},
+    {"record_id":"role-example-v1","stage":"people","kind":"role","entity_key":"role-example","facts":{"organization_id":"org-example","role_title":"Facilities team","role_function":"Manages the centre","claims":[{"field":"role","artifact_id":"art-example","quote":"The Facilities team at Example Community Trust manages the centre."}]},"artifact_ids":["art-example"]},
+    {"record_id":"contact-example-v1","stage":"routes","kind":"contact_point","entity_key":"contact-example","facts":{"organization_id":"org-example","department":"Facilities team","type":"email","value":"facilities@example.org","claims":[{"field":"email","artifact_id":"art-example","quote":"Contact the Facilities team at facilities@example.org."}]},"artifact_ids":["art-example"]},
+    {"record_id":"review-example-v1","stage":"review","kind":"review","entity_key":"review-org-example","facts":{"review_type":"target_disposition","target_kind":"organization","target_entity_key":"org-example","disposition":"RESEARCHED_CANDIDATE","reason":"Saved source identifies the organization and a literal department contact; business fit and human approval remain pending."},"artifact_ids":["art-example"]}
+  ]
+}
+```
+
+Then call `marketops_evidence_audit` and `marketops_next` once. Quote matches
+support a candidate; they do not certify buying authority or satisfy missing
+Brief-specific evidence. If the Brief requires a named person, also create a
+`person` at `people` with `name`, `organization_id` and its own identity quote;
+both role and contact must use that person's **same entity_key** as `person_id`.
+Do not invent a person for the department-only example.
+
+If the requested target has no source-backed identity or contact, retain that
+gap instead of inventing `claims`. This valid batch preserves an explicitly
+unverified user-supplied target plus a HOLD. The audit will correctly report
+missing evidence; handoff can still deliver the partial result.
+
+<!-- tested-example:unknown-target-hold -->
+```json
+{
+  "run_id":"run-example",
+  "items":[
+    {"record_id":"org-unresolved-v1","stage":"entities","kind":"organization","entity_key":"org-unresolved","facts":{"name":"Unresolved Example Trust","identity_status":"UNKNOWN","input_basis":"User-supplied research target; official identity not established"},"artifact_ids":[]},
+    {"record_id":"review-unresolved-v1","stage":"review","kind":"review","entity_key":"review-org-unresolved","facts":{"review_type":"target_disposition","target_kind":"organization","target_entity_key":"org-unresolved","disposition":"HOLD","reason":"Approved methods did not establish official identity or a role-bound public contact."},"artifact_ids":[]}
+  ]
+}
+```
+
+HOLD does not need a fabricated quote. A hard `EXCLUDED` disposition does need
+an actual source and `field="exclusion"` claim. Use a new record ID and
+`facts.supersedes` for a correction; keep the same entity key and prior record.
 
 `artifact_ids` are real saved material IDs belonging to this Run. Never invent IDs or copy an earlier Run's IDs into a new Run. Search snippets, model decisions and challenge pages are not evidence of identity, employment, purchasing authority or an email. A named-contact target needs the **same person entity** linked by its sourced role and sourced contact point; an unrelated staff name beside a generic department mailbox does not qualify.
 

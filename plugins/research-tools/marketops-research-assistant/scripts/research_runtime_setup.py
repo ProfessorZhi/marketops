@@ -225,7 +225,8 @@ def review_schema(provider, payload):
     import jsonschema
     if not isinstance(payload, dict) or not isinstance(payload.get("tools"), list):
         return []
-    samples = ({"search": {"params": {"engine": "google_light", "q": "public venue",
+    import serpapi_engine_catalog as _catalog
+    samples = ({"search": {"params": {"engine": _catalog.DEFAULT_ENGINE, "q": "public venue",
                 "gl": "us", "hl": "en", "num": 3}, "mode": "compact"}}
                if provider == "serpapi" else {
                    "search": {"query": "public venue"},

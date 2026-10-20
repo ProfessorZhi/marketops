@@ -30,6 +30,30 @@ EXPECTED_TOOLS = {
 }
 
 
+class RefusalTextTests(unittest.TestCase):
+    """A blocked call has to say *why*, using only what the answer carries."""
+
+    def test_a_gate_refusal_names_the_gate(self):
+        text = mcp._refusal_text({"reason_code": "RESEARCH_NETWORK_DISABLED",
+                                  "s0_failed": ("run local runtime configure first",)})
+        self.assertEqual("RESEARCH_NETWORK_DISABLED: run local runtime configure first", text)
+
+    def test_a_ledger_refusal_keeps_the_caveats_the_gateway_recorded(self):
+        # `managed_invoke` used to replace the gateway's caveats with one
+        # constant, so a ledger refusal arrived as a bare `DUPLICATE_OPERATION`
+        # with nothing behind the colon.
+        text = mcp._refusal_text({"reason_code": "DUPLICATE_OPERATION",
+                                  "s0_failed": (),
+                                  "caveats": ("LEDGER_CODE:DUPLICATE_OPERATION_SIGNATURE",)})
+        self.assertIn("LEDGER_CODE:DUPLICATE_OPERATION_SIGNATURE", text)
+        self.assertIn("DUPLICATE_SEARCH_SAME_RUN", text)
+
+    def test_an_empty_refusal_does_not_invent_a_reason(self):
+        text = mcp._refusal_text({"reason_code": "CAPABILITY_NOT_AVAILABLE",
+                                  "s0_failed": (), "caveats": ()})
+        self.assertEqual("CAPABILITY_NOT_AVAILABLE: ", text)
+
+
 class ToolRefusalTests(unittest.TestCase):
     def test_anticipated_refusal_becomes_a_readable_tool_error(self):
         from mcp.server.mcpserver.exceptions import ToolError
@@ -71,7 +95,7 @@ class ToolRefusalTests(unittest.TestCase):
 
     def test_server_reports_the_plugin_version(self):
         server = mcp.build_server()
-        self.assertEqual("0.5.2", server.version)
+        self.assertEqual("0.5.3", server.version)
 
 
 if __name__ == "__main__":

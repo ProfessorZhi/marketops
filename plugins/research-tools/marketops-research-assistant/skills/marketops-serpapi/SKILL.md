@@ -12,7 +12,7 @@ SerpApi.com 与 Serper.dev 是两家独立厂商，API Key、结构和账单不�
 - Google Maps 场地候选，保留 place_id、data_id、来源坐标、排名与访问时间；
 - 使用同一研究样本与 Serper 做成本/有效候选率比较时。
 
-**实际受管首选入口**：`marketops_serpapi_mcp_search(run_id=本轮Run,operation_id=本次操作,params={'engine':'google_light','q':'关键词'})`。MarketOps内嵌Python MCP Client连接 `https://mcp.serpapi.com/mcp`，发现真实通用 `search(params,mode='compact')` 的Schema，然后以 HTTPS Bearer Header附加用户的 `SERPAPI_API_KEY`。合法的多引擎参数直接交给原厂 MCP工具，响应经MarketOps保存。**不需另在Claude/Codex宿主安装SerpApi插件**。旧 `marketops_search(provider='serpapi',...)` 仍是兼容REST，必须明确选择，不能默认两次都调用。
+**实际受管首选入口**：`marketops_serpapi_mcp_search(run_id=本轮Run,operation_id=本次操作,params={'engine':'google','q':'关键词'})`。MarketOps内嵌Python MCP Client连接 `https://mcp.serpapi.com/mcp`，发现真实通用 `search(params,mode='compact')` 的Schema，然后以 HTTPS Bearer Header附加用户的 `SERPAPI_API_KEY`。合法的多引擎参数直接交给原厂 MCP工具，响应经MarketOps保存。**不需另在Claude/Codex宿主安装SerpApi插件**。旧 `marketops_search(provider='serpapi',...)` 仍是兼容REST，必须明确选择，不能默认两次都调用。
 
 在已授权的 MarketOps Lite Research MCP 中明确选择 `provider="serpapi"` 与 `mode="web"|"maps"|"images"|"news"|"videos"|"shopping"|"scholar"|"patents"|"autocomplete"`；必须填 country、language、run_id、operation_id，不允许自动回落另一家。当调用本插件内嵌官方MCP时，会先对真实工具目录与参数进行检查，并将结果落到MarketOps同一Run事件与材料；只有在宿主**额外**绕过本插件直连厂商时才不会自动进入Lite账本。
 
@@ -23,7 +23,7 @@ SerpApi.com 与 Serper.dev 是两家独立厂商，API Key、结构和账单不�
 路由合同：[PROVIDER_ROUTING](../../references/PROVIDER_ROUTING.md)。当前试用目录：[STORAGE_AND_TOPOLOGY](../../references/STORAGE_AND_TOPOLOGY.md)。 
 完整版多引擎官方 `search` 已通过本插件内嵌MCP Client接入，任意引擎须核实际schema和用户账户费用；兼容REST只支持常见Google类型，不能把它当完整多引擎MCP。若直连官方工具，宿主需要独立费用审批、来源转存和上下文收束，不让含API Key的MCP URL进入日志。
 
-原厂更详细的高质量Skill已审核定位于 [serpapi/skills](https://github.com/serpapi/skills/blob/master/skills/serpapi-web-search/SKILL.md)，包含google_light、具体引擎字段与低Token compact响应；详细审计指纹和如何安全连接官方MCP见 [官方Skill/MCP登记](../../references/OFFICIAL_SKILLS_MCP_REGISTRY.md)。不要默认安装原厂全文，且不得把通过官方MCP直接付费的调用伪装为受Lite账本保护。
+原厂更详细的高质量Skill已审核定位于 [serpapi/skills](https://github.com/serpapi/skills/blob/master/skills/serpapi-web-search/SKILL.md)，包含引擎选择（默认 `google`；`google_light` 返回 Google 跳转链接，抓不到真实页面）、具体引擎字段与低Token compact响应；详细审计指纹和如何安全连接官方MCP见 [官方Skill/MCP登记](../../references/OFFICIAL_SKILLS_MCP_REGISTRY.md)。不要默认安装原厂全文，且不得把通过官方MCP直接付费的调用伪装为受Lite账本保护。
 
 实际桥接、认证和统一预算见 [EMBEDDED_OFFICIAL_MCP](../../references/EMBEDDED_OFFICIAL_MCP.md)。
 

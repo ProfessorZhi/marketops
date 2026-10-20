@@ -529,9 +529,13 @@ def managed_invoke(*, capability_id: str, params, run_id: str, operation_id: str
         result = runtime_gateway.invoke(capability_id=capability_id, params=params,
             run_id=run_id, operation_id=operation_id, account_ref=account_ref,
             intent_fingerprint=intent_fingerprint, grant_ref=grant_ref)
+        # The gateway's own caveats are kept: they are where a ledger refusal
+        # names its precise code, and replacing the tuple with one constant made
+        # every blocked call report a bare ``DUPLICATE_OPERATION`` with no reason.
         return gate.GuardedOutcome(status=result.status, reason_code=result.reason_code,
             capability_id=capability_id, gateway_invoked=True, outcome=result,
-            caveats=("REQUEST_COUNT_ONLY_USD_AND_BALANCE_UNKNOWN",))
+            caveats=("REQUEST_COUNT_ONLY_USD_AND_BALANCE_UNKNOWN",)
+                    + tuple(getattr(result, "caveats", ()) or ()))
     if gateway_object is None:
         # A proxy, not a built gateway. `guarded_invoke` evaluates S0 first and
         # only calls `invoke` when it allows, so a refused gate never reaches the

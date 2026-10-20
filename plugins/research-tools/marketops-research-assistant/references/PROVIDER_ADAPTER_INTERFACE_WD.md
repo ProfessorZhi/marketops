@@ -24,7 +24,7 @@
 *做了什么*，写 `BILLABLE_READ` 等于声称一笔没人读过的费用。
 
 **`country` / `language` 是必填**：它们是 canonical operation key 的两个轴。`serpapi.search` 的
-`engine` 有默认 `google_light`。
+`engine` 有默认 `google`（`google_light` 的上游 `link` 是 Google 跳转包裹，抓不到真实页面；`google` 返回同样的字段和可抓取的普通链接）。
 
 ## 2. `execute()` 返回什么
 

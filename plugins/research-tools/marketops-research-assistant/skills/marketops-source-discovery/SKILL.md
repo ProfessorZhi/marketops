@@ -5,6 +5,12 @@ description: Discover bounded public sources only when the current Run lacks tar
 
 # Source discovery
 
+After the first one or two targets have usable saved material, persist their
+organization/venue candidates with the venue-account Skill's complete batch
+example before searching for more targets. Source rows alone do not satisfy the
+business task. When a target is unresolved within the approved effort, persist
+its target record and HOLD review so the final handoff can include that gap.
+
 **Trigger:** marketops_next recommends discovery, or an approved target has a concrete source gap. **Input:** persisted Brief, current Run and existing source candidates. Read [workflow contract](../../references/WORKFLOW_CONTRACT.md) only when needed.
 
 Read `marketops_status(run_id, kind="source")` first and reuse appropriate saved material. Fix country/language, the user's scope and a small query budget. Load `marketops-provider-router` only if an actual external capability is needed. SerpApi/Serper via `marketops_search` and configured TinyFish search are discovery options; do not assume free use or silently fail over to a billable provider.

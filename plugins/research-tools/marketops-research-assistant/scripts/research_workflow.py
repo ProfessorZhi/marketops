@@ -336,6 +336,38 @@ def next_step(root: Path | str, run_id: str, limit: int = 25,
             "FROM records WHERE run_id=? ORDER BY record_id LIMIT ?", (run_id, MAX_ROWS + 1)
         ).fetchall()
     result = assess_records(run_id, [_decode(r) for r in rows], limit=limit)
+    if result.get("stage") in {"entities", "acquisition", "people", "review"}:
+        result["candidate_write_contract"] = {
+            "tool": "marketops_propose_batch",
+            "arguments": "run_id, items (1..20 objects)",
+            "item_fields": ["record_id", "stage", "kind", "entity_key", "facts", "artifact_ids"],
+            "facts_by_kind": {
+                "organization/entities": ["name"], "venue/entities": ["name"],
+                "person/people": ["name", "organization_id"],
+                "role/people": ["organization_id", "role_title OR role_function"],
+                "contact_point/routes": ["organization_id", "type", "value"],
+                "relationship/entities": ["venue_id", "organization_id", "relationship_type"],
+                "review/review": ["review_type=target_disposition", "target_kind",
+                                  "target_entity_key", "disposition", "reason"],
+            },
+            "dispositions": ["RESEARCHED_CANDIDATE", "HOLD", "EXCLUDED", "DUPLICATE"],
+            "claims": "facts.claims is at most 12 objects {field, artifact_id, quote}; quote is 12..600 characters from a listed same-Run artifact_id, exactly as published.",
+            "suggested_claim_fields": {"organization": ["identity"], "venue": ["identity"],
+                             "person": ["name", "organization_id"],
+                             "role": ["organization_id", "role_title", "role_function"],
+                             "contact_point": ["organization_id", "value"],
+                             "relationship": ["relationship"], "excluded_review": ["exclusion"]},
+            "joins": "organization_id/person_id reference entity_key, not record_id. Named roles AND contacts need the same person_id and a source-backed claim for that link.",
+            "claim_selection": "Use claim fields for facts actually asserted; do not invent a title when only a function is sourced. Brief requirements and identity/relationship/exclusion still apply.",
+            "unknowns": "Register ALL supplied target names first in batches <=20, with no claimed verification. Research 1..2 at a time. Missing evidence remains unverified; append a HOLD review when stopping. Never invent claims or artifact IDs.",
+            "corrections": "New record_id, same kind/entity_key, facts.supersedes=previous record_id. Never fork or overwrite.",
+            "next_action": ("REGISTER_ALL_SUPPLIED_TARGET_NAMES_BEFORE_MORE_DISCOVERY"
+                            if not result.get("target_count") else "SAVE_CURRENT_TARGET_FINDINGS_OR_HOLD_BEFORE_EXPANDING"),
+        }
+        requirements = next((json.loads(row[5]).get("evidence_requirements", {})
+                             for row in rows if row[0] == result.get("brief_record_id")), {})
+        if isinstance(requirements, dict):
+            result["candidate_write_contract"]["brief_evidence_requirements"] = requirements
     unchanged = bool(previous_snapshot_id) and previous_snapshot_id == result["snapshot_id"]
     if after_attempt and unchanged:
         return {**result, "progress_state": "NO_NEW_PERSISTED_RECORD_AFTER_ATTEMPT",

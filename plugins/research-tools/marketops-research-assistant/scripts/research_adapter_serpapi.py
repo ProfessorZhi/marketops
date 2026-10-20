@@ -705,7 +705,7 @@ class SerpApiAdapter:
             account_ref=str(getattr(req, "account_ref", "") or ""),
             query=params.get("query"),
             capability="search",
-            engine=str(params.get("engine") or "google_light"),
+            engine=str(params.get("engine") or catalog_module.DEFAULT_ENGINE),
             country=params.get("country"),
             language=params.get("language"),
             limit=params.get("limit"),
@@ -809,7 +809,7 @@ class SerpApiAdapter:
         # one we can name" is a statement about where the caller aimed, and it
         # must not be dressed up as a malformed country code because a locale
         # happened to be missing too.
-        engine = params.get("engine", "google_light")
+        engine = params.get("engine", catalog_module.DEFAULT_ENGINE)
         catalog = self._engine_catalog()
         if self._auto_discover:
             if not catalog.engine_names():

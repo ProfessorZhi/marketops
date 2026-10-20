@@ -203,7 +203,8 @@ def _validate(provider: str, tool: str, arguments: dict) -> dict:
         params = arguments.get("params")
         if type(params) is not dict or not 1 <= len(params) <= 24:
             raise ValueError("SERPAPI_MCP_PARAMS_REQUIRED")
-        engine = params.get("engine", "google_light")
+        import serpapi_engine_catalog as _catalog
+        engine = params.get("engine", _catalog.DEFAULT_ENGINE)
         if not isinstance(engine, str) or not _ENGINE.fullmatch(engine):
             raise ValueError("SERPAPI_MCP_ENGINE_INVALID")
         # Official MCP is a *multi-engine* interface. Google Flights and

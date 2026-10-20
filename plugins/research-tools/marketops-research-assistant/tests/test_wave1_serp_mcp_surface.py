@@ -220,6 +220,25 @@ class HostileSurfaceTests(unittest.TestCase):
             self._discover(session, resources=("serpapi://engines/google_light",))
         self.assertEqual([], session.read_uris)
 
+    def test_a_vendor_named_template_variable_is_the_same_route(self):
+        """The live server spells the variable; the route is what was agreed.
+
+        SerpApi's official MCP advertises ``serpapi://engines/{engine_name}``,
+        while this repository names the same route ``.../{engine}``. Comparing
+        the two spellings literally refused every engine-schema read, so a real
+        search could never reach dispatch.
+        """
+        session = SyntheticMcpSession(resources=[
+            {"uri": catalog_module.INDEX_URI, "name": "index"},
+            {"uriTemplate": "serpapi://engines/{engine_name}", "name": "engine"},
+        ])
+        report = self._discover(session, resources=(
+            catalog_module.INDEX_URI, "serpapi://engines/google_light"))
+        self.assertEqual([catalog_module.INDEX_URI,
+                          "serpapi://engines/google_light"], session.read_uris)
+        self.assertEqual([catalog_module.INDEX_URI,
+                          "serpapi://engines/google_light"], report["resources_read"])
+
     def test_an_oversize_body_closes_without_parsing(self):
         session = SyntheticMcpSession(bodies={
             catalog_module.INDEX_URI: "x" * (catalog_module.DISCOVERY_MAX_BYTES + 1)})

@@ -23,4 +23,12 @@ Save the acquired DOM (`rendered_html`) **separately** from provider-extracted M
 
 For each material factual claim, persist `claims=[{"field":"identity","artifact_id":"art-...","quote":"literal source excerpt identifying the subject"}]` in that candidate's `facts`, with that ID also in `artifact_ids`. For relationships use `field=relationship`, for hard EXCLUDED use `field=exclusion`. Extra Scene-specific required keys come only from `ResearchBrief.evidence_requirements`. The generic auditor checks membership and literal excerpt, **not semantic truth**; weak co-occurrence / unknown source age remains HOLD. A generic email is not a named role merely because both strings appear in one page.
 
+Quotes must be 12–600 characters; at most 12 claims belong to one record. Use
+the same Run's exact saved artifact ID in both `claims[*].artifact_id` and
+`artifact_ids`. Find missing IDs with `marketops_status(kind="artifact")` and
+read at most 3 IDs / 3 queries per excerpt call. Once a quote supports the
+current target, write its candidate now. The
+[complete department-route batch](../../references/WORKFLOW_CONTRACT.md#write-one-target-before-researching-the-next-batch)
+is the field reference; no implementation-file reading is needed.
+
 Use `marketops_evidence_audit` before handoff. `EMAIL_NOT_IN_PRIMARY_MATERIAL` or `DERIVED_EXCERPT_ONLY` cannot be promoted by a derived Markdown string. Unknown original page or missing witness must be reported as unresolved; never replace a suspect email by guessing a spelling.

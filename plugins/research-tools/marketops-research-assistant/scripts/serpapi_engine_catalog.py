@@ -47,6 +47,15 @@ except ImportError:
 
 INDEX_URI = "serpapi://engines"
 SCHEMA_URI_TEMPLATE = "serpapi://engines/{engine}"
+#: The engine a search uses when the caller names none.
+#:
+#: ``google_light`` answers with Google redirect links
+#: (``https://www.google.com/url?q=<opaque protobuf>``), which carry no
+#: readable destination: a crawler cannot follow one and the allowlist refuses
+#: google.com, so every result of that engine is undiscoverable material. The
+#: reviewed ``google`` engine answers with the same fields and a plain ``link``,
+#: which is what the rest of the pipeline needs in order to fetch a page.
+DEFAULT_ENGINE = "google"
 CACHE_SCHEMA = "marketops.serpapi.engine-cache.v1"
 DEFAULT_ENDPOINT = "https://mcp.serpapi.com/mcp"
 
@@ -303,9 +312,12 @@ def _advertisement_form(uri: str) -> str:
     """How an advertised resource names this URI.
 
     The index is advertised as a literal ``uri``; a per-engine schema is
-    advertised as a ``uriTemplate`` (``serpapi://engines/{engine}``). A caller
-    that reads a concrete engine URI is checked against the template it belongs
-    to, because that is what the server actually listed.
+    advertised as a ``uriTemplate`` (``serpapi://engines/{engine}`` here, and
+    ``serpapi://engines/{engine_name}`` on the live vendor server). A caller that
+    reads a concrete engine URI is checked against the template it belongs to,
+    because that is what the server actually listed; the variable's spelling is
+    the server's, and :func:`_require_advertised` compares shapes for that
+    reason.
     """
     return INDEX_URI if uri == INDEX_URI else SCHEMA_URI_TEMPLATE
 
@@ -730,9 +742,32 @@ async def advertised_uris(session) -> tuple[str, ...]:
     return tuple(uris)
 
 
+#: One RFC 6570-style variable inside a URI template. SerpApi names its own
+#: variables (the live server advertises ``serpapi://engines/{engine_name}``
+#: where this module spells the same route ``.../{engine}``), so the spelling is
+#: compared only as a shape.
+_TEMPLATE_PLACEHOLDER = re.compile(r"\{[^{}]*\}")
+
+
+def _template_shape(uri: str) -> str:
+    """The URI with every ``{placeholder}`` reduced to ``{}``.
+
+    The route is the contract; the variable's name is the server's to choose. Two
+    templates name one resource when their shapes are equal, and a literal URI
+    never contains ``{}``, so a literal is only ever matched exactly.
+    """
+    if not isinstance(uri, str):
+        return ""
+    return _TEMPLATE_PLACEHOLDER.sub("{}", uri)
+
+
 def _require_advertised(advertised: tuple[str, ...], wanted: str) -> None:
-    if wanted not in advertised:
-        raise ValueError("SERPAPI_RESOURCE_NOT_ADVERTISED")
+    if wanted in advertised:
+        return
+    shape = _template_shape(wanted)
+    if "{}" in shape and any(_template_shape(uri) == shape for uri in advertised):
+        return
+    raise ValueError("SERPAPI_RESOURCE_NOT_ADVERTISED")
 
 
 async def discover_index(session, *, catalog: EngineCatalog) -> dict:

@@ -141,7 +141,10 @@ def audit_records(records: list[dict], artifacts: dict[str, dict],
                     codes.add("EMAIL_INVALID")
                 elif not any(
                     a in artifacts and artifacts[a].get("kind") in {"rendered_html", "raw_response", "provider_html"}
-                    and re.search(r"(?<![\w.+-])" + re.escape(value) + r"(?![\w.+-])",
+                    # A sentence-ending dot is punctuation; a dot followed by
+                    # another address/domain character is a continuation.
+                    # Compare the original bytes/text without trimming either.
+                    and re.search(r"(?<![\w.+-])" + re.escape(value) + r"(?![\w+-]|\.[\w+-])",
                                   html.unescape(re.sub(
                                       r"(?is)<(?:script|style)[^>]*>.*?</(?:script|style)>",
                                       " ", artifacts[a].get("text", ""))), re.I)

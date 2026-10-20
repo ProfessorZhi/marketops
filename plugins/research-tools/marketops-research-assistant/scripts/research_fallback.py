@@ -153,7 +153,9 @@ def _params(capability, request):
     if capability == "serper.search":
         return {k: request[k] for k in ("query", "country", "language", "limit")} | {"mode": "web"}
     if capability == "serpapi.search":
-        return {k: request[k] for k in ("query", "country", "language", "limit")} | {"engine": "google_light"}
+        import serpapi_engine_catalog as _catalog
+        return {k: request[k] for k in ("query", "country", "language", "limit")} | {
+            "engine": _catalog.DEFAULT_ENGINE}
     if capability == "tinyfish.search":
         return {"query": request["query"], "location": request["country"], "language": request["language"]}
     if capability == "crawl4ai.fetch_page":
