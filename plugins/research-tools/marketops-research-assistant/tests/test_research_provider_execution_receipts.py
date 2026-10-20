@@ -53,13 +53,30 @@ class _BoundEgress:
                 "extra_args": ["--disable-quic"]}
 
 
-def _stub_resolution():
+_REAL_RESOLVE_CHECKED = None
+
+
+def setup_module(module):
+    """Stub name resolution for *this module only*.
+
+    The previous form assigned at import time, which permanently replaced the
+    real resolver for the whole pytest process: every later module that
+    exercises the guard saw a lambda answering a public address, so a missing
+    guard and a working one became indistinguishable. Stub on entry, restore on
+    exit, and leave the process as it was found.
+    """
+    global _REAL_RESOLVE_CHECKED
     import research_target_guard as _guard
 
+    _REAL_RESOLVE_CHECKED = _guard.resolve_checked
     _guard.resolve_checked = lambda hostname, port=443: ("203.0.113.10",)
 
 
-_stub_resolution()
+def teardown_module(module):
+    import research_target_guard as _guard
+
+    if _REAL_RESOLVE_CHECKED is not None:
+        _guard.resolve_checked = _REAL_RESOLVE_CHECKED
 
 
 class RouteReceiptTests(unittest.TestCase):
