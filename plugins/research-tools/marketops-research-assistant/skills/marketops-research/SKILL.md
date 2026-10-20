@@ -32,6 +32,7 @@ deliver an evidence-backed workbook. Effect first, cost second.
   budget cap. Do not ask for anything the user already said.
 - `marketops_start(run_id, scope, objective, rule_version, brief={record_type:'research_brief',
   target_kind:'venue'|'organization', goal:'pool'|'contacts', require_named_person:false,
+  roles_wanted:[<the roles the user named>],
   minimum_targets:<the user's number or null>, evidence_requirements:{organization:['identity']}})`.
   Details: `marketops-discovery`.
 

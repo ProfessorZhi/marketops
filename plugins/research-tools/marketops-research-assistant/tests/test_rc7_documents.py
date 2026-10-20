@@ -63,6 +63,46 @@ class VerifierSeesWhatTheGateSawTests(unittest.TestCase):
         self.assertEqual(1, snippet.count("fix@billericaycc.example"))
 
 
+class AllFiveTakePartTests(unittest.TestCase):
+    """Austin run: one-at-a-time harvests skipped Jev; searches never reached TinyFish."""
+
+    def test_a_single_site_harvest_tags_emails_with_jev(self):
+        import tempfile
+        import research_lite_store as store
+        import research_site_harvest as harvest
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store.start_run(root, "r", "spaces", "objective", "v1")
+
+            def fetch(url, op):
+                store.save_artifact(root, "r", "a-" + op, "crawl4ai", url,
+                                    b"<p>Hive Works Austin. Community Manager: kim@hive.example</p>",
+                                    "rendered_html")
+                return {"status": "SUCCESS_CANDIDATE", "artifact_ids": ["a-" + op]}
+            result = harvest.harvest(root, run_id="r", operation_id="h", organization_name="Hive Works",
+                                     organization_key="org-hive", url="https://hive.example/",
+                                     fetch=fetch, max_pages=1,
+                                     grade=lambda route: {"role": "wanted_role_person", "confidence": 0.9})
+        self.assertEqual("wanted_role_person", result["routes"][0]["role"])
+
+    def test_discovery_search_merges_serper_and_tinyfish(self):
+        from unittest import mock
+        import research_mcp as mcp
+
+        def fake(provider, *args, **kwargs):
+            if provider == "all":
+                return real(provider, *args, **kwargs)
+            urls = {"serper": ["https://a.example/", "https://b.example/"],
+                    "tinyfish": ["https://b.example/", "https://c.example/"]}[provider]
+            return {"organic": [{"url": u, "title": u} for u in urls]}
+        real = mcp.search
+        with mock.patch.object(mcp, "search", side_effect=fake):
+            out = mcp.search("all", "coworking Austin", "us", "en", "r", "s1")
+        self.assertEqual(["https://a.example/", "https://b.example/", "https://c.example/"],
+                         [r["url"] for r in out["results"]])
+        self.assertEqual("tinyfish", out["results"][2]["found_by"])
+
+
 class PublishedNameTests(unittest.TestCase):
     """The list says "Essex County Cricket Club"; the club's own site says "Essex Cricket"."""
 

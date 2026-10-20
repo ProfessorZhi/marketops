@@ -724,6 +724,8 @@ def managed_call(capability_id, params, run_id, operation_id, account_ref="",
 
 
 def search(provider, query, country, language, run_id, operation_id, mode="web", limit=10):
+    if provider == "all":
+        return _search_all(query, country, language, run_id, operation_id, limit)
     if provider == "tinyfish":
         # A third, independent index: it surfaces sites the Google-based two miss.
         answer = managed_call("tinyfish.search", {"query": query, "location": country,
@@ -748,6 +750,54 @@ def search(provider, query, country, language, run_id, operation_id, mode="web",
             "invocation": provider_policy.invocation_receipt(
                 "serpapi_mcp_search" if provider == "serpapi" else provider,
                 reservation="ONE_ATTEMPT_RESERVED_NOT_BILL_VERIFIED")}
+
+
+def _search_all(query, country, language, run_id, operation_id, limit):
+    """Serper and TinyFish search on the same query at once; results merged by URL."""
+    from concurrent.futures import ThreadPoolExecutor
+    def one(provider):
+        try:
+            return provider, search(provider, query, country, language, run_id,
+                                    f"{operation_id}-{provider}", limit=limit)
+        except ValueError as exc:
+            return provider, {"error": str(exc).split(":", 1)[0]}
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        answers = dict(pool.map(one, ("serper", "tinyfish")))
+    merged, seen = [], set()
+    for provider, answer in answers.items():
+        for hit in _hits(answer):
+            url = hit.get("url") or hit.get("link")
+            if isinstance(url, str) and url not in seen:
+                seen.add(url)
+                merged.append({"title": hit.get("title"), "url": url,
+                               "snippet": hit.get("snippet") or hit.get("description"),
+                               "found_by": provider})
+    return {"status": "OK", "query": query, "results": merged,
+            "by_provider": {p: (len(_hits(a)) if "error" not in a else a["error"])
+                            for p, a in answers.items()},
+            "artifact_ids": [x for a in answers.values() for x in a.get("artifact_ids") or []]}
+
+
+def _hits(answer):
+    for key in ("organic", "results", "organic_results", "items"):
+        value = answer.get(key)
+        if isinstance(value, list):
+            return [h for h in value if isinstance(h, dict)]
+    return []
+
+
+def _brief_roles(run_id: str) -> str:
+    """The brief's roles_wanted, so Jev tags routes without the Agent repeating them."""
+    try:
+        records = store.list_run(root(), run_id, limit=50)["records"]
+    except (ValueError, KeyError):
+        return ""
+    for record in reversed(records):
+        data = record.get("data") or {}
+        if data.get("record_type") == "research_brief" and data.get("roles_wanted"):
+            roles = data["roles_wanted"]
+            return ", ".join(roles) if isinstance(roles, list) else str(roles)
+    return ""
 
 
 ROLE_OPTIONS = ["wanted_role_person", "wanted_role_team_inbox", "other_named_role",
@@ -1186,8 +1236,9 @@ def build_server():
     def marketops_search(provider: str, query: str, country: str, language: str,
                          run_id: str, operation_id: str, mode: str = "web",
                          limit: int = 10) -> dict:
-        """One search index per call: serper (Google web), serpapi (Google web via SerpApi)
-        or tinyfish (its own index). Union them for a complete list; no fact promotion."""
+        """provider='all' (default choice for discovery) runs Serper and TinyFish search on
+        the same query and merges results with found_by; or one of serper, serpapi,
+        tinyfish. Snippets are leads, not facts."""
         return search(provider, query, country, language, run_id, operation_id, mode, limit)
 
     @tool
@@ -1346,7 +1397,7 @@ def build_server():
     @tool
     def marketops_site_harvest(run_id: str, operation_id: str, organization_name: str,
                                organization_key: str, url: str, max_pages: int = 6,
-                               write: bool = True) -> dict:
+                               write: bool = True, roles_wanted: str = "") -> dict:
         """Harvest one organisation's OWN site into quoted, gate-checked candidates.
 
         Fetches url, then up to max_pages-1 same-host contact/people/hire pages
@@ -1354,6 +1405,8 @@ def build_server():
         every email/phone, stages organization + contact_point candidates and
         returns each record's delivery-gate decision. Each route carries its
         surrounding context: you assign role and grade. Never use on a directory.
+        Jev tags each email with who it reaches (roles from roles_wanted or the
+        brief's roles_wanted); read the page only for low-confidence tags.
         """
         import research_fallback
         import research_runtime_setup
@@ -1371,10 +1424,12 @@ def build_server():
         return research_site_harvest.harvest(
             data_root, run_id=run_id, operation_id=operation_id,
             organization_name=organization_name, organization_key=organization_key,
-            url=url, fetch=fetch, max_pages=max_pages, write=write)
+            url=url, fetch=fetch, max_pages=max_pages, write=write,
+            grade=_role_grader(run_id, roles_wanted))
 
     def _role_grader(run_id, roles_wanted):
-        if not roles_wanted.strip():
+        roles_wanted = roles_wanted.strip() or _brief_roles(run_id)
+        if not roles_wanted:
             return None
         import hashlib
 

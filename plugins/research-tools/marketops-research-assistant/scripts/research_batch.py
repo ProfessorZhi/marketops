@@ -95,17 +95,10 @@ def harvest_batch(data_root, *, pool_id: str, worker_id: str, run_id: str, fetch
             result = site_harvest.harvest(
                 data_root, run_id=run_id, operation_id=op, organization_name=target["name"],
                 organization_key=org_key, url=target["website"], fetch=fetch,
-                max_pages=max_pages, write=True, check_admission=False)
+                max_pages=max_pages, write=True, check_admission=False, grade=grade)
         except ValueError as exc:
             return {"target": target, "outcome": "hold", "org_key": org_key, "record_ids": [],
                     "routes": [], "reason": str(exc).split(":", 1)[0]}
-        if grade is not None:
-            for route in result["routes"]:
-                if route["type"] == "email":
-                    try:
-                        route.update(grade(route))
-                    except ValueError as exc:
-                        route["role"] = "ungraded:" + str(exc).split(":", 1)[0]
         reason = "" if result["routes"] and result.get("identity") else (
             result.get("next_action", "NO_RESULT").split(":", 1)[0])
         return {"target": target, "outcome": "done" if not reason else "hold",

@@ -21,7 +21,8 @@ For each organisation, work autonomously until it has a result:
 2. Call `marketops_site_harvest(run_id, operation_id, organization_name, organization_key, url,
    max_pages=6)`. Use the name exactly as the site publishes it; if it returns
    `NAME_NOT_FOUND_ON_SITE`, read the returned routes' context for the published name and retry once.
-3. Read every returned route's `context`. Decide the role and grade per the Brief or acceptance
+3. Each email comes back with a Jev `role` tag and `confidence` (roles from the Brief). Trust tags
+   at 0.85 or above; read the `context` for the rest. Decide the role and grade per the Brief or acceptance
    profile. Generic inboxes (info@, office@) and switchboards are recorded separately, never as
    the key contact.
 4. If no decision-maker or operations role was found, run one Serper role search

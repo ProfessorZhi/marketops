@@ -13,6 +13,8 @@ Save it with `marketops_start(..., brief=...)`. Fields:
   companies, clubs, councils). `goal`: `pool` (list and qualify targets) or `contacts` (key routes
   per organisation; requires `target_kind:'organization'`).
 - `require_named_person`: true only if the user asked for named people.
+- `roles_wanted`: the roles the user wants, as a list (e.g. `["operations manager", "community
+  manager"]`). Every harvest then has Jev tag each email with who it reaches.
 - `minimum_targets`: the user's explicit number, else `null`. Do not invent a quota.
 - `evidence_requirements`: kind → field names each target must have quoted, e.g.
   `{venue:['identity','hourly_rate'], organization:['identity']}`. Narrative goes in `objective`.
@@ -25,8 +27,8 @@ Save it with `marketops_start(..., brief=...)`. Fields:
 
 Prefer one complete source over many guesses. In order:
 
-1. **Bulk sources**: Serper (`marketops_search(provider='serper', ...)`) and TinyFish search
-   (`provider='tinyfish'`, a different index - run the same queries on both) for directories,
+1. **Bulk sources**: `marketops_search(provider='all', ...)` runs Serper and TinyFish search (two
+   different indexes) on the same query and merges them (`found_by` per result) - for directories,
    association member lists, council/strategy PDFs, charity registers. A country and use case
    usually has an authority site that lists everything.
 2. **Map listing**: SerpApi `marketops_serpapi_mcp_search(params={engine:'google_maps', q:'<type> in <area>'})`

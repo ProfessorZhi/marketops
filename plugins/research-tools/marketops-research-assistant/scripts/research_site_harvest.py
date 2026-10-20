@@ -291,7 +291,7 @@ def _evidence_artifact(receipt: dict) -> str:
 
 def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str,
             organization_key: str, url: str, fetch, max_pages: int = 6,
-            write: bool = True, check_admission: bool = True) -> dict:
+            write: bool = True, check_admission: bool = True, grade=None) -> dict:
     """Fetch, extract and (optionally) stage one organisation's own-site routes.
 
     ``fetch(url, operation_id)`` is the managed known-public-URL step; it must
@@ -350,6 +350,14 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
             if key not in routes:
                 routes[key] = {**route, "artifact_id": artifact_id, "url": page_url}
 
+    if grade is not None:
+        # Jev tags who each email reaches; a ranking aid, never evidence.
+        for route in routes.values():
+            if route["type"] == "email":
+                try:
+                    route.update(grade(route))
+                except ValueError as exc:
+                    route["role"] = "ungraded:" + str(exc).split(":", 1)[0]
     result = {"run_id": run_id, "operation_id": operation_id, "organization_key": organization_key,
               "pages": pages, "identity": identity, "routes": list(routes.values()),
               "obfuscated_emails_not_decoded": obfuscated,
