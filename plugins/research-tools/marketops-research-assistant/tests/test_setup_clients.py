@@ -122,7 +122,7 @@ class LocalInstallTests(unittest.TestCase):
             source = Path(result["plugin_copy"])
             self.assertTrue((source / "skills" / "marketops-setup" / "SKILL.md").exists())
             manifest = json.loads((source / "plugin.json").read_text(encoding="utf-8"))
-            self.assertEqual("0.5.5", manifest["version"])
+            self.assertEqual("0.5.6-rc1", manifest["version"])
             for filename in ("mcp.json", ".mcp.json"):
                 config = json.loads((source / filename).read_text(encoding="utf-8"))
                 server = next(iter((config.get("mcpServers") or config.get("mcp_servers")).values()))

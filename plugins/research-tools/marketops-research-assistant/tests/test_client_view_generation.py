@@ -201,9 +201,9 @@ class ClientViewGeneration(unittest.TestCase):
                 self.assertFalse(destination.exists())
 
     def test_private_key_material_is_refused(self):
-        sheets = [organization_sheet(
-                      ["-----BEGIN RSA PRIVATE KEY-----\nMIIBsynthetic"]),
-                  evidence_sheet(1)]
+        # Synthetic, deliberately invalid PEM header; it is not a usable key.
+        key_header = "-----BEGIN RSA PRIVATE KEY-----\nMIIBsynthetic"  # gitleaks:allow
+        sheets = [organization_sheet([key_header]), evidence_sheet(1)]
         with self.assertRaises(view.ClientViewError) as ctx:
             view.write_client_view(self.base / "client-view-key", sheets,
                                    label="synthetic-client", generated_at=STAMP)

@@ -71,6 +71,7 @@ never repo-wide or rule-wide.
 |---|---|---|
 | `plugins/research-tools/marketops-research-assistant/tests/test_research_experience_summary.py:213` | generic-api-key | explicit synthetic test fixture; inline `# gitleaks:allow` |
 | `plugins/research-tools/marketops-research-assistant/tests/test_research_lite_integration.py:132` | generic-api-key | explicit synthetic test fixture; inline `# gitleaks:allow` |
+| `plugins/research-tools/marketops-research-assistant/tests/test_client_view_generation.py:205` | private-key | explicit synthetic, deliberately invalid PEM header (`MIIBsynthetic`); used only to prove `PRIVATE_KEY_MATERIAL` refusal; inline `# gitleaks:allow` + path/match allowlist |
 | `tests/test_application_workstream.py:88` | generic-api-key | public main baseline false positive; fixture/deterministic id, unchanged content |
 | `tests/test_domain_workstream.py:51` | generic-api-key | public main baseline false positive; fixture/deterministic id, unchanged content |
 | `tests/test_mcp_product_loop.py:1175` | generic-api-key | public main baseline false positive; fixture/deterministic id, unchanged content |

@@ -1,4 +1,6 @@
-# MarketOps Research Assistant 0.5
+# MarketOps Research Assistant 0.5.6-rc1
+
+**Release candidate — 不是 0.5.5，也不是正式发行版。** 本包只用于 RC 验收；不得覆盖或重命名既有的 0.5.5 ZIP，不得据此宣布正式发布。正式发布前仍需完成真实供应商费用与客户授权验收。
 
 把市场研究方法、五个项目的使用经验、集中证据与交付放在同一个插件中。人确定目标和有限额度，Agent 连续研究、保存证据、交付结果，再将方法和反馈用于后续任务。
 
