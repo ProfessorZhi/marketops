@@ -6,9 +6,12 @@
 
 - 2026-10-20 13:08:52：Lane B 提交 `76991cb7`（client-view，3 文件 / +1007）。
 - 2026-10-20 13:09:35：Lane E 提交 `da300501`（Jev locator，2 文件 / +461/-18）。
-- 两者工作树均已干净；已按精确 SHA cherry-pick 为 RC `b0749936` / `38c717df`。
-- 定向测试：B `Ran 11 tests OK`；E `Ran 19 tests OK`。
-- 截至 13:1x，A/C/D/Q 仍停在基线 `4f87bc33`，改动只在工作树内（未提交）。
+- 2026-10-20 13:13:07：Lane C 提交 `ed4836ba`（installer opt-in，6 文件 / +844/-63）。
+- 三者工作树均已干净；已按精确 SHA cherry-pick 为 RC
+  `b0749936` / `38c717df` / `533d706e`。
+- 定向测试：B `Ran 11 tests OK`；E `Ran 19 tests OK`；C `Ran 21 tests OK`。
+- 截至 13:14，A/D/Q 仍未提交；A 与 Q 在 13:13:35–13:13:40 仍有文件写入，
+  说明 Agent 仍在工作。
 - 结论：不复制工作树内容、不猜测 SHA。A/C/D 提交前，集成脚本对它们是
   `INTEGRATION_PENDING`；已交付的 B/E 不阻塞后续追加。
 

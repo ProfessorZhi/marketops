@@ -14,7 +14,7 @@
 | R2 | 真正自动生成客户视图 | A+B | G6：`build_delivery` → 四张业务表 → `write_client_view` → `verify_client_view` | PENDING |
 | R3 | P0 伪造数据绝不进入业务表 | A+Q | A 的 admission 测试 + Q 的边界测试 + G6 负例 | PENDING |
 | R4 | 合格样本能进入，而不是被门禁一刀切 | A+I | A 的正例测试 + G6 正例（4/4 admitted） | PENDING |
-| R5 | 安装明确 opt-in | C | G3：无 `--apply` 不落盘；非交互无 destination 被拒；全局 Codex 注册默认 no | PENDING |
+| R5 | 安装明确 opt-in | C | G3：无 `--apply` 不落盘；非交互无 destination 被拒；全局 Codex 注册默认 no | PASS（`ed4836ba`；Ran 21 tests OK） |
 | R6 | SerpApi 不重复 reserve | D | G4：REST 与 embedded 同 signature；同一 operation 只一条 reserve | PENDING |
 | R7 | Jev evidence locator | E | G5：locator 2–60、未命中 `JEV_EVIDENCE_LOCATOR_NO_MATCH`、box 拒绝 | PASS（`da300501`；Ran 19 tests OK） |
 | R8 | 所有相关定向测试 | 全部 | G1–G6 | PARTIAL（B 11 OK / E 19 OK；A/C/D 未提交） |
