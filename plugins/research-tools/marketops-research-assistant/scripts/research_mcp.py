@@ -345,7 +345,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         configured_root = None
     if configured_root is not None and runtime_setup.config(configured_root):
         from research_runtime_status import view
-        return {"product": "MarketOps Research MCP", "version": "0.5.4-candidate",
+        return {"product": "MarketOps Research MCP", "version": "0.5.5-candidate",
                 **view(configured_root, task_kind=task_kind),
                 "external_host": _external_inventory(host_observed_tools),
                 "embedded_official_mcp": provider_policy.embedded_official_mcp_capabilities(),
@@ -420,7 +420,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         if task_kind else None)
     return {
         "product": "MarketOps Lite Research MCP",
-        "version": "0.5.4-candidate",
+        "version": "0.5.5-candidate",
         "providers": {
             "serpapi": {"transport": "REST through local MCP", **search["serpapi"]},
             "serper": {"transport": "REST through local MCP", **search["serper"]},
@@ -480,7 +480,9 @@ def _valid_brief(run_id: str, brief: dict) -> None:
     result = workflow.assess_records(run_id, [synthetic])
     if result["status"] in {"BRIEF_REQUIRED", "BRIEF_CONFLICT", "BRIEF_INVALID",
                             "BRIEF_UNIT_REVIEW_REQUIRED"}:
-        raise ValueError("RESEARCH_BRIEF_INVALID: " + result["status"])
+        problems = result.get("problems") or ()
+        raise ValueError("RESEARCH_BRIEF_INVALID: " + result["status"]
+                         + (" (fix: " + "; ".join(problems) + ")" if problems else ""))
     if evidence.audit_records([synthetic], {}, result_limit=0)["invalid_brief_evidence_requirements"]:
         raise ValueError("RESEARCH_BRIEF_EVIDENCE_REQUIREMENTS_INVALID: expected kind -> field-name array, "
                          "for example {organization: [identity], venue: [identity, surface_type]}; "
@@ -784,7 +786,7 @@ def handoff(run_id, operation_id):
     try:
         experience_result = draft_experience(
             r, run_id=run_id, scope=head["scope"],
-            rule_version=head["rule_version"], skill_version="0.5.4",
+            rule_version=head["rule_version"], skill_version="0.5.5",
             output=experience_path)
         result["experience_candidate"] = str(experience_path)
         result["experience_incidents"] = experience_result["incidents"]
@@ -903,7 +905,7 @@ def build_server():
     from research_credentials import load_into_environment
     load_into_environment()
     from mcp.server import MCPServer
-    mcp = MCPServer("MarketOps Lite Research", version="0.5.4")
+    mcp = MCPServer("MarketOps Lite Research", version="0.5.5")
 
     def tool(fn):
         return mcp.tool()(_guarded(fn))
@@ -1207,7 +1209,7 @@ def build_server():
             raise ValueError("EXPERIENCE_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT")
         output.parent.mkdir(parents=True, exist_ok=True)
         return draft_experience(r, run_id=run_id, scope=scope,
-                                rule_version=rule_version, skill_version="0.5.4",
+                                rule_version=rule_version, skill_version="0.5.5",
                                 output=output)
 
     @tool

@@ -183,11 +183,22 @@ def excerpts(root: Path | str, run_id: str, artifact_ids: list[str],
     if (not isinstance(artifact_ids, list) or not 1 <= len(artifact_ids) <= 3
             or any(not isinstance(a, str) for a in artifact_ids)
             or len(artifact_ids) != len(set(artifact_ids))):
-        raise ValueError("EXCERPT_ARTIFACT_LIMIT")
+        # The caller is an Agent: the code alone leaves it guessing, and a second
+        # guess costs a turn. Say which rule, how many arrived, what is allowed.
+        raise ValueError("EXCERPT_ARTIFACT_LIMIT: pass 1-3 distinct artifact IDs; got "
+                         + str(len(artifact_ids) if isinstance(artifact_ids, list) else 1))
     queries = queries or []
-    if (not isinstance(queries, list) or len(queries) > 3
-            or any(not isinstance(q, str) or not 2 <= len(q) <= 60 for q in queries)):
-        raise ValueError("EXCERPT_QUERY_LIMIT")
+    if not isinstance(queries, list):
+        raise ValueError("EXCERPT_QUERY_LIMIT: queries must be a list of at most 3 strings")
+    if len(queries) > 3:
+        raise ValueError("EXCERPT_QUERY_LIMIT: at most 3 queries per call; got "
+                         + str(len(queries)) + " (split into several calls)")
+    for index, query in enumerate(queries, start=1):
+        if not isinstance(query, str) or not 2 <= len(query) <= 60:
+            raise ValueError(
+                "EXCERPT_QUERY_TERM_LENGTH: query " + str(index) + " is "
+                + str(len(query) if isinstance(query, str) else type(query).__name__)
+                + "; each query must be 2-60 characters")
     base = _root(root)
     outputs, remaining = [], 1200
     with closing(store._connection(base)) as db:

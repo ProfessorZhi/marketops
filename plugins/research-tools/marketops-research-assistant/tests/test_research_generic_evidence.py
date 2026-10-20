@@ -246,6 +246,62 @@ class BatchAndExcerptTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "HASH_MISMATCH"):
             evidence.excerpts(self.root, "run-1", ["art-1"])
 
+    def test_a_record_with_material_but_no_quote_says_so_at_write_time(self):
+        # Delivery reported "span not recorded" only after the run ended, which is
+        # when the Agent can no longer fix it. The write says it instead.
+        result = store.put_candidate(self.root, "run-1", "venue-1", "entities", "venue",
+                                     "venue-1", {"name": "Acme Facility"}, ["art-1"])
+        self.assertIn("SPAN_NOT_RECORDED", " ".join(result.get("caveats") or ()))
+
+    def test_a_linked_quote_carries_no_caveat(self):
+        result = store.put_candidate(
+            self.root, "run-1", "venue-2", "entities", "venue", "venue-2",
+            {"name": "Acme Facility",
+             "claims": [{"field": "identity", "artifact_id": "art-1",
+                         "quote": "Acme Facility holds certification"}]},
+            ["art-1"])
+        self.assertNotIn("caveats", result)
+
+    def test_a_claim_the_linker_drops_is_reported_rather_than_silent(self):
+        # link_candidate_claims skips a quote shorter than 12 characters without a
+        # word; the record then arrives at delivery with no span at all.
+        result = store.put_candidate(
+            self.root, "run-1", "venue-3", "entities", "venue", "venue-3",
+            {"name": "Acme Facility",
+             "claims": [{"field": "identity", "artifact_id": "art-1", "quote": "short"}]},
+            ["art-1"])
+        self.assertIn("none linked", " ".join(result.get("caveats") or ()))
+
+    def test_a_batch_names_every_spanless_record(self):
+        report = store.put_candidates_batch(self.root, "run-1",
+                                            [self.item("a"), self.item("b")])
+        self.assertEqual(2, len(report.get("caveats") or ()))
+
+    def test_excerpt_refuses_four_queries_by_naming_the_limit(self):
+        with self.assertRaisesRegex(ValueError, "EXCERPT_QUERY_LIMIT: at most 3"):
+            evidence.excerpts(self.root, "run-1", ["art-1"],
+                              ["certification", "facility", "acme", "q-123"])
+
+    def test_excerpt_names_the_query_that_is_out_of_range(self):
+        with self.assertRaisesRegex(ValueError, "EXCERPT_QUERY_TERM_LENGTH: query 2"):
+            evidence.excerpts(self.root, "run-1", ["art-1"], ["certification", "x"])
+
+    def test_an_unknown_note_stage_names_the_allowed_stages(self):
+        from research_event_journal import append_note
+        with self.assertRaisesRegex(ValueError, "NOTE_STAGE_INVALID") as caught:
+            append_note(self.root, run_id="run-1", note_id="note-2", stage="nowhere",
+                        category="evidence_missing", problem="p", action_taken="a",
+                        observed_result="o", evidence_ref="art-1")
+        self.assertIn("intake", str(caught.exception))
+
+    def test_an_invalid_brief_names_the_rule_it_broke(self):
+        brief = candidate("brief", "observation", {
+            "record_type": "research_brief", "target_kind": "venue",
+            "goal": "contacts", "require_named_person": True})
+        result = workflow.assess_records("run-1", [brief])
+        self.assertEqual("BRIEF_INVALID", result["status"])
+        self.assertIn("target_kind=organization", " ".join(result["problems"]))
+
     def test_explicit_count_unit_is_required(self):
         def assess(unit):
             b = candidate("brief", "observation", {

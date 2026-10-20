@@ -273,9 +273,11 @@ def append_note(data_root: str | Path | None, *, run_id: str, note_id: str, stag
     run_id = _identifier(run_id, "run_id")
     note_id = _identifier(note_id, "note_id")
     if stage not in STAGES:
-        raise ValueError("Unsupported note stage")
+        raise ValueError("NOTE_STAGE_INVALID: " + str(stage)[:40] + " is not a stage; allowed: "
+                         + ", ".join(sorted(STAGES)))
     if category not in NOTE_CATEGORIES:
-        raise ValueError("Unsupported note category")
+        raise ValueError("NOTE_CATEGORY_INVALID: " + str(category)[:40]
+                         + " is not a category; allowed: " + ", ".join(NOTE_CATEGORIES))
     evidence_ref = _identifier(evidence_ref, "evidence_ref")
     fields = {
         "run_id": run_id, "note_id": note_id, "stage": stage, "category": category,

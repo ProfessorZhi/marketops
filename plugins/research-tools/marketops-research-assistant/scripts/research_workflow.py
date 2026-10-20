@@ -160,17 +160,29 @@ def assess_records(run_id: str, records: list[dict], *, limit: int = 25) -> dict
     # A quantity cannot silently migrate from "venues to investigate" to
     # "organizations with named email routes". Aspirational quantities are not
     # hard minimums; old briefs must explicitly confirm their unit.
-    if (not isinstance(kind, str) or kind not in {"venue", "organization"}
-            or not isinstance(goal, str) or goal not in {"pool", "contacts"}
-            or (minimum is not None and (type(minimum) is not int or not 1 <= minimum <= MAX_ROWS))
-            or type(named) is not bool
-            or (goal == "contacts" and kind != "organization")
-            or (named and goal != "contacts")
-            or (minimum_unit is not None and minimum_unit != kind)):
+    # Name the broken rule. "BRIEF_INVALID" on its own told the Agent nothing about
+    # which of ten conditions it had missed, so the retry was a guess.
+    problems = []
+    if not isinstance(kind, str) or kind not in {"venue", "organization"}:
+        problems.append("target_kind must be venue or organization")
+    if not isinstance(goal, str) or goal not in {"pool", "contacts"}:
+        problems.append("goal must be pool or contacts")
+    if minimum is not None and (type(minimum) is not int or not 1 <= minimum <= MAX_ROWS):
+        problems.append("minimum_targets must be an integer 1-" + str(MAX_ROWS))
+    if type(named) is not bool:
+        problems.append("require_named_person must be true or false")
+    if goal == "contacts" and kind != "organization":
+        problems.append("goal=contacts requires target_kind=organization")
+    if named and goal != "contacts":
+        problems.append("require_named_person=true requires goal=contacts")
+    if minimum_unit is not None and minimum_unit != kind:
+        problems.append("minimum_targets_unit must equal target_kind")
+    if problems:
         return {**base, "status": "BRIEF_INVALID", "stage": "intake",
                 "recommended_skill": SKILLS["intake"], "targets": [], "target_ids": [],
                 "gap_counts": {"BRIEF_INVALID": 1}, "goal_satisfied": False,
-                "blocked_target_count": 0, "completion_rule": "correct_the_structured_brief"}
+                "blocked_target_count": 0, "problems": problems,
+                "completion_rule": "correct_the_structured_brief"}
 
     if minimum is not None and minimum_unit is None:
         # Legacy Runs may have misinterpreted a venue exploration target as a

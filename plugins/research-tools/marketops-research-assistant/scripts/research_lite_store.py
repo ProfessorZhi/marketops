@@ -298,6 +298,31 @@ def _insert_candidate(db: sqlite3.Connection, run_id: str, record_id: str,
     return {"record_id": record_id, "status": status, "artifact_ids": ids}
 
 
+def _span_caveat(kind: str, payload: dict, artifact_ids, linked) -> str:
+    """Say it at write time: material without a linked quote never reaches delivery.
+
+    The delivery gate reports a "spanless" record only after the run has ended,
+    which is exactly when the Agent can no longer fix it. Staging such a record
+    stays legal — it simply does not reach the business tables — so this is a
+    caveat, never a refusal.
+    """
+    if not artifact_ids or linked:
+        return ""
+    if kind not in {"venue", "organization", "relationship", "person", "role",
+                    "contact_point", "contact_route"}:
+        return ""
+    claims = (payload or {}).get("claims")
+    if not claims:
+        return ("SPAN_NOT_RECORDED: no facts.claims, so no quote is linked to "
+                + ", ".join(str(a) for a in artifact_ids[:3])
+                + "; add facts.claims=[{field, artifact_id, quote}] with a 12-600 character "
+                  "quote taken from that artifact, or this record stays out of the "
+                  "business tables")
+    return ("SPAN_NOT_RECORDED: " + str(len(claims)) + " claim(s) supplied but none linked; "
+            "each claim needs artifact_id from artifact_ids, a field matching "
+            "^[a-z][a-z0-9_]{0,39}$ and a 12-600 character quote found in that artifact")
+
+
 def put_candidate(root: Path | str | None, run_id: str, record_id: str, stage: str,
                   kind: str, entity_key: str, payload: dict,
                   artifact_ids: list[str] | None = None) -> dict:
@@ -308,9 +333,10 @@ def put_candidate(root: Path | str | None, run_id: str, record_id: str, stage: s
         result = _insert_candidate(db, run_id, record_id, stage, kind, entity_key,
                                    payload, artifact_ids)
         from research_evidence_store import link_candidate_claims
-        link_candidate_claims(store_root, db, run_id, record_id, payload, artifact_ids)
+        linked = link_candidate_claims(store_root, db, run_id, record_id, payload, artifact_ids)
         db.commit()
-    return result
+    caveat = _span_caveat(kind, payload, artifact_ids, linked)
+    return {**result, "caveats": [caveat]} if caveat else result
 
 
 def put_candidates_batch(root: Path | str | None, run_id: str,
@@ -328,7 +354,7 @@ def put_candidates_batch(root: Path | str | None, run_id: str,
     if len(json.dumps(items, ensure_ascii=False).encode("utf-8")) > 65_536:
         raise ValueError("BATCH_PAYLOAD_TOO_LARGE")
     store_root = _root(root)
-    results = []
+    results, caveats = [], []
     with closing(_connection(store_root)) as db:
         db.execute("BEGIN IMMEDIATE")
         if db.execute("SELECT 1 FROM runs WHERE run_id=?", (run_id,)).fetchone() is None:
@@ -343,14 +369,20 @@ def put_candidates_batch(root: Path | str | None, run_id: str,
                 db, run_id, item["record_id"], item["stage"], item["kind"],
                 item["entity_key"], item["facts"], item.get("artifact_ids")))
             from research_evidence_store import link_candidate_claims
-            link_candidate_claims(store_root, db, run_id, item["record_id"],
-                                  item["facts"], item.get("artifact_ids"))
+            linked = link_candidate_claims(store_root, db, run_id, item["record_id"],
+                                           item["facts"], item.get("artifact_ids"))
+            caveat = _span_caveat(item["kind"], item["facts"], item.get("artifact_ids"), linked)
+            if caveat:
+                caveats.append(item["record_id"] + " " + caveat)
         db.commit()
-    return {"status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED",
-            "requested": len(items),
-            "created": sum(x["status"] != "IDEMPOTENT" for x in results),
-            "idempotent": sum(x["status"] == "IDEMPOTENT" for x in results),
-            "record_ids": [x["record_id"] for x in results]}
+    report = {"status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED",
+              "requested": len(items),
+              "created": sum(x["status"] != "IDEMPOTENT" for x in results),
+              "idempotent": sum(x["status"] == "IDEMPOTENT" for x in results),
+              "record_ids": [x["record_id"] for x in results]}
+    if caveats:
+        report["caveats"] = caveats[:8]
+    return report
 
 def list_run(root: Path | str | None, run_id: str, limit: int = 300) -> dict:
     _id(run_id, "run_id")
