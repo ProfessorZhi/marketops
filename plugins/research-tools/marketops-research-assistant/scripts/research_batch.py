@@ -22,6 +22,8 @@ MAX_CONCURRENCY = 8
 #: Hosts end a tool call at 60 s (Claude Code's MCP default). Start no new site
 #: after this, return what finished and give unstarted targets back.
 DEADLINE_SECONDS = 40
+#: One organisation stops opening new pages after this, inside the batch deadline.
+HARVEST_TIME_BUDGET_SECONDS = 25
 
 
 def _route_line(route: dict) -> str:
@@ -64,12 +66,14 @@ def _organization_key(target: dict) -> str:
 
 def harvest_batch(data_root, *, pool_id: str, worker_id: str, run_id: str, fetch,
                   count: int = 20, concurrency: int = 4, max_pages: int = 5,
-                  lease_minutes: int = 10, grade=None,
+                  lease_minutes: int = 10, grade=None, find_site=None, focus: str = "",
                   deadline_seconds: float = DEADLINE_SECONDS) -> dict:
     """Lease `count` targets, harvest each own site, complete them in the pool.
 
     `grade(route)` (Jev, when the caller names the wanted roles) returns
     {"role", "confidence"} for each email route; it ranks, it is not evidence.
+    `find_site(target, operation_id)` returns the organisation's own site for a
+    target listed without one (many authority lists carry names only), or "".
     """
     if type(concurrency) is not int or not 1 <= concurrency <= MAX_CONCURRENCY:
         raise ValueError(f"BATCH_CONCURRENCY_INVALID: 1-{MAX_CONCURRENCY}")
@@ -81,6 +85,19 @@ def harvest_batch(data_root, *, pool_id: str, worker_id: str, run_id: str, fetch
         if time.monotonic() > deadline:
             return None  # not started: handed back below
         org_key = _organization_key(target)
+        website = target.get("website") or ""
+        if find_site is not None and (
+                not website or site_harvest.delivery.shared_host(urlsplit(website).hostname or "")):
+            site_op = "s-" + hashlib.sha256(f"{run_id}:{target['target_key']}:{target['attempts']}"
+                                            .encode()).hexdigest()[:24]
+            try:
+                website = find_site(target, site_op) or ""
+            except ValueError:
+                website = ""
+            if not website:
+                return {"target": target, "outcome": "hold", "reason": "NO_OFFICIAL_SITE_FOUND",
+                        "org_key": org_key, "record_ids": [], "routes": []}
+            target = {**target, "website": website}
         if not target.get("website"):
             return {"target": target, "outcome": "hold", "reason": "NO_OFFICIAL_SITE_IN_POOL",
                     "org_key": org_key, "record_ids": [], "routes": []}
@@ -95,7 +112,8 @@ def harvest_batch(data_root, *, pool_id: str, worker_id: str, run_id: str, fetch
             result = site_harvest.harvest(
                 data_root, run_id=run_id, operation_id=op, organization_name=target["name"],
                 organization_key=org_key, url=target["website"], fetch=fetch,
-                max_pages=max_pages, write=True, check_admission=False, grade=grade)
+                max_pages=max_pages, write=True, check_admission=False, grade=grade,
+                time_budget_seconds=HARVEST_TIME_BUDGET_SECONDS, focus=focus)
         except ValueError as exc:
             return {"target": target, "outcome": "hold", "org_key": org_key, "record_ids": [],
                     "routes": [], "reason": str(exc).split(":", 1)[0]}

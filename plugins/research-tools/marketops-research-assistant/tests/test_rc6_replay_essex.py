@@ -55,7 +55,9 @@ WEB = {
 }
 
 
-def managed_call(*, capability_id, params, run_id, operation_id, **_ignored):
+def managed_call(capability_id, params, run_id, operation_id, **_ignored):
+    # Jev role tags now run whenever the objective names roles; this replay has
+    # no Jev service, so those calls are refused like any unknown page.
     url = params.get("url", "")
     if url not in WEB:
         return {"status": "BLOCKED", "reason_code": "SOURCE_ACCESS_BLOCKED",

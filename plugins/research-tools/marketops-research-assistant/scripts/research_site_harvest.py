@@ -41,7 +41,14 @@ CONTEXT_RADIUS = 220
 #: Path or anchor words that mark a page worth one of the bounded fetches.
 LINK_WORDS = ("contact", "about", "team", "staff", "people", "committee", "trustee",
               "governance", "officer", "hire", "booking", "venue", "facilit", "ground",
-              "who-we-are", "find-us", "enquir")
+              "who-we-are", "find-us", "enquir",
+              # Dutch, German, French, Spanish, Italian: the same pages by their own names.
+              "over-ons", "wie-zijn", "medewerker", "bestuur", "organisatie", "personeel",
+              "kontakt", "impressum", "ueber-uns", "uber-uns", "mitarbeiter", "vorstand",
+              "ansprechpartner", "qui-sommes", "a-propos", "equipe", "nous-contacter",
+              "contacto", "equipo", "quienes", "contatti", "chi-siamo", "organigram")
+#: Words in the task's wanted roles shorter than this are too common to steer by.
+FOCUS_WORD_MIN = 4
 _EMAIL = re.compile(r"(?<![\w.+-])[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]+\.[A-Za-z]{2,24}(?![\w-])")
 _PHONE = re.compile(r"(?<![\w+])(?:\+\d{1,3}[\s.-]?|0)(?:\(?\d{2,5}\)?[\s.-]?)\d{3,4}[\s.-]?\d{3,4}(?!\d)")
 _ASSET_SUFFIXES = (".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".css", ".js", ".ico")
@@ -87,8 +94,20 @@ def _host(url: str) -> str:
     return host[4:] if host.startswith("www.") else host
 
 
-def candidate_links(page_url: str, html: str, limit: int) -> list[str]:
-    """Same-host contact/people/hire links, best first, without the page itself."""
+def focus_words(text: str) -> tuple[str, ...]:
+    """Distinctive words of the wanted roles ("head greenkeeper, sportdienst")."""
+    return tuple(sorted({w for w in re.findall(r"[a-zÀ-ɏ]+", (text or "").casefold())
+                         if len(w) >= FOCUS_WORD_MIN} - {"head", "manager", "with", "from",
+                                                         "that", "this", "find", "email"}))
+
+
+def candidate_links(page_url: str, html: str, limit: int,
+                    focus: tuple[str, ...] = ()) -> list[str]:
+    """Same-host contact/people/hire links, best first, without the page itself.
+
+    A link naming one of the task's own words (``focus``, e.g. "sport" for a
+    municipal sports department) counts double: that is the page the task is for.
+    """
     parser = _Links()
     try:
         parser.feed(html)
@@ -107,7 +126,8 @@ def candidate_links(page_url: str, html: str, limit: int) -> list[str]:
         if parts.path.casefold().endswith(_ASSET_SUFFIXES) or url.rstrip("/") in seen:
             continue
         haystack = (parts.path + " " + text).casefold()
-        score = sum(word in haystack for word in LINK_WORDS)
+        score = (sum(word in haystack for word in LINK_WORDS)
+                 + 2 * sum(word in haystack for word in focus))
         if score:
             seen.add(url.rstrip("/"))
             ranked.append((-score, len(ranked), url))
@@ -129,13 +149,30 @@ def _quote(text: str, start: int, end: int) -> str:
     return quote if 12 <= len(quote) <= 600 else ""
 
 
+#: Labels that precede a registration, tax or bank number, which share the
+#: digit shape of a phone ("Ondernemingsnummer 0207.512.345", "BTW BE0207...").
+_NUMBER_LABELS = re.compile(
+    r"(btw|vat|kbo|ondernemingsn|enterprise|company\s*(no|number|reg)|registration|"
+    r"iban|bic|rpr|siret|siren|ust-?id|steuer|handelsregister|kvk|cif|nif|p\.?iva|"
+    r"lat|lon|lng|coordinat|gps)[^\n]{0,25}$", re.IGNORECASE)
+
+
+def _not_a_phone(text: str, start: int, value: str) -> bool:
+    """A company/VAT/bank number or a coordinate pair, not a telephone."""
+    if _NUMBER_LABELS.search(text[max(0, start - 40):start]):
+        return True
+    # "51.1234567, 4.4567" style coordinates: a dot followed by five or more digits.
+    return bool(re.search(r"\.\d{5,}", value))
+
+
 def extract_routes(text: str) -> list[dict]:
     """Every literal email/phone in normalised text with a quote and its context."""
     found, routes = set(), []
     for channel, pattern in (("email", _EMAIL), ("phone", _PHONE)):
         for match in pattern.finditer(text):
             value = match.group(0).strip().rstrip(".")
-            if channel == "phone" and sum(ch.isdigit() for ch in value) < 10:
+            if channel == "phone" and (sum(ch.isdigit() for ch in value) < 10
+                                       or _not_a_phone(text, match.start(), value)):
                 continue
             key = (channel, value.casefold())
             if key in found:
@@ -202,6 +239,24 @@ def name_variants(name: str) -> list[str]:
             seen.add(item.casefold())
             ordered.append(item)
     return ordered or [base]
+
+
+#: Words that only say what kind of public body or organisation a name is, in
+#: the languages the plugin meets most ("Gemeente Rumst", "City of Austin").
+_BODY_WORDS = {"gemeente", "stad", "city", "town", "municipality", "gemeinde", "stadt",
+               "markt", "commune", "ville", "comune", "ayuntamiento", "municipio",
+               "kommune", "gmina", "mairie", "village", "parish", "of", "de", "di", "du"}
+
+
+def host_bound_name(name: str, page_url: str) -> str:
+    """The one distinctive word of a name like "Gemeente Rumst", when the site's
+    own host carries it (rumst.be). A single word binds only with that support."""
+    words = [w for w in re.findall(r"[^\W_]+(?:-[^\W_]+)*", name)
+             if w.casefold() not in _BODY_WORDS]
+    if len(words) != 1 or len(words[0]) < 4:
+        return ""
+    host = (urlsplit(page_url).hostname or "").casefold().replace("-", "")
+    return words[0] if words[0].casefold().replace("-", "") in host else ""
 
 
 def _acronym_quote(text: str, name: str) -> tuple[str, str]:
@@ -293,7 +348,7 @@ def _evidence_artifact(receipt: dict) -> str:
 def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str,
             organization_key: str, url: str, fetch, max_pages: int = 6,
             write: bool = True, check_admission: bool = True, grade=None,
-            time_budget_seconds: float | None = None) -> dict:
+            time_budget_seconds: float | None = None, focus: str = "") -> dict:
     """Fetch, extract and (optionally) stage one organisation's own-site routes.
 
     ``fetch(url, operation_id)`` is the managed known-public-URL step; it must
@@ -349,7 +404,8 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
         if len(pages) == 1:
             anchors = raw + "".join(f'<a href="{link}"></a>'
                                     for link in _envelope_links(root, run_id, receipt))
-            queue.extend(candidate_links(material["origin_url"] or page_url, anchors, max_pages - 1))
+            queue.extend(candidate_links(material["origin_url"] or page_url, anchors,
+                                         max_pages - 1, focus_words(focus)))
         if identity is None:
             for published in name_variants(name):
                 quote = _identity_quote(text, published)
@@ -357,6 +413,11 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
                     break
             else:
                 quote, published = _acronym_quote(text, name)
+                single = "" if quote else host_bound_name(name, page_url)
+                if single:
+                    index = text.casefold().find(single.casefold())
+                    quote = _quote(text, index, index + len(single)) if index >= 0 else ""
+                    published = single
             if quote:
                 identity = {"artifact_id": artifact_id, "quote": quote, "url": page_url,
                             "published_name": published}

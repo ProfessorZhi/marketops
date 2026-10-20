@@ -31,7 +31,7 @@ from urllib.parse import urlsplit
 
 from research_event_journal import _root
 
-__all__ = ["import_targets", "claim", "complete", "renew", "status", "target_key",
+__all__ = ["import_targets", "claim", "complete", "renew", "reopen", "status", "target_key",
            "list_targets", "OUTCOMES"]
 
 OUTCOMES = frozenset({"done", "hold", "excluded", "duplicate"})
@@ -226,6 +226,33 @@ def release(root, *, pool_id: str, worker_id: str, target_keys: list[str]) -> in
                 "status='claimed' AND claimed_by=?", (_stamp(), pool_id, key, worker_id)).rowcount
         db.commit()
     return released
+
+
+def reopen(root, *, pool_id: str, reason: str, max_attempts: int = 3) -> dict:
+    """Put HOLD targets whose reason starts with `reason` back to pending.
+
+    For when the cause is fixed (a missing site now found automatically, a
+    method improved). Targets already tried `max_attempts` times stay HOLD, so a
+    reopen cannot loop for ever on a target that keeps failing.
+    """
+    _id(pool_id, "pool_id")
+    reason = str(reason or "").strip()
+    if not reason:
+        raise ValueError("POOL_REOPEN_REASON_REQUIRED: name the HOLD reason to reopen, or ALL")
+    with closing(_db(_root(root))) as db:
+        db.execute("BEGIN IMMEDIATE")
+        match = "" if reason == "ALL" else reason
+        cursor = db.execute(
+            "UPDATE pool_targets SET status='pending', claimed_by='', lease_until='', "
+            "reason='', updated_at=? WHERE pool_id=? AND status='hold' AND attempts<? "
+            "AND substr(reason,1,?)=?",
+            (_stamp(), pool_id, max_attempts, len(match), match))
+        reopened = cursor.rowcount
+        still = db.execute("SELECT COUNT(*) FROM pool_targets WHERE pool_id=? AND status='hold'",
+                           (pool_id,)).fetchone()[0]
+        db.commit()
+    return {"pool_id": pool_id, "reopened": reopened, "still_hold": still,
+            "next": "workers claim the reopened targets with marketops_harvest_batch"}
 
 
 def renew(root, *, pool_id: str, worker_id: str, lease_minutes: int = 30) -> dict:

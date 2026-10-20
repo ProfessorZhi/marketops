@@ -219,6 +219,20 @@ class TestReservationAndDeduplication(LedgerCase):
                 operation_id="op-02", args={"num": 10, "query": "devon surf club"}))
         self.assertEqual(ctx.exception.code, "DUPLICATE_OPERATION_SIGNATURE")
 
+    def test_a_free_page_fetch_may_be_retried_under_a_new_operation_id(self):
+        # A host timeout leaves the first attempt unsettled; a local render
+        # costs no vendor money, so the same page may be fetched again.
+        self.open_caps()
+        local = dict(provider="crawl4ai", capability="render", account_ref="local",
+                     transport="local_python", intent="read club contact page",
+                     args={"url": "https://club.example/contact"})
+        self.ledger.reserve(make_request(operation_id="op-r1", **local))
+        self.ledger.reserve(make_request(operation_id="op-r2", **local))
+        with self.assertRaises(usage.LedgerRefused) as ctx:
+            self.ledger.reserve(make_request(operation_id="op-r2", **{
+                **local, "args": {"url": "https://club.example/other"}}))
+        self.assertEqual(ctx.exception.code, "OPERATION_ID_COLLISION")
+
     def test_one_operation_id_cannot_name_two_different_operations(self):
         self.open_caps()
         self.ledger.reserve(make_request())

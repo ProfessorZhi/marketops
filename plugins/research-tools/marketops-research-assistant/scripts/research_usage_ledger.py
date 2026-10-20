@@ -1417,6 +1417,13 @@ class UsageLedger:
         except _NotCanonical as exc:
             raise LedgerRefused("ARGS_NOT_CANONICAL", str(exc)) from None
         signature = op_signature(request, plain_args)
+        if (request.provider, request.capability) in RETRYABLE_FREE_FETCHES:
+            # A page fetch that costs no vendor money (local Crawl4AI; TinyFish
+            # fetch, which does not touch the wallet) may be retried under a new
+            # operation id: a host timeout otherwise leaves that page unreachable
+            # for the rest of the Run. Reusing an id is still one operation, and
+            # every retry still counts against the caps.
+            signature = sha256(f"{signature}|{request.operation_id}".encode()).hexdigest()
         shape = route_shape(request, plain_args)
         fingerprint = intent_fingerprint(request)
         estimated = price.unit_micros * request.units
@@ -2531,6 +2538,11 @@ DOCUMENTED_CREDIT_RATES = (
     ("typesafe_jev", "judge", "requests"),
 )
 RATE_SOURCE = "provider_documentation_credits_only"
+
+#: Page fetches that spend no vendor money, so a retry is not a double charge.
+RETRYABLE_FREE_FETCHES = frozenset({
+    ("crawl4ai", "render"), ("crawl4ai", "extract"), ("tinyfish", "fetch"),
+})
 
 
 def documented_pricing() -> PricingCatalog:

@@ -13,6 +13,7 @@ import sqlite3
 import sys
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
 import dual_search_mcp
 import research_config
@@ -752,6 +753,33 @@ def search(provider, query, country, language, run_id, operation_id, mode="web",
                 reservation="ONE_ATTEMPT_RESERVED_NOT_BILL_VERIFIED")}
 
 
+def find_official_site(run_id, operation_id, target, country="us", language="en") -> str:
+    """The organisation's own site for a target listed by name only, or "".
+
+    One merged Serper + TinyFish search on the published name and place. A hit
+    whose host contains a distinctive word of the name wins; otherwise the
+    first hit that is not a social network, directory or encyclopaedia.
+    """
+    name = " ".join(str(target.get("name") or "").split())
+    if not name:
+        return ""
+    place = " ".join(str(target.get("address") or "").split())[:80]
+    answer = _search_all(f"{name} {place}".strip(), country or "us", language or "en",
+                         run_id, operation_id, 8)
+    words = [w for w in re.findall(r"[0-9a-z]+", name.casefold()) if len(w) >= 4]
+    candidates = []
+    for hit in answer.get("results", []):
+        host = (urlsplit(hit["url"]).hostname or "").casefold()
+        if not host or delivery.shared_host(host) or "wikipedia." in host:
+            continue
+        candidates.append((not any(w in host for w in words), hit["url"]))
+    if not candidates:
+        return ""
+    best = sorted(candidates, key=lambda c: c[0])[0][1]
+    parts = urlsplit(best)
+    return f"https://{parts.hostname}/"
+
+
 def _search_all(query, country, language, run_id, operation_id, limit):
     """Serper and TinyFish search on the same query at once; results merged by URL."""
     from concurrent.futures import ThreadPoolExecutor
@@ -789,15 +817,17 @@ def _hits(answer):
 def _brief_roles(run_id: str) -> str:
     """The brief's roles_wanted, so Jev tags routes without the Agent repeating them."""
     try:
-        records = store.list_run(root(), run_id, limit=50)["records"]
+        snapshot = store.list_run(root(), run_id, limit=50)
     except (ValueError, KeyError):
         return ""
-    for record in reversed(records):
+    for record in reversed(snapshot["records"]):
         data = record.get("data") or {}
         if data.get("record_type") == "research_brief" and data.get("roles_wanted"):
             roles = data["roles_wanted"]
             return ", ".join(roles) if isinstance(roles, list) else str(roles)
-    return ""
+    # Agents often name the roles only in the objective; without this fallback
+    # Jev never tags a route in such a Run.
+    return str(snapshot.get("objective") or "")
 
 
 #: Hosts end a tool call at about 60 s; stop opening pages well before that so
@@ -1149,6 +1179,7 @@ PUBLIC_TOOLS = frozenset({
     "marketops_pool_import", "marketops_pool_claim", "marketops_pool_complete",
     "marketops_pool_status", "marketops_harvest_batch", "marketops_lessons_report",
     "marketops_jev_triage", "marketops_suppression", "marketops_feedback_pack",
+    "marketops_pool_reopen",
 })
 
 
@@ -1438,7 +1469,8 @@ def build_server():
             organization_name=organization_name, organization_key=organization_key,
             url=url, fetch=fetch, max_pages=max_pages, write=write,
             grade=_role_grader(run_id, roles_wanted),
-            time_budget_seconds=HARVEST_TIME_BUDGET_SECONDS)
+            time_budget_seconds=HARVEST_TIME_BUDGET_SECONDS,
+            focus=roles_wanted.strip() or _brief_roles(run_id))
 
     def _role_grader(run_id, roles_wanted):
         roles_wanted = roles_wanted.strip() or _brief_roles(run_id)
@@ -1512,6 +1544,16 @@ def build_server():
         return research_pool.status(root(), pool_id=pool_id)
 
     @tool
+    def marketops_pool_reopen(pool_id: str, reason: str) -> dict:
+        """Put HOLD targets back to pending once their cause is fixed.
+
+        reason: the HOLD reason prefix to reopen (e.g. NO_OFFICIAL_SITE_IN_POOL), or
+        ALL. Targets already tried 3 times stay HOLD.
+        """
+        import research_pool
+        return research_pool.reopen(root(), pool_id=pool_id, reason=reason)
+
+    @tool
     def marketops_suppression(action: str = "status", entries: list[str] | None = None,
                               reason: str = "", source: str = "", note: str = "") -> dict:
         """The shared No-Go / unsubscribe / complaint list every Run's delivery obeys.
@@ -1533,8 +1575,13 @@ def build_server():
     @tool
     def marketops_harvest_batch(pool_id: str, worker_id: str, run_id: str, count: int = 20,
                                 concurrency: int = 4, max_pages: int = 5,
-                                roles_wanted: str = "") -> dict:
+                                roles_wanted: str = "", country: str = "",
+                                language: str = "") -> dict:
         """Claim `count` targets and harvest each own site in one call; summary only.
+
+        Targets listed without a website (or with only a social/directory page) get
+        their official site looked up first by name and place; give country and
+        language (e.g. "be", "nl") for that search.
 
         Each target's routes are quoted, staged in run_id and gate-checked; outcomes
         go back to the pool (done / hold with reason). Call again for the next batch.
@@ -1549,7 +1596,10 @@ def build_server():
         return research_batch.harvest_batch(
             data_root, pool_id=pool_id, worker_id=worker_id, run_id=run_id,
             fetch=_fetcher(data_root, run_id), count=count, concurrency=concurrency,
-            max_pages=max_pages, grade=_role_grader(run_id, roles_wanted))
+            max_pages=max_pages, grade=_role_grader(run_id, roles_wanted),
+            find_site=lambda target, op: find_official_site(run_id, op, target,
+                                                            country, language),
+            focus=roles_wanted.strip() or _brief_roles(run_id))
 
     @tool
     def marketops_jev_triage(run_id: str, operation_id: str, artifact_ids: list[str],
