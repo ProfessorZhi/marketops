@@ -46,6 +46,35 @@ REMEDIES = {
         "Re-download the release: the QA receipt does not describe these files.",
     "PLATFORM_DEPENDENCY_LOCK_MISSING":
         "Re-extract the package: its dependency lock for this platform is missing.",
+    "DESTINATION_REQUIRED":
+        "Re-run the installer with an installation directory, for example: "
+        "install.sh ~/MarketOps --client both",
+    "INSTALL_TARGET_NOT_DIRECTORY":
+        "Choose a directory path: the destination is an existing file and was left untouched.",
+    "INSTALL_RESUME_IDENTITY_MISMATCH":
+        "Use the same package, destination and --client as the interrupted install, "
+        "or choose a new empty directory.",
+    "INSTALL_RESUME_OPTIONS_MISMATCH":
+        "Re-run with the same download options as the interrupted install.",
+    "STATIC_PREFLIGHT_FAILED":
+        "Re-extract the release package: the installer refused to copy inconsistent files.",
+    "INSTALL_TARGET_SYMLINK":
+        "Remove the symlink at the destination, or choose another empty directory.",
+    "BROWSER_REQUIRES_LOCAL_CRAWL":
+        "Add --install-local-crawl (with --install-deps), or drop --install-crawl-browser.",
+    "LOCAL_CRAWL_REQUIRES_RUNTIME_DEPENDENCIES":
+        "Add --install-deps when requesting the local crawler.",
+    "CODEX_CLI_UNAVAILABLE":
+        "Install the Codex CLI, or rerun without --register-codex to keep the "
+        "generated marketplace unregistered.",
+    "CODEX_REGISTRATION_REQUIRES_CODEX_CLIENT":
+        "Use --client codex, both or all together with --register-codex.",
+    "INSTALL_STEP_FAILED":
+        "Re-run the same installer: it resumes the same destination. If it stops "
+        "again, open INSTALL_STATE.json beside the destination.",
+    "CUSTOMER_SETUP_INCOMPLETE":
+        "Reopen START_HERE.md in the install directory and rerun the printed "
+        "local account setup command.",
 }
 
 
@@ -120,11 +149,40 @@ def _python(venv_path: Path) -> Path:
     return venv_path / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
 
 
+def normalize_destination(destination) -> Path:
+    """Expand ``~``, make a relative path absolute, and normalize separators.
+
+    The installer speaks about one path everywhere: the copy, the state file,
+    the receipt and the recovery commands. Resolving it once here is what keeps
+    ``~/Market Ops`` and ``Market Ops`` from becoming two different installs.
+    """
+    text = os.fspath(destination).strip().strip('"').strip("'")
+    if not text:
+        raise ValueError("DESTINATION_REQUIRED")
+    path = Path(text).expanduser()
+    if not path.is_absolute():
+        path = Path.cwd() / path
+    try:
+        return path.resolve()
+    except (OSError, RuntimeError):
+        raise ValueError("DESTINATION_REQUIRED") from None
+
+
+def _path_key(path: Path) -> str:
+    """Case-correct comparison key; Windows paths are case-insensitive."""
+    return os.path.normcase(os.path.abspath(str(path)))
+
+
+def _contains(parent: Path, child: Path) -> bool:
+    parent_key, child_key = _path_key(parent), _path_key(child)
+    return child_key == parent_key or child_key.startswith(parent_key + os.sep)
+
+
 def plan(destination: Path, client: str, *, resume: bool = False) -> dict:
     if client not in CLIENTS:
         raise ValueError("UNSUPPORTED_SETUP_CLIENT")
-    dest = destination.expanduser().resolve()
-    if dest == SOURCE or SOURCE in dest.parents or dest in SOURCE.parents:
+    dest = normalize_destination(destination)
+    if _contains(dest, SOURCE) or _contains(SOURCE, dest):
         raise ValueError("DESTINATION_OVERLAPS_SOURCE")
     if sys.version_info[:2] != (3, 12):
         raise ValueError("PYTHON_312_64BIT_REQUIRED")
@@ -132,6 +190,8 @@ def plan(destination: Path, client: str, *, resume: bool = False) -> dict:
         raise ValueError("SUPPORTED_PLATFORM_WINDOWS_OR_LINUX_X64_REQUIRED")
     if importlib.util.find_spec("ensurepip") is None:
         raise ValueError("PYTHON_ENSUREPIP_UNAVAILABLE: install the Python 3.12 venv component")
+    if dest.exists() and not dest.is_dir():
+        raise ValueError("INSTALL_TARGET_NOT_DIRECTORY")
     if dest.exists() and any(dest.iterdir()):
         state_path = dest / STATE_FILE
         if not resume or not state_path.is_file() or state_path.is_symlink():
@@ -153,6 +213,29 @@ def plan(destination: Path, client: str, *, resume: bool = False) -> dict:
     }
 
 
+def _register_codex(dest: Path, results: dict) -> None:
+    """Add the generated marketplace to the *global* Codex registration.
+
+    This is the one installer action that changes state outside the chosen
+    directory, so it is only ever reached through an explicit ``--register-codex``
+    (or a later re-run that carries one). Command output is captured and never
+    echoed: it belongs to the customer's CLI, not to the install report.
+    """
+    if shutil.which("codex") is None:
+        raise ValueError("CODEX_CLI_UNAVAILABLE: marketplace remains generated, not registered")
+    subprocess.run(["codex", "plugin", "marketplace", "add", str(dest)],
+                   check=True, capture_output=True, text=True)
+    results["codex_marketplace_registered"] = True
+    support = subprocess.run(["codex", "plugin", "add", "--help"],
+                             capture_output=True, text=True)
+    if support.returncode == 0:
+        subprocess.run(results["codex_install_argv"], check=True,
+                       capture_output=True, text=True)
+        results["codex_plugin_install_status"] = "INSTALLED_RESTART_HOST_TO_VERIFY"
+    else:
+        results["codex_plugin_install_status"] = "PENDING_HOST_INSTALL"
+
+
 def install(destination: Path, client: str, *, dependencies: bool,
             register_codex: bool, local_crawl: bool = False,
             browser: bool = False, resume: bool = False) -> dict:
@@ -161,6 +244,8 @@ def install(destination: Path, client: str, *, dependencies: bool,
         raise ValueError("BROWSER_REQUIRES_LOCAL_CRAWL")
     if local_crawl and not dependencies:
         raise ValueError("LOCAL_CRAWL_REQUIRES_RUNTIME_DEPENDENCIES")
+    if register_codex and client not in {"codex", "both", "all"}:
+        raise ValueError("CODEX_REGISTRATION_REQUIRES_CODEX_CLIENT")
     result = plan(destination, client, resume=resume)
     # Never install source with malformed manifests, Skills or Python syntax.
     from preflight import report as static_report
@@ -173,12 +258,30 @@ def install(destination: Path, client: str, *, dependencies: bool,
     state = {"owner": STATE_OWNER, "source_sha256": source_digest(),
              "client": client, "destination": str(dest), "settings": settings,
              "stage": "PREPARED"}
+    # Registration is a separate, later consent, not a property of the copied
+    # tree. A customer who first installs without it must be able to re-run
+    # with --register-codex without the installer calling that a different
+    # install and refusing to continue.
+    resume_settings = {key: value for key, value in settings.items()
+                       if key != "register_codex"}
     if (dest / STATE_FILE).is_file():
         state = json.loads((dest / STATE_FILE).read_text(encoding="utf-8"))
-        if state.get("settings") != settings:
+        stored_settings = state.get("settings") or {}
+        if {key: value for key, value in stored_settings.items()
+                if key != "register_codex"} != resume_settings:
             raise ValueError("INSTALL_RESUME_OPTIONS_MISMATCH")
         if state.get("stage") == "COMPLETE":
-            return json.loads((dest / "INSTALL_RECEIPT.json").read_text(encoding="utf-8"))
+            receipt_path = dest / "INSTALL_RECEIPT.json"
+            results = json.loads(receipt_path.read_text(encoding="utf-8"))
+            if register_codex and not results.get("codex_marketplace_registered"):
+                _register_codex(dest, results)
+                receipt_path.write_text(
+                    json.dumps(results, ensure_ascii=False, indent=2) + "\n",
+                    encoding="utf-8")
+                state["settings"] = dict(stored_settings, register_codex=True)
+                _state_write(dest, state)
+            return results
+        state["settings"] = settings
     dest.mkdir(parents=True, exist_ok=True)
     _state_write(dest, state)
     target = dest / "plugins" / "marketops-research-assistant"
@@ -223,10 +326,14 @@ def install(destination: Path, client: str, *, dependencies: bool,
         if locked:
             command.append("--require-hashes")
         command += ["-r", str(requirement)]
-        subprocess.run(command, check=True)
+        # Capture the child's output: a failing package manager may print
+        # mirrored URLs or local paths, and the installer only ever reports
+        # its own stable code and one recovery step.
+        subprocess.run(command, check=True, capture_output=True, text=True)
         dependency_sources.append({"file": requirement.name, "hash_pinned": locked})
     if dependencies:
-        subprocess.run([str(py), "-m", "pip", "check"], check=True)
+        subprocess.run([str(py), "-m", "pip", "check"], check=True,
+                       capture_output=True, text=True)
     state["stage"] = "DEPENDENCIES_READY"
     _state_write(dest, state)
     browser_root = dest / "browsers"
@@ -239,7 +346,7 @@ def install(destination: Path, client: str, *, dependencies: bool,
         env = dict(os.environ)
         env["PLAYWRIGHT_BROWSERS_PATH"] = str(browser_root)
         subprocess.run([str(py), "-m", "playwright", "install", "chromium"],
-                       check=True, env=env)
+                       check=True, env=env, capture_output=True, text=True)
         check = subprocess.run([str(py), "-c",
             "from playwright.sync_api import sync_playwright; "
             "p=sync_playwright().start(); b=p.chromium.launch(headless=True); "
@@ -345,16 +452,7 @@ def install(destination: Path, client: str, *, dependencies: bool,
         results["codex_install_argv"] = ["codex", "plugin", "add", "marketops-research-assistant@marketops-local", "--json"]
         results["codex_next"] = subprocess.list2cmdline(results["codex_next_argv"])
         if register_codex:
-            if shutil.which("codex") is None:
-                raise ValueError("CODEX_CLI_UNAVAILABLE: marketplace remains generated, not registered")
-            subprocess.run(["codex", "plugin", "marketplace", "add", str(dest)], check=True)
-            results["codex_marketplace_registered"] = True
-            support = subprocess.run(["codex", "plugin", "add", "--help"], capture_output=True)
-            if support.returncode == 0:
-                subprocess.run(results["codex_install_argv"], check=True)
-                results["codex_plugin_install_status"] = "INSTALLED_RESTART_HOST_TO_VERIFY"
-            else:
-                results["codex_plugin_install_status"] = "PENDING_HOST_INSTALL"
+            _register_codex(dest, results)
         else:
             results["codex_marketplace_registered"] = False
     if client in {"workbuddy", "both", "all"}:
@@ -480,17 +578,30 @@ def main() -> int:
                   else {"status": "DRY_RUN", **plan(args.destination, args.client)})
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 2 if result.get("status") == "INSTALL_VALIDATION_INCOMPLETE" else 0
-    except (OSError, ValueError, subprocess.CalledProcessError) as exc:
-        # Error output deliberately excludes stdout/stderr from command execution.
-        code = _refusal_code(exc)
-        remedy = REMEDIES.get(code)
-        if remedy:
-            print(f"INSTALL_BLOCKED: {code}: {remedy}", file=sys.stderr)
-        report = {"status": "INSTALL_BLOCKED", "reason_type": type(exc).__name__, "code": code}
-        if remedy:
-            report["detail"] = remedy
-        print(json.dumps(report), file=sys.stderr)
-        return 2
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        return _refuse(exc)
+    except Exception as exc:  # noqa: BLE001 - the installer never prints a raw traceback
+        # A bug or an unanticipated library error must not become a console
+        # dump of local paths, provider output or credentials. The exception
+        # type is kept; its message is not repeated.
+        return _refuse(exc, "INSTALL_STEP_FAILED")
+
+
+def _refuse(exc: BaseException, code: str | None = None) -> int:
+    # Error output deliberately excludes stdout/stderr from command execution.
+    code = code or _refusal_code(exc)
+    remedy = REMEDIES.get(code)
+    # A code the installer does not recognise still gets one recovery step on
+    # the console; it is not recorded as "detail", because that would claim the
+    # installer understood a condition it merely forwarded.
+    console = remedy or ("Re-run the installer with --destination and --client; "
+                         "see references/CLIENT_SETUP.md.")
+    print(f"INSTALL_BLOCKED: {code}: {console}", file=sys.stderr)
+    report = {"status": "INSTALL_BLOCKED", "reason_type": type(exc).__name__, "code": code}
+    if remedy:
+        report["detail"] = remedy
+    print(json.dumps(report), file=sys.stderr)
+    return 2
 
 
 if __name__ == "__main__":
