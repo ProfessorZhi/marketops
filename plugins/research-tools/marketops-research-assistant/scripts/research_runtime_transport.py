@@ -1,8 +1,9 @@
 """Production dependencies for the existing provider adapters. No retries."""
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import asynccontextmanager, contextmanager, ExitStack
 import os
 from pathlib import Path
 import sys
+from typing import Mapping
 from urllib.parse import urlsplit
 import urllib.request
 
@@ -165,6 +166,63 @@ def serper_transport(request, timeout):
             yield response
 
 
+def allowlist_violations(domains: object) -> tuple[str, ...]:
+    """批准域名清单的**启动前**形状判据。
+
+    空名单不是「不限制」，是「谁都不许」；在 transport 这一层先把它说成
+    ``BLOCKED``，而不是先起一个谁都用不了的出口。条目必须是字符串 ——
+    一个整数或一个空串在 ``frozenset`` 里是合法对象，但在范围判据里不是名字。
+    """
+    if not isinstance(domains, (set, frozenset)):
+        return ("allowlist_not_a_set",)
+    if not domains:
+        return ("allowlist_empty",)
+    if any(not isinstance(entry, str) or not entry.strip() for entry in domains):
+        return ("allowlist_entry_invalid",)
+    return ()
+
+
+def browser_launch_blockers(binding: object) -> tuple[str, ...]:
+    """启动受管浏览器**之前**由 transport 自己再判一次。
+
+    adapter 也会判（``browser_launch_violations`` 在 ``_build_browser_config``
+    里），但 transport 是**起出口的那一层**：出口绑定不合格时，它应当连
+    ``AsyncWebCrawler`` 的构造都不进入。判两件事：
+
+    1. 绑定形状（``verify_egress_binding``）；
+    2. 绑定给出的 ``BrowserConfig`` kwargs 没有把 WebRTC/DNS/代理护栏降级。
+
+    返回空元组表示可以启动。这里不判行为，也不宣称网络已经隔离。
+    """
+    from research_adapter_crawl4ai import browser_launch_violations, verify_egress_binding
+    violations = list(verify_egress_binding(binding))
+    if violations:
+        return tuple(violations)
+    try:
+        kwargs = binding.browser_config_kwargs()
+    except Exception as exc:  # noqa: BLE001 - 形状对了但一调就炸也是不合格
+        return (f"browser_config_kwargs_raised:{type(exc).__name__}",)
+    if not isinstance(kwargs, Mapping):
+        return ("browser_config_kwargs_not_a_mapping",)
+    return tuple(browser_launch_violations(kwargs))
+
+
+def _blocked_browser(blockers: tuple[str, ...], *, detail: str = ""):
+    """出口/启动配置不合格时的返回值。**没有直连回退，浏览器没有起来。**"""
+    from research_adapter_crawl4ai import CrawlOutcome, LOCAL_CRAWL_NOT_SAFE_TO_RUN
+    return CrawlOutcome(
+        outcome="BLOCKED",
+        payload={
+            "reason": LOCAL_CRAWL_NOT_SAFE_TO_RUN,
+            "detail": detail or "受管浏览器出口不合格；这一次没有启动浏览器。",
+            "egress_violations": list(blockers),
+        },
+        caveats=(LOCAL_CRAWL_NOT_SAFE_TO_RUN,
+                 "BROWSER_EGRESS_POLICY_UNVERIFIED",
+                 "没有回退到直连：浏览器没有被启动。"),
+    )
+
+
 class RuntimeCrawlAdapter:
     """Own one restricted egress session for one existing adapter execution."""
     provider = "crawl4ai"
@@ -209,10 +267,30 @@ class RuntimeCrawlAdapter:
             return CrawlOutcome(outcome="BLOCKED", payload={"reason": "CAPABILITY_NOT_AVAILABLE",
                 "detail": str(exc).split(":", 1)[0]},
                 caveats=("CAPABILITY_NOT_AVAILABLE", "CRAWL_CACHE_CONFIGURATION_REFUSED"))
-        with egress.safe_browser_egress(allowlist=domains) as session:
-            return Crawl4AIAdapter(egress=binding_for(session, egress),
+        # **先判名单，再起出口。** 空名单是「谁都不许」，不是「不限制」：
+        # 起一个谁都用不了的出口只会让失败看起来像一次网络问题。
+        blocked = allowlist_violations(domains)
+        if blocked:
+            return _blocked_browser(
+                blocked, detail="批准域名清单为空或含非法条目；没有启动浏览器。")
+        with ExitStack() as stack:
+            try:
+                session = stack.enter_context(
+                    egress.safe_browser_egress(allowlist=domains))
+            except Exception as exc:  # noqa: BLE001 - 出口起不来就是 BLOCKED
+                return _blocked_browser(
+                    (f"egress_session_unavailable:{type(exc).__name__}",),
+                    detail="受管出口没有起来；没有回退到直连。")
+            binding = binding_for(session, egress)
+            blockers = browser_launch_blockers(binding)
+            if blockers:
+                return _blocked_browser(blockers)
+            return Crawl4AIAdapter(
+                egress=binding,
                 artifact_root=str(_root(self.root) / "artifacts"),
-                material_writer=save_primary, cache_base_directory=cache_base).execute(request)
+                material_writer=save_primary,
+                cache_base_directory=cache_base,
+            ).execute(request)
 
 
 _managed_crawl_cache = None
