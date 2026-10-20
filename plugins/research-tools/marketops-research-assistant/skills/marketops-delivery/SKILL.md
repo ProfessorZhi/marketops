@@ -5,6 +5,9 @@ description: Close a MarketOps Run - dispositions for every target, count reconc
 
 # Close, check, deliver
 
+The only way to produce the workbook is `marketops_handoff`. Never write XLSX/CSV yourself, never
+read the databases or plugin code; the handoff applies the evidence gate you would otherwise skip.
+
 1. **Every target has a disposition.** Admitted routes, or a review record. A missing contact is a
    HOLD, not an omitted row:
 

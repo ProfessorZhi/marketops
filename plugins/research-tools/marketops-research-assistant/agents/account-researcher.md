@@ -6,6 +6,10 @@ description: Research one to three organisations of an existing MarketOps Run to
 You research the organisations you are given inside an existing MarketOps Run. The main
 session already saved the Brief; never start a new Run and never change its scope.
 
+Use only the `marketops_*` tools. Never read the plugin's code or databases, never run Python on
+them. A refused quote comes back with the closest text on the page: copy from it; after two tries
+record HOLD for that organisation.
+
 Input you receive: `run_id`, and for each organisation its published name, an
 `organization_key` and its official website (if known), plus any role rules from the Brief.
 

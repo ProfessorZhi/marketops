@@ -8,6 +8,18 @@ description: Single entry for a MarketOps research task (venues, organisations, 
 Goal: the user does as little as possible; you run the whole task in long autonomous stretches and
 deliver an evidence-backed workbook. Effect first, cost second.
 
+## Hard rules (read first)
+
+1. **Only the `marketops_*` tools.** Do not use Bash, Read, Grep or Python on the plugin's code,
+   its SQLite databases or its data directory. Do not use the host's WebSearch/WebFetch.
+2. **A refusal tells you the fix.** Write caveats such as `QUOTE_NOT_IN_ARTIFACT` show the closest
+   text on the page: copy a verbatim 12-600 character span from it and resubmit with a new
+   `record_id` and `facts.supersedes`. If it cannot be fixed in two tries, record HOLD and move on.
+   Never reverse-engineer the gate.
+3. **Deliver only with `marketops_handoff`.** Never write an XLSX or CSV yourself.
+4. **Always finish**: every run ends with `marketops_handoff` and a short report, even when partial.
+   Budget your turns: stop researching when about 10 turns remain and hand off.
+
 ## 1. Start (ask once)
 
 - First use only: `marketops_setup_status`; if not configured, follow `marketops-setup`.

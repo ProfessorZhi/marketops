@@ -5,7 +5,9 @@ description: Research one organisation or venue to its best public contact route
 
 # Account procedure
 
-Repeat for each organisation until it has a result.
+Repeat for each organisation until it has a result. Use only `marketops_*` tools; when a write
+returns `QUOTE_NOT_IN_ARTIFACT`, copy from the closest page text it shows - do not open the plugin's
+code. Two failed tries on one target means HOLD and the next target.
 
 1. **Official site.** Use the website from a saved map result or one Serper query. A directory,
    listing or aggregator page is never the official site.

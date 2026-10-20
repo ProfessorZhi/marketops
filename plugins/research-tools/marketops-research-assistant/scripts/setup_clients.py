@@ -16,7 +16,7 @@ import venv
 from pathlib import Path
 
 SOURCE = Path(__file__).resolve().parents[1]
-VERSION = "0.5.6-rc5"
+VERSION = "0.5.7-rc6"
 CLIENTS = ("codex", "workbuddy", "both", "claude", "all")
 STATE_FILE = "INSTALL_STATE.json"
 STATE_OWNER = "marketops.setup_clients.v1"
@@ -94,7 +94,7 @@ def _refusal_code(exc: BaseException) -> str:
 
 def source_files():
     """Explicit distributable roots; private runtime directories never ship."""
-    roots = ("scripts", "references", "skills", "agents", "commands", ".claude-plugin", ".codex-plugin")
+    roots = ("scripts", "references", "skills", "agents", "commands", "hooks", ".claude-plugin", ".codex-plugin")
     excluded = {"__pycache__", ".pytest_cache", ".venv", ".git", "data", "state",
                 "runs", "scratch", "artifacts", "exports", "tests"}
     for root in roots:

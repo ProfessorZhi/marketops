@@ -485,6 +485,20 @@ def _insert_candidate(db: sqlite3.Connection, run_id: str, record_id: str,
     return {"record_id": record_id, "status": status, "artifact_ids": ids}
 
 
+def _miss_caveat(miss: dict) -> str:
+    """One claim that did not link, with the page's own nearby text to copy from."""
+    if miss.get("problem") != "QUOTE_NOT_IN_ARTIFACT":
+        return f"field={miss.get('field')}: {miss.get('problem')}"
+    closest = miss.get("closest_text_on_page") or ""
+    return (f"QUOTE_NOT_IN_ARTIFACT field={miss.get('field')} artifact={miss.get('artifact_id')}: "
+            "the quote is not on that page verbatim. "
+            + (f"Closest text on the page: \"{closest}\". Copy 12-600 characters exactly from it "
+               "and resubmit with a new record_id and facts.supersedes."
+               if closest else "No similar text on that page; quote a different saved page "
+               "(marketops_material_excerpt) or record HOLD.")
+            + " Do not read plugin source code to debug this.")
+
+
 def _span_caveat(kind: str, payload: dict, artifact_ids, linked) -> str:
     """Say it at write time: material without a linked required claim stays out.
 
@@ -546,10 +560,14 @@ def put_candidate(root: Path | str | None, run_id: str, record_id: str, stage: s
         result = _insert_candidate(db, run_id, record_id, stage, kind, entity_key,
                                    payload, artifact_ids)
         from research_evidence_store import link_candidate_claims
-        linked = link_candidate_claims(store_root, db, run_id, record_id, payload, artifact_ids)
+        misses: list[dict] = []
+        linked = link_candidate_claims(store_root, db, run_id, record_id, payload, artifact_ids,
+                                       misses=misses)
         db.commit()
     caveat = _span_caveat(kind, payload, artifact_ids, linked)
-    return {**result, "caveats": [caveat]} if caveat else result
+    caveats = [caveat] if caveat else []
+    caveats += [_miss_caveat(miss) for miss in misses]
+    return {**result, "caveats": caveats} if caveats else result
 
 
 def put_candidates_batch(root: Path | str | None, run_id: str,
@@ -582,11 +600,13 @@ def put_candidates_batch(root: Path | str | None, run_id: str,
                 db, run_id, item["record_id"], item["stage"], item["kind"],
                 item["entity_key"], item["facts"], item.get("artifact_ids")))
             from research_evidence_store import link_candidate_claims
+            misses: list[dict] = []
             linked = link_candidate_claims(store_root, db, run_id, item["record_id"],
-                                           item["facts"], item.get("artifact_ids"))
+                                           item["facts"], item.get("artifact_ids"), misses=misses)
             caveat = _span_caveat(item["kind"], item["facts"], item.get("artifact_ids"), linked)
             if caveat:
                 caveats.append(item["record_id"] + " " + caveat)
+            caveats += [item["record_id"] + " " + _miss_caveat(miss) for miss in misses]
         db.commit()
     report = {"status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED",
               "requested": len(items),
@@ -594,7 +614,7 @@ def put_candidates_batch(root: Path | str | None, run_id: str,
               "idempotent": sum(x["status"] == "IDEMPOTENT" for x in results),
               "record_ids": [x["record_id"] for x in results]}
     if caveats:
-        report["caveats"] = caveats[:8]
+        report["caveats"] = caveats[:12]
     return report
 
 def list_run(root: Path | str | None, run_id: str, limit: int = 300) -> dict:

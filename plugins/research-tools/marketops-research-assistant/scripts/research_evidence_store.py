@@ -94,7 +94,30 @@ def link_evidence(root: Path | str | None, run_id: str, record_id: str, artifact
     return {"link_id": link_id, "status": "LINKED", "field": field}
 
 
-def link_candidate_claims(root, db, run_id, record_id, payload, artifact_ids):
+def nearest_text(normalized: str, quote: str, width: int = 220) -> str:
+    """The stretch of saved text that shares the most words with a quote that missed.
+
+    A bare EXCERPT_NOT_FOUND sent Agents into reading the plugin source to guess
+    why; showing what the page actually says next to their quote lets them copy
+    a verbatim span instead.
+    """
+    import re as _re
+    words = [w for w in _re.findall(r"[0-9a-z@._-]{3,}", quote.casefold())]
+    if not words or not normalized:
+        return ""
+    best, best_score = 0, -1
+    step = max(20, width // 4)
+    for start in range(0, max(1, len(normalized) - width // 2), step):
+        window = normalized[start:start + width]
+        score = sum(1 for w in set(words) if w in window)
+        if score > best_score:
+            best, best_score = start, score
+    if best_score <= 0:
+        return ""
+    return normalized[best:best + width].strip()
+
+
+def link_candidate_claims(root, db, run_id, record_id, payload, artifact_ids, misses=None):
     """Link actual matching spans in the candidate writer's transaction.
 
     Invalid/missing quotes remain ordinary candidate gaps for the evidence
@@ -115,6 +138,10 @@ def link_candidate_claims(root, db, run_id, record_id, payload, artifact_ids):
         if (not isinstance(aid, str) or aid not in (artifact_ids or [])
                 or not isinstance(quote, str) or not 12 <= len(quote) <= 600
                 or not isinstance(field, str) or not KEY.fullmatch(field)):
+            if misses is not None:
+                misses.append({"field": field, "artifact_id": aid,
+                               "problem": "CLAIM_SHAPE_INVALID: artifact_id must be one of "
+                                          "artifact_ids, field ^[a-z][a-z0-9_]{0,39}$, quote 12-600 chars"})
             continue
         row = db.execute("SELECT material_kind,content_sha256,relative_path FROM artifacts "
                          "WHERE run_id=? AND artifact_id=?", (run_id, aid)).fetchone()
@@ -135,6 +162,10 @@ def link_candidate_claims(root, db, run_id, record_id, payload, artifact_ids):
         wanted = _norm(quote)
         start = normalized.find(wanted)
         if start < 0:
+            if misses is not None:
+                misses.append({"field": field, "artifact_id": aid,
+                               "problem": "QUOTE_NOT_IN_ARTIFACT",
+                               "closest_text_on_page": nearest_text(normalized, wanted)})
             continue
         end = start + len(wanted)
         linked.append(link_evidence(base, run_id, record_id, aid, content_sha256=row[1],
