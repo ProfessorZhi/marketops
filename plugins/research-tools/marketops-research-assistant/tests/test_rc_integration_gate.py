@@ -134,7 +134,8 @@ class DeliveryToClientViewTests(unittest.TestCase):
                          [row["组织名称"] for row in _rows(view, "客户总表")])
         self.assertEqual(["grounds@example.org"],
                          [row["公开字面值"] for row in _rows(view, "联系人路线")])
-        self.assertEqual(["venue-legit"],
+        # 场地与资产's first column is the venue entity key, not the record id.
+        self.assertEqual(["example-sports-ground"],
                          [row["场地ID"] for row in _rows(view, "场地与资产")])
         self.assertEqual(["person-legit"],
                          [row["候选ID"] for row in _rows(view, "人员岗位")])
