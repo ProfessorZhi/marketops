@@ -32,7 +32,37 @@ def usage_snapshot(root):
             "money_status": money["basis_code"] if money["basis"] == "VERIFIED_ACTUAL" else "UNKNOWN_" + money["basis_code"]}
 
 
-def configure_research(root, *, providers, domains, max_calls, task):
+SYNC_FOLDER_MARKERS = ("onedrive", "icloud", "dropbox", "google drive", "googledrive", "box sync")
+
+
+def warn_sync_folder(root) -> None:
+    """SQLite shared by several windows must live on a local disk, not a synced folder."""
+    lowered = str(root).casefold()
+    if any(marker in lowered for marker in SYNC_FOLDER_MARKERS):
+        print("警告：研究数据目录看起来在同步盘里。多个窗口同时写数据库时，同步盘可能损坏数据；"
+              "建议改用本机硬盘目录（例如 D:\\MarketOps\\data 或 ~/MarketOps/data）。")
+
+
+def offer_crawl4ai() -> None:
+    """Install the free local crawler and its browser on request (one command each)."""
+    import importlib.util
+    if importlib.util.find_spec("crawl4ai") is not None:
+        print("Crawl4AI 本地抓取已安装。")
+        return
+    if input("安装免费的本地抓取器 Crawl4AI 和浏览器？约 300MB [Y/n]: ").strip().lower() not in {"", "y", "yes"}:
+        print("跳过；抓取会自动使用 TinyFish 免费抓取。")
+        return
+    requirements = HERE.parent / "requirements-crawl-local.txt"
+    steps = [[sys.executable, "-m", "pip", "install", "-r", str(requirements)],
+             [sys.executable, "-m", "playwright", "install", "chromium"]]
+    for step in steps:
+        if subprocess.run(step).returncode:
+            print("Crawl4AI 安装未完成；抓取会自动使用 TinyFish。之后可重新运行本脚本。")
+            return
+    print("Crawl4AI 和浏览器已安装。")
+
+
+def configure_research(root, *, providers, domains, max_calls, task, public_web=False):
     import research_runtime_setup as runtime
     previous = runtime.config(root)
     if previous:
@@ -47,7 +77,8 @@ def configure_research(root, *, providers, domains, max_calls, task):
             print("未更改研究授权。")
             return False
     runtime.configure(root, providers=providers, domains=domains, max_calls=max_calls,
-                      task=task, confirm=True, amend=bool(previous))
+                      task=task, confirm=True, amend=bool(previous),
+                      public_web_fetch=public_web)
     return True
 
 
@@ -82,21 +113,28 @@ def main(argv=None):
             print(json.dumps(configure_keys(), ensure_ascii=False))
         load_into_environment()
         root = research_config.data_root()
-        if input("现在配置一次小范围真实调研的联网额度？[y/N]: ").strip().lower() == "y":
-            task = input("此次调研的目标和范围: ").strip()
-            providers = input("本次服务（逗号分隔：serper,serpapi,tinyfish,typesafe_jev,crawl4ai）: ").strip().split(",")
-            providers = [x.strip() for x in providers if x.strip()]
-            if not task or not providers or any(x not in {"serper", "serpapi", "tinyfish", "typesafe_jev", "crawl4ai"} for x in providers):
-                raise ValueError("INVALID_RESEARCH_SCOPE")
-            domains = input("允许抓取的公开网站域名（逗号分隔）: ").strip()
-            value = input("本项目允许的请求次数上限（1-500）: ").strip()
-            if not value.isdigit() or not 1 <= int(value) <= 500 or not domains:
+        warn_sync_folder(root)
+        offer_crawl4ai()
+        if input("现在开通联网调研？[Y/n]: ").strip().lower() in {"", "y", "yes"}:
+            import os
+            task = input("调研项目名称或范围（例如 英国运动场关键联系人）: ").strip() or "MarketOps research"
+            keyed = {"serper": "SERPER_API_KEY", "serpapi": "SERPAPI_API_KEY",
+                     "tinyfish": "TINYFISH_API_KEY", "typesafe_jev": "TYPESAFE_API_KEY"}
+            providers = [p for p, var in keyed.items() if os.environ.get(var)] + ["crawl4ai"]
+            print("将启用：" + ", ".join(providers) + "（有 Key 的服务 + 本地 Crawl4AI）")
+            public = input("允许抓取调研中发现的任何公开网站？内网、IP 地址和验证码页面始终拒绝 [Y/n]: ")
+            public_web = public.strip().lower() in {"", "y", "yes"}
+            domains = []
+            if not public_web:
+                domains = [x.strip() for x in input("允许抓取的域名（逗号分隔）: ").split(",") if x.strip()]
+            value = input("本项目累计请求次数上限 [2000]（最多 100000）: ").strip() or "2000"
+            if not value.isdigit() or not 1 <= int(value) <= 100_000 or (not public_web and not domains):
                 raise ValueError("INVALID_FINITE_SETUP_LIMIT")
             helper = HERE / "research_runtime_setup.py"
             if not helper.is_file():
                 raise ValueError("RUNTIME_SETUP_HELPER_MISSING")
-            if not configure_research(root, providers=providers, domains=domains.split(","),
-                                      max_calls=int(value), task=task):
+            if not configure_research(root, providers=providers, domains=domains,
+                                      max_calls=int(value), task=task, public_web=public_web):
                 return 0
             for provider in providers:
                 if provider in {"tinyfish", "serpapi"}:

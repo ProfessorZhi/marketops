@@ -84,9 +84,23 @@ Bruce 这类销售提出调研需求后，agent 自主把整件事做完：从�
 - [x] **T3 碰壁记录 + 域名记忆**：`wall_events` 表，由 fallback 和 harvest 自动写入；域名记忆影响升级起点；`marketops_lessons_report`。验收：被拦域名第二次直接走 TinyFish；报告能导出。
 - [x] **T4 Jev 批量**（第一版：并发逐页判断，一次工具调用；合并成单次计费的真正批量待做）：`marketops_jev_triage`（多问题批量、置信度阈值）；site_harvest 可选用 Jev 判断页面价值和角色。验收：真实 Jev 调用批量返回，低置信度项被标出。
 - [ ] **T5 第三档攻坚**：TinyFish 浏览器 Agent 接入升级阶梯，带攻坚预算和授权开关。
+  现状：`marketops_tinyfish_agent` / `_agent_wait` 代码仍在但不对 agent 暴露；`research_runtime_setup.CORE`
+  不含 `tinyfish.run_web_automation`，`paid_agent_enabled` 恒为 false。要做：configure 增加
+  `--hard-case-usd` 授权；admission 在授权且预算内放行；skill `marketops-tinyfish` 已写好触发条件。
+  需要用户明确同意付费后再做真实测试。
 - [x] **T6 Skill 拆分 + 场景包**：按第 7 节重排；英国草坪场景包补充来源和查询模板。
-- [ ] **T7 一键安装**：Crawl4AI 和 Chromium 自动安装与自检；`/marketops-setup` 命令。
+- [x] **T7 一键安装**：`customer_setup.py` 默认启用有 Key 的服务、公网抓取授权、上限默认 2000（最多 10 万）、
+  可选一键安装 Crawl4AI + Chromium、同步盘警告；`/marketops-setup` 命令（Key 只在终端隐藏输入）。
 - [ ] **T8 上游代理**：出站通道支持接 HTTPS_PROXY（公司网络）。
+  现状：`research_egress.open_session` 和 `marketops_safe_egress/adapters/egress_proxy.py` 先本机解析 DNS、
+  再直连解析出的 IP；在只能走代理的网络里会失败。要做：本机 DNS 不可用且配置了 HTTPS_PROXY 时，
+  回环代理改为向上游发 `CONNECT host:443`（主机名，不是 IP），仍做端口和 IP 字面量检查。
+  注意 `marketops_safe_egress/` 与核心 `marketops/adapters/` 字节同步（PROVENANCE.json），两边要一起改。
+
+### 已做的真实验证（RC6）
+- 单窗口：Chelmsford 一带 5 家礼堂，4 家拿到带引文的邮箱/电话（Serper、SerpApi Maps、TinyFish fetch、Jev 全部真实调用）。
+- 多窗口：两个 MCP 进程从同一共享池（Maldon 一带 9 家，Maps 导入且对账一致）并发领取，零重复；
+  3 家共 12 条准入联系方式，6 家 HOLD 并写明原因；`marketops_lessons_report` 导出报告（Crawl4AI 失败 5 次，TinyFish 救回 4 次）。
 
 ## 10. 接续须知
 
