@@ -38,6 +38,23 @@ NAMESPACE = {"x": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
 ROW_LIMIT = 20_000
 MAX_MATERIAL = 4_000_000
 
+#: Sheets a client reads. Only records that passed the admission gate below may
+#: appear here. A held candidate is written to 排除与待确认 and preserved in
+#: 候选数据审计; it is never silently dropped and never promoted into these tables.
+CLIENT_BUSINESS_SHEETS = ("客户总表", "联系人路线", "场地与资产", "人员岗位")
+INTERNAL_AUDIT_SHEETS = ("排除与待确认", "证据索引", "本轮说明", "来源与查询", "候选数据审计")
+
+#: Contract for Lane B's client view (research_client_view.py, owned elsewhere).
+#: `evaluate_admission` is the single decision point; a consumer must read
+#: `decisions`/`admitted`/`rejected`, never the truncated audit sample window.
+ADMISSION_SCHEMA = "marketops.research.delivery-admission.v1"
+#: Material kinds that can anchor a candidate: the browser-rendered DOM, the
+#: original response, or the vendor's semantic HTML. Provider-extracted markdown,
+#: images and model decisions are derived evidence and cannot be the sole anchor.
+ADMISSIBLE_MATERIAL_KINDS = frozenset({"rendered_html", "raw_response", "provider_html"})
+BUSINESS_KINDS = ("organization", "venue", "contact_point", "person", "role", "relationship")
+HOLD_DISPOSITIONS = frozenset({"HOLD", "EXCLUDED", "DUPLICATE"})
+
 TABLES = (
     ("客户总表", ("组织ID", "组织名称", "研究范围", "研究状态", "关联场地数",
                  "公开联系渠道数", "原始资料引用", "未解决事项")),
@@ -157,6 +174,284 @@ def _read_provenance(root: Path, run_id: str) -> tuple[list[dict], list[dict]]:
     return provenance.evidence_links(root, run_id), provenance.stored_envelopes(root, run_id)
 
 
+_PLACEHOLDERS = frozenset({"", "UNKNOWN", "NONE", "N/A", "NULL", "TBD", "NOT_FOUND"})
+
+
+def _is_meaningful(value: object) -> bool:
+    return isinstance(value, str) and value.strip().upper() not in _PLACEHOLDERS
+
+
+def _field_text(data: dict, *names: str) -> str:
+    """First present string field, trimmed. `None` never becomes the string "None"."""
+    for name in names:
+        value = data.get(name)
+        if isinstance(value, str):
+            return value.strip()
+    return ""
+
+
+def _literal_in(text: str, value: str) -> bool:
+    """A literal occurrence with address boundaries, not an arbitrary substring.
+
+    Mirrors the audit's own boundary rule: a trailing sentence dot is punctuation,
+    while a dot followed by another address character is a longer token.
+    """
+    if not isinstance(value, str) or not value:
+        return False
+    if "@" in value:
+        return re.search(r"(?<![\w.+-])" + re.escape(value) + r"(?![\w+-]|\.[\w+-])",
+                         text, re.I) is not None
+    return value.casefold() in text.casefold()
+
+
+def _claim_evidence(record: dict, assets: dict[str, dict], normalized: dict[str, str],
+                    link_index: set[tuple]) -> tuple[set[str], set[str], list[str]]:
+    """Per-claim fail-closed checks; every reason code is an admission blocker.
+
+    A quote must exist in the saved bytes, come from an admissible material kind,
+    and be bound to a recorded (artifact, field, span) link. Nothing here reads the
+    audit's result window: the caller passes every record, so >100 mixed records
+    cannot hide a bad one behind `samples[:100]`.
+    """
+    codes: set[str] = set()
+    matched_fields: set[str] = set()
+    matched_quotes: list[str] = []
+    ids = record.get("artifact_ids") or []
+    claims = record["data"].get("claims")
+    if not ids:
+        codes.add("NO_SOURCE")
+    if not isinstance(claims, list) or len(claims) > 12:
+        codes.add("CLAIMS_INVALID")
+        claims = []
+    if not claims:
+        codes.add("NO_EXCERPT")
+    for claim in claims:
+        if not isinstance(claim, dict):
+            codes.add("CLAIMS_INVALID")
+            continue
+        field, artifact_id, quote = (claim.get("field"), claim.get("artifact_id"),
+                                     claim.get("quote"))
+        if (not isinstance(field, str) or not evidence.KEY.fullmatch(field)
+                or not isinstance(artifact_id, str) or artifact_id not in ids
+                or artifact_id not in assets
+                or not isinstance(quote, str) or not 12 <= len(quote) <= 600):
+            codes.add("CLAIMS_INVALID")
+            continue
+        material = assets[artifact_id]
+        kind = material.get("kind")
+        if kind not in ADMISSIBLE_MATERIAL_KINDS:
+            codes.add("SOURCE_TYPE_NOT_ADMISSIBLE:" + str(kind))
+            continue
+        wanted = evidence._norm(quote)
+        if not wanted or wanted not in normalized.get(artifact_id, ""):
+            codes.add("EXCERPT_NOT_FOUND")
+            continue
+        span = hashlib.sha256(wanted.encode("utf-8")).hexdigest()
+        if (artifact_id, field, span) not in link_index:
+            codes.add("SPAN_NOT_RECORDED")
+            continue
+        matched_fields.add(field)
+        matched_quotes.append(wanted)
+    return codes, matched_fields, matched_quotes
+
+
+def _binding_supported(record: dict, organization: dict,
+                       normalized: dict[str, str]) -> bool:
+    """Does the evidence tie this record to the organisation it names?
+
+    Either both records cite a common artifact, or the organisation's own recorded
+    name occurs in material this record cites. A bare `organization_id` string is
+    an assertion, not a binding; a wrong one must fail closed rather than attach a
+    contact or venue to a different institution.
+    """
+    ids = set(record.get("artifact_ids") or ())
+    if ids & set(organization.get("artifact_ids") or ()):
+        return True
+    name = organization["data"].get("name")
+    if isinstance(name, str) and len(name.strip()) >= 3:
+        wanted = evidence._norm(name)
+        if wanted and any(wanted in normalized.get(a, "") for a in ids):
+            return True
+    return False
+
+
+def evaluate_admission(records: list[dict], artifacts, links: list[dict],
+                       version_conflicts=(), *, conflict_records=()) -> dict:
+    """One admission decision per business-kind record, computed for the whole set.
+
+    Pure: reads no disk and writes nothing. `records` is the active append-only
+    snapshot; `conflict_records` are the versions removed by
+    `workflow.active_records` and are used only to map a forked review disposition
+    back to the target it would have held.
+
+    A record is admitted only when every dimension passes — identity, citation
+    span, material kind, contact literal, organisation binding, disposition and
+    version state. Any reason code means the record goes to 排除与待确认 and
+    候选数据审计, never to a client-facing business sheet.
+    """
+    assets = dict(artifacts) if isinstance(artifacts, dict) else {
+        a["artifact_id"]: a for a in artifacts}
+    normalized = {aid: evidence._text(a) for aid, a in assets.items()}
+    links_by_record: dict[str, list[dict]] = defaultdict(list)
+    for link in links:
+        links_by_record[link["record_id"]].append(link)
+    conflict_ids = {rid for conflict in version_conflicts
+                    for rid in conflict.get("record_ids", ())}
+
+    held_targets: dict[tuple[str, str], str] = {}
+    for row in records:
+        data = row.get("data") or {}
+        if row.get("kind") != "review" or data.get("review_type") != "target_disposition":
+            continue
+        target_kind, target_key = data.get("target_kind"), data.get("target_entity_key")
+        if not isinstance(target_kind, str) or not isinstance(target_key, str):
+            continue
+        disposition = data.get("disposition")
+        if disposition not in workflow.DISPOSITIONS:
+            held_targets[(target_kind, target_key)] = "TARGET_DISPOSITION_INVALID"
+        elif disposition in HOLD_DISPOSITIONS:
+            held_targets[(target_kind, target_key)] = "TARGET_DISPOSITION_" + disposition
+    disposition_conflicts: set[tuple[str, str]] = set()
+    for row in conflict_records:
+        data = row.get("data") or {}
+        if row.get("kind") == "review" and data.get("review_type") == "target_disposition":
+            target_kind, target_key = data.get("target_kind"), data.get("target_entity_key")
+            if isinstance(target_kind, str) and isinstance(target_key, str):
+                disposition_conflicts.add((target_kind, target_key))
+
+    prepared: dict[str, tuple[set[str], set[str], list[str]]] = {}
+    for row in records:
+        kind = row.get("kind")
+        if kind not in BUSINESS_KINDS:
+            continue
+        link_index = {(link["artifact_id"], link["field"], link["span_sha256"])
+                      for link in links_by_record.get(row["record_id"], ())}
+        codes, fields, quotes = _claim_evidence(row, assets, normalized, link_index)
+        data = row.get("data") or {}
+        if kind in {"organization", "venue"} and "identity" not in fields:
+            codes.add("MISSING_REQUIRED_IDENTITY")
+        if kind == "relationship" and "relationship" not in fields:
+            codes.add("MISSING_REQUIRED_RELATIONSHIP")
+        if kind == "organization" and not _is_meaningful(data.get("name")):
+            codes.add("ORGANIZATION_NAME_MISSING")
+        if kind == "venue" and not _is_meaningful(data.get("name")):
+            codes.add("VENUE_NAME_MISSING")
+        if kind == "contact_point":
+            value = _field_text(data, "value", "email")
+            channel = _field_text(data, "type", "channel").casefold()
+            if not channel:
+                codes.add("CONTACT_CHANNEL_MISSING")
+            if not value:
+                codes.add("CONTACT_VALUE_MISSING")
+            else:
+                if channel == "email" and not EMAIL.fullmatch(value):
+                    codes.add("EMAIL_INVALID")
+                literal = any(
+                    _literal_in(normalized.get(a, ""), value)
+                    for a in (row.get("artifact_ids") or ())
+                    if a in assets and assets[a].get("kind") in ADMISSIBLE_MATERIAL_KINDS)
+                if not literal:
+                    codes.add("EMAIL_NOT_IN_PRIMARY_MATERIAL" if channel == "email"
+                              else "CONTACT_VALUE_NOT_LITERAL")
+                # A literal on the page is not a quote. The admitted row must be
+                # read from a recorded span whose text contains the value itself.
+                if not any(_literal_in(quote, value) for quote in quotes):
+                    codes.add("CONTACT_VALUE_NOT_IN_EXCERPT")
+        if kind in {"person", "role"}:
+            name = data.get("name") if kind == "person" else data.get("department")
+            role = data.get("role_title", data.get("role_function"))
+            if not _is_meaningful(name) and not _is_meaningful(role):
+                codes.add("PERSON_OR_ROLE_IDENTITY_MISSING")
+        hold = held_targets.get((kind, row.get("entity_key")))
+        if hold:
+            codes.add(hold)
+        if (kind, row.get("entity_key")) in disposition_conflicts:
+            codes.add("DISPOSITION_VERSION_CONFLICT")
+        if row["record_id"] in conflict_ids:
+            codes.add("VERSION_CONFLICT")
+        prepared[row["record_id"]] = (codes, fields, quotes)
+
+    # Organisations are the root of the association graph: a venue or contact may
+    # only bind to an organisation that is itself admitted. A rejected organisation
+    # therefore takes its dependants with it rather than lending them its key.
+    org_by_key: dict[str, dict] = {}
+    for row in records:
+        if row.get("kind") != "organization":
+            continue
+        codes = prepared[row["record_id"]][0]
+        if not codes:
+            if row["entity_key"] in org_by_key:
+                codes.add("ORGANIZATION_ENTITY_DUPLICATE")
+            else:
+                org_by_key[row["entity_key"]] = row
+
+    decisions = []
+    for row in records:
+        kind = row.get("kind")
+        if kind not in BUSINESS_KINDS:
+            continue
+        codes, fields, _ = prepared[row["record_id"]]
+        data = row.get("data") or {}
+        organization_id = _field_text(data, "organization_id")
+        if organization_id and kind != "organization":
+            organization = org_by_key.get(organization_id)
+            if organization is None:
+                codes.add("ORGANIZATION_NOT_ADMITTED")
+            elif not _binding_supported(row, organization, normalized):
+                codes.add("ORGANIZATION_PROVENANCE_MISMATCH")
+        decisions.append({
+            "record_id": row["record_id"], "kind": kind,
+            "entity_key": row["entity_key"], "admitted": not codes,
+            "reason_codes": sorted(codes), "matched_fields": sorted(fields),
+            "organization_id": organization_id or None,
+        })
+
+    admitted_ids: dict[str, list[str]] = defaultdict(list)
+    rejected_ids: list[str] = []
+    reason_counts: Counter = Counter()
+    for decision in decisions:
+        if decision["admitted"]:
+            admitted_ids[decision["kind"]].append(decision["record_id"])
+        else:
+            rejected_ids.append(decision["record_id"])
+            reason_counts.update(decision["reason_codes"])
+    return {
+        "schema": ADMISSION_SCHEMA,
+        "decisions": decisions,
+        "admitted": {kind: list(ids) for kind, ids in admitted_ids.items()},
+        "rejected": rejected_ids,
+        "admitted_record_ids": [d["record_id"] for d in decisions if d["admitted"]],
+        "rejected_record_ids": rejected_ids,
+        "admitted_by_kind": {kind: len(ids) for kind, ids in sorted(admitted_ids.items())},
+        "rejected_by_kind": dict(sorted(Counter(
+            d["kind"] for d in decisions if not d["admitted"]).items())),
+        "reason_counts": dict(sorted(reason_counts.items())),
+        "evaluated_record_count": len(decisions),
+        "admitted_record_count": sum(1 for d in decisions if d["admitted"]),
+        "rejected_record_count": len(rejected_ids),
+        "version_conflict_record_ids": sorted(conflict_ids),
+        "version_conflict_record_count": len(conflict_ids),
+        "client_facing_sheets": list(CLIENT_BUSINESS_SHEETS),
+        "internal_audit_sheets": list(INTERNAL_AUDIT_SHEETS),
+        "sample_window_independent": True,
+    }
+
+
+_ADMISSION_ISSUE_TYPE = {
+    "organization": "组织准入", "venue": "场地准入",
+    "contact_point": "联系渠道准入", "person": "人员岗位准入",
+    "role": "人员岗位准入", "relationship": "关联身份准入",
+}
+_ADMISSION_ACTION = {
+    "organization": "补充组织身份页面引文与跨度后重新提交；不得进入客户总表",
+    "venue": "补充场地身份页面引文并解除 HOLD；不得进入场地与资产",
+    "contact_point": "回到原始页面取得含该字面值的具名引文；不得晋升联系人",
+    "person": "补充人员或角色的页面引文与岗位证据；不得进入人员岗位",
+    "role": "补充人员或角色的页面引文与岗位证据；不得进入人员岗位",
+    "relationship": "核实关联双方并补充同一来源跨度；不得进入关联结论",
+}
+
+
 def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
     run, records, artifacts = _read_snapshot(root, run_id)
     links, envelopes = _read_provenance(root, run_id)
@@ -188,98 +483,100 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
     by_kind: dict[str, list[dict]] = defaultdict(list)
     for record in effective:
         by_kind[record["kind"]].append(record)
-    organizations = by_kind["organization"]
-    org_by_key: dict[str, dict] = {}
-    issues: list[tuple] = [
-        ("候选版本冲突", item["entity_key"],
-         "同类实体存在未能形成唯一 supersedes 链的版本：" +
-         ", ".join(item["record_ids"][:8]),
-         "先追加具名更正或人工核对；冲突版本不进入主业务表")
-        for item in version_conflicts
-    ]
-    # Missing excerpts and mismatched source links are review items, not
-    # automatically certified venue types, ownership or hard exclusions.
-    for sample in audit_all["samples"]:
-        issues.append(("来源声明未核实", sample["record_id"],
-                       ", ".join(sample["reason_codes"]),
-                       "回到同一资料的具体引文；禁止据附件ID本身晋升事实"))
+
+    # One gate decides the whole workbook. It is computed over `effective` — every
+    # active record, never the audit's 100-sample window — so a bad record at
+    # position 101 cannot slip into a client sheet. The issue list is completed
+    # before any business row is built, so a row's status can never be computed
+    # from a partial list, and each issue carries its subject's entity key and
+    # record id explicitly instead of comparing one against the other.
+    conflict_ids = {rid for conflict in version_conflicts
+                    for rid in conflict.get("record_ids", ())}
+    conflict_records = [r for r in records if r["record_id"] in conflict_ids]
+    admission = evaluate_admission(effective, assets, links, version_conflicts,
+                                   conflict_records=conflict_records)
+    by_id = {r["record_id"]: r for r in effective}
+    admitted_by_kind: dict[str, list[dict]] = defaultdict(list)
+    for decision in admission["decisions"]:
+        if decision["admitted"]:
+            admitted_by_kind[decision["kind"]].append(by_id[decision["record_id"]])
+    organizations = admitted_by_kind["organization"]
+    venues = admitted_by_kind["venue"]
+    contacts = admitted_by_kind["contact_point"]
+    people = admitted_by_kind["person"] + admitted_by_kind["role"]
+    # Admitted relationships are reported in the manifest; the fixed nine-sheet
+    # contract has no client relationship sheet, so no row is invented for them.
+    relationships = admitted_by_kind["relationship"]
+    org_by_key = {org["entity_key"]: org for org in organizations}
+
+    issues: list[dict] = []
+
+    def add_issue(issue_type: str, object_id: str, reason: str, action: str, *,
+                  entity_key: str | None = None,
+                  organization_id: str | None = None) -> None:
+        issues.append({"type": issue_type, "object_id": object_id,
+                       "entity_key": entity_key, "organization_id": organization_id,
+                       "reason": reason, "action": action})
+
+    for item in version_conflicts:
+        add_issue("候选版本冲突", item["entity_key"],
+                  "同类实体存在未能形成唯一 supersedes 链的版本：" +
+                  ", ".join(item["record_ids"][:8]),
+                  "先追加具名更正或人工核对；冲突版本不进入主业务表",
+                  entity_key=item["entity_key"])
+    seen_orgs: set[str] = set()
+    for org in organizations:
+        if org["entity_key"] in seen_orgs:
+            add_issue("组织合并冲突", org["entity_key"],
+                      "同一组织实体键出现多条候选记录，禁止静默覆盖",
+                      "人工核实组织及版本", entity_key=org["entity_key"])
+        seen_orgs.add(org["entity_key"])
+    for decision in admission["decisions"]:
+        if decision["admitted"]:
+            continue
+        kind = decision["kind"]
+        add_issue(_ADMISSION_ISSUE_TYPE.get(kind, "准入排除"), decision["record_id"],
+                  "准入未通过：" + ", ".join(decision["reason_codes"]),
+                  _ADMISSION_ACTION.get(kind, "补充原始来源与引文后重新提交"),
+                  entity_key=decision["entity_key"],
+                  organization_id=decision.get("organization_id"))
     spanless = [record for record in effective
                 if record["kind"] in evidence.CHECK_KINDS
                 and record["artifact_ids"] and not links_by_record.get(record["record_id"])]
     for record in spanless:
-        issues.append(("来源跨度未记录", record["record_id"],
-                       "候选引用了资料但未记录读取跨度：" + "; ".join(record["artifact_ids"][:8]),
-                       "回到同一资料的具名片段；仅有附件级支持的候选不进入业务结论"))
-
-    for org in organizations:
-        key = org["entity_key"]
-        if key in org_by_key:
-            issues.append(("组织合并冲突", key, "同一组织实体键出现多条候选记录，禁止静默覆盖", "人工核实组织及版本"))
-        else:
-            org_by_key[key] = org
-
-    venue_counts = Counter()
-    for venue in by_kind["venue"]:
-        org_key = str(venue["data"].get("organization_id", "")).strip()
-        if org_key:
-            venue_counts[org_key] += 1
-            if org_key not in org_by_key:
-                issues.append(("关联缺失", venue["record_id"], "场地引用的组织不存在：" + org_key,
-                               "补充核实组织，不要推断运营者"))
-
-    contacts = by_kind["contact_point"]
-    contact_counts = Counter()
-    contact_rows: list[tuple] = []
-    for candidate in contacts:
-        fact = candidate["data"]
-        org_key = str(fact.get("organization_id", "")).strip()
-        if org_key:
-            contact_counts[org_key] += 1
-            if org_key not in org_by_key:
-                issues.append(("关联缺失", candidate["record_id"], "联系渠道未对应已记录组织", "检查归属"))
-        channel = str(fact.get("type", fact.get("channel", ""))).strip().lower()
-        value = str(fact.get("value", fact.get("email", ""))).strip()
-        if not candidate["artifact_ids"]:
-            validation = "HOLD_NO_SOURCE"
-        elif channel == "email" and not EMAIL.fullmatch(value):
-            validation = "HOLD_INVALID_EMAIL"
-        elif not value:
-            validation = "HOLD_EMPTY_CONTACT"
-        else:
-            supported = any(value.casefold() in assets[i]["text"].casefold()
-                            for i in candidate["artifact_ids"])
-            validation = "LITERAL_IN_SAVED_MATERIAL" if supported else "HOLD_NOT_LITERAL"
-            if supported and channel == "email":
-                single = evidence.audit_records([candidate], assets, result_limit=1)
-                problems = single["gap_counts"]
-                if "EMAIL_NOT_IN_PRIMARY_MATERIAL" in problems:
-                    validation = "HOLD_EMAIL_NOT_IN_PRIMARY_MATERIAL"
-                elif "NO_EXCERPT" in problems or "CLAIMS_INVALID" in problems:
-                    validation = "HOLD_EMAIL_NO_SOURCE_QUOTE"
-                elif "EXCERPT_NOT_FOUND" in problems:
-                    validation = "HOLD_EMAIL_QUOTE_MISMATCH"
-                else:
-                    original = any(assets[i]["kind"] in {"rendered_html", "raw_response"}
-                                   and value.casefold() in assets[i]["text"].casefold()
-                                   for i in candidate["artifact_ids"])
-                    validation = ("RENDERED_EMAIL_LITERAL_NOT_BUSINESS_VERIFIED" if original else
-                                  "VENDOR_HTML_EMAIL_LITERAL_NOT_BUSINESS_VERIFIED")
-        # A literal in a provider-extracted page is useful source support, not formal SOP grading.
-        if validation.startswith("HOLD"):
-            issues.append(("联系渠道证据", candidate["record_id"], validation,
-                           "读取原始来源并补正/排除，不得晋升正式联系人"))
-        contact_rows.append((
-            candidate["record_id"], org_key or "UNKNOWN",
-            _plain(fact.get("person_name", fact.get("department", ""))),
-            _plain(fact.get("role_function", fact.get("role_title", ""))),
-            channel or "UNKNOWN", value or "UNKNOWN", validation,
-            "RULES_UNKNOWN", "CANDIDATE_NOT_APPROVED", "; ".join(candidate["artifact_ids"]) or "NONE",
-        ))
+        add_issue("来源跨度未记录", record["record_id"],
+                  "候选引用了资料但未记录读取跨度：" + "; ".join(record["artifact_ids"][:8]),
+                  "回到同一资料的具名片段；仅有附件级支持的候选不进入业务结论",
+                  entity_key=record["entity_key"])
     for route in by_kind["contact_route"]:
         # The Lite MCP can only persist *proposals*. No text or grade is formal.
-        issues.append(("联系路线待审核", route["record_id"],
-                       "Lite 暂存路线不能执行正式 A/B/C/D 晋升",
-                       "通过授权 MarketOps SOP/人工核验系统定级"))
+        add_issue("联系路线待审核", route["record_id"],
+                  "Lite 暂存路线不能执行正式 A/B/C/D 晋升",
+                  "通过授权 MarketOps SOP/人工核验系统定级",
+                  entity_key=route["entity_key"])
+    for other in by_kind["review"]:
+        add_issue("人工复核", other["record_id"],
+                  _plain(other["data"].get("reason")), "人工决策并记录审批来源",
+                  entity_key=other["entity_key"])
+
+    venue_counts = Counter()
+    for venue in venues:
+        org_key = _field_text(venue["data"], "organization_id")
+        if org_key:
+            venue_counts[org_key] += 1
+    contact_counts = Counter()
+    for candidate in contacts:
+        org_key = _field_text(candidate["data"], "organization_id")
+        if org_key:
+            contact_counts[org_key] += 1
+    rejected_bound = Counter(
+        decision["organization_id"] for decision in admission["decisions"]
+        if not decision["admitted"] and decision.get("organization_id"))
+    issue_keys = Counter(issue["entity_key"] for issue in issues if issue.get("entity_key"))
+
+    if not organizations and not venues:
+        add_issue("业务对象缺失", run_id, "缺少通过准入的组织和场地候选",
+                  "继续在限定范围内研究")
 
     org_rows = []
     for org in organizations:
@@ -288,32 +585,48 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
             key, _plain(fact.get("name")), run["scope"], "CANDIDATE_NOT_APPROVED",
             venue_counts[key], contact_counts[key],
             "; ".join(org["artifact_ids"]) or "NONE",
-            "REVIEW_REQUIRED" if any(v[1] == key for v in issues) else "PENDING_SOP_QUALIFICATION",
+            "REVIEW_REQUIRED" if (issue_keys[key] or rejected_bound[key])
+            else "PENDING_SOP_QUALIFICATION",
         ))
-        if not org["artifact_ids"]:
-            issues.append(("组织证据", org["record_id"], "没有可回读的原始资料引用",
-                           "补充组织身份来源"))
+
+    contact_rows: list[tuple] = []
+    for candidate in contacts:
+        fact = candidate["data"]
+        org_key = _field_text(fact, "organization_id")
+        channel = str(fact.get("type", fact.get("channel", ""))).strip().lower()
+        value = str(fact.get("value", fact.get("email", ""))).strip()
+        kinds = {assets[a]["kind"] for a in candidate["artifact_ids"] if a in assets}
+        if channel == "email":
+            validation = ("RENDERED_EMAIL_LITERAL_NOT_BUSINESS_VERIFIED"
+                          if kinds & {"rendered_html", "raw_response"}
+                          else "VENDOR_HTML_EMAIL_LITERAL_NOT_BUSINESS_VERIFIED")
+        else:
+            validation = "LITERAL_IN_SAVED_MATERIAL"
+        contact_rows.append((
+            candidate["record_id"], org_key or "UNKNOWN",
+            _plain(fact.get("person_name", fact.get("department", ""))),
+            _plain(fact.get("role_function", fact.get("role_title", ""))),
+            channel or "UNKNOWN", value or "UNKNOWN", validation,
+            "RULES_UNKNOWN", "CANDIDATE_NOT_APPROVED",
+            "; ".join(candidate["artifact_ids"]) or "NONE",
+        ))
 
     venue_rows = [(
         x["entity_key"], _plain(x["data"].get("name")),
-        _plain(x["data"].get("organization_id")),
+        _plain(_field_text(x["data"], "organization_id") or None),
         "CANDIDATE_NOT_APPROVED", "; ".join(x["artifact_ids"]) or "NONE",
-    ) for x in by_kind["venue"]]
+    ) for x in venues]
 
     people_rows = []
-    for item in by_kind["person"] + by_kind["role"]:
+    for item in people:
         facts = item["data"]
-        org = str(facts.get("organization_id", "")).strip()
-        if org and org not in org_by_key:
-            issues.append(("岗位组织关联", item["record_id"], "任职或部门指向未知组织", "补充组织证据"))
-        if not item["artifact_ids"]:
-            issues.append(("岗位证据", item["record_id"], "缺少可回读资料引用", "先获取原始岗位证据"))
+        org = _field_text(facts, "organization_id")
         people_rows.append((
             item["record_id"], item["kind"],
             _plain(facts.get("name", facts.get("department", ""))),
             _plain(facts.get("role_title", facts.get("role_function", ""))),
             org or "UNKNOWN", "CANDIDATE_NOT_VERIFIED",
-            "; ".join(item["artifact_ids"]) or "NONE"
+            "; ".join(item["artifact_ids"]) or "NONE",
         ))
 
     source_rows = [(
@@ -333,11 +646,6 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
         "CANDIDATE_ONLY",
     ) for a in artifacts]
 
-    for other in by_kind["review"]:
-        issues.append(("人工复核", other["record_id"],
-                       _plain(other["data"].get("reason")), "人工决策并记录审批来源"))
-    if not org_rows and not venue_rows:
-        issues.append(("业务对象缺失", run_id, "缺少组织和场地候选", "继续在限定范围内研究"))
     # §3.5 makes an envelope without a ledger row ineligible for export. The gate
     # reports that as a blocked state; it does not fill the link with a placeholder,
     # and it does not silently present the envelope as exportable.
@@ -354,6 +662,15 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
         ("SOP/规则版本", run["rule_version"]),
         ("研究状态", "PARTIAL_CANDIDATE_ONLY"),
         ("业务正式审查", "NOT_PERFORMED"),
+        ("业务表准入判定", "FAIL_CLOSED_PER_RECORD"),
+        ("准入评估记录数", admission["evaluated_record_count"]),
+        ("准入通过记录数", admission["admitted_record_count"]),
+        ("准入排除记录数", admission["rejected_record_count"]),
+        ("准入排除原因", json.dumps(admission["reason_counts"],
+                                   ensure_ascii=False, sort_keys=True)),
+        ("准入通过关联身份数", len(relationships)),
+        ("客户业务表", "、".join(CLIENT_BUSINESS_SHEETS)),
+        ("内部审计表", "、".join(INTERNAL_AUDIT_SHEETS)),
         ("实际组织候选数", len(organizations)),
         ("实际场地候选数", len(venue_rows)),
         ("实际人员/岗位候选数", len(people_rows)),
@@ -382,9 +699,11 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
         "; ".join(x["artifact_ids"]) or "NONE",
         json.dumps(x["data"], ensure_ascii=False, sort_keys=True)[:6000],
     ) for x in records]
+    issue_rows = [(issue["type"], issue["object_id"],
+                   issue["reason"], issue["action"]) for issue in issues]
 
     collected = {
-        "客户总表": org_rows, "联系人路线": contact_rows, "排除与待确认": issues,
+        "客户总表": org_rows, "联系人路线": contact_rows, "排除与待确认": issue_rows,
         "证据索引": evidence_rows, "本轮说明": notes,
         "场地与资产": venue_rows, "人员岗位": people_rows,
         "来源与查询": source_rows, "候选数据审计": audit_rows,
@@ -401,6 +720,12 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
         "send_authorized": False,
         "evidence_assessment": audit,
         "evidence_ready_for_business_use": False,
+        "client_business_tables_admitted_only": True,
+        "admission": admission,
+        "admission_status": ("ALL_CLIENT_ROWS_ADMITTED"
+                             if admission["rejected_record_count"] == 0
+                             and admission["version_conflict_record_count"] == 0
+                             else "HELD_ROWS_EXCLUDED_FROM_CLIENT_TABLES"),
         "goal_assessment": goal,
         "evidence_link_count": len(links),
         "evidence_spanless_record_count": len(spanless),
@@ -408,7 +733,6 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
         "evidence_envelope_export_gate": envelope_gate,
         "evidence_envelope_missing_artifacts": envelopeless,
     }
-
 
 def _readback_xlsx(path: Path, sheets: list[Sheet]) -> None:
     """Read independent disk ZIP/XML; ensure every sheet has the same row/column cells."""
