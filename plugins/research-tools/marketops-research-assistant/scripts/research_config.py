@@ -277,6 +277,43 @@ def configure(data_root: str, experience_file: str, *, confirm: bool = False,
             "env_data_root_override": bool((env.get(DATA_ROOT_ENV) or "").strip())}
 
 
+UPSTREAM_PROXY_ENV = "MARKETOPS_EGRESS_UPSTREAM_PROXY"
+
+
+def set_upstream_proxy(value: str, env: dict | None = None,
+                       platform: str = sys.platform) -> dict:
+    """Store (or clear, with "") the http://host:port proxy research traffic goes through."""
+    env = os.environ if env is None else env
+    data = load(env, platform)
+    if data is None:
+        raise ConfigError("CONFIG_REQUIRED", "configure the data paths first")
+    value = str(value or "").strip()
+    if value and not re.fullmatch(r"http://[A-Za-z0-9.\-]+:\d{1,5}/?", value):
+        raise ConfigError("UPSTREAM_PROXY_INVALID", "use http://host:port without a password")
+    if value:
+        data["upstream_proxy"] = value.rstrip("/")
+    else:
+        data.pop("upstream_proxy", None)
+    _atomic_write(config_path(env, platform), json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+    return {"status": "SAVED", "upstream_proxy": data.get("upstream_proxy", "")}
+
+
+def load_upstream_proxy_into_environment(env: dict | None = None,
+                                         platform: str = sys.platform) -> str:
+    """An explicit environment value wins; otherwise the stored one, if any."""
+    env = os.environ if env is None else env
+    if (env.get(UPSTREAM_PROXY_ENV) or "").strip():
+        return "ENVIRONMENT"
+    try:
+        data = load(env, platform)
+    except ConfigError:
+        return "CONFIG_UNREADABLE"
+    if data and data.get("upstream_proxy"):
+        env[UPSTREAM_PROXY_ENV] = data["upstream_proxy"]
+        return "CONFIG"
+    return "DIRECT"
+
+
 def _atomic_write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     handle = tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent,

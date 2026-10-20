@@ -201,10 +201,23 @@ class EgressGate:
         *,
         allowlist: frozenset[str] | None = None,
         allowed_ports: frozenset[int] | None = None,
+        upstream: tuple[str, int] | None = None,
     ) -> None:
         self._resolver = resolver or SystemResolver()
         self._allowlist = allowlist
         self._allowed_ports = allowed_ports
+        self._upstream = upstream
+
+    @property
+    def upstream(self) -> tuple[str, int] | None:
+        """操作员指定的上游代理 ``(host, port)``；``None`` 表示直连（缺省）。
+
+        公司网络常常本机解析不了公网名字、也不许直连，一切出网都必须经过一个
+        HTTP 代理。装了上游之后判据一格不少：字面量、范围、端口照判；本机能解析时
+        私网判据照样对每一个地址点头，并经上游连到判过的那个地址。只有本机解析
+        不了时，解析才交给操作员选定的上游，这一条写在判决的 ``detail`` 上。
+        """
+        return self._upstream
 
     def check(self, host: str, port: int) -> EgressVerdict:
         literal = check_target(_probe_url(host))
@@ -224,6 +237,11 @@ class EgressGate:
         try:
             addresses = self._resolver.resolve(host, port)
         except DnsResolutionError as exc:
+            if self._upstream is not None:
+                return EgressVerdict(
+                    allowed=True, address=host,
+                    detail="resolved_by_upstream_proxy",
+                )
             # 三种失败各有名字，而且都不是「拒绝」：``nonexistent`` 说的是这个
             # 来源可能没了，``timeout`` / ``failure`` 说的是我们这次没问到。
             # 理由码带上 ``dns:`` 前缀，这样报告上它与 §7 的拒绝码分得开。
@@ -479,9 +497,15 @@ class EgressProxy:
     ) -> socket.socket | None:
         """连到**判过的那个地址**上。连不上时给浏览器一个 502 并返回 ``None``。"""
         try:
-            upstream = socket.create_connection(
-                (decision.address, decision.port), timeout=self._connect_timeout
-            )
+            if self._gate.upstream is not None:
+                upstream = _connect_via(
+                    self._gate.upstream, decision.address, decision.port,
+                    self._connect_timeout,
+                )
+            else:
+                upstream = socket.create_connection(
+                    (decision.address, decision.port), timeout=self._connect_timeout
+                )
         except OSError as exc:
             _respond(
                 conn,
@@ -511,6 +535,36 @@ class EgressProxy:
 
 
 # ----------------------------------------------------------------------
+def _connect_via(
+    proxy: tuple[str, int], address: str, port: int, timeout: float
+) -> socket.socket:
+    """经上游代理开一条到 ``address:port`` 的 ``CONNECT`` 隧道；非 2xx 抛 ``OSError``。"""
+    sock = socket.create_connection(proxy, timeout=timeout)
+    try:
+        authority = _authority(address, port)
+        sock.sendall(
+            f"CONNECT {authority} HTTP/1.1\r\nHost: {authority}\r\n\r\n".encode("ascii")
+        )
+        head = b""
+        while b"\r\n\r\n" not in head:
+            chunk = sock.recv(4096)
+            if not chunk:
+                raise OSError("upstream proxy closed before answering")
+            head += chunk
+            if len(head) > MAX_HEAD_BYTES:
+                raise OSError("upstream proxy answer head too long")
+        status_line, _, after = head.partition(b"\r\n")
+        parts = status_line.split(b" ")
+        if len(parts) < 2 or not parts[1].startswith(b"2"):
+            raise OSError(f"upstream proxy refused tunnel: {status_line[:80]!r}")
+        if after.partition(b"\r\n\r\n")[2]:
+            raise OSError("upstream proxy sent bytes before the tunnel opened")
+    except BaseException:
+        sock.close()
+        raise
+    return sock
+
+
 def _authority(host: str, port: int) -> str:
     """报告里那一格。端口一直写出来 —— 少了它，``example.co.uk:8443`` 与
     ``example.co.uk:443`` 在拒绝清单上长得一样。"""

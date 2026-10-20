@@ -16,7 +16,7 @@ import venv
 from pathlib import Path
 
 SOURCE = Path(__file__).resolve().parents[1]
-VERSION = "0.5.7-rc6"
+VERSION = "0.5.7-rc7"
 CLIENTS = ("codex", "workbuddy", "both", "claude", "all")
 STATE_FILE = "INSTALL_STATE.json"
 STATE_OWNER = "marketops.setup_clients.v1"
@@ -117,8 +117,8 @@ def source_files():
                         or name in {"credentials.json", "cc_host_probe.sh"}):
                     continue
                 yield item
-    for name in ("README.md", "START_HERE.md", "plugin.json", "mcp.json", ".mcp.json",
-                 "Install.cmd", "Install.ps1", "install.sh"):
+    for name in ("README.md", "START_HERE.md", "AGENT_INSTALL.md", "plugin.json", "mcp.json",
+                 ".mcp.json", "Install.cmd", "Install.ps1", "install.sh"):
         item = SOURCE / name
         if item.is_symlink():
             raise ValueError("SYMLINK_IN_PACKAGE")
@@ -480,6 +480,16 @@ def install(destination: Path, client: str, *, dependencies: bool,
             results["workbuddy_bundle"] = json.loads(completed.stdout)
             bundle_receipt.write_text(json.dumps(results["workbuddy_bundle"], indent=2) + "\n", encoding="utf-8")
         results["workbuddy_import_status"] = "PENDING_HOST_IMPORT"
+    # Any other MCP-capable agent (DeepSeek Harness and similar): one standard
+    # mcpServers file plus the skills folder its instructions are read from.
+    generic = {"mcpServers": {"marketops-research": {
+        "type": "stdio", "command": str(py),
+        "args": [str(target / "scripts" / "research_mcp.py")],
+        "cwd": str(target)}}}
+    (dest / "GENERIC_MCP.json").write_text(json.dumps(generic, indent=2) + "\n",
+                                           encoding="utf-8")
+    results["generic_mcp_config"] = str(dest / "GENERIC_MCP.json")
+    results["skills_directory"] = str(target / "skills")
     starter = dest / "START_HERE.md"
     starter.write_text(_start_here(results), encoding="utf-8")
     results["start_here"] = str(starter)
@@ -531,6 +541,13 @@ def _start_here(result):
     if "claude_next_argv" in result:
         lines.extend([heading("Claude Code"), "", "每次使用可从以下命令开启会话：", "", "```",
                       _command(result["claude_next_argv"]), "```", ""])
+    if "generic_mcp_config" in result:
+        lines.extend([heading("其他 Agent（DeepSeek Harness 等支持 MCP 的客户端）"), "",
+                      "在该客户端的 MCP 设置里导入或粘贴这个文件的内容：", "", "```",
+                      result["generic_mcp_config"], "```", "",
+                      "再把下面目录里的 Skills 加进它的技能/提示词目录（不支持 Skills 时，"
+                      "把 marketops-research/SKILL.md 的内容作为系统提示词）：", "", "```",
+                      result["skills_directory"], "```", ""])
     lines.extend(["## 开始第一次调研", "",
                   "> 使用 MarketOps，先检查数据路径、凭据、授权额度和供应商连接。按我的目标保存 Research Brief，先做 3 个候选；保存原文、事实引文和责任关系，无法核实的标 HOLD。导出 Excel，记录此次方法和卡点，并在下一批检索可复用经验。", "",
                   "先确认宿主能列出 marketops_setup_status、marketops_capabilities 等工具，再检查真实服务。仅代码复制成功不等于宿主与账号验收通过。",

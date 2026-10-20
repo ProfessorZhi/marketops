@@ -200,7 +200,7 @@ class ProviderOnboardingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             result = build_client_bundles.build(
                 Path(tmp) / "out", with_research_mcp=True)
-            self.assertEqual(12, result["skills"])
+            self.assertEqual(13, result["skills"])
             self.assertEqual(1, result["mcp_servers_bundled"])
             self.assertTrue(result["provider_onboarding_script_bundled"])
             self.assertFalse(result["all_vendor_sdks_physically_bundled"])

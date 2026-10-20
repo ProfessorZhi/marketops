@@ -43,6 +43,16 @@ def warn_sync_folder(root) -> None:
               "建议改用本机硬盘目录（例如 D:\\MarketOps\\data 或 ~/MarketOps/data）。")
 
 
+def default_paths() -> tuple[Path, Path]:
+    """Local-disk defaults outside any sync folder; one data directory every conversation shares."""
+    import os
+    if sys.platform == "win32":
+        base = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local") / "MarketOps"
+    else:
+        base = Path.home() / ".local" / "share" / "marketops"
+    return base / "data", base / "experience" / "Research_Experience.md"
+
+
 def offer_crawl4ai() -> None:
     """Install the free local crawler and its browser on request (one command each)."""
     import importlib.util
@@ -85,7 +95,14 @@ def configure_research(root, *, providers, domains, max_calls, task, public_web=
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--skip-keys", action="store_true", help="keep existing environment/keyring credentials")
+    parser.add_argument("--proxy", metavar="URL",
+                        help="only for networks that cannot reach the internet directly: "
+                             "http://host:port; pass an empty string to go back to direct")
     args = parser.parse_args(argv)
+    if args.proxy is not None:
+        import research_config
+        print(json.dumps(research_config.set_upstream_proxy(args.proxy), ensure_ascii=False))
+        return 0
     import research_config
     from provider_onboarding import format_text, report
     from research_credentials import configure_keys, load_into_environment
@@ -99,8 +116,10 @@ def main(argv=None):
             print(f"  经验文件：{stored['experience_file']}")
             print("  如果不是本次安装要用的位置，请删除该配置文件后重新运行本脚本。")
         else:
-            root = input("研究数据保存目录（绝对路径）: ").strip()
-            experience = input("经验汇总文件（研究目录之外的绝对路径，文件名 Research_Experience.md）: ").strip()
+            default_root, default_experience = default_paths()
+            root = input(f"研究数据保存目录（回车用默认 {default_root}）: ").strip() or str(default_root)
+            experience = (input(f"经验汇总文件（回车用默认 {default_experience}）: ").strip()
+                          or str(default_experience))
             root_path, exp_path = Path(root), Path(experience)
             if not root_path.is_absolute() or not exp_path.is_absolute():
                 raise ValueError("PATH_NOT_ABSOLUTE")

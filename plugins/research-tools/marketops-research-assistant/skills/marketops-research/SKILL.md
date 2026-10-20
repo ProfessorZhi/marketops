@@ -81,5 +81,14 @@ reason, and continue with the next target. Report all of it at the end.
 `marketops_start` and `marketops_next` return a few relevant lessons; `marketops_experience_recall`
 gives more for a stage or provider. They are advice, not rules. After using one, report the outcome
 with `marketops_experience_feedback` (helped / not_helped / contradicted / unknown, with an
-`artifact:` or `event:` reference from this Run). Record a blocked source, a provider switch or a
-user correction with `marketops_note` (no URLs, emails or secrets).
+`artifact:` or `event:` reference from this Run). Record every blocked source, provider failure and
+user correction with `marketops_note` the moment it happens (no URLs, emails or secrets), and end
+every session with `marketops_feedback_pack`; the method is in `marketops-feedback`.
+
+## 6. Do-not-contact list
+
+Before the first handoff of a task, call `marketops_suppression(action="status")`. If the user has
+a No-Go / unsubscribe / complaint list (a sheet, a pasted list, an earlier export), add it with
+`marketops_suppression(action="add", entries=[...], reason=..., source=...)`; matching contacts are
+then kept out of every delivery from every conversation. If no list exists, say so in the report
+(`NO_LIST`): never describe an unchecked delivery as clean.

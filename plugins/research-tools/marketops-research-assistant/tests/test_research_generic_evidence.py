@@ -222,6 +222,15 @@ class BatchAndExcerptTests(unittest.TestCase):
         replay = append_note(self.root, **args, evidence_ref="art-1")
         self.assertEqual("IDEMPOTENT", replay["result"])
 
+    def test_a_spoken_correction_needs_no_evidence_ref(self):
+        from research_event_journal import append_note
+        result = append_note(self.root, run_id="run-1", note_id="note-2", stage="routes",
+                             category="human_correction",
+                             problem="User said a switchboard is not a contact",
+                             action_taken="Regraded switchboard routes",
+                             observed_result="Fewer A/B routes, all role-bound")
+        self.assertEqual("RECORDED", result["result"])
+
     def test_batch_rolls_back_everything_on_invalid_second_record(self):
         with self.assertRaises(ValueError):
             store.put_candidates_batch(self.root, "run-1",

@@ -278,7 +278,10 @@ def append_note(data_root: str | Path | None, *, run_id: str, note_id: str, stag
     if category not in NOTE_CATEGORIES:
         raise ValueError("NOTE_CATEGORY_INVALID: " + str(category)[:40]
                          + " is not a category; allowed: " + ", ".join(NOTE_CATEGORIES))
-    evidence_ref = _identifier(evidence_ref, "evidence_ref")
+    # A person's spoken correction has no saved material to cite, so only that
+    # category may leave the reference empty; a present one is still checked.
+    if evidence_ref or category != "human_correction":
+        evidence_ref = _identifier(evidence_ref, "evidence_ref")
     fields = {
         "run_id": run_id, "note_id": note_id, "stage": stage, "category": category,
         "problem": sanitize_note_text(problem, "problem"),

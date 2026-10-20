@@ -389,7 +389,7 @@ class BundleTests(unittest.TestCase):
         import build_client_bundles as bundles
         with tempfile.TemporaryDirectory() as tmp:
             receipt = bundles.build(Path(tmp) / "b", with_research_mcp=True)
-            self.assertEqual(12, receipt["skills"])
+            self.assertEqual(13, receipt["skills"])
 
 
 class PackagedProviderDocsTests(unittest.TestCase):

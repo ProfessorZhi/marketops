@@ -24,6 +24,7 @@ import hashlib
 import html as html_lib
 import json
 import re
+import time
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
@@ -291,12 +292,21 @@ def _evidence_artifact(receipt: dict) -> str:
 
 def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str,
             organization_key: str, url: str, fetch, max_pages: int = 6,
-            write: bool = True, check_admission: bool = True, grade=None) -> dict:
+            write: bool = True, check_admission: bool = True, grade=None,
+            time_budget_seconds: float | None = None) -> dict:
     """Fetch, extract and (optionally) stage one organisation's own-site routes.
 
     ``fetch(url, operation_id)`` is the managed known-public-URL step; it must
     return the fallback receipt. Nothing here touches the network directly.
+
+    Page fetch IDs carry a short digest of ``organization_key``: parallel
+    subagents that each name their call ``harvest-001`` research different
+    organisations and must not collide, while a retry for the same
+    organisation replays its finished pages instead of fetching them again.
+    ``time_budget_seconds`` stops opening new pages once spent (hosts cut a
+    tool call off at about 60 s); the result says to call again, which resumes.
     """
+    started = time.monotonic()
     if not isinstance(organization_name, str) or not 3 <= len(organization_name.strip()) <= 200:
         raise ValueError("HARVEST_ORGANIZATION_NAME_INVALID: 3-200 characters, as published")
     store._id(organization_key, "organization_key")
@@ -310,9 +320,15 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
     root = Path(store._root(data_root))
 
     pages, queue, routes, identity, obfuscated = [], [url], {}, None, 0
+    scope = hashlib.sha256(organization_key.encode()).hexdigest()[:8]
+    out_of_time = False
     while queue and len(pages) < max_pages:
+        if (time_budget_seconds is not None and pages
+                and time.monotonic() - started > time_budget_seconds):
+            out_of_time = True
+            break
         page_url = queue.pop(0)
-        child = f"{operation_id}-p{len(pages) + 1}"
+        child = f"{operation_id}-{scope}-p{len(pages) + 1}"
         receipt = fetch(page_url, child)
         if not pages and _redirect_refused(receipt):
             # club.co.uk -> www.club.co.uk is one site; the browser refuses to follow
@@ -351,13 +367,18 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
                 routes[key] = {**route, "artifact_id": artifact_id, "url": page_url}
 
     if grade is not None:
-        # Jev tags who each email reaches; a ranking aid, never evidence.
-        for route in routes.values():
-            if route["type"] == "email":
-                try:
-                    route.update(grade(route))
-                except ValueError as exc:
-                    route["role"] = "ungraded:" + str(exc).split(":", 1)[0]
+        # Jev tags who each email reaches; a ranking aid, never evidence. The
+        # calls are independent, so they run side by side within the host timeout.
+        from concurrent.futures import ThreadPoolExecutor
+
+        def tag(route):
+            try:
+                route.update(grade(route))
+            except ValueError as exc:
+                route["role"] = "ungraded:" + str(exc).split(":", 1)[0]
+        emails = [route for route in routes.values() if route["type"] == "email"]
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            list(pool.map(tag, emails))
     result = {"run_id": run_id, "operation_id": operation_id, "organization_key": organization_key,
               "pages": pages, "identity": identity, "routes": list(routes.values()),
               "obfuscated_emails_not_decoded": obfuscated,
@@ -403,5 +424,10 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
     result["next_action"] = ("ASSIGN_ROLE_AND_GRADE_FROM_CONTEXT" if result["routes"] else
                              "NO_PUBLIC_ROUTE_ON_SITE: record HOLD with the pages tried, or try a "
                              "role search on this domain")
+    if out_of_time:
+        result["pages_not_read_for_time"] = len(queue)
+        result["next_action"] = ("TIME_BUDGET_REACHED: call marketops_site_harvest again with the "
+                                 "same arguments to read the remaining pages (finished pages are "
+                                 "replayed, not fetched again); " + result["next_action"])
     return result
 

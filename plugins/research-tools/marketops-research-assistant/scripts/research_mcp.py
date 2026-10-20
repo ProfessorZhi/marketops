@@ -455,7 +455,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         configured_root = None
     if configured_root is not None and runtime_setup.config(configured_root):
         from research_runtime_status import view
-        return {"product": "MarketOps Research MCP", "version": "0.5.7-rc6",
+        return {"product": "MarketOps Research MCP", "version": "0.5.7-rc7",
                 **view(configured_root, task_kind=task_kind),
                 "external_host": _external_inventory(host_observed_tools),
                 "embedded_official_mcp": provider_policy.embedded_official_mcp_capabilities(),
@@ -530,7 +530,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         if task_kind else None)
     return {
         "product": "MarketOps Lite Research MCP",
-        "version": "0.5.7-rc6",
+        "version": "0.5.7-rc7",
         "providers": {
             "serpapi": {"transport": "REST through local MCP", **search["serpapi"]},
             "serper": {"transport": "REST through local MCP", **search["serper"]},
@@ -800,6 +800,10 @@ def _brief_roles(run_id: str) -> str:
     return ""
 
 
+#: Hosts end a tool call at about 60 s; stop opening pages well before that so
+#: the call returns its work and the next call resumes.
+HARVEST_TIME_BUDGET_SECONDS = 30
+
 ROLE_OPTIONS = ["wanted_role_person", "wanted_role_team_inbox", "other_named_role",
                 "generic_inbox", "unclear"]
 
@@ -856,8 +860,12 @@ def invoke(action, run_id, operation_id, url="", query="", document="",
         from research_runtime_results import normalize_params
         data = dict(mcp_params or {})
         allowed = {"q", "query", "engine", "gl", "hl", "num"}
+        if "limit" in data and "num" not in data:
+            data["num"] = data.pop("limit")  # the common alias agents reach for
         if set(data) - allowed:
-            raise ValueError("CAPABILITY_PARAM_NOT_ALLOWED")
+            raise ValueError("CAPABILITY_PARAM_NOT_ALLOWED: unsupported "
+                             + ", ".join(sorted(map(str, set(data) - allowed)))
+                             + "; allowed " + ", ".join(sorted(allowed)))
         capability, params = "serpapi.search", normalize_params("serpapi.search", data)
     elif action == "jev_choice":
         from research_runtime_results import resolve_excerpt
@@ -1012,7 +1020,7 @@ def handoff(run_id, operation_id):
     try:
         experience_result = draft_experience(
             r, run_id=run_id, scope=head["scope"],
-            rule_version=head["rule_version"], skill_version="0.5.7-rc6",
+            rule_version=head["rule_version"], skill_version="0.5.7-rc7",
             output=experience_path)
         result["experience_candidate"] = str(experience_path)
         result["experience_incidents"] = experience_result["incidents"]
@@ -1140,7 +1148,7 @@ PUBLIC_TOOLS = frozenset({
     "marketops_handoff", "marketops_experience_recall", "marketops_experience_feedback",
     "marketops_pool_import", "marketops_pool_claim", "marketops_pool_complete",
     "marketops_pool_status", "marketops_harvest_batch", "marketops_lessons_report",
-    "marketops_jev_triage",
+    "marketops_jev_triage", "marketops_suppression", "marketops_feedback_pack",
 })
 
 
@@ -1170,8 +1178,10 @@ def _with_budget(fn):
 def build_server():
     from research_credentials import load_into_environment
     load_into_environment()
+    # Direct by default; only an explicitly configured proxy changes that.
+    research_config.load_upstream_proxy_into_environment()
     from mcp.server import MCPServer
-    mcp = MCPServer("MarketOps Lite Research", version="0.5.7-rc6")
+    mcp = MCPServer("MarketOps Lite Research", version="0.5.7-rc7")
 
     def tool(fn):
         if fn.__name__ not in PUBLIC_TOOLS:
@@ -1262,6 +1272,8 @@ def build_server():
     def marketops_serpapi_mcp_search(run_id: str, operation_id: str,
                                     params: dict) -> dict:
         """Embedded official SerpApi MCP search; any valid engine, compact mode.
+
+        params keys: q (or query), engine (e.g. google, google_maps), gl, hl, num.
 
         Both search tool names use the same embedded MCP adapter and ledger identity.
         """
@@ -1425,7 +1437,8 @@ def build_server():
             data_root, run_id=run_id, operation_id=operation_id,
             organization_name=organization_name, organization_key=organization_key,
             url=url, fetch=fetch, max_pages=max_pages, write=write,
-            grade=_role_grader(run_id, roles_wanted))
+            grade=_role_grader(run_id, roles_wanted),
+            time_budget_seconds=HARVEST_TIME_BUDGET_SECONDS)
 
     def _role_grader(run_id, roles_wanted):
         roles_wanted = roles_wanted.strip() or _brief_roles(run_id)
@@ -1560,6 +1573,17 @@ def build_server():
         return research_walls.report(root(), pool_id=pool_id)
 
     @tool
+    def marketops_feedback_pack(reporter: str = "") -> dict:
+        """Build one ZIP of every conversation's blockers, corrections and provider use.
+
+        Call at the end of each working session, and whenever the user asks what
+        went wrong. Tell the user the zip path and ask them to send it to the
+        plugin maintainer. Contains no emails, URLs or secrets.
+        """
+        import research_feedback_pack
+        return research_feedback_pack.build(root(), reporter=reporter)
+
+    @tool
     def marketops_runs(limit: int = 10, cursor: str = "", scope: str = "") -> dict:
         """Find saved tasks before resuming or starting a related batch. Read-only and paginated."""
         return store.list_runs(None, limit=limit, cursor=cursor, scope=scope)
@@ -1656,7 +1680,7 @@ def build_server():
             raise ValueError("EXPERIENCE_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT")
         output.parent.mkdir(parents=True, exist_ok=True)
         return draft_experience(r, run_id=run_id, scope=scope,
-                                rule_version=rule_version, skill_version="0.5.7-rc6",
+                                rule_version=rule_version, skill_version="0.5.7-rc7",
                                 output=output)
 
     @tool

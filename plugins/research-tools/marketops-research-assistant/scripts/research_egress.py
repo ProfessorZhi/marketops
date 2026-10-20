@@ -220,6 +220,26 @@ def allowed_domains_from_env(value: str | None = None) -> frozenset[str]:
     return safe.parse_domain_allowlist(raw)
 
 
+UPSTREAM_PROXY_ENV = "MARKETOPS_EGRESS_UPSTREAM_PROXY"
+
+
+def upstream_proxy_from_env(value: str | None = None) -> tuple[str, int] | None:
+    """读 ``MARKETOPS_EGRESS_UPSTREAM_PROXY``（``http://host:port``）。没配就是直连。
+
+    只认 ``http://`` 且不带凭据：一个写进环境变量的代理密码会出现在进程列表与日志里。
+    这里刻意**不读** ``HTTPS_PROXY``：走不走上游是操作员的一次显式选择，不是
+    继承自 shell 的默认值。
+    """
+    raw = (os.environ.get(UPSTREAM_PROXY_ENV, "") if value is None else value).strip()
+    if not raw:
+        return None
+    parts = urlsplit(raw)
+    if parts.scheme != "http" or not parts.hostname or parts.username or parts.password:
+        raise ValueError(f"UPSTREAM_PROXY_INVALID: {UPSTREAM_PROXY_ENV} 必须是 "
+                         "http://host:port，且不带用户名密码")
+    return parts.hostname, parts.port or 8080
+
+
 def crawl4ai_ready() -> bool:
     """本机能不能 import crawl4ai。**不启动浏览器，不读凭据。**"""
     try:
@@ -240,7 +260,8 @@ def _probe_egress(allowlist: frozenset[str]) -> str:
     """
     try:
         probe = safe.EgressProxy(
-            gate=safe.EgressGate(allowlist=allowlist, allowed_ports=DEFAULT_EGRESS_PORTS)
+            gate=safe.EgressGate(allowlist=allowlist, allowed_ports=DEFAULT_EGRESS_PORTS,
+                                 upstream=upstream_proxy_from_env())
         )
         probe.start()
         try:
@@ -372,6 +393,7 @@ def approved_url(value: object, *, resolve: bool = True,
         resolver if resolver is not None else safe.SystemResolver(),
         allowlist=allowed_domains_from_env() if allowlist is None else allowlist,
         allowed_ports=APPROVED_URL_PORTS,
+        upstream=upstream_proxy_from_env(),
     )
     verdict = gate.check(host, 443)
     if verdict.allowed:
@@ -641,6 +663,7 @@ def open_session(
     resolved_ports = DEFAULT_EGRESS_PORTS if allowed_ports is None else allowed_ports
     actual_gate = gate if gate is not None else safe.EgressGate(
         resolver, allowlist=entries, allowed_ports=resolved_ports,
+        upstream=upstream_proxy_from_env(),
     )
     proxy = safe.EgressProxy(gate=actual_gate)
     if start_proxy:

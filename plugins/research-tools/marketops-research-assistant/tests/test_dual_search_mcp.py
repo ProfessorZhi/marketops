@@ -198,8 +198,8 @@ class TestDualSearch(unittest.TestCase):
             output = Path(tmp) / "client-package"
             info = bundle.build(output, with_search_mcp=True)
             self.assertEqual(1, info["mcp_servers_bundled"])
-            self.assertEqual(12, info["skills"])
-            self.assertEqual(12, len(list((ROOT / "skills").glob("*/SKILL.md"))),
+            self.assertEqual(13, info["skills"])
+            self.assertEqual(13, len(list((ROOT / "skills").glob("*/SKILL.md"))),
                              "bundle Skill count must track the plugin source Skills")
             target = Path(info["directory"])
             mcp = json.loads((target / "mcp.json").read_text(encoding="utf-8"))

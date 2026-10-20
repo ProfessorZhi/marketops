@@ -4,6 +4,32 @@ Distilled from the session audit (`marketops-session`: GOLDEN_PATTERNS GP-01..18
 interventions). Read the section for the stage you are in; each lesson is what went wrong or what
 worked, and what to do.
 
+## Business definitions (set by the user; apply before anything else)
+
+These came from repeated corrections in Member A's sessions. Each one, when missed, sent a whole
+batch back for rework.
+
+- **Optimise for reachable emails, not for venue size** (INT-010): rank and pick targets by how
+  likely they publish a role email, not by how large or famous they are.
+- **Customer vs competitor** (INT-052): an organisation that *buys and uses* the equipment or service
+  to do the work (venue owner/operator, grounds or facilities team, contractor that maintains sites)
+  is a customer target. One that *sells or distributes* the same products is a competitor: mark it
+  `EXCLUDED` with reason `competitor`, never research it for contacts.
+- **Know the user's business before searching** (INT-044): if the brief does not say what the user
+  sells and to whom, ask once at the start; do not guess the industry from keywords.
+- **One organisation, many venues** (INT-033): research the operating organisation once and attach
+  all its venues; a person's name is not required when the route is role-bound.
+- **The role priority list comes from the user** (INT-052, scorecard #4): use the roles the user
+  named, in their order. If the task needs a role ranking and none was given, ask once; never invent
+  one.
+- **A switchboard is not a contact** (INT-062): a general phone or reception only counts when it is
+  stated to reach the named role.
+- **A sample is not the pool, a send is not a delivery** (INT-009, INT-011): report coverage of the
+  whole target list, and count only what reached the delivery files.
+- **Definitions change with a version** (INT-038, scorecard #5): when the user redefines what counts
+  (e.g. what a valid email is), record it with `marketops_note` (`human_correction`), apply it to
+  the remaining work and supersede affected records; do not silently restart the whole job.
+
 ## Discovery: find the list, don't guess it
 
 - **Whole-list endpoints first** (GP-08): association search pages, CMS REST

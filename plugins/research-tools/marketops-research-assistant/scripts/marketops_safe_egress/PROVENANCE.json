@@ -32,7 +32,7 @@
     {
       "slice": "adapters/egress_proxy.py",
       "canonical": "marketops/adapters/egress_proxy.py",
-      "sha256": "de2a07a7fdb3d92855a31b14e3496328557e3e55c2ec0445d3aa8b172b2a9926"
+      "sha256": "cdd5a5b0a478cbbf1e84b83e27d2f732a89cc556a1a1edf7c3f7d4a775cecee5"
     },
     {
       "slice": "adapters/guarded_http.py",

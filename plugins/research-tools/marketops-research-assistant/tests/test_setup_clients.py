@@ -122,7 +122,7 @@ class LocalInstallTests(unittest.TestCase):
             source = Path(result["plugin_copy"])
             self.assertTrue((source / "skills" / "marketops-setup" / "SKILL.md").exists())
             manifest = json.loads((source / "plugin.json").read_text(encoding="utf-8"))
-            self.assertEqual("0.5.7-rc6", manifest["version"])
+            self.assertEqual("0.5.7-rc7", manifest["version"])
             for filename in ("mcp.json", ".mcp.json"):
                 config = json.loads((source / filename).read_text(encoding="utf-8"))
                 server = next(iter((config.get("mcpServers") or config.get("mcp_servers")).values()))
@@ -133,7 +133,7 @@ class LocalInstallTests(unittest.TestCase):
                 self.assertNotIn("cwd", server, "Codex cached plugin root must not inherit external cwd")
             wb = result["workbuddy_bundle"]
             self.assertEqual(1, wb["mcp_servers_bundled"])
-            self.assertEqual(12, wb["skills"])
+            self.assertEqual(13, wb["skills"])
             connector = Path(wb["directory"])
             wmeta = json.loads((connector / "connector-meta.json").read_text(encoding="utf-8"))
             self.assertEqual("mcp", wmeta["type"])
@@ -158,8 +158,8 @@ class LocalInstallTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             receipt = bundles.build(Path(tmp) / "bundle")
             self.assertEqual(0, receipt["mcp_servers_bundled"])
-            self.assertEqual(12, receipt["skills"])
-            self.assertEqual(12, len(list((ROOT / "skills").glob("*/SKILL.md"))),
+            self.assertEqual(13, receipt["skills"])
+            self.assertEqual(13, len(list((ROOT / "skills").glob("*/SKILL.md"))),
                              "bundle Skill count must track the plugin source Skills")
 
 
