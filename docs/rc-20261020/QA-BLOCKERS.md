@@ -8,11 +8,13 @@
 - 2026-10-20 13:09:35：Lane E 提交 `da300501`（Jev locator，2 文件 / +461/-18）。
 - 2026-10-20 13:13:07：Lane C 提交 `ed4836ba`（installer opt-in，6 文件 / +844/-63）。
 - 2026-10-20 13:15:36：Lane A 提交 `6b254899`（delivery admission，3 文件 / +816/-122）。
-- 四者工作树均已干净；已按精确 SHA cherry-pick 为 RC
-  `b0749936` / `38c717df` / `533d706e` / `1faa6656`。
-- 定向测试：B `Ran 11 tests OK`；E `Ran 19 tests OK`；C `Ran 21 tests OK`；
-  A `Ran 3 + 12 tests OK`；A+B 跨 Lane `Ran 5 tests OK`。
-- 截至 13:17，D/Q 仍未提交；Q 在 13:13:40 仍有文件写入。
+- 2026-10-20 13:16:16：Lane D 提交 `eefd8b6a`（跨传输去重，4 文件 / +675/-30）。
+- 2026-10-20 13:15:42：QA Lane Q 提交 `cdb1d9a3`（独立验收，2 文件 / +783）。
+- 五条产品 Lane 工作树均已干净；已按精确 SHA cherry-pick 为 RC
+  `b0749936` / `38c717df` / `533d706e` / `1faa6656` / `567c13f0`。
+- Q 不并入产品分支；用 Q 的测试文件对 RC 插件根运行。
+- 定向测试：B `11`；E `19`；C `21`；A `3 + 12`；A+B 跨 Lane `5`；D `23`；
+  Q against RC `9`，全部 OK。
 - 结论：不复制工作树内容、不猜测 SHA。A/C/D 提交前，集成脚本对它们是
   `INTEGRATION_PENDING`；已交付的 B/E 不阻塞后续追加。
 
