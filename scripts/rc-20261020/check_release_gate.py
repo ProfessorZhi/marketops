@@ -162,13 +162,19 @@ def check_targeted(env: dict[str, str]) -> list[dict]:
                 for pattern in files]
         output = "\n".join(item["stdout_tail"] + item["stderr_tail"] for item in runs)
         returned = all(item["returncode"] == 0 for item in runs)
-        skipped = "skipped=" in output and not returned
-        status = "PASS" if returned else ("BLOCKED" if skipped else "FAIL")
-        detail = ("all selected test files passed" if returned else
-                  "SKIPPED tests reported; treat as not executed" if skipped else
-                  "non-zero test exit")
+        ran_match = re.search(r"Ran (\d+) tests?", output)
+        ran = int(ran_match.group(1)) if ran_match else None
+        skipped = re.search(r"skipped", output, re.IGNORECASE) is not None
+        if ran == 0:
+            status, detail = "BLOCKED", "no tests executed (0 run); a skip is not a pass"
+        elif skipped:
+            status, detail = "BLOCKED", "skipped tests reported; treat as not executed"
+        elif returned:
+            status, detail = "PASS", f"Ran {ran} tests; no failures"
+        else:
+            status, detail = "FAIL", "non-zero test exit"
         checks.append(result(check_id, name, status, detail, runs=runs,
-                             skipped_reported=skipped))
+                             ran=ran, skipped_reported=skipped))
     return checks
 
 
