@@ -269,7 +269,10 @@ def _source_selection_budget(run_id: str) -> dict:
                 data_root, settings.get("project_max_calls", settings["max_calls"]))
             return {"search_remaining": snapshot["remaining"],
                     "provider_remaining": snapshot["remaining"],
-                    "unknown_held": snapshot["unknown_charge_operations"],
+                    "unknown_held": snapshot.get("ambiguous_outcome_operations",
+                                                 snapshot["unknown_charge_operations"]),
+                    "unbilled_successes": (snapshot["unknown_charge_operations"] or 0)
+                    - (snapshot.get("ambiguous_outcome_operations") or 0),
                     "source": "RUNTIME_CONFIG"}
         except Exception:  # noqa: BLE001 - fall through to the env view
             pass

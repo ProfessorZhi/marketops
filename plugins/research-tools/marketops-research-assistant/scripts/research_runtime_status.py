@@ -22,27 +22,33 @@ def usage(root, limit):
     """Request counters only; no schema creation/migration during discovery."""
     base = Path(root).resolve()
     path = (base / "state" / "usage-ledger.sqlite3").resolve()
-    calls, unknown, reserved = 0, 0, 0
+    calls, unknown, reserved, ambiguous = 0, 0, 0, 0
     state = "NO_OPERATIONS_YET"
     if not path.is_relative_to(base):
         raise ValueError("RUNTIME_LEDGER_PATH_ESCAPE")
     if path.exists():
         try:
             with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=5)) as db:
-                calls, unknown, reserved = db.execute(
+                calls, unknown, reserved, ambiguous = db.execute(
                     "SELECT COALESCE(SUM(CASE WHEN charge_state <> 'NO_CHARGE_PROVEN' "
                     "AND counts_against_caps=1 THEN 1 ELSE 0 END),0), "
                     "COALESCE(SUM(CASE WHEN charge_state='UNKNOWN' THEN 1 ELSE 0 END),0), "
-                    "COALESCE(SUM(CASE WHEN charge_state='RESERVED' THEN 1 ELSE 0 END),0) "
+                    "COALESCE(SUM(CASE WHEN charge_state='RESERVED' THEN 1 ELSE 0 END),0), "
+                    "COALESCE(SUM(CASE WHEN charge_state='UNKNOWN' AND "
+                    "COALESCE(execution_outcome,'') <> 'OK' THEN 1 ELSE 0 END),0) "
                     "FROM operations WHERE project=?", (ledger.project_for_root(base),)
                 ).fetchone()
             state = "READ_FROM_UNIFIED_LEDGER"
         except (sqlite3.Error, OSError):
-            calls = unknown = reserved = None
+            calls = unknown = reserved = ambiguous = None
             state = "LEDGER_UNREADABLE"
     return {"limit": limit, "calls_used": calls,
             "remaining": max(0, limit - calls) if calls is not None else None,
             "unknown_charge_operations": unknown, "reserved_operations": reserved,
+            # Of those, calls whose outcome is itself unknown (timeouts, lost
+            # replies). Successful calls without a vendor bill are counted above
+            # but are not a reason to stop.
+            "ambiguous_outcome_operations": ambiguous,
             "scope": "project_total_preserved_across_runs", "metric": "requests_not_dollars",
             "state": state, "actual_usd": None}
 
