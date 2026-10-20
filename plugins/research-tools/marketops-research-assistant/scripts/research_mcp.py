@@ -215,7 +215,30 @@ def _unknown_held(run_id: str) -> int | None:
 
 
 def _source_selection_budget(run_id: str) -> dict:
-    """Local budget facts for the advisory; a missing value stays None, never 0."""
+    """Local budget facts for the advisory; a missing value stays None, never 0.
+
+    A runtime-configured deployment keeps its ceiling in ``runtime-config.json``,
+    not in ``MARKETOPS_SEARCH_MAX_CALLS``. Reading only the env would report a
+    false zero and make every advisory say BUDGET_EXHAUSTED. The managed path is
+    read first; the legacy env path is the fallback.
+    """
+    try:
+        data_root = research_config.data_root()
+        import research_runtime_setup as runtime_setup
+        settings = runtime_setup.config(data_root)
+    except Exception:  # noqa: BLE001 - no readable runtime config
+        data_root, settings = None, None
+    if settings:
+        try:
+            from research_runtime_status import usage as runtime_usage
+            snapshot = runtime_usage(
+                data_root, settings.get("project_max_calls", settings["max_calls"]))
+            return {"search_remaining": snapshot["remaining"],
+                    "provider_remaining": snapshot["remaining"],
+                    "unknown_held": snapshot["unknown_charge_operations"],
+                    "source": "RUNTIME_CONFIG"}
+        except Exception:  # noqa: BLE001 - fall through to the env view
+            pass
     try:
         search = dual_search_mcp._configuration()
         search_remaining = _capacity(
@@ -232,7 +255,8 @@ def _source_selection_budget(run_id: str) -> dict:
         provider_remaining = None
     return {"search_remaining": search_remaining,
             "provider_remaining": provider_remaining,
-            "unknown_held": _unknown_held(run_id)}
+            "unknown_held": _unknown_held(run_id),
+            "source": "ENV"}
 
 
 # --- the converged read model ---------------------------------------------

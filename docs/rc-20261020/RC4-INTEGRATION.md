@@ -78,6 +78,8 @@ review 错 entity_key、跨 run、未知父、kind/stage 不一致、review 换 
   `contact_binding` → 具名 contact-to-org relationship；
   venue 缺 org+venue 跨度 → 机构页链接的 venue 页；
 - blocked domain 不再重试；0 预算不提议搜索；UNKNOWN-held 只标注不重试；
+- 预算快照优先读 runtime-config 的管理额度，再回退 legacy env；读不到是
+  `None`（未知），不会误报 0；
 - 预算紧张时先完成最接近完成的候选，不随机发现更多 hall。
 
 测试：`test_rc4_source_selection.py` 15 条（rates/contact/blocked/binding/

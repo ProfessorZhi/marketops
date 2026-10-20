@@ -53,6 +53,8 @@ It reports `missing_fields` and a prioritized action per active candidate:
 pages, excludes blocked domains, ignores shared directory pages as attribution,
 and under a scarce budget finishes the most complete candidate before opening a
 new one. A successful fetch or attached artifact is **not** a verified field.
+The budget snapshot reads the runtime-config managed ceiling first and only then
+the legacy env; an unreadable value stays `None`, never a false 0.
 
 Controls: 15 tests (`test_rc4_source_selection.py`) plus the `marketops_next`
 exposure assertion.
