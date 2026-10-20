@@ -24,13 +24,19 @@ deliver an evidence-backed workbook. Effect first, cost second.
 | Stage | What you do | Main tools / providers |
 |---|---|---|
 | Source pool | find bulk sources and the full list of targets; note each source's listed count | Serper search, SerpApi `google_maps`, `marketops_research_step` (Crawl4AI → TinyFish) |
-| Venue / org pool | dedupe, exclude out-of-scope types, keep reasons | your reading + `marketops_jev_choice` for batch triage |
+| Venue / org pool | dedupe, exclude out-of-scope types, keep reasons | `marketops_pool_import`, `marketops_jev_triage` |
 | Accounts | for each organisation: `marketops_site_harvest` on its own site, then judge role and grade from each route's context | Crawl4AI → TinyFish fetch inside the tool, Serper `site:` role search |
 | Evidence | every value has a literal quote from a saved page; the tools enforce this | `marketops_propose_batch`, `marketops_evidence_audit` |
 | Delivery | reconcile counts, verify a sample, hand off once | `marketops_handoff`; see `marketops-delivery` |
 
 Load `marketops-discovery`, `marketops-accounts`, `marketops-providers` or `marketops-delivery`
 only when you reach that stage. Past runs' pitfalls, by stage: [lessons](../../references/MEMBER_A_LESSONS.md). Use `marketops_next(run_id)` to see gaps and the suggested next action.
+
+**Large tasks (over ~50 targets) or several windows**: load `marketops-orchestrate`. Targets go
+into a shared pool on this machine's data directory; worker windows claim batches with
+`marketops_harvest_batch` and never collide. The scene pack for the market (e.g.
+[UK natural grass](../../references/ACCEPTANCE_PROFILE_UK_GRASS.md)) supplies roles, grades,
+exclusions, authority sources and query templates.
 
 **Parallel accounts.** If the host can start subagents (Claude Code: `account-researcher`), give
 each subagent 1–3 organisations with `run_id`, published name, `organization_key` and website, in

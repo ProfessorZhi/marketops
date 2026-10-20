@@ -218,6 +218,8 @@ PROVIDER_CAPABLE = {
     "marketops_research_step",
     # Composite: every fetch goes through research_fallback.research_step.
     "marketops_site_harvest", "marketops_harvest_batch",
+    # Composite: one managed Jev choice per artifact through invoke().
+    "marketops_jev_triage",
 }
 
 
@@ -235,7 +237,8 @@ def test_the_visible_surface_and_local_tools_are_not_provider_bypasses(clean_env
         attrs = {(c.func.value.id, c.func.attr) for c in ast.walk(tree)
                  if isinstance(c, ast.Call) and isinstance(c.func, ast.Attribute)
                  and isinstance(c.func.value, ast.Name)}
-        if (names & {"invoke", "search", "managed_invoke", "managed_call", "_fetcher"}
+        if (names & {"invoke", "search", "managed_invoke", "managed_call", "_fetcher",
+                     "jev_triage"}
                 or ("research_wiring", "managed_invoke") in attrs
                 or ("research_fallback", "research_step") in attrs):
             reachable.add(name)

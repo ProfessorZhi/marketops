@@ -13,6 +13,33 @@ venues; owner, operator, maintainer and buyer can differ.
 Exclude (with an `exclusion` quote): golf and footgolf, artificial grass / 3G / 4G / 5G, hybrid
 without independent natural-grass evidence, indoor venues, MUGAs, outside the declared region.
 
+## Where the whole lists are (try in this order)
+
+- County community-building directories (Rural Community Councils, e.g. Essex RCC "find a village
+  hall" by district) - found by Serper in the live Essex run.
+- County FA club lists and league fixtures pages; county cricket boards.
+- Council playing pitch strategies and assessments (PDF tables of every pitch site).
+- Sport England Active Places; independent schools and university sports pages.
+- Charity Commission register: amateur sport charities use classification code 110 (108 is
+  religious activities - a past mix-up).
+- SerpApi `google_maps` per town ("sports ground", "playing fields", "cricket club", "village hall
+  near {town}") to fill gaps and cross-check.
+
+## Query templates (Serper)
+
+- `"{county}" "playing pitch strategy" filetype:pdf`
+- `site:{domain} "Grounds Manager" OR "Head Groundsman" OR "Head of Grounds" OR "Estates"`
+- `site:{domain} "committee" OR "trustees" "secretary"`
+- `"{club name}" "groundsman" {county}`
+
+## Walls seen in this scene
+
+- Council sites often sit behind WAF; their PDFs are usually reachable from a search result link.
+- Village halls on free site builders hide emails behind Cloudflare protection or contact forms:
+  record the obfuscation, look for a phone that reaches a named role, else HOLD.
+- Many clubs publish only a Facebook page: no official site, HOLD unless another source names a
+  role-bound email.
+
 ## Roles (match on title, case-insensitive; groundsman = greenkeeper = groundskeeper)
 
 | Class | Examples | Use |

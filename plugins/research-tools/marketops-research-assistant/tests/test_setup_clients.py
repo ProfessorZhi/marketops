@@ -133,7 +133,7 @@ class LocalInstallTests(unittest.TestCase):
                 self.assertNotIn("cwd", server, "Codex cached plugin root must not inherit external cwd")
             wb = result["workbuddy_bundle"]
             self.assertEqual(1, wb["mcp_servers_bundled"])
-            self.assertEqual(6, wb["skills"])
+            self.assertEqual(12, wb["skills"])
             connector = Path(wb["directory"])
             wmeta = json.loads((connector / "connector-meta.json").read_text(encoding="utf-8"))
             self.assertEqual("mcp", wmeta["type"])
@@ -158,8 +158,8 @@ class LocalInstallTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             receipt = bundles.build(Path(tmp) / "bundle")
             self.assertEqual(0, receipt["mcp_servers_bundled"])
-            self.assertEqual(6, receipt["skills"])
-            self.assertEqual(6, len(list((ROOT / "skills").glob("*/SKILL.md"))),
+            self.assertEqual(12, receipt["skills"])
+            self.assertEqual(12, len(list((ROOT / "skills").glob("*/SKILL.md"))),
                              "bundle Skill count must track the plugin source Skills")
 
 

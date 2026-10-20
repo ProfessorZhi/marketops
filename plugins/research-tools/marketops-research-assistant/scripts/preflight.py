@@ -17,6 +17,8 @@ ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_SKILLS = {
     "marketops-research", "marketops-setup", "marketops-discovery",
     "marketops-accounts", "marketops-providers", "marketops-delivery",
+    "marketops-orchestrate", "marketops-serper", "marketops-serpapi",
+    "marketops-crawl4ai", "marketops-tinyfish", "marketops-jev",
 }
 EXPECTED_VARS = {
     "SERPAPI_API_KEY", "SERPER_API_KEY", "TINYFISH_API_KEY",

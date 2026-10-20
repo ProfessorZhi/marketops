@@ -731,6 +731,44 @@ def search(provider, query, country, language, run_id, operation_id, mode="web",
                 reservation="ONE_ATTEMPT_RESERVED_NOT_BILL_VERIFIED")}
 
 
+def jev_triage(run_id, operation_id, artifact_ids, question, options, threshold=0.85,
+               concurrency=4):
+    """One Jev choice per saved page, run concurrently; a compact table back.
+
+    This is the speed layer: Claude reads the table, not the pages. Rows below
+    `threshold` are flagged for Claude to judge from the source. Jev is never
+    evidence; only quotes are.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+    if not isinstance(artifact_ids, list) or not 1 <= len(artifact_ids) <= 50:
+        raise ValueError("JEV_TRIAGE_ITEMS_INVALID: 1-50 saved artifact ids")
+    if not 0.5 <= float(threshold) <= 0.99:
+        raise ValueError("JEV_TRIAGE_THRESHOLD_INVALID: 0.5-0.99")
+
+    def ask(index_and_id):
+        index, artifact_id = index_and_id
+        try:
+            answer = invoke("jev_choice", run_id, f"{operation_id}-{index}", document=artifact_id,
+                            question=question, options=options, primitive="choice")
+        except ValueError as exc:
+            return {"artifact_id": artifact_id, "choice": None,
+                    "error": str(exc).split(":", 1)[0]}
+        judgment = ((answer.get("payload") or {}).get("judgments") or {}).get("judgment") or {}
+        confidence = judgment.get("confidence")
+        return {"artifact_id": artifact_id, "choice": judgment.get("choice"),
+                "confidence": confidence,
+                "needs_review": confidence is None or confidence < float(threshold)}
+
+    with ThreadPoolExecutor(max_workers=max(1, min(int(concurrency), 8))) as pool:
+        rows = list(pool.map(ask, enumerate(artifact_ids)))
+    counts = {}
+    for row in rows:
+        counts[row.get("choice") or "error"] = counts.get(row.get("choice") or "error", 0) + 1
+    return {"run_id": run_id, "question": question, "threshold": threshold, "counts": counts,
+            "needs_review": sum(1 for r in rows if r.get("needs_review") or r.get("error")),
+            "rows": rows, "judgment_only": True}
+
+
 def invoke(action, run_id, operation_id, url="", query="", document="",
            question="", options=None, primitive="choice", mcp_params=None,
            paid_limit_usd="", ledger_grant=""):
@@ -1028,7 +1066,8 @@ PUBLIC_TOOLS = frozenset({
     "marketops_propose_batch", "marketops_evidence_audit", "marketops_note",
     "marketops_handoff", "marketops_experience_recall", "marketops_experience_feedback",
     "marketops_pool_import", "marketops_pool_claim", "marketops_pool_complete",
-    "marketops_pool_status", "marketops_harvest_batch",
+    "marketops_pool_status", "marketops_harvest_batch", "marketops_lessons_report",
+    "marketops_jev_triage",
 })
 
 
@@ -1037,6 +1076,7 @@ PUBLIC_TOOLS = frozenset({
 BUDGETED_TOOLS = frozenset({
     "marketops_search", "marketops_serpapi_mcp_search", "marketops_research_step",
     "marketops_site_harvest", "marketops_jev_choice", "marketops_harvest_batch",
+    "marketops_jev_triage",
 })
 
 
@@ -1377,6 +1417,27 @@ def build_server():
             data_root, pool_id=pool_id, worker_id=worker_id, run_id=run_id,
             fetch=_fetcher(data_root, run_id), count=count, concurrency=concurrency,
             max_pages=max_pages)
+
+    @tool
+    def marketops_jev_triage(run_id: str, operation_id: str, artifact_ids: list[str],
+                             question: str, options: list[str], threshold: float = 0.85) -> dict:
+        """Classify many saved pages at once with Jev; read the table, not the pages.
+
+        options are snake_case labels (e.g. ["natural_grass", "artificial", "indoor",
+        "golf", "unknown"]). Rows under `threshold` come back needs_review=true:
+        judge those from the source. Results rank and filter; they are not evidence.
+        """
+        return jev_triage(run_id, operation_id, artifact_ids, question, options, threshold)
+
+    @tool
+    def marketops_lessons_report(pool_id: str = "") -> dict:
+        """Export what research ran into (walls, rescues, cost per route) as Markdown + CSV.
+
+        Built automatically from every research step across all windows; the
+        suggested lessons are candidates for a person to accept into a scene pack.
+        """
+        import research_walls
+        return research_walls.report(root(), pool_id=pool_id)
 
     @tool
     def marketops_runs(limit: int = 10, cursor: str = "", scope: str = "") -> dict:

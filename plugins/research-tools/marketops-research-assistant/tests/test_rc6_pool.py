@@ -69,7 +69,7 @@ class PoolTests(unittest.TestCase):
             a, b = workers.map(_claim_worker, [(str(self.root), "win-a"), (str(self.root), "win-b")])
         self.assertEqual(40, len(a) + len(b))
         self.assertEqual(set(), set(a) & set(b))
-        self.assertTrue(a and b)
+        self.assertEqual(40, len(set(a) | set(b)))
 
     def test_expired_lease_is_reclaimable_and_stale_completion_refused(self):
         self.load(HALLS[:2])

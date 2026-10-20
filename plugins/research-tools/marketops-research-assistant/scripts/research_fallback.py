@@ -325,7 +325,11 @@ def research_step(data_root, *, run_id, operation_id, task_kind, managed_call, a
     attempts, calls, artifacts, selected = [], 0, [], None
     source_refs = {"primary_artifact_ids": [], "provider_html_artifact_ids": []}
     final_reason = "FALLBACK_NO_USABLE_PROVIDER"
-    for ordinal, capability in enumerate(ROUTES[task_kind], 1):
+    import research_walls
+    route = ROUTES[task_kind]
+    if task_kind in {"known_public_url", "batch_public_pages"}:
+        route = research_walls.preferred_route(root, request["url"], route)
+    for ordinal, capability in enumerate(route, 1):
         if calls >= max_attempts:
             final_reason = "FALLBACK_ATTEMPT_LIMIT"
             break
@@ -407,6 +411,11 @@ def research_step(data_root, *, run_id, operation_id, task_kind, managed_call, a
     receipt = _receipt(run_id, operation_id, request, attempts, reason=final_reason,
                        artifacts=artifacts, selected=selected)
     receipt.update(source_refs)
+    if route != ROUTES[task_kind]:
+        receipt["route_note"] = "DOMAIN_MEMORY_STARTED_AT_" + route[0]
+    research_walls.record_chain(root, run_id=run_id, task_kind=task_kind,
+                                url=request.get("url") or "", query=request.get("query") or "",
+                                attempts=attempts, selected=selected)
     # This is a short observed mechanism, not a causal conclusion or new SOP.
     stage = "discovery" if task_kind == "source_discovery" else "qualification" if task_kind == "semantic_choice" else "acquisition"
     try:
