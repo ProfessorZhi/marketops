@@ -25,7 +25,8 @@ Save it with `marketops_start(..., brief=...)`. Fields:
 
 Prefer one complete source over many guesses. In order:
 
-1. **Bulk sources**: Serper (`marketops_search(provider='serper', ...)`) for directories,
+1. **Bulk sources**: Serper (`marketops_search(provider='serper', ...)`) and TinyFish search
+   (`provider='tinyfish'`, a different index - run the same queries on both) for directories,
    association member lists, council/strategy PDFs, charity registers. A country and use case
    usually has an authority site that lists everything.
 2. **Map listing**: SerpApi `marketops_serpapi_mcp_search(params={engine:'google_maps', q:'<type> in <area>'})`
@@ -37,9 +38,10 @@ Prefer one complete source over many guesses. In order:
 **Keep adding sources until the list is complete**, not until you have one list. For a region,
 list its towns first (a county has 30+), then:
 
-- league / association member lists: league sites, county boards' "find a club" pages, the
-  league's Wikipedia article (member clubs table), Charity Commission (sport code 110);
-- a site behind a challenge page (Play-Cricket, some leagues) stays unopened: search
+- member lists of the associations, leagues, chambers or federations the targets belong to, their
+  Wikipedia articles (member tables), official registers (charity, company, licensing) and
+  government open data;
+- a site behind a challenge page stays unopened: search
   `site:<that domain> <type>` and use the result titles as names, or use another list;
 - `google_maps` per town for every town in the region, not just the big ones.
 
@@ -62,6 +64,7 @@ prove ownership, surface, operator or an email. Zero hits is "not found with the
   saved as `facts:{name:...}, artifact_ids:[]`; they stay unverified until quoted.
 - Dedupe by name + postcode/address + website domain; keep both if unsure and say why.
 - Exclude out-of-scope types with an `exclusion` quote (e.g. 3G/artificial surface, golf, indoor).
-- Triage at volume with `marketops_jev_choice` on saved excerpts (type, priority). Jev ranks and
-  filters; it never establishes a fact. Read the source yourself for anything uncertain.
+- Triage at volume with `marketops_jev_triage` on the saved pages (in scope or not, type,
+  priority): one call for up to 50 targets. Jev ranks and filters; it never establishes a fact.
+  Read the source yourself for anything under its confidence threshold.
 - Then move to `marketops-accounts`, highest-priority targets first.

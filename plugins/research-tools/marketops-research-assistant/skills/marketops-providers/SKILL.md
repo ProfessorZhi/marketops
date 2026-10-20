@@ -9,11 +9,17 @@ Every call goes through MarketOps tools: material is saved in the Run, counted i
 and deduplicated across windows. Each call takes `run_id` and a fresh `operation_id`; retrying the
 same logical step reuses its id.
 
-| Step | Rung 1 (default) | Rung 2 | Rung 3 (hard cases, authorised) |
-|---|---|---|---|
-| Find sources | `marketops-serper` | `marketops-serpapi` (maps, engines) | TinyFish search |
-| Fetch a page / site | `marketops-crawl4ai` local (free) | `marketops-tinyfish` fetch (free) | TinyFish browser Agent (paid) |
-| Judge / classify | `marketops-jev` | you, from the source | the user |
+In a normal run all five work, each where it is best:
+
+| Job | Who does it | How |
+|---|---|---|
+| Find targets | Serper (Google web) + SerpApi (`google_maps` listings) + TinyFish search (its own index) | `marketops_search(provider=serper/serpapi/tinyfish)`, `marketops_serpapi_mcp_search`; union the three, each finds sites the others miss |
+| Read sites | Crawl4AI (local browser, free) first | inside `marketops_research_step` / `site_harvest` / `harvest_batch` |
+| Read what Crawl4AI cannot | TinyFish fetch (free): PDFs, pages Crawl4AI guesses are blocked, empty JS pages | automatic second rung; PDFs go straight to it |
+| Judge at volume | Jev: scope triage of the pool, role tag of every email | `marketops_jev_triage`, `harvest_batch(roles_wanted=...)` |
+| Hard sites (login, heavy JS), only when authorised | TinyFish browser Agent (paid) | ask once, with the expected yield |
+
+If a run report shows one provider unused, say why (not configured, failed, not needed).
 
 Composite tools already walk the ladder: `marketops_research_step` (one page or search),
 `marketops_site_harvest` (one organisation's own site), `marketops_harvest_batch` (a pool batch).

@@ -19,7 +19,7 @@ labels; always include `unknown`.
 
 | Use | Question | Options |
 |---|---|---|
-| Venue triage | Is this venue an outdoor natural-grass pitch? | `natural_grass`, `artificial`, `indoor`, `golf`, `unknown` |
+| Scope triage | Is this target in the brief's scope? (e.g. natural-grass pitch, coworking space) | `in_scope`, `out_of_scope_<type>`, `unknown` |
 | Page value | Does this page list staff or contact details? | `contacts`, `no_contacts`, `unknown` |
 | Role group | Which role does the contact in this text hold? | the scene pack's role groups + `unknown` |
 | Grade pre-check | Which grade fits this route? | `a`, `b`, `c`, `d`, `x`, `unknown` |

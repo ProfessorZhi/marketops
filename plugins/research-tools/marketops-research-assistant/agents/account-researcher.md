@@ -25,7 +25,7 @@ For each organisation, work autonomously until it has a result:
    profile. Generic inboxes (info@, office@) and switchboards are recorded separately, never as
    the key contact.
 4. If no decision-maker or operations role was found, run one Serper role search
-   (`site:<domain> "Grounds Manager" OR "Head Groundsman" OR "Facilities" OR "Bookings"`) and
+   (`site:<domain> "<wanted role>" OR "<other wanted role>"`, roles from the brief) and
    harvest the best staff page it returns.
 5. Stop when the best available grade is found, or when the site is blocked or has no public
    route. Do not guess email patterns, do not bypass access controls, do not use paid TinyFish

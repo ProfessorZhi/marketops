@@ -724,6 +724,15 @@ def managed_call(capability_id, params, run_id, operation_id, account_ref="",
 
 
 def search(provider, query, country, language, run_id, operation_id, mode="web", limit=10):
+    if provider == "tinyfish":
+        # A third, independent index: it surfaces sites the Google-based two miss.
+        answer = managed_call("tinyfish.search", {"query": query, "location": country,
+                                                  "language": language}, run_id, operation_id)
+        if answer["status"] != "OK":
+            raise ValueError(_refusal_text(answer))
+        return {**answer, **(answer.get("payload") or {}),
+                "invocation": provider_policy.invocation_receipt(
+                    "tinyfish_mcp_search", reservation="ONE_ATTEMPT_RESERVED_NOT_BILL_VERIFIED")}
     if provider not in {"serper", "serpapi"}:
         raise ValueError("CAPABILITY_UNKNOWN")
     if provider == "serpapi" and mode != "web":
@@ -1177,7 +1186,8 @@ def build_server():
     def marketops_search(provider: str, query: str, country: str, language: str,
                          run_id: str, operation_id: str, mode: str = "web",
                          limit: int = 10) -> dict:
-        """SerpApi OR Serper, explicit one-provider discovery, without fact promotion."""
+        """One search index per call: serper (Google web), serpapi (Google web via SerpApi)
+        or tinyfish (its own index). Union them for a complete list; no fact promotion."""
         return search(provider, query, country, language, run_id, operation_id, mode, limit)
 
     @tool

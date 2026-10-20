@@ -114,6 +114,13 @@ class PublishedNameTests(unittest.TestCase):
         self.assertEqual(["https://harlowcc.example/", "https://www.harlowcc.example/"], asked)
         self.assertEqual("Harlow Cricket Club", result["identity"]["published_name"])
 
+    def test_naming_habits_are_general_not_one_market(self):
+        import research_site_harvest as harvest
+        self.assertIn("Acme Natural Grass", harvest.name_variants("Acme Natural Grass Ltd"))
+        self.assertIn("Kreuzberg Coworking", harvest.name_variants("Kreuzberg Coworking GmbH"))
+        self.assertIn("Austin Tech Association", harvest.name_variants("The Austin Tech Association"))
+        self.assertIn("Lakeside FC", harvest.name_variants("Lakeside Football Club"))
+
     def test_a_village_hall_name_is_not_shortened(self):
         import research_site_harvest as harvest
         self.assertEqual(["Writtle Village Hall"], harvest.name_variants("Writtle Village Hall"))

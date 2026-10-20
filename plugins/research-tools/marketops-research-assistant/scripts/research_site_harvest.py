@@ -156,33 +156,67 @@ def _identity_quote(text: str, name: str) -> str:
     return quote if delivery._quote_supports(quote, name, distinctive=True) else ""
 
 
-_CLUB_WORDS = (("Cricket Club", "CC"), ("Football Club", "FC"), ("Rugby Football Club", "RFC"))
+#: Language-neutral-ish naming habits: how any organisation shortens its own
+#: name on its site. No market or sport is named here.
+_ARTICLES = ("the ", "die ", "der ", "le ", "la ", "les ", "el ", "de ", "het ")
+_LEGAL = {"ltd", "limited", "plc", "llc", "llp", "inc", "incorporated", "corp", "co",
+          "gmbh", "ag", "sa", "sas", "sarl", "srl", "spa", "bv", "nv", "pty", "cic", "cio"}
+_TYPE_WORDS = {"club", "association", "society", "trust", "council", "centre", "center",
+               "foundation", "federation", "league", "academy", "school", "college",
+               "company", "group", "union", "institute", "committee"}
+_QUALIFIERS = {"county", "district", "borough", "municipal", "regional", "city", "town"}
 
 
 def name_variants(name: str) -> list[str]:
-    """How a club usually writes its own name: list "Essex County Cricket Club",
-    site "Essex Cricket"; list "Harlow Cricket Club", site "Harlow CC"."""
-    base = re.sub(r"\s+", " ", name).strip()
+    """Spellings an organisation uses for itself: drop the article, the legal
+    form and regional qualifiers, shorten the type phrase to its initials
+    ("X Football Club" -> "X FC"), or drop the type word ("X Football")."""
+    base = re.sub(r"\s+", " ", name).strip(" ,.")
     out = [base]
-    if base.casefold().startswith("the "):
-        out.append(base[4:])
-    for long, short in _CLUB_WORDS:
-        for item in list(out):
-            if re.search(rf"\b{long}\b", item, re.I):
-                out.append(re.sub(rf"\b{long}\b", short, item, flags=re.I))
-                out.append(re.sub(r"\s+Club\b", "", item, flags=re.I))
-            elif re.search(rf"\b{short}\b", item):
-                out.append(re.sub(rf"\b{short}\b", long, item))
+    for article in _ARTICLES:
+        if base.casefold().startswith(article):
+            out.append(base[len(article):])
     for item in list(out):
-        if re.search(r"\bCounty\b", item, re.I):
-            out.append(re.sub(r"\s+County\b", "", item, flags=re.I))
+        words = item.split()
+        while len(words) > 2 and words[-1].casefold().strip(".,") in _LEGAL:
+            words = words[:-1]
+        out.append(" ".join(words))
+    for item in list(out):
+        words = item.split()
+        if len(words) >= 3 and words[-1].casefold() in _TYPE_WORDS:
+            for width in (2, 3):
+                head = words[:-width]
+                if any((w.casefold() + " ") not in _ARTICLES for w in head):
+                    initials = "".join(w[0].upper() for w in words[-width:] if w[0].isalpha())
+                    out.append(" ".join(head + [initials]))
+            out.append(" ".join(words[:-1]))
+    for item in list(out):
+        kept = [w for w in item.split() if w.casefold() not in _QUALIFIERS]
+        if 2 <= len(kept) < len(item.split()):
+            out.append(" ".join(kept))
     seen, ordered = set(), []
     for item in out:
         item = re.sub(r"\s+", " ", item).strip()
-        if item and item.casefold() not in seen:
+        if len(item.split()) >= 2 and item.casefold() not in seen:
             seen.add(item.casefold())
             ordered.append(item)
-    return ordered
+    return ordered or [base]
+
+
+def _acronym_quote(text: str, name: str) -> tuple[str, str]:
+    """"Harlow CC" listed, "Harlow Cricket Club" published: expand a trailing
+    acronym against the page itself instead of a dictionary."""
+    words = name.split()
+    if len(words) < 2 or not re.fullmatch(r"[A-Z]{2,4}", words[-1]):
+        return "", ""
+    head = re.escape(" ".join(words[:-1]))
+    letters = words[-1]
+    pattern = head + "".join(rf"\s+{c}\w+" for c in letters)
+    match = re.search(pattern, text, re.I)
+    if not match:
+        return "", ""
+    published = " ".join(match.group(0).split())
+    return _identity_quote(text, published), published
 
 
 def _record_id(*parts: str) -> str:
@@ -304,9 +338,12 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
             for published in name_variants(name):
                 quote = _identity_quote(text, published)
                 if quote:
-                    identity = {"artifact_id": artifact_id, "quote": quote, "url": page_url,
-                                "published_name": published}
                     break
+            else:
+                quote, published = _acronym_quote(text, name)
+            if quote:
+                identity = {"artifact_id": artifact_id, "quote": quote, "url": page_url,
+                            "published_name": published}
         obfuscated += obfuscated_email_count(raw)
         for route in extract_routes(text):
             key = (route["type"], route["value"].casefold())

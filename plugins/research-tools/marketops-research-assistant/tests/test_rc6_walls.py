@@ -69,6 +69,20 @@ class WallLearningTests(unittest.TestCase):
                 admission=lambda _cap: {"allowed": True, "reason_code": ""})
         self.assertEqual(["crawl4ai.fetch_page", "tinyfish.fetch_content"] * 2, self.calls)
 
+    def test_crawl4ais_antibot_guess_is_handed_to_tinyfish(self):
+        def guessed(**args):
+            if args["capability_id"] == "crawl4ai.fetch_page":
+                self.calls.append(args["capability_id"])
+                return {"status": "FAILED", "reason_code": "SOURCE_ANTIBOT_HEURISTIC",
+                        "gateway_invoked": True, "actual_usd": None, "artifact_ids": []}
+            return self.managed(**args)
+        out = fallback.research_step(
+            self.root, run_id="run", operation_id="g1", task_kind="known_public_url",
+            url="https://gammahall.example/", managed_call=guessed,
+            admission=lambda _cap: {"allowed": True, "reason_code": ""})
+        self.assertEqual(["crawl4ai.fetch_page", "tinyfish.fetch_content"], self.calls)
+        self.assertEqual("SUCCESS_CANDIDATE", out["status"])
+
     def test_report_exports_walls_and_rescues(self):
         for i in range(6):
             self.step(f"r{i}", f"https://hall{i}.example/")

@@ -10,9 +10,10 @@ operation_id, mode='web', limit=10)`. Rung 1 for discovery: cheapest per query.
 
 **Good queries** name the source type, the area and the document kind:
 
-- Whole lists: `"village halls" "{county}" directory`, `"{county} playing pitch strategy" filetype:pdf`,
-  `site:{association}.org.uk members`, `"{county} FA" clubs list`.
-- Staff pages on a known site: `site:{domain} "Grounds Manager" OR "Head Groundsman" OR "Facilities"`.
+- Whole lists: `"{target type}" "{region}" directory`, `"{association}" members list`,
+  `"{region}" "{target type}" filetype:pdf`,
+  `site:{association domain} members`.
+- Staff pages on a known site: `site:{domain} "{wanted role}" OR "{other wanted role}"`.
 - Officers in public documents: `site:{domain} "committee" filetype:pdf`, `"{venue}" minutes secretary`.
 
 **Modes**: `web` (default), `maps`, `news`, `images`, `scholar`, `patents`, `shopping`,

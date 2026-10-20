@@ -9,8 +9,9 @@ description: SerpApi official MCP (embedded in MarketOps) - Google Maps listings
 MCP client is built into the plugin; nothing else to install.
 
 **Venue listing** (the main use):
-`params={engine:'google_maps', q:'village hall near Chelmsford, Essex', hl:'en', gl:'uk'}`
-returns ~20 places with name, address, website, phone and `place_id`. To cover a county, query
+`params={engine:'google_maps', q:'<target type> near <town>, <region>', hl:'<lang>', gl:'<country>'}`
+(e.g. `'coworking space near Austin, TX'`, `'village hall near Chelmsford, Essex'`)
+returns ~20 places with name, address, website, phone and `place_id`. To cover a region, query
 each town or grid square separately and import each result page with `marketops_pool_import`
 (`listed_count` = places returned). Compare against a directory list: the two together catch gaps.
 

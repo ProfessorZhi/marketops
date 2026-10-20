@@ -15,7 +15,7 @@ code. Two failed tries on one target means HOLD and the next target.
    site publishes it>, organization_key, url=<official site>, max_pages=6)`. It fetches the page and
    its contact/people/hire pages, cuts literal quotes, writes the organisation and every email/phone
    as candidates, and returns each record's gate decision. It also tries the club's usual site
-   spellings ("Essex County Cricket Club" -> "Essex Cricket", "Harlow CC"). `NAME_NOT_FOUND_ON_SITE`:
+   spellings (without article or legal form, type phrase as initials: "X Football Club" -> "X FC"). `NAME_NOT_FOUND_ON_SITE`:
    read the routes' context for the published name and retry once. `SITE_UNREACHABLE`: HOLD.
    In bulk, `marketops_harvest_batch(..., roles_wanted="<the brief's roles>")` does this for 20
    targets and Jev tags every email with a role guess and confidence.
@@ -23,8 +23,8 @@ code. Two failed tries on one target means HOLD and the next target.
    generic inbox, switchboard) and what role. Apply the brief's or acceptance profile's grades.
    Read the page yourself only when the tag's confidence is below 0.85.
 4. **Missing decision-maker?** One Serper role search:
-   `site:<domain> "Grounds Manager" OR "Head Groundsman" OR "Facilities" OR "Bookings"`, then
-   harvest the best staff page. Also `site:<domain> filetype:pdf groundsman OR grounds`: recruitment
+   `site:<domain> "<wanted role 1>" OR "<wanted role 2>"` (the brief's or scene pack's roles), then
+   harvest the best staff page. Also `site:<domain> filetype:pdf "<wanted role>"`: recruitment
    packs, minutes and annual reports name officers and often their email. PDFs fetch with
    `marketops_research_step` like pages; note their date.
    **A named person in the wanted role without an email is still a result.** Fetch the page the
