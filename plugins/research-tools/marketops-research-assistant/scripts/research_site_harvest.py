@@ -49,7 +49,10 @@ LINK_WORDS = ("contact", "about", "team", "staff", "people", "committee", "trust
               "contacto", "equipo", "quienes", "contatti", "chi-siamo", "organigram")
 #: Words in the task's wanted roles shorter than this are too common to steer by.
 FOCUS_WORD_MIN = 4
-_EMAIL = re.compile(r"(?<![\w.+-])[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]+\.[A-Za-z]{2,24}(?![\w-])")
+#: The local part may carry letters beyond ASCII ("geschäftsstelle@"): the
+#: literal on the page is the address. A match never starts after a
+#: replacement character, which would cut a word in half.
+_EMAIL = re.compile(r"(?<![\w.+\ufffd-])[\w.%+-]{1,64}@[A-Za-z0-9.-]+\.[A-Za-z]{2,24}(?![\w-])")
 _PHONE = re.compile(r"(?<![\w+])(?:\+\d{1,3}[\s.-]?|0)(?:\(?\d{2,5}\)?[\s.-]?)\d{3,4}[\s.-]?\d{3,4}(?!\d)")
 _ASSET_SUFFIXES = (".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".css", ".js", ".ico")
 
@@ -290,7 +293,7 @@ def _envelope_links(root, run_id: str, receipt: dict) -> list[str]:
         if material["material_kind"] != "provider_extracted":
             continue
         try:
-            payload = json.loads(material["content"].decode("utf-8", errors="replace"))
+            payload = json.loads(evidence.decode_material(material["content"]))
         except ValueError:
             continue
         stack = [payload]
@@ -426,7 +429,7 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
                 break  # the organisation's own page is unreachable: report, do not wander
             continue
         material = store.read_artifact(root, run_id, artifact_id)
-        raw = material["content"].decode("utf-8", errors="replace")
+        raw = evidence.decode_material(material["content"])
         text = _readable(material["material_kind"], raw)
         if len(pages) == 1:
             anchors = raw + "".join(f'<a href="{link}"></a>'

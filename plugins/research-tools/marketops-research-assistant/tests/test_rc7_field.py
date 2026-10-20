@@ -25,6 +25,14 @@ class NamesAndNumbers(unittest.TestCase):
         self.assertEqual(["+44 1279 434 567"],
                          [r["value"] for r in harvest.extract_routes(text) if r["type"] == "phone"])
 
+    def test_a_cp1252_page_keeps_the_whole_umlaut_address(self):
+        import research_evidence as evidence
+        page = "<p>Schreiben Sie an geschäftsstelle@verein.de für Fragen zum Verein.</p>"
+        text = evidence.readable_text("rendered_html",
+                                      evidence.decode_material(page.encode("cp1252")))
+        self.assertEqual(["geschäftsstelle@verein.de"],
+                         [r["value"] for r in harvest.extract_routes(text)])
+
     def test_links_naming_the_task_rank_first(self):
         html = ('<a href="/contact">Contact</a><a href="/vrije-tijd/sport">Sportdienst</a>'
                 '<a href="/over-ons">Over ons</a>')

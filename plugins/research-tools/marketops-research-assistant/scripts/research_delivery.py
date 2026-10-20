@@ -154,7 +154,7 @@ def _read_snapshot(root: Path, run_id: str) -> tuple[dict, list[dict], list[dict
         artifacts.append({
             "artifact_id": a[0], "provider": a[1], "url": a[2],
             "kind": a[3], "sha256": a[4], "bytes": len(b),
-            "text": b.decode("utf-8", errors="replace"), "acquired_at": a[6],
+            "text": evidence.decode_material(b), "acquired_at": a[6],
         })
     known = {a["artifact_id"] for a in artifacts}
     for record in records:

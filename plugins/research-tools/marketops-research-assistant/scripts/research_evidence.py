@@ -30,6 +30,19 @@ _MAILTO_ANCHOR = re.compile(
     re.I | re.S)
 
 
+def decode_material(content: bytes) -> str:
+    """Saved page bytes as text, the same way for the harvester and the gate.
+
+    UTF-8 when the bytes are UTF-8; otherwise Windows-1252, which older
+    European sites still serve. Decoding those as UTF-8 turned
+    "Geschäftsstelle@" into a replacement character and a cut-off address.
+    """
+    try:
+        return content.decode("utf-8")
+    except UnicodeDecodeError:
+        return content.decode("cp1252", errors="replace")
+
+
 def mailto_visible(html_text: str) -> str:
     """Print a mailto: link's address next to its anchor text.
 
@@ -249,7 +262,7 @@ def excerpts(root: Path | str, run_id: str, artifact_ids: list[str],
                 raise ValueError("EXCERPT_SOURCE_HASH_MISMATCH")
             # The same text the gate matches quotes against, so a quote copied
             # from here is accepted and a verifier sees what the gate saw.
-            text = readable_text(row[0], source.decode("utf-8", errors="replace"))
+            text = readable_text(row[0], decode_material(source))
             clips = []
             for query in queries or [""]:
                 start = 0
