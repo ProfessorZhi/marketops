@@ -27,6 +27,9 @@ deliver an evidence-backed workbook. Effect first, cost second.
 ## 1. Start (ask once)
 
 - First use only: `marketops_setup_status`; if not configured, follow `marketops-setup`.
+- Inspect its `provider_readiness.shared_request_budget` before new network work.
+  Vendor credits do not override an exhausted local request limit; report that limit
+  before claiming the task can run, and never reset the ledger or increase the cap yourself.
 - `marketops_update_check()`: if a newer release exists, tell the user in one line (it says how
   to update: Update.cmd, then restart the agent) and carry on with the task.
 - `marketops_runs(limit=10)`: resume an existing Run for the same task instead of starting over.
@@ -87,6 +90,11 @@ authorised; the same rule conflict keeps recurring (many `RULES_UNKNOWN`); a cre
 configuration is missing; Crawl4AI stopped working (`crawl4ai_down`) and the user has not yet
 agreed to TinyFish-only reading. Everything else: pick another authorised source or record HOLD with the
 reason, and continue with the next target. Report all of it at the end.
+
+`PAGE_FAILURE_ONLY` and successful per-page fallback do not trigger a new permission
+question. Pause for a local outage only when `crawl4ai_down` is present or the step's
+`local_reader_health.tinyfish_only_approval_required` is true. If uncertain, run the
+self-check before telling the user that the computer's reader is broken.
 
 ## 4. Non-negotiables
 

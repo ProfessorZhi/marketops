@@ -19,6 +19,12 @@ emails at 62–88% of sites; guessed paths 6.5%), keeping `mailto:` addresses, P
 reports naming officers).
 
 **When it fails**:
+- A single page failing is not a computer-wide outage. `local_reader_health` in the
+  step receipt distinguishes `PAGE_FAILURE_ONLY` from `DOWN_CONFIRMED`. Continue an
+  admitted per-page TinyFish fallback without asking again when
+  `tinyfish_only_approval_required=false`; ask about TinyFish-only mode only for a
+  confirmed outage. Repeated page errors call for the self-check, not an assumed
+  browser reinstall. Preserve `local_runtime_diagnostic` in the blocker report.
 - Browser cannot start (missing Chromium, blocked by antivirus, broken install): this is a
   problem with this computer, not with the site, and it is never handled silently.
   - Three such failures in a row trigger a browser check. If the browser really does not start,

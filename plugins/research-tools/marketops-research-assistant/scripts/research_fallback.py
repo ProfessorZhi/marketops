@@ -289,6 +289,16 @@ def _receipt(run_id, operation_id, request, attempts, *, reason, artifacts=None,
             "measurement_scope": "Managed attempts and persisted materials, not verified business results or savings."}
 
 
+def _reader_health(attempts):
+    local = [a for a in attempts if a.get("capability_id") in LOCAL_CAPABILITIES]
+    down = any(a.get("local_reader_down_confirmed") is True for a in local)
+    failed = any(a.get("status") in {"FAILED", "UNKNOWN"} for a in local)
+    return {"state": "DOWN_CONFIRMED" if down else "PAGE_FAILURE_ONLY" if failed else "NO_CONFIRMED_OUTAGE",
+            "tinyfish_only_approval_required": down,
+            "next_action": "OFFER_REPAIR_OR_ASK_TINYFISH_ONLY" if down else "FOLLOW_STEP_RESULT",
+            "note": "A page failure or a domain-memory route does not establish a computer-wide reader outage."}
+
+
 def research_step(data_root, *, run_id, operation_id, task_kind, managed_call, admission,
                   query="", url="", artifact_id="", question="", options=None,
                   country="", language="", limit=5, max_attempts=3):
@@ -319,6 +329,8 @@ def research_step(data_root, *, run_id, operation_id, task_kind, managed_call, a
                       _receipt(run_id, operation_id, request, _attempts(db, run_id, operation_id),
                                reason="FALLBACK_CHAIN_IN_PROGRESS_OR_INTERRUPTED"))
             db.commit()
+            if task_kind in {"known_public_url", "batch_public_pages"}:
+                result["local_reader_health"] = _reader_health(result.get("attempts", []))
             if result["status"] == "SUCCESS_CANDIDATE":
                 try:
                     _material(root, run_id, result["artifact_ids"])
@@ -374,7 +386,7 @@ def research_step(data_root, *, run_id, operation_id, task_kind, managed_call, a
             if not isinstance(response, dict):
                 raise ValueError("FALLBACK_RESPONSE_INVALID")
             action, reason = _decision(response, request)
-        except Exception:
+        except Exception as exc:
             # Never echo errors; they can contain provider keys or request text.
             response = {"status": "UNKNOWN", "reason_code": "FALLBACK_CALLBACK_FAILED",
                         "gateway_invoked": None, "actual_usd": None}
@@ -384,6 +396,7 @@ def research_step(data_root, *, run_id, operation_id, task_kind, managed_call, a
                 # failure is technical, so the chain continues to the next
                 # provider instead of holding a charge that cannot exist.
                 response.update(status="FAILED", actual_usd=0)
+                item["local_runtime_diagnostic"] = type(exc).__name__
                 action, reason = "NEXT", "LOCAL_CRAWL_RUNTIME_FAILED"
         amount = _amount(response.get("actual_usd"))
         from research_runtime_results import diagnostic_reason_codes
@@ -396,6 +409,11 @@ def research_step(data_root, *, run_id, operation_id, task_kind, managed_call, a
                     gateway_invoked=response.get("gateway_invoked") if type(response.get("gateway_invoked")) is bool else None,
                     actual_usd=amount, cost_unknown=amount is None and response.get("gateway_invoked") is not False,
                     charge_state=_code(response.get("charge_state")) or "NOT_REPORTED_USE_USAGE_LEDGER")
+        if capability in LOCAL_CAPABILITIES:
+            item["local_reader_down_confirmed"] = bool(response.get("crawl4ai_down"))
+            detail = (response.get("payload") or {}).get("detail", "") if isinstance(response.get("payload"), dict) else ""
+            if isinstance(detail, str) and re.fullmatch(r"(?:[A-Za-z][A-Za-z0-9_]{0,79}(?::[A-Z_]{1,80})?|HTTP [1-5][0-9]{2})", detail):
+                item["local_runtime_diagnostic"] = detail
         if response.get("status") == "OK" and action in {"SUCCESS", "NEXT"}:
             try:
                 _material(root, run_id, response.get("artifact_ids"))
@@ -419,6 +437,8 @@ def research_step(data_root, *, run_id, operation_id, task_kind, managed_call, a
     receipt = _receipt(run_id, operation_id, request, attempts, reason=final_reason,
                        artifacts=artifacts, selected=selected)
     receipt.update(source_refs)
+    if task_kind in {"known_public_url", "batch_public_pages"}:
+        receipt["local_reader_health"] = _reader_health(attempts)
     if route != ROUTES[task_kind]:
         receipt["route_note"] = "DOMAIN_MEMORY_STARTED_AT_" + route[0]
     research_walls.record_chain(root, run_id=run_id, task_kind=task_kind,

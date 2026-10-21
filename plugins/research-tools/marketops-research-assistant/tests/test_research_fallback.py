@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from contextlib import closing
 from pathlib import Path
 import sqlite3
 import sys
@@ -92,6 +93,55 @@ class FallbackTests(unittest.TestCase):
         result = self.step(task_kind="batch_public_pages", url="https://example.org/source")
         self.assertEqual("SUCCESS_CANDIDATE", result["status"])
         self.assertEqual("EMPTY_USABLE_RESULT", result["attempts"][0]["decision_reason"])
+        self.assertEqual(2, len(self.calls))
+
+    def test_single_page_runtime_failure_does_not_require_global_fallback_permission(self):
+        self.answers["crawl4ai.fetch_page"] = {"status": "FAILED", "payload": {
+            "reason": "LOCAL_CRAWL_RUNTIME_FAILED", "detail": "RuntimeError:EVENT_LOOP_CLOSED"}}
+        result = self.step(task_kind="known_public_url", url="https://example.org/source")
+        self.assertEqual("SUCCESS_CANDIDATE", result["status"])
+        self.assertEqual("PAGE_FAILURE_ONLY", result["local_reader_health"]["state"])
+        self.assertFalse(result["local_reader_health"]["tinyfish_only_approval_required"])
+        self.assertEqual("RuntimeError:EVENT_LOOP_CLOSED", result["attempts"][0]["local_runtime_diagnostic"])
+
+    def test_confirmed_local_outage_remains_visible_after_successful_fallback(self):
+        self.answers["crawl4ai.fetch_page"] = {"status": "FAILED", "payload": {
+            "reason": "LOCAL_CRAWL_RUNTIME_FAILED"}, "crawl4ai_down": {"failed_step": "BROWSER_WONT_START"}}
+        result = self.step(task_kind="known_public_url", url="https://example.org/source")
+        self.assertEqual("SUCCESS_CANDIDATE", result["status"])
+        self.assertTrue(result["local_reader_health"]["tinyfish_only_approval_required"])
+        self.assertTrue(result["attempts"][0]["local_reader_down_confirmed"])
+
+    def test_arbitrary_error_text_is_not_copied_into_runtime_diagnostics(self):
+        self.answers["crawl4ai.fetch_page"] = {"status": "FAILED", "payload": {
+            "reason": "LOCAL_CRAWL_RUNTIME_FAILED", "detail": "secret upstream key https://example.org/?token=private"}}
+        result = self.step(task_kind="known_public_url", url="https://example.org/source")
+        self.assertNotIn("local_runtime_diagnostic", result["attempts"][0])
+        self.assertNotIn("secret upstream", json.dumps(result))
+
+    def test_domain_memory_starting_with_tinyfish_is_not_a_confirmed_local_outage(self):
+        from unittest.mock import patch
+        with patch("research_walls.preferred_route", return_value=("tinyfish.fetch_content", "crawl4ai.fetch_page")):
+            result = self.step(task_kind="known_public_url", url="https://example.org/source")
+        self.assertEqual("tinyfish.fetch_content", result["selected_capability"])
+        self.assertFalse(result["local_reader_health"]["tinyfish_only_approval_required"])
+
+    def test_callback_failure_keeps_exception_class_without_message(self):
+        self.answers["crawl4ai.fetch_page"] = RuntimeError("private original context")
+        result = self.step(task_kind="known_public_url", url="https://example.org/source")
+        self.assertEqual("RuntimeError", result["attempts"][0]["local_runtime_diagnostic"])
+        self.assertNotIn("private original context", json.dumps(result))
+
+    def test_replay_of_an_older_receipt_adds_health_without_another_provider_call(self):
+        self.answers["crawl4ai.fetch_page"] = {"status": "FAILED", "payload": {"reason": "LOCAL_CRAWL_RUNTIME_FAILED"}}
+        original = self.step(task_kind="known_public_url", url="https://example.org/source")
+        original.pop("local_reader_health")
+        with closing(sqlite3.connect(self.root / "state/research-events.sqlite3")) as db:
+            db.execute("UPDATE research_fallback_chains SET receipt_json=?", (json.dumps(original),))
+            db.commit()
+        replayed = self.step(task_kind="known_public_url", url="https://example.org/source")
+        self.assertTrue(replayed["replayed"])
+        self.assertEqual("PAGE_FAILURE_ONLY", replayed["local_reader_health"]["state"])
         self.assertEqual(2, len(self.calls))
 
     def test_source_denials_challenges_and_egress_policy_never_switch(self):
@@ -217,7 +267,7 @@ class FallbackTests(unittest.TestCase):
 
     def test_completed_replay_rechecks_material_hash(self):
         result = self.step()
-        with sqlite3.connect(self.root / "state/research-lite.sqlite3") as db:
+        with closing(sqlite3.connect(self.root / "state/research-lite.sqlite3")) as db:
             path = db.execute("SELECT relative_path FROM artifacts WHERE artifact_id=?", (result["artifact_ids"][0],)).fetchone()[0]
         (self.root / path).write_bytes(b"Changed")
         again = self.step()

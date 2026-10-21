@@ -103,3 +103,12 @@ Crawl4AI is the reader every harvest depends on. Do not silently replace it with
 - Go ahead with TinyFish fetch only if the user explicitly agrees. Write it in the report.
 - Any answer carrying `crawl4ai_down` mid-task means the same thing. Pause and ask the user;
   do not carry on quietly.
+- A failed page is not a confirmed local outage. When a step reports
+  `local_reader_health.tinyfish_only_approval_required=false`, continue the admitted
+  per-page fallback; do not ask the user to approve it again. Domain memory starting
+  a host at TinyFish does not establish that Crawl4AI is broken on this computer.
+- For repeated `PAGE_FAILURE_ONLY`, run the Crawl4AI self-check before claiming a
+  computer-wide failure. Report the attempt's `local_runtime_diagnostic` when present.
+- Balance and admission are separate: inspect the shared request budget as well as
+  vendor credits. Do not describe a provider as unusable because the local request
+  ceiling was exhausted; report `BUDGET_PROJECT_CEILING` and the configured limit.

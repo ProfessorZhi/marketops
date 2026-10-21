@@ -175,6 +175,19 @@ class Entrypoints(unittest.TestCase):
 
 
 class Server(unittest.TestCase):
+    def test_readiness_shows_exhausted_local_budget_separately_from_provider_keys(self):
+        import research_mcp
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch.object(research_mcp, "root", return_value=Path(tmp)), \
+                patch("research_runtime_setup.config", return_value={"max_calls": 200}), \
+                patch("research_runtime_status.usage", return_value={"limit": 200, "calls_used": 200, "remaining": 0}), \
+                patch("research_credentials.load_into_environment"), \
+                patch("research_balances.warnings", return_value=[]), \
+                patch("research_provider_health.status", return_value={}):
+            result = research_mcp.provider_readiness()
+        self.assertEqual(0, result["shared_request_budget"]["remaining"])
+        self.assertEqual("LOCAL_REQUEST_LIMIT_EXHAUSTED", result["request_budget_warning"])
+
     def test_the_server_finds_the_browser_installed_beside_it(self):
         import research_mcp
         with tempfile.TemporaryDirectory() as tmp:
