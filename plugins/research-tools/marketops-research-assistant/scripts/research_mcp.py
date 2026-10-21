@@ -35,6 +35,9 @@ def next_step(run_id, limit=10, previous_snapshot_id="", after_attempt=False):
     result = workflow.next_step(root(), run_id, limit, previous_snapshot_id, after_attempt,
                                 budget=_source_selection_budget(run_id))
     result["experience"] = _experience_view(run_id, stage=result.get("stage", "intake"))
+    import research_execution
+    result["execution"] = research_execution.assess(root(), run_id, goal=result,
+                                                    budget=_source_selection_budget(run_id))
     return result
 
 
@@ -150,7 +153,6 @@ def provider_readiness() -> dict:
     (SerpApi/TinyFish) the connection check passed at setup; Crawl4AI needs no
     key, only its local install. It is not a check of the account's credit.
     """
-    import research_egress
     import research_runtime_setup
     try:
         # An installing agent may have stored keys after this server started;
@@ -170,12 +172,25 @@ def provider_readiness() -> dict:
         if provider == "crawl4ai":
             import research_crawl_doctor
             checked = research_crawl_doctor.cached(data_root) if data_root is not None else None
-            if not research_egress.crawl4ai_ready():
+            # Importing the SDK here initializes its global database before the
+            # managed transport can select the customer's cache directory.
+            sdk_present = "crawl4ai" in sys.modules or importlib.util.find_spec("crawl4ai") is not None
+            cache_issue = ""
+            if sdk_present and data_root is not None:
+                from research_runtime_transport import validate_crawl_cache
+                try:
+                    validate_crawl_cache(data_root)
+                except ValueError as exc:
+                    cache_issue = str(exc).split(":", 1)[0]
+            if not sdk_present:
                 state = "NOT_INSTALLED"
+            elif cache_issue:
+                state = "RESTART_REQUIRED" if cache_issue == "CRAWL_CACHE_RESTART_REQUIRED" else "CACHE_CONFIGURATION_INVALID"
             elif checked is None:
                 state = "INSTALLED_NOT_CHECKED"
             else:
-                state = "READY" if checked["status"] == "WORKING" else "NOT_WORKING"
+                state = ("READY" if checked.get("page_read_verified") is True else
+                         "BROWSER_READY_PAGE_UNCHECKED") if checked["status"] == "WORKING" else "NOT_WORKING"
         elif not configured(PROVIDER_KEYS[provider]):
             state = "KEY_MISSING"
         else:
@@ -192,6 +207,9 @@ def provider_readiness() -> dict:
              "NOT_INSTALLED": "marketops_crawl4ai_check(repair=True), or run Repair.cmd "
                               "(Windows) / repair.sh in the MarketOps folder",
              "INSTALLED_NOT_CHECKED": "marketops_crawl4ai_check() (starts the browser once)",
+             "BROWSER_READY_PAGE_UNCHECKED": "marketops_crawl4ai_check(run_id=<current run>) to verify managed page reading",
+             "RESTART_REQUIRED": "restart the agent/MCP server to select the managed Crawl4AI cache before SDK import",
+             "CACHE_CONFIGURATION_INVALID": "correct the local Crawl4AI cache setting and restart the agent",
              "NOT_WORKING": "marketops_crawl4ai_check(repair=True), or run Repair.cmd / "
                             "repair.sh in the MarketOps folder"}
     import research_balances
@@ -205,11 +223,19 @@ def provider_readiness() -> dict:
                   "LOCAL_DOWN": "marketops_crawl4ai_check(repair=True), or run Repair.cmd / "
                                 "repair.sh in the MarketOps folder"})
     low = research_balances.warnings(data_root) if data_root is not None else []
+    budget = None
+    if data_root is not None and settings.get("max_calls") is not None:
+        from research_runtime_status import usage
+        budget = usage(data_root, settings.get("project_max_calls", settings["max_calls"]))
     return {"providers": out,
             "low_balance_warnings": low,
+            "shared_request_budget": budget,
+            "request_budget_warning": "LOCAL_REQUEST_LIMIT_EXHAUSTED" if budget and budget.get("remaining") == 0
+                                      else "LOCAL_REQUEST_LIMIT_NEAR" if budget and type(budget.get("remaining")) is int
+                                      and budget["remaining"] <= 10 else "",
             "how_to_fix": {p: fixes[s.split("_UNTIL_")[0]] for p, s in out.items()
                            if s.split("_UNTIL_")[0] in fixes},
-            "note": "READY is local readiness, not a check of the account's remaining credit."}
+            "note": "READY is local readiness, not vendor credit or permission to exceed the shared request budget."}
 
 
 def setup_status():
@@ -610,7 +636,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         configured_root = None
     if configured_root is not None and runtime_setup.config(configured_root):
         from research_runtime_status import view
-        return {"product": "MarketOps Research MCP", "version": "0.5.9",
+        return {"product": "MarketOps Research MCP", "version": "0.5.10-rc4",
                 **view(configured_root, task_kind=task_kind),
                 "external_host": _external_inventory(host_observed_tools),
                 "embedded_official_mcp": provider_policy.embedded_official_mcp_capabilities(),
@@ -685,7 +711,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         if task_kind else None)
     return {
         "product": "MarketOps Lite Research MCP",
-        "version": "0.5.9",
+        "version": "0.5.10-rc4",
         "providers": {
             "serpapi": {"transport": "REST through local MCP", **search["serpapi"]},
             "serper": {"transport": "REST through local MCP", **search["serper"]},
@@ -908,6 +934,10 @@ def crawl4ai_down_notice(data_root) -> dict:
     """What the Agent tells the user when the local reader stops working."""
     import research_crawl_doctor as doctor
     last = (doctor.cached(data_root) or {})
+    if str(last.get("failed_step", "")).startswith("CACHE_"):
+        return {"status": "CRAWL4AI_NOT_WORKING_ON_THIS_COMPUTER", "failed_step": last["failed_step"],
+                "fix": last.get("fix", ""), "tell_the_user": last.get("fix", ""),
+                "repair": last.get("repair", "restart the agent/MCP server")}
     return {"status": "CRAWL4AI_NOT_WORKING_ON_THIS_COMPUTER",
             "failed_step": last.get("failed_step", ""), "fix": last.get("fix", ""),
             "tell_the_user": ("Crawl4AI, the free local page reader, is not working on this "
@@ -932,8 +962,9 @@ def crawl4ai_check(run_id="", repair=False) -> dict:
                                   run_id, "crawl4ai-self-check-" + os.urandom(4).hex())
             if answer.get("status") == "OK":
                 return True, ""
-            if answer.get("reason_code") in doctor.RUNTIME_FAILURES:
-                return False, answer.get("reason_code")
+            reason = answer.get("primary_reason_code") or answer.get("reason_code")
+            if reason in doctor.RUNTIME_FAILURES or answer.get("reason_code") == "CAPABILITY_NOT_AVAILABLE":
+                return False, reason
             return None  # the run's rules refused it: says nothing about the browser
     result = doctor.check(data_root, page_read=page_read)
     return {**result, "tell_the_user": "" if result["status"] == "WORKING"
@@ -1216,7 +1247,7 @@ def evidence_workbook(run_id, delivery_id):
         r, run_id, delivery_id, ledger=ledger, project=project)
 
 
-def handoff(run_id, operation_id):
+def handoff(run_id, operation_id, mode="auto"):
     """One audited workbook snapshot plus experience artifacts and an honest receipt.
 
     Counts come from the workbook manifest, not a preceding status query. A child
@@ -1226,6 +1257,8 @@ def handoff(run_id, operation_id):
     r = root()
     store._id(run_id, "run_id")
     store._id(operation_id, "operation_id")
+    if mode not in {"auto", "checkpoint", "final"}:
+        raise ValueError("HANDOFF_MODE_INVALID: auto, checkpoint or final")
     # Run metadata is immutable; counts are not. Use this read only to validate
     # existence and obtain scope/policy for the experience draft.
     head = workflow.page(r, run_id, 1)
@@ -1285,7 +1318,7 @@ def handoff(run_id, operation_id):
     try:
         experience_result = draft_experience(
             r, run_id=run_id, scope=head["scope"],
-            rule_version=head["rule_version"], skill_version="0.5.9",
+            rule_version=head["rule_version"], skill_version="0.5.10-rc4",
             output=experience_path)
         result["experience_candidate"] = str(experience_path)
         result["experience_incidents"] = experience_result["incidents"]
@@ -1301,10 +1334,19 @@ def handoff(run_id, operation_id):
                                          "reason_type": type(exc).__name__}
         reasons.append("EXPERIENCE_FEEDBACK_SUMMARY_FAILED")
 
+    import research_execution
+    try:
+        execution = research_execution.assess(r, run_id, goal=workbook.get("goal_assessment") or {})
+    except Exception as exc:
+        reasons.append("EXECUTION_ASSESSMENT_FAILED_" + type(exc).__name__)
+        execution = {"state": "CHECKPOINT_EXECUTION_STATE_UNAVAILABLE", "is_final": False,
+                     "continuation_required": True, "next_action": "RESTORE_EXECUTION_STATE_BEFORE_FINALIZING",
+                     "reason_type": type(exc).__name__}
     try:
         append_event(r, run_id=run_id, operation_id=operation_id,
                      stage="handoff", kind="handoff", status="hold" if reasons else "succeeded",
-                     provider="local", reason_code="partial_handoff" if reasons else "")
+                     provider="local", reason_code="partial_handoff" if reasons else
+                     "research_checkpoint" if not execution["is_final"] or mode == "checkpoint" else "")
     except Exception as exc:
         reasons.append("HANDOFF_EVENT_FAILED_" + type(exc).__name__)
     # Include the final handoff event in the user's collectable file, not just
@@ -1329,6 +1371,14 @@ def handoff(run_id, operation_id):
     result["partial_reasons"] = reasons
     if reasons:
         result["status"] = "PARTIAL_HANDOFF_" + reasons[0]
+    result["execution"] = execution
+    result["is_final"] = execution["is_final"] and mode != "checkpoint" and not reasons
+    result["continuation_required"] = not result["is_final"]
+    result["delivery_status"] = result["status"]
+    if not result["is_final"] and not reasons:
+        result["status"] = "CHECKPOINT_RESEARCH_NOT_FINISHED"
+    if mode == "final" and not result["is_final"]:
+        result["finalization_refused"] = "RESEARCH_OR_LOCAL_FINALIZATION_REMAINS"
     return result
 
 
@@ -1450,7 +1500,7 @@ def build_server():
     _use_installed_browser()
     _ensure_repair_entrypoints()
     from mcp.server import MCPServer
-    mcp = MCPServer("MarketOps Lite Research", version="0.5.9")
+    mcp = MCPServer("MarketOps Lite Research", version="0.5.10-rc4")
 
     def tool(fn):
         if fn.__name__ not in PUBLIC_TOOLS:
@@ -1976,12 +2026,14 @@ def build_server():
         return evidence_workbook(run_id, delivery_id)
 
     @tool
-    def marketops_handoff(run_id: str, operation_id: str) -> dict:
+    def marketops_handoff(run_id: str, operation_id: str, mode: str = "auto") -> dict:
         """Deliver one audited candidate XLSX/CSV snapshot and experience artifacts with partial failures visible.
 
-        The reply carries this Run's estimated spend per provider; report it to the user.
+        mode: auto, checkpoint or final. A final request cannot override pending
+        work: is_final=false and continuation_required=true require continuing
+        the same Run. The reply carries this Run's estimated spend per provider.
         """
-        result = handoff(run_id, operation_id)
+        result = handoff(run_id, operation_id, mode)
         try:
             import research_costs
             spend = research_costs.report(root(), run_id=run_id)
@@ -2033,7 +2085,7 @@ def build_server():
             raise ValueError("EXPERIENCE_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT")
         output.parent.mkdir(parents=True, exist_ok=True)
         return draft_experience(r, run_id=run_id, scope=scope,
-                                rule_version=rule_version, skill_version="0.5.9",
+                                rule_version=rule_version, skill_version="0.5.10-rc4",
                                 output=output)
 
     @tool

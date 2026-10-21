@@ -645,6 +645,26 @@ def _redirected_away(outcome: Mapping[str, Any], requested: str) -> str:
 ANTIBOT_ERROR_PREFIX = "Blocked by anti-bot protection"
 
 
+def runtime_failure_detail(exc: Exception) -> str:
+    """Keep a closed runtime diagnosis, never arbitrary exception text or URLs."""
+    text = str(exc).casefold()
+    kind = "SDK_EXCEPTION"
+    if "asyncio.run() cannot be called" in text or "event loop is already running" in text:
+        kind = "EVENT_LOOP_RUNNING"
+    elif "event loop is closed" in text:
+        kind = "EVENT_LOOP_CLOSED"
+    elif "database is locked" in text:
+        kind = "DATABASE_LOCKED"
+    elif isinstance(exc, UnicodeError):
+        kind = "ENCODING_ERROR"
+    elif isinstance(exc, TimeoutError):
+        kind = "RUNTIME_TIMEOUT"
+    name = type(exc).__name__
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,79}", name):
+        name = "Exception"
+    return name + ":" + kind
+
+
 def _sdk_failure_code(error_message: object) -> str:
     """``success=False`` 到底是哪一件事。**闭集的两格，不是字符串比较散落各处。**
 
@@ -1981,7 +2001,7 @@ class Crawl4AIAdapter:
             if "executable doesn't exist" in message or "browser executable" in message:
                 raise _egress_error("LOCAL_BROWSER_NOT_INSTALLED") from None
             raise _egress_error("LOCAL_CRAWL_RUNTIME_FAILED",
-                                detail=type(exc).__name__) from None
+                                detail=runtime_failure_detail(exc)) from None
 
     def _run_sdk_artifact(self, module: Any, *, url: str, kind: str,
                           egress_kwargs: Mapping[str, object],
@@ -2042,7 +2062,7 @@ class Crawl4AIAdapter:
             raise
         except Exception as exc:  # noqa: BLE001
             raise _egress_error("LOCAL_CRAWL_RUNTIME_FAILED",
-                                detail=type(exc).__name__) from None
+                                detail=runtime_failure_detail(exc)) from None
 
         raw = outcome.get("artifact")
         payload = _artifact_bytes(raw, kind)

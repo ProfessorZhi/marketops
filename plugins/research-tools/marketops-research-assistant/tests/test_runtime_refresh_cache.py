@@ -70,17 +70,40 @@ class AccountRefreshTests(unittest.TestCase):
 
 
 class CrawlCacheTests(unittest.TestCase):
+    def test_cache_validation_is_read_only(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {}, clear=True), \
+                patch.dict(sys.modules, {"crawl4ai.async_database": None}):
+            chosen, managed = transport.validate_crawl_cache(Path(temp))
+            self.assertTrue(managed)
+            self.assertEqual((Path(temp) / "cache" / "crawl4ai").resolve(), chosen)
+            self.assertFalse(chosen.exists())
+            self.assertNotIn("CRAWL4_AI_BASE_DIRECTORY", os.environ)
+
+    def test_cache_refusal_retains_precise_local_reason_without_network(self):
+        from types import SimpleNamespace
+        import research_runtime_results as results
+        with tempfile.TemporaryDirectory() as temp, \
+                patch.object(runtime, "config", return_value={"allowed_domains": ["example.org"]}), \
+                patch.object(transport, "prepare_crawl_cache", side_effect=ValueError("CRAWL_CACHE_RESTART_REQUIRED")), \
+                patch("research_egress.safe_browser_egress", side_effect=AssertionError("network must not start")):
+            request = SimpleNamespace(capability_id="crawl4ai.fetch_page", params={"url": "https://example.org"})
+            outcome = transport.RuntimeCrawlAdapter(Path(temp)).execute(request)
+        self.assertEqual("CRAWL_CACHE_RESTART_REQUIRED", outcome.payload["reason"])
+        self.assertEqual("CAPABILITY_NOT_AVAILABLE", outcome.caveats[0])
+        codes = results.diagnostic_reason_codes(outcome.payload, result=outcome)
+        self.assertEqual("CRAWL_CACHE_RESTART_REQUIRED", codes[0])
+
     def test_default_cache_is_inside_data_root_and_set_before_sdk_import(self):
         with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {}, clear=True), \
                 patch.dict(sys.modules, {"crawl4ai.async_database": None}):
             chosen = transport.prepare_crawl_cache(Path(temp))
-            self.assertEqual(str(Path(temp) / "cache" / "crawl4ai"), chosen)
+            self.assertEqual(str((Path(temp) / "cache" / "crawl4ai").resolve()), chosen)
             self.assertEqual(chosen, os.environ["CRAWL4_AI_BASE_DIRECTORY"])
             self.assertTrue(Path(chosen).is_dir())
 
     def test_absolute_operator_override_is_preserved_and_relative_is_refused(self):
         with tempfile.TemporaryDirectory() as temp, patch.dict(sys.modules, {"crawl4ai.async_database": None}):
-            chosen = Path(temp) / "operator-cache"
+            chosen = (Path(temp) / "operator-cache").resolve()
             with patch.dict(os.environ, {"CRAWL4_AI_BASE_DIRECTORY": str(chosen)}):
                 self.assertEqual(str(chosen), transport.prepare_crawl_cache(Path(temp) / "data"))
             with patch.dict(os.environ, {"CRAWL4_AI_BASE_DIRECTORY": "./cwd-cache"}):

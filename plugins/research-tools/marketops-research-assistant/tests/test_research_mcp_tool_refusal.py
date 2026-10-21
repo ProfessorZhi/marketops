@@ -84,7 +84,7 @@ class ToolRefusalTests(unittest.TestCase):
 
     def test_server_reports_the_plugin_version(self):
         server = mcp.build_server()
-        self.assertEqual("0.5.9", server.version)
+        self.assertEqual(json.loads((ROOT / "plugin.json").read_text(encoding="utf-8"))["version"], server.version)
 
 
 if __name__ == "__main__":

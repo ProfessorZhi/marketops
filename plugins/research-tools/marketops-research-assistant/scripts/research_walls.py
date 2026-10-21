@@ -29,6 +29,10 @@ __all__ = ["record_chain", "preferred_route", "report", "host_of"]
 LOCAL_RUNG = "crawl4ai.fetch_page"
 CLOUD_RUNG = "tinyfish.fetch_content"
 RUNTIME_CODES = frozenset({"LOCAL_CRAWL_NOT_SAFE_TO_RUN", "LOCAL_BROWSER_NOT_INSTALLED",
+                           "LOCAL_CRAWL_RUNTIME_FAILED", "LOCAL_CRAWL_FAILED",
+                           "LOCAL_DEPENDENCY_NOT_INSTALLED", "CRAWL4AI_LOCAL_NOT_INSTALLED",
+                           "CRAWL_CACHE_RESTART_REQUIRED", "CRAWL_CACHE_OVERRIDE_MUST_BE_ABSOLUTE",
+                           "CRAWL_CACHE_PATH_ESCAPE", "CRAWL_CACHE_MUST_BE_OUTSIDE_SOURCE",
                            "CAPABILITY_NOT_AVAILABLE", "CRAWL_CACHE_CONFIGURATION_REFUSED",
                            "EGRESS_REFUSED", "RESEARCH_NETWORK_DISABLED"})
 

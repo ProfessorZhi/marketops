@@ -21,15 +21,23 @@ deliver an evidence-backed workbook. Effect first, cost second.
    instead of asking whether to continue. If you see two ways forward, do the one with the better
    expected yield now and name the other in the report; never end a turn with "which do you want?"
    while budget remains. A blocked site is not a question for the user: use another source. Stop
-   only when the targets are covered, the budget cap is near, or about 10 turns remain; then
-   `marketops_handoff` and a short report, even when partial.
+   only when the agreed target work is covered, the authorized budget is exhausted,
+   the user asks to stop, or a verified blocker prevents further authorized work.
+   A turn/context warning or a 40-second tool slice is not a completed task: save
+   a checkpoint and retain the same Run/queue for continuation.
 
 ## 1. Start (ask once)
 
 - First use only: `marketops_setup_status`; if not configured, follow `marketops-setup`.
+- Inspect its `provider_readiness.shared_request_budget` before new network work.
+  Vendor credits do not override an exhausted local request limit; report that limit
+  before claiming the task can run, and never reset the ledger or increase the cap yourself.
 - `marketops_update_check()`: if a newer release exists, tell the user in one line (it says how
   to update: Update.cmd, then restart the agent) and carry on with the task.
 - `marketops_runs(limit=10)`: resume an existing Run for the same task instead of starting over.
+- `marketops_next(run_id)` includes `execution`. Follow its `next_action`; do not
+  give a final research answer while `execution.continuation_required=true` and
+  authorized work can still proceed. A saved workbook can be a checkpoint.
 - Load `marketops-providers` (which provider for which job, cheapest first, what to do when one
   runs out) and call `marketops_costs(action='balances')`; tell the user in one line what each
   account has left.
@@ -66,6 +74,11 @@ deliver an evidence-backed workbook. Effect first, cost second.
 A pool of 300 names with no contacts does not meet a contacts goal. The Paris run did
 exactly that: 0 venues and 0 people delivered.
 
+An operator shortlist is also not a venue inventory. For a region-wide venue task,
+build the facility list from the scoped official sources, retain venue addresses,
+and map venues to operators; a chain with many sites is not one venue. Researching
+the first 20–30 operators is a first tranche, not permission to end the whole task.
+
 Load `marketops-discovery`, `marketops-accounts`, `marketops-providers` or `marketops-delivery`
 only when you reach that stage. Past runs' pitfalls, by stage: [lessons](../../references/MEMBER_A_LESSONS.md). Use `marketops_next(run_id)` to see gaps and the suggested next action.
 
@@ -87,6 +100,11 @@ authorised; the same rule conflict keeps recurring (many `RULES_UNKNOWN`); a cre
 configuration is missing; Crawl4AI stopped working (`crawl4ai_down`) and the user has not yet
 agreed to TinyFish-only reading. Everything else: pick another authorised source or record HOLD with the
 reason, and continue with the next target. Report all of it at the end.
+
+`PAGE_FAILURE_ONLY` and successful per-page fallback do not trigger a new permission
+question. Pause for a local outage only when `crawl4ai_down` is present or the step's
+`local_reader_health.tinyfish_only_approval_required` is true. If uncertain, run the
+self-check before telling the user that the computer's reader is broken.
 
 ## 4. Non-negotiables
 

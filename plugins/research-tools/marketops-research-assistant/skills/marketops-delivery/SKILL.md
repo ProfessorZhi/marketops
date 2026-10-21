@@ -26,10 +26,19 @@ read the databases or plugin code; the handoff applies the evidence gate you wou
    find them before delivering.
 3. **Check.** `marketops_evidence_audit(run_id)`; on hosts with subagents, run `research-verifier`
    on a sample (all A/B rows if fewer than 20). Fix or HOLD what fails.
-4. **Hand off once.** `marketops_handoff(run_id, operation_id)` writes the nine-sheet XLSX, CSVs,
+4. **Checkpoint or finish.** `marketops_handoff(run_id, operation_id, mode='auto')` writes the nine-sheet XLSX, CSVs,
    manifest, client-view files (business rows only) and the experience draft. A `PARTIAL_HANDOFF_*`
-   status is reported as partial, never as clean. Do not start new discovery just to avoid a
-   partial result.
+   status is reported as partial, never as clean. Inspect `is_final` and `execution`:
+   `CHECKPOINT_RESEARCH_NOT_FINISHED` / `continuation_required=true` means save the
+   file, follow `execution.next_action`, and continue the same task. Pending or
+   leased targets, active jobs, and saved results awaiting finalization are not
+   completed research. `mode='final'` cannot override these checks; it returns a
+   checkpoint with `finalization_refused` instead. Use a fresh operation ID for a
+   later snapshot; preserve previous files.
+   A drained shortlist with an unmet contacts goal calls for another method or
+   more sources while budget remains. A final partial result is appropriate for
+   an exhausted authorized budget or a verified blocker/user-requested stop;
+   report that cause, the missing coverage, and the resumption point explicitly.
 5. **Report: lead with the goal.** The first line says whether the user's goal was met, against
    the brief: for example "Goal: contacts for 30 venues. Met for 7, not met for 23". Use the
    handoff's `goal_satisfied`, not `delivery_completeness`. COMPLETE only means the paperwork is

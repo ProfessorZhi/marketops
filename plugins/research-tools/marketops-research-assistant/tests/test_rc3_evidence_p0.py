@@ -379,10 +379,12 @@ class AutomaticClientViewTests(P0Case):
         experience = Path(self.tmp.name) / "experience.md"
         with mock.patch.dict(os.environ, {
                 "HOME": str(home), "XDG_CONFIG_HOME": str(xdg),
+                "MARKETOPS_RESEARCH_CONFIG": str(Path(self.tmp.name) / "config.json"),
                 "MARKETOPS_RESEARCH_DATA_ROOT": str(self.root)}):
             mcp.setup_configure(str(self.root), str(experience))
             result = mcp.handoff(self.run_id, "handoff-p0")
-        self.assertEqual("CANDIDATE_HANDOFF_NOT_BUSINESS_VERIFIED", result["status"])
+        self.assertEqual("CHECKPOINT_RESEARCH_NOT_FINISHED", result["status"])
+        self.assertFalse(result["is_final"])
         self.assertTrue(Path(result["client_view_directory"]).is_dir())
         self.assertEqual("CANDIDATE_NOT_APPROVED", result["client_view_status"])
         self.assertFalse(result["client_view_send_authorized"])

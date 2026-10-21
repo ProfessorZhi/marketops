@@ -91,11 +91,24 @@ Crawl4AI is the reader every harvest depends on. Do not silently replace it with
 
 - `marketops_setup_status` shows `provider_readiness.providers.crawl4ai`. Anything other than
   `READY` means acting before the research starts.
-- `INSTALLED_NOT_CHECKED`: run `marketops_crawl4ai_check(run_id=<this run>)`. It starts the
+- `INSTALLED_NOT_CHECKED` or `BROWSER_READY_PAGE_UNCHECKED`: run `marketops_crawl4ai_check(run_id=<this run>)`. It starts the
   browser once and reads one test page.
+- `RESTART_REQUIRED` / `CACHE_RESTART_REQUIRED`: restart the agent/MCP server. The SDK
+  was initialized before its managed cache; reinstalling Chromium does not fix that.
+- A browser-only `WORKING` result is not a page-read pass. Require
+  `page_read_verified=true`; `SKIPPED_POLICY` means the page was not tested.
 - `NOT_INSTALLED`, `NOT_WORKING` or `LOCAL_DOWN_...`: tell the user what the check found, then
   offer the repair (`marketops_crawl4ai_check(repair=true)`, or Repair.cmd / repair.sh in the
   MarketOps folder).
 - Go ahead with TinyFish fetch only if the user explicitly agrees. Write it in the report.
 - Any answer carrying `crawl4ai_down` mid-task means the same thing. Pause and ask the user;
   do not carry on quietly.
+- A failed page is not a confirmed local outage. When a step reports
+  `local_reader_health.tinyfish_only_approval_required=false`, continue the admitted
+  per-page fallback; do not ask the user to approve it again. Domain memory starting
+  a host at TinyFish does not establish that Crawl4AI is broken on this computer.
+- For repeated `PAGE_FAILURE_ONLY`, run the Crawl4AI self-check before claiming a
+  computer-wide failure. Report the attempt's `local_runtime_diagnostic` when present.
+- Balance and admission are separate: inspect the shared request budget as well as
+  vendor credits. Do not describe a provider as unusable because the local request
+  ceiling was exhausted; report `BUDGET_PROJECT_CEILING` and the configured limit.

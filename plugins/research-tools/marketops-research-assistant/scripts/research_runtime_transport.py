@@ -233,6 +233,10 @@ def _blocked_browser(blockers: tuple[str, ...], *, detail: str = ""):
     )
 
 
+CRAWL_CACHE_REASONS = frozenset({"CRAWL_CACHE_RESTART_REQUIRED", "CRAWL_CACHE_OVERRIDE_MUST_BE_ABSOLUTE",
+    "CRAWL_CACHE_PATH_ESCAPE", "CRAWL_CACHE_MUST_BE_OUTSIDE_SOURCE", "CRAWL_CACHE_CONFIGURATION_REFUSED"})
+
+
 class RuntimeCrawlAdapter:
     """Own one restricted egress session for one existing adapter execution."""
     provider = "crawl4ai"
@@ -275,9 +279,11 @@ class RuntimeCrawlAdapter:
             cache_base = prepare_crawl_cache(self.root)
         except ValueError as exc:
             from research_adapter_crawl4ai import CrawlOutcome
-            return CrawlOutcome(outcome="BLOCKED", payload={"reason": "CAPABILITY_NOT_AVAILABLE",
-                "detail": str(exc).split(":", 1)[0]},
-                caveats=("CAPABILITY_NOT_AVAILABLE", "CRAWL_CACHE_CONFIGURATION_REFUSED"))
+            code = str(exc).split(":", 1)[0]
+            if code not in CRAWL_CACHE_REASONS:
+                code = "CRAWL_CACHE_CONFIGURATION_REFUSED"
+            return CrawlOutcome(outcome="BLOCKED", payload={"reason": code, "detail": code},
+                caveats=("CAPABILITY_NOT_AVAILABLE", code))
         # **先判名单，再起出口。** 空名单是「谁都不许」，不是「不限制」：
         # 起一个谁都用不了的出口只会让失败看起来像一次网络问题。
         blocked = allowlist_violations(domains)
@@ -307,14 +313,8 @@ class RuntimeCrawlAdapter:
 _managed_crawl_cache = None
 
 
-def prepare_crawl_cache(root):
-    """Bind import-time and per-crawler caches to an absolute owned location.
-
-An explicit absolute operator override is respected. A process whose SDK was
-already imported against another cache must restart: changing an environment
-variable cannot relocate that SDK's existing global database manager.
-"""
-    global _managed_crawl_cache
+def validate_crawl_cache(root):
+    """Resolve and validate the SDK cache without imports, files or env changes."""
     from research_runtime_setup import _root
     base = _root(root)
     override = os.environ.get("CRAWL4_AI_BASE_DIRECTORY", "").strip()
@@ -334,8 +334,15 @@ variable cannot relocate that SDK's existing global database manager.
     db_path = getattr(initialized, "DB_PATH", None)
     if db_path is not None and Path(db_path).resolve() != chosen / ".crawl4ai" / "crawl4ai.db":
         raise ValueError("CRAWL_CACHE_RESTART_REQUIRED")
+    return chosen, not explicit
+
+
+def prepare_crawl_cache(root):
+    """Bind the cache before importing the SDK; never rebind an initialized SDK."""
+    global _managed_crawl_cache
+    chosen, managed = validate_crawl_cache(root)
     chosen.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.environ["CRAWL4_AI_BASE_DIRECTORY"] = str(chosen)
-    if not explicit:
+    if managed:
         _managed_crawl_cache = str(chosen)
     return str(chosen)

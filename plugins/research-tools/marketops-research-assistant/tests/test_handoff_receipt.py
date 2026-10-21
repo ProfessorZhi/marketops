@@ -64,6 +64,22 @@ class HandoffReceiptTests(unittest.TestCase):
         self.assertEqual(3, receipt["artifacts"])
         self.assertEqual("COMPLETE", receipt["delivery_completeness"])
         self.assertFalse(receipt["goal_assessment"]["goal_satisfied"])
+        self.assertFalse(receipt["is_final"])
+        self.assertTrue(receipt["continuation_required"])
+        self.assertEqual("CHECKPOINT_RESEARCH_NOT_FINISHED", receipt["status"])
+
+    def test_final_request_cannot_finish_research_with_remaining_work(self):
+        receipt = mcp.handoff("run", "delivery", mode="final")
+        self.assertFalse(receipt["is_final"])
+        self.assertIn("finalization_refused", receipt)
+        self.assertEqual(self.workbook["xlsx_path"], receipt["workbook_xlsx"])
+
+    def test_unreadable_completion_state_keeps_the_checkpoint_and_cannot_finalize(self):
+        with patch("research_execution.assess", side_effect=OSError("synthetic unavailable state")):
+            receipt = mcp.handoff("run", "delivery", mode="final")
+        self.assertFalse(receipt["is_final"])
+        self.assertEqual(self.workbook["xlsx_path"], receipt["workbook_xlsx"])
+        self.assertIn("EXECUTION_ASSESSMENT_FAILED_OSError", receipt["partial_reasons"])
 
     def test_child_goal_note_failure_remains_partial_even_after_refresh(self):
         self.workbook["delivery_completeness"] = "PARTIAL"
