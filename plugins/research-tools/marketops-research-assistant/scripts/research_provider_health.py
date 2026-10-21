@@ -21,7 +21,8 @@ from pathlib import Path
 
 __all__ = ["classify", "record", "blocked", "status", "clear", "refusal"]
 
-QUOTA_MARKERS = ("not enough credits", "insufficient", "out of searches", "run out of searches",
+QUOTA_MARKERS = ("not enough credits", "insufficient credits", "insufficient balance",
+                 "insufficient funds", "insufficient_quota", "out of searches", "run out of searches",
                  "ran out of searches", "searches left", "quota", "http 402", "payment required",
                  "upstream_quota_or_payment", "no credits", "credit balance", "plan limit")
 RATE_MARKERS = ("http 429", "too many requests", "rate limit", "ratelimit",

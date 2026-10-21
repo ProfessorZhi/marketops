@@ -25,6 +25,8 @@ class Classify(unittest.TestCase):
             failed("", caveats=["UPSTREAM_QUOTA_OR_PAYMENT"])))
         self.assertEqual("RATE_LIMITED", health.classify(failed("HTTP 429: Too Many Requests")))
         self.assertEqual("", health.classify(failed("HTTP 403: Unauthorized")))
+        self.assertEqual("", health.classify(failed("HTTP 403: Insufficient permissions")))
+        self.assertEqual("QUOTA_EXHAUSTED", health.classify(failed("Insufficient credits")))
         self.assertEqual("", health.classify({"status": "OK", "payload": {"detail": "quota"}}))
 
 
