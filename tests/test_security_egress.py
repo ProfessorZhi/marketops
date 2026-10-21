@@ -166,7 +166,7 @@ def test_the_domain_part_is_normalised_and_the_local_part_is_not() -> None:
     在 RFC 5321 下是两个信箱（也是「false attribution」的一种来源）。
     """
     assert parse_allowlist("Operator@AcmeCorp.EXAMPLE") == frozenset(
-        {"Operator@acme.example"}
+        {"Operator@acmecorp.example"}
     )
 
 
