@@ -198,6 +198,7 @@ def main(argv=None) -> int:
                           "current": current, "tried": newest, "check": check}))
         return 2
     switched = release_layout.switch_current(root, target)
+    release_layout.write_repair_entrypoints(root)
     settings["previous_version"] = current
     _save_settings(root, settings)
     print(json.dumps({"status": "UPDATED", "from": current, "to": newest,

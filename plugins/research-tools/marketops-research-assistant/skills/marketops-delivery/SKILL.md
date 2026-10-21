@@ -30,7 +30,12 @@ read the databases or plugin code; the handoff applies the evidence gate you wou
    manifest, client-view files (business rows only) and the experience draft. A `PARTIAL_HANDOFF_*`
    status is reported as partial, never as clean. Do not start new discovery just to avoid a
    partial result.
-5. **Report** in plain terms: targets covered; admitted routes by grade; generic inboxes counted
+5. **Report: lead with the goal.** The first line says whether the user's goal was met, against
+   the brief: for example "Goal: contacts for 30 venues. Met for 7, not met for 23". Use the
+   handoff's `goal_satisfied`, not `delivery_completeness`. COMPLETE only means the paperwork is
+   in order, so never write "complete" when the goal was not met. Also say whether Crawl4AI ran
+   the whole time, and whether pages were read by TinyFish only (which the user agreed to).
+   Then, in plain terms: targets covered; admitted routes by grade; generic inboxes counted
    separately; HOLD/EXCLUDED with reasons; sources blocked; what the user should review. Workbook
    rows are candidates for human review, not approved contacts, and row counts are not market
    coverage.
