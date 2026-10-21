@@ -28,7 +28,7 @@ def isolated_env(tmp: str):
            if not k.startswith("MARKETOPS_")}
     env.update({"HOME": str(Path(tmp) / "home"), "USERPROFILE": str(Path(tmp) / "home"),
                 "APPDATA": str(Path(tmp) / "appdata"), "XDG_CONFIG_HOME": str(Path(tmp) / "xdg"),
-                "MARKETOPS_RESEARCH_CONFIG": str(Path(tmp) / "config.json")})
+                "MARKETOPS_RESEARCH_CONFIG": str(Path(tmp) / "home" / "config.json")})
     Path(env["HOME"]).mkdir(parents=True, exist_ok=True)
     with patch.dict(os.environ, env, clear=True):
         yield env
@@ -228,6 +228,7 @@ class SurfaceTests(unittest.TestCase):
             second = json.dumps(mcp.setup_status(), ensure_ascii=False, sort_keys=True)
             self.assertEqual(first, second)
             self.assertNotIn(str(Path(tmp)), first)   # no local path leaked by default
+            self.assertNotIn(json.dumps(str(Path(tmp)), ensure_ascii=False)[1:-1], first)
 
 
 if __name__ == "__main__":
