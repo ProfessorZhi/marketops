@@ -372,6 +372,16 @@ def install(destination: Path, client: str, *, dependencies: bool,
             # rejects a cwd outside that root. The script uses __file__, so cwd
             # is unnecessary: let Codex select its installed plugin directory.
             server.pop("cwd", None)
+            if config_name == "mcp.json" and client in {"codex", "both", "all"}:
+                # Codex Desktop's portable-plugin stdio parser rejects the
+                # portable Agent Plugins `env_vars` passthrough list and the
+                # approval-policy field. Keep those in the source manifest for
+                # other hosts, but emit only Codex-supported fields in the
+                # installed Codex-facing manifest. Credentials are loaded from
+                # the OS keyring by the server; configured runtime settings are
+                # read from its customer-owned config file.
+                server.pop("env_vars", None)
+                server.pop("default_tools_approval_mode", None)
             if browser:
                 server.setdefault("env", {})["PLAYWRIGHT_BROWSERS_PATH"] = str(browser_root)
         config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
