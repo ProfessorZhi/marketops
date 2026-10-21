@@ -636,7 +636,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         configured_root = None
     if configured_root is not None and runtime_setup.config(configured_root):
         from research_runtime_status import view
-        return {"product": "MarketOps Research MCP", "version": "0.5.10-rc3",
+        return {"product": "MarketOps Research MCP", "version": "0.5.10-rc4",
                 **view(configured_root, task_kind=task_kind),
                 "external_host": _external_inventory(host_observed_tools),
                 "embedded_official_mcp": provider_policy.embedded_official_mcp_capabilities(),
@@ -711,7 +711,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         if task_kind else None)
     return {
         "product": "MarketOps Lite Research MCP",
-        "version": "0.5.10-rc3",
+        "version": "0.5.10-rc4",
         "providers": {
             "serpapi": {"transport": "REST through local MCP", **search["serpapi"]},
             "serper": {"transport": "REST through local MCP", **search["serper"]},
@@ -1318,7 +1318,7 @@ def handoff(run_id, operation_id, mode="auto"):
     try:
         experience_result = draft_experience(
             r, run_id=run_id, scope=head["scope"],
-            rule_version=head["rule_version"], skill_version="0.5.10-rc3",
+            rule_version=head["rule_version"], skill_version="0.5.10-rc4",
             output=experience_path)
         result["experience_candidate"] = str(experience_path)
         result["experience_incidents"] = experience_result["incidents"]
@@ -1500,7 +1500,7 @@ def build_server():
     _use_installed_browser()
     _ensure_repair_entrypoints()
     from mcp.server import MCPServer
-    mcp = MCPServer("MarketOps Lite Research", version="0.5.10-rc3")
+    mcp = MCPServer("MarketOps Lite Research", version="0.5.10-rc4")
 
     def tool(fn):
         if fn.__name__ not in PUBLIC_TOOLS:
@@ -2085,7 +2085,7 @@ def build_server():
             raise ValueError("EXPERIENCE_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT")
         output.parent.mkdir(parents=True, exist_ok=True)
         return draft_experience(r, run_id=run_id, scope=scope,
-                                rule_version=rule_version, skill_version="0.5.10-rc3",
+                                rule_version=rule_version, skill_version="0.5.10-rc4",
                                 output=output)
 
     @tool

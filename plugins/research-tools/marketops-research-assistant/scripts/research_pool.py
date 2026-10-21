@@ -296,11 +296,11 @@ def save_batch_result(root, *, pool_id, worker_id, run_id, target_key, lease_att
 
 def ready_batch_results(root, *, pool_id, worker_id, run_id):
     with closing(_db(_root(root))) as db:
-        rows = db.execute("SELECT target_key,lease_attempt,result_json,worker_id FROM pool_batch_jobs "
-                          "WHERE pool_id=? AND (?='' OR worker_id=?) AND run_id=? AND result_json IS NOT NULL",
-                          (pool_id, worker_id, worker_id, run_id)).fetchall()
-    return [{"target_key": key, "lease_attempt": attempt, "result": json.loads(body), "worker_id": owner}
-            for key, attempt, body, owner in rows]
+        rows = db.execute("SELECT target_key,lease_attempt,result_json,worker_id,run_id FROM pool_batch_jobs "
+                          "WHERE pool_id=? AND (?='' OR worker_id=?) AND (?='' OR run_id=?) AND result_json IS NOT NULL",
+                          (pool_id, worker_id, worker_id, run_id, run_id)).fetchall()
+    return [{"target_key": key, "lease_attempt": attempt, "result": json.loads(body), "worker_id": owner, "run_id": original_run}
+            for key, attempt, body, owner, original_run in rows]
 
 
 def batch_target(root, *, pool_id, target_key):

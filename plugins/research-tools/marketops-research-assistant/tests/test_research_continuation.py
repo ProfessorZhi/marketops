@@ -124,6 +124,17 @@ print(json.dumps(reply))
         self.assertEqual(1, reply["recovered_saved_results"], (reply, result.stderr))
         self.assertTrue(reply["queue_complete"], reply)
 
+    def test_other_run_can_finalize_saved_work_without_moving_its_evidence(self):
+        with patch.object(batch, "_record_dispositions", side_effect=OSError("interrupted finalization")):
+            self.call()
+        store.start_run(self.root, "other-run", "same pool", "same project", "v1")
+        with patch.object(batch.site_harvest, "harvest", side_effect=AssertionError("no refetch")):
+            reply = self.call(worker_id="other-window", run_id="other-run")
+        self.assertEqual(1, reply["recovered_saved_results"])
+        self.assertTrue(reply["queue_complete"])
+        self.assertFalse(store.list_run(self.root, "other-run")["records"])
+        self.assertTrue([r for r in store.list_run(self.root, "run-w")["records"] if r["kind"] == "review"])
+
     def test_new_lease_fences_a_late_outcome_even_when_the_worker_name_is_reused(self):
         first = pool.claim_batch(self.root, pool_id="one", worker_id="worker", run_id="run-w", count=1)
         with closing(pool._db(self.root)) as db:

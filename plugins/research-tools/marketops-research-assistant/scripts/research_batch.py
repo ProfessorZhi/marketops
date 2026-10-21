@@ -141,12 +141,12 @@ def harvest_batch(data_root, *, pool_id: str, worker_id: str, run_id: str, fetch
     data_root = Path(pool._root(data_root))
     deadline = time.monotonic() + deadline_seconds
     recovered, recovery_errors = 0, []
-    for job in pool.ready_batch_results(data_root, pool_id=pool_id, worker_id="", run_id=run_id):
+    for job in pool.ready_batch_results(data_root, pool_id=pool_id, worker_id="", run_id=""):
         if time.monotonic() > deadline:
             break
         try:
             recovered += int(_settle_result(data_root, pool_id=pool_id, worker_id=job["worker_id"],
-                                            run_id=run_id, item=job["result"]) is not None)
+                                            run_id=job["run_id"], item=job["result"]) is not None)
         except Exception as exc:
             recovery_errors.append(type(exc).__name__)
     leased = pool.claim_batch(data_root, pool_id=pool_id, worker_id=worker_id, run_id=run_id,
