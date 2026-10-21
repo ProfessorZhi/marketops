@@ -19,7 +19,7 @@ python scripts/setup_clients.py --destination /CUSTOMER/NEW/INSTALL --client bot
 
 `install.sh` 与 `Install.cmd` 是同一脚本的入口：`~/路径` 与相对路径都会在写入前解析成绝对路径，回执、venv 和后续命令指向同一个目录。没有终端（stdin 不是 TTY）时不会提问：缺少安装目录直接拒绝，并给出一条可恢复命令；安装结束后的本地账号设置留给用户自行执行。
 
-3. Codex：脚本在安装根的 .agents/plugins/marketplace.json 创建来源，源码复制到 plugins/marketops-research-assistant，MCP 执行路径绑定本机 venv Python。**默认不注册全局 Codex**：只有显式 `--register-codex`（Linux/macOS）或 `-RegisterCodex`（Windows），或在交互终端里回答 yes，才会执行 `codex plugin marketplace add`。非交互环境一律跳过并打印稍后可执行的同一条命令。由用户/Agent单独执行返回的 codex plugin marketplace add 命令，并在 Codex 插件界面启用。先做工具列举（零费用），再确认实际权限。官方规范：https://developers.openai.com/plugins/build/plugins 。
+3. Codex：脚本在安装根的 .agents/plugins/marketplace.json 创建来源，源码复制到 plugins/marketops-research-assistant。Codex 的 MCP 命令使用 PATH 中的裸 Python 启动 `launch_research_mcp.py`，再由 `MARKETOPS_RESEARCH_PYTHON` 转入本机 venv；portable source 保留其他 Agent 所需字段，WorkBuddy connector 单独生成。**默认不注册全局 Codex**：只有显式 `--register-codex`（Linux/macOS）或 `-RegisterCodex`（Windows），或在交互终端里回答 yes，才会执行 `codex plugin marketplace add`。非交互环境一律跳过并打印稍后可执行的同一条命令。由用户/Agent单独执行返回的 codex plugin marketplace add 命令，并在 Codex 插件界面启用。先做工具列举（零费用），再确认实际权限。官方规范：https://developers.openai.com/plugins/build/plugins 。
 
 Windows 的 `Install.ps1` 在找不到 Python 3.12 x64 时**不会**静默运行 winget：需要交互确认或显式 `-InstallPython`；两者都没有时以一条可恢复步骤拒绝。`-NonInteractive` 与重定向输入等价：不读取答案、不打开 START_HERE.md，也不启动本地账号设置。`Install.cmd` 在 `MARKETOPS_NO_PAUSE=1` 或 `CI` 下不执行 `pause`。
 

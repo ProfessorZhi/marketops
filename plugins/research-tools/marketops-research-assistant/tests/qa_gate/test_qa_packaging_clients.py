@@ -587,7 +587,11 @@ def test_installed_mcp_launcher_is_not_a_posix_shell_script(installed):
         command = str(server.get("command", ""))
         assert command not in ("sh", "bash"), f"{name} still launches via {command!r}"
         assert not command.endswith(".sh"), f"{name} launches {command!r}"
-        assert Path(command).name.startswith("python"), command
+        if name == "mcp.json":
+            assert command in {"python", "python3", "py"}, command
+            assert server.get("env", {}).get("MARKETOPS_RESEARCH_PYTHON"), server
+        else:
+            assert Path(command).name.startswith("python"), command
 
 
 def test_windows_interpreter_resolution_branch(monkeypatch):

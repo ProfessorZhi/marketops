@@ -9,16 +9,18 @@ Linux). The OS-neutral mechanism is therefore not a cleverer command string — 
 is letting the *installer* resolve an absolute interpreter path at install time,
 which it already does, and giving everyone else this file to point at.
 
-Usage from a host config (Windows and POSIX alike):
+Usage from a Codex plugin config:
 
-    command: <absolute path to a Python that has `mcp`>
-    args:    ["<plugin>/scripts/launch_research_mcp.py",
-              "<plugin>/scripts/research_mcp.py"]
+    command: python (or another bare host Python command)
+    args:    ["<plugin>/scripts/launch_research_mcp.py", "scripts/research_mcp.py"]
+    env:     {"MARKETOPS_RESEARCH_PYTHON": "<absolute path to the installed venv>"}
+
+Other clients may call this launcher from an absolute Python path directly.
 
 Behaviour:
 
-* If the interpreter already running this file can `import mcp`, the server runs
-  in this process — no second interpreter hunt.
+* If the interpreter already running this file can `import mcp` and there is no
+  explicit `MARKETOPS_RESEARCH_PYTHON`, the server runs in this process.
 * Otherwise it probes, in order: `MARKETOPS_RESEARCH_PYTHON` (must be absolute),
   the plugin-local venvs the installer creates, then `python3` / `python` /
   Windows' `py -3.12` on PATH. The first one that can `import mcp` wins.
@@ -127,6 +129,12 @@ def main(argv: list[str]) -> int:
     if not server.is_file():
         print("MARKETOPS_MCP_ENTRY_MISSING", file=sys.stderr)
         return 78
+
+    if override:
+        if not _usable([override]):
+            print("MARKETOPS_MCP_OVERRIDE_CANNOT_IMPORT_MCP", file=sys.stderr)
+            return 78
+        return subprocess.run([override, str(server)]).returncode
 
     # The interpreter running this file is already a Python; if it has the SDK
     # there is no reason to hand the work to a second one.

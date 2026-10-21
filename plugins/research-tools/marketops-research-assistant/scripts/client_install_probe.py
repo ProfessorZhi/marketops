@@ -498,17 +498,11 @@ def audit_workbuddy_package(dest: Path) -> dict:
 
 
 def audit_installed_interpreter(dest: Path) -> dict:
-    """Does the interpreter the generated configs bind actually carry the SDK?
+    """Does the installed package's private interpreter exist and import MCP?
 
-    `setup_clients.py` binds an absolute interpreter so no host has to guess, and
-    deliberately does not install anything unless `--install-deps` was passed. The
-    consequence is easy to miss: every generated config points at a venv that
-    cannot `import mcp`, so the server cannot start on any host until those
-    dependencies are installed. That is a real, actionable state — not a broken
-    package and not a passing one — so it is reported as a note.
-
-    A config naming an interpreter that does not exist is different, and fatal:
-    nothing the operator does at runtime will make that path appear.
+    Codex requires a bare host command, so its installed config uses a small
+    stdlib launcher and records the private venv interpreter in ``env``. Other
+    generated configs may continue to bind that interpreter directly.
     """
     findings: list[dict] = []
     notes: list[dict] = []
@@ -522,6 +516,8 @@ def audit_installed_interpreter(dest: Path) -> dict:
         server = next(iter(json.loads(config.read_text(encoding="utf-8"))
                            ["mcpServers"].values()))
         command = str(server.get("command", ""))
+        interpreter = str((server.get("env") or {}).get("MARKETOPS_RESEARCH_PYTHON")
+                          or command)
     except (OSError, ValueError, KeyError, StopIteration):
         return {"ok": False, "command": None, "can_import_mcp": None,
                 "findings": [_finding("GENERATED_CONFIG_UNREADABLE", "", str(config))],
@@ -530,12 +526,13 @@ def audit_installed_interpreter(dest: Path) -> dict:
         findings.append(_finding("GENERATED_CONFIG_HAS_NO_INTERPRETER", "", str(config)))
         return {"ok": False, "command": None, "can_import_mcp": None,
                 "findings": findings, "notes": notes}
-    if not Path(command).is_file():
-        findings.append(_finding("BOUND_INTERPRETER_MISSING", command, str(config)))
-        return {"ok": False, "command": command, "can_import_mcp": None,
+    if not Path(interpreter).is_file():
+        findings.append(_finding("BOUND_INTERPRETER_MISSING", interpreter, str(config)))
+        return {"ok": False, "command": command, "interpreter": interpreter,
+                "can_import_mcp": None,
                 "findings": findings, "notes": notes}
     try:
-        can_import = subprocess.run([command, "-c", "import mcp"],
+        can_import = subprocess.run([interpreter, "-c", "import mcp"],
                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                                     timeout=60).returncode == 0
     except (OSError, subprocess.SubprocessError):
@@ -543,10 +540,11 @@ def audit_installed_interpreter(dest: Path) -> dict:
     if not can_import:
         notes.append(_finding(
             "INTERPRETER_LACKS_MCP",
-            f"{command} cannot import mcp; the MCP cannot start until "
+            f"{interpreter} cannot import mcp; the MCP cannot start until "
             "`setup_clients.py --install-deps` (or a private venv) provides it",
             str(config)))
-    return {"ok": not findings, "command": command, "can_import_mcp": can_import,
+    return {"ok": not findings, "command": command, "interpreter": interpreter,
+            "can_import_mcp": can_import,
             "findings": findings, "notes": notes}
 
 
@@ -581,10 +579,9 @@ def audit_client_packages(dest: Path) -> dict:
 #: The launcher a host config can name on any OS family.
 OS_NEUTRAL_LAUNCHER = "launch_research_mcp.py"
 
-#: The one entry string that is *not* portable, and why: a host config names a
-#: single `command`, `sh` does not exist on Windows, and `python` is not
-#: guaranteed on Linux. Nothing here is a workaround for that — it is the reason
-#: the supported Windows path is the installer's absolute-interpreter config.
+#: POSIX-only commands are invalid in the installed Windows artifact. Codex's
+#: plugin parser also rejects absolute commands, so its installer output uses a
+#: bare Python executable plus the OS-neutral launcher and a venv path in env.
 POSIX_ONLY_COMMANDS = ("sh", "bash", "/bin/sh", "/bin/bash")
 
 
@@ -731,13 +728,11 @@ def audit_launcher_portability(root: Path) -> dict:
         "os_neutral_launcher": str(launcher.relative_to(root)) if launcher.is_file() else None,
         "configs_needing_a_shell": sorted(set(posix_only)),
         "windows_plan": {
-            "entry": f"<absolute python with mcp> scripts/{OS_NEUTRAL_LAUNCHER} "
-                     "scripts/research_mcp.py",
-            "supported_path": "the installer's generated config, which resolves an "
-                              "absolute interpreter at install time and names no shell",
-            "reason_no_single_command": "a host config names one `command`; `sh` does not "
-                                        "exist on Windows and `python` is not guaranteed "
-                                        "on Linux",
+            "entry": f"<bare host Python> {OS_NEUTRAL_LAUNCHER} scripts/research_mcp.py",
+            "supported_path": "Codex's installer config uses a bare Python command and "
+                              "passes the private venv path to the stdlib launcher",
+            "reason_no_single_command": "Codex plugin commands must be bare or contained; "
+                                        "the installer requires python/python3 or py on PATH",
             "verified_on_windows": False,
             "device_result": "NOT_TESTED_NO_WINDOWS_DEVICE_AUTHORIZED",
         },

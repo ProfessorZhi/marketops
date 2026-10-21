@@ -16,7 +16,7 @@ Linux：先有 Python 3.12，运行：
 sh install.sh /绝对路径/MarketOps-Install both
 ```
 
-安装会下载 hash 锁定的依赖和 Chromium；这些软件下载不会消费研究服务额度。每个平台使用自己的 lock，结束运行 `pip check`。安装器生成带本机绝对 Python 路径的宿主配置，浏览器位于安装目录 `browsers/`，通过 `PLAYWRIGHT_BROWSERS_PATH` 绑定。目录存在不代表 Chromium 在该操作系统启动验收通过，查看安装回执和后续诊断。
+安装会下载 hash 锁定的依赖和 Chromium；这些软件下载不会消费研究服务额度。每个平台使用自己的 lock，结束运行 `pip check`。Codex 插件配置使用 PATH 中的裸 Python 启动包内 launcher，再通过 `MARKETOPS_RESEARCH_PYTHON` 转入本机 venv；WorkBuddy/Claude 使用各自生成的 MCP 配置。浏览器位于安装目录 `browsers/`，通过 `PLAYWRIGHT_BROWSERS_PATH` 绑定。目录存在不代表 Chromium 在该操作系统启动验收通过，查看安装回执和后续诊断。
 
 需要自选宿主或非交互安装时，在源码包根运行：
 

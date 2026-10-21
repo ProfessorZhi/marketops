@@ -126,10 +126,15 @@ class LocalInstallTests(unittest.TestCase):
             for filename in ("mcp.json", ".mcp.json"):
                 config = json.loads((source / filename).read_text(encoding="utf-8"))
                 server = next(iter((config.get("mcpServers") or config.get("mcp_servers")).values()))
-                self.assertEqual(result["venv_python"], server["command"])
-                # Both host configs must land on the same managed entrypoint.
-                self.assertEqual(str(source / "scripts" / "research_mcp.py"),
-                                 server["args"][0])
+                command, prefix = install._codex_host_python()
+                self.assertEqual(command, server["command"])
+                self.assertEqual([*prefix,
+                                  str(source / "scripts" / "launch_research_mcp.py"),
+                                  "scripts/research_mcp.py"], server["args"])
+                self.assertEqual(result["venv_python"],
+                                 server["env"]["MARKETOPS_RESEARCH_PYTHON"])
+                self.assertNotIn("env_vars", server)
+                self.assertNotIn("default_tools_approval_mode", server)
                 self.assertNotIn("cwd", server, "Codex cached plugin root must not inherit external cwd")
             wb = result["workbuddy_bundle"]
             self.assertEqual(1, wb["mcp_servers_bundled"])
