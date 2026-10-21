@@ -17,6 +17,7 @@ import asyncio
 import json
 import os
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 __all__ = ["read_all", "record_manual", "readings"]
@@ -34,20 +35,49 @@ def readings(root: Path) -> dict:
     try:
         data = json.loads(_path(root).read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return {}
-    return data if isinstance(data, dict) else {}
+        data = {}
+    data = data if isinstance(data, dict) else {}
+    from research_accounts import query
+    return {**data, **{ref: json.loads(value) for ref, value in
+                      query(root, "SELECT account_ref,reading FROM balances")}}
 
 
-def _save(root: Path, provider: str, reading: dict) -> None:
-    data = readings(root)
-    data[provider] = reading
-    path = _path(root)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+def _save(root: Path, provider: str, reading: dict, account_ref: str = "") -> None:
+    from research_accounts import transaction
+    ref = account_ref or provider
+    reading = {**reading, "provider": provider, "account_ref": ref,
+               "usage_baseline": usage_baseline(root, provider, ref, reading["observed_at"],
+                                                 reading["unit"])}
+    with transaction(root) as db:
+        db.execute("INSERT OR REPLACE INTO balances VALUES (?,?)", (ref, json.dumps(reading)))
+        db.execute("INSERT OR REPLACE INTO prompts VALUES (?, 'REPORTED')", (ref,))
+
+
+def operation_key(op, index=0):
+    return getattr(op, "operation_id", None) or f"legacy-row-{index}"
+
+
+def completed(op):
+    return (getattr(op, "charge_state", "") in {"SETTLED", "FREE_TIER", "NO_CHARGE_PROVEN"}
+            or getattr(op, "execution_outcome", "") == "OK")
+
+
+def usage_baseline(root, provider, account_ref, observed_at, unit):
+    """A balance reading cannot release unresolved in-flight charges."""
+    import research_usage_ledger as usage
+    rows = usage.for_root(root).operations(project=usage.project_for_root(root))
+    return [operation_key(op, i) for i, op in enumerate(rows)
+            if op.provider == provider and getattr(op, "account_ref", op.provider) == account_ref
+            and completed(op)
+            and (unit != "USD" or getattr(op, "charge_state", "")
+                 in {"SETTLED", "FREE_TIER", "NO_CHARGE_PROVEN"})
+            and (getattr(op, "settled_at", None)
+                                  or getattr(op, "dispatch_intent_at", None)
+                                  or op.created_at) <= observed_at]
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(timezone.utc).isoformat()
 
 
 def _enabled(root: Path, provider: str) -> str:
@@ -109,39 +139,63 @@ def read_all(root: Path) -> dict:
             out[provider] = {"status": refused}
             continue
         try:
+            began = _now()
             reading = reader(root)
         except Exception as exc:  # noqa: BLE001 - a failed read is reported, never raised
             reading = {"status": "READ_FAILED", "reason": type(exc).__name__}
-        reading["observed_at"] = _now()
+        reading["observed_at"] = began
         if reading["status"].startswith("READ") and reading["status"] != "READ_FAILED":
             _save(root, provider, reading)
             _refresh_health(root, provider, reading)
-        out[provider] = reading
+        out[provider] = readings(root).get(provider, reading) if reading["status"] == "READ" else reading
     stored = readings(root)
     for provider in MANUAL:
         out[provider] = stored.get(provider) or {
             "status": "NO_PUBLIC_BALANCE_API",
+            "balance_state": "UNREPORTED",
+            "estimated_left_now": None,
             "next": "check the provider console, then record it with "
                     "marketops_costs(action='set_balance')"}
+    for ref, reading in stored.items():
+        if ref not in out:
+            out[ref] = reading
+    from research_accounts import status
+    for account in status(root)["accounts"]:
+        ref = account["account_ref"]
+        if account["provider"] in MANUAL:
+            out.setdefault(ref, {"status": "BALANCE_UNREPORTED", "provider": account["provider"],
+                                 "account_ref": ref, "estimated_left_now": None})
+            out[ref] = {**out[ref], "ask_balance_once": account["ask_balance_once"],
+                        "balance_state": account["balance_state"]}
     return out
 
 
-def record_manual(root: Path, *, provider: str, left: float, unit: str, note: str = "") -> dict:
+def record_manual(root: Path, *, provider: str, left: float, unit: str, note: str = "",
+                  account_ref: str = "") -> dict:
     """What the provider's console shows, entered by a person, with its time."""
     if provider not in MANUAL + AUTOMATIC:
         raise ValueError("BALANCE_PROVIDER_INVALID: " + ", ".join(MANUAL + AUTOMATIC))
     if unit not in {"credit", "search", "request", "USD"}:
         raise ValueError("BALANCE_UNIT_INVALID: credit, search, request or USD")
-    if float(left) < 0:
+    try:
+        amount = Decimal(str(left))
+    except InvalidOperation:
+        raise ValueError("BALANCE_INVALID") from None
+    if not amount.is_finite() or amount < 0 or isinstance(left, bool):
         raise ValueError("BALANCE_INVALID: not negative")
-    reading = {"status": "MANUAL", "unit": unit, "left": float(left), "observed_at": _now(),
+    ref = account_ref or provider
+    if ref != provider:
+        from research_accounts import entries
+        if ref not in {a["account_ref"] for a in entries(root, provider)}:
+            raise ValueError("ACCOUNT_NOT_REGISTERED")
+    reading = {"status": "MANUAL", "unit": unit, "left": float(amount), "observed_at": _now(),
                "note": str(note)[:120], "evidence": "OPERATOR_READ_FROM_CONSOLE"}
-    _save(root, provider, reading)
-    _refresh_health(root, provider, reading)
-    return {"saved": provider, "reading": reading}
+    _save(root, provider, reading, ref)
+    _refresh_health(root, provider, reading, ref)
+    return {"saved": ref, "reading": readings(root)[ref]}
 
 
-def _refresh_health(root: Path, provider: str, reading: dict) -> None:
+def _refresh_health(root: Path, provider: str, reading: dict, account_ref: str = "") -> None:
     """A balance above zero lifts an out-of-credit mark; zero sets one."""
     import research_provider_health as health
     try:
@@ -149,16 +203,20 @@ def _refresh_health(root: Path, provider: str, reading: dict) -> None:
     except (TypeError, ValueError):
         return
     if left > 0:
-        health.clear(root, provider)
+        blocked = health.blocked(root, account_ref or provider)
+        if blocked and blocked["state"] == "QUOTA_EXHAUSTED":
+            health.clear(root, account_ref or provider)
     else:
-        health.record(root, provider, "QUOTA_EXHAUSTED", detail="account reading shows 0 left")
+        health.record(root, provider, "QUOTA_EXHAUSTED", account_ref=account_ref,
+                      detail="account reading shows 0 left")
 
 
 def warnings(root: Path) -> list[str]:
     """Plain-language warnings for balances that are low or gone."""
     out = []
-    for provider, reading in readings(root).items():
-        left, unit = reading.get("left"), reading.get("unit")
+    import research_costs
+    for provider, reading in research_costs.balances(root, read=False).items():
+        left, unit = reading.get("estimated_left_now", reading.get("left")), reading.get("unit")
         try:
             left = float(left)
         except (TypeError, ValueError):

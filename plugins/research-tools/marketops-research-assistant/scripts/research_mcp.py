@@ -166,10 +166,12 @@ def provider_readiness() -> dict:
         data_root, settings = None, {}
     enabled = set(settings.get("providers", ())) if settings.get("network_enabled") else set()
     out = {}
+    import research_accounts
     for provider in ("serper", "serpapi", "tinyfish", "crawl4ai", "typesafe_jev"):
         if provider == "crawl4ai":
             state = "READY" if research_egress.crawl4ai_ready() else "NOT_INSTALLED"
-        elif not configured(PROVIDER_KEYS[provider]):
+        elif (not configured(PROVIDER_KEYS[provider]) and not
+              (data_root is not None and research_accounts.has_local_key(data_root, provider))):
             state = "KEY_MISSING"
         else:
             state = "READY"
@@ -192,7 +194,14 @@ def provider_readiness() -> dict:
                                      "marketops_costs(action='balances') to clear it",
                   "RATE_LIMITED": "wait a minute; other providers carry on meanwhile"})
     low = research_balances.warnings(data_root) if data_root is not None else []
+    account_status = research_accounts.status(data_root) if data_root is not None else {"accounts": []}
+    if (str(out.get("typesafe_jev", "")).startswith("QUOTA_EXHAUSTED")
+            and any(a["provider"] == "typesafe_jev" and a["enabled"] and a["failover"]
+                    and not health.blocked(data_root, a["account_ref"])
+                    for a in account_status["accounts"])):
+        out["typesafe_jev"] = "READY"
     return {"providers": out,
+            "accounts": account_status["accounts"],
             "low_balance_warnings": low,
             "how_to_fix": {p: fixes[s.split("_UNTIL_")[0]] for p, s in out.items()
                            if s.split("_UNTIL_")[0] in fixes},
@@ -557,7 +566,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         configured_root = None
     if configured_root is not None and runtime_setup.config(configured_root):
         from research_runtime_status import view
-        return {"product": "MarketOps Research MCP", "version": "0.5.8",
+        return {"product": "MarketOps Research MCP", "version": "0.5.9-rc1",
                 **view(configured_root, task_kind=task_kind),
                 "external_host": _external_inventory(host_observed_tools),
                 "embedded_official_mcp": provider_policy.embedded_official_mcp_capabilities(),
@@ -632,7 +641,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         if task_kind else None)
     return {
         "product": "MarketOps Lite Research MCP",
-        "version": "0.5.8",
+        "version": "0.5.9-rc1",
         "providers": {
             "serpapi": {"transport": "REST through local MCP", **search["serpapi"]},
             "serper": {"transport": "REST through local MCP", **search["serper"]},
@@ -819,23 +828,60 @@ def managed_call(capability_id, params, run_id, operation_id, account_ref="",
     # A provider that said it is out of credit (or to slow down) is answered here,
     # in a form the fallback chain skips, instead of being asked again.
     import research_provider_health as health
-    known = health.blocked(r, entry.provider)
+    import research_accounts as accounts
+    if entry.provider in accounts.PROVIDERS:
+        account, known, pooled = accounts.select(r, entry.provider)
+        selected_ref = account["account_ref"]
+    else:
+        selected_ref, pooled = entry.provider, False
+        known = health.blocked(r, selected_ref)
     if known:
         return health.refusal(entry.provider, capability_id, known)
+    claimed = False
+    if pooled:
+        import research_runtime_setup as runtime
+        if not runtime.config(r):
+            return {"status": "BLOCKED", "reason_code": "CAPABILITY_NOT_AVAILABLE",
+                    "caveats": ["ACCOUNT_POOL_REQUIRES_RUNTIME_CONFIG"], "gateway_invoked": False,
+                    "artifact_ids": []}
+        if not runtime.admission(r, capability_id)["allowed"]:
+            pooled = False
+    if pooled:
+        claimed, previous = accounts.claim_intent(r, run_id, entry.provider, fingerprint)
+        if not claimed:
+            if previous is not None:
+                return {**previous, "reused": True}
+            return {"status": "BLOCKED", "reason_code": "DUPLICATE_OPERATION",
+                    "provider": entry.provider, "account_ref": selected_ref,
+                    "gateway_invoked": False, "artifact_ids": []}
+        historical = accounts.historical_intent(r, run_id, entry.provider, fingerprint)
+        if historical is not None:
+            answer = {"status": "BLOCKED", "reason_code": "DUPLICATE_OPERATION",
+                      "provider": entry.provider, "account_ref": historical.account_ref,
+                      "ledger_operation_id": historical.operation_id,
+                      "caveats": ["HISTORICAL_INTENT_REQUIRES_RECONCILIATION"],
+                      "gateway_invoked": False, "artifact_ids": []}
+            accounts.finish_intent(r, run_id, entry.provider, fingerprint, answer)
+            return answer
     # IDs are run-scoped at the MCP boundary, ledger-scoped internally.
     ledger_operation = "op-" + hashlib.sha256((run_id + ":" + operation_id).encode()).hexdigest()[:40]
     guarded = research_wiring.managed_invoke(
         capability_id=capability_id, params=arguments, run_id=run_id,
-        operation_id=ledger_operation, account_ref=entry.provider,
+        operation_id=ledger_operation, account_ref=selected_ref,
         intent_fingerprint=fingerprint, root=r, grant_ref=grant_ref or None)
     answer = results.persist(r, run_id, operation_id, guarded, params=arguments)
+    answer["account_ref"] = selected_ref
     state = health.classify(answer)
     if state:
-        health.record(r, entry.provider, state,
+        health.record(r, entry.provider, state, account_ref=selected_ref,
                       detail=str((answer.get("payload") or {}).get("detail") or "")[:120])
+        if state == "RATE_LIMITED" and selected_ref != entry.provider:
+            health.record(r, entry.provider, state, detail="supplier cooldown; account rotation disabled")
         answer["provider_health"] = {"provider": entry.provider, "state": state,
                                      "next": "the next provider in the chain takes over; "
                                              "tell the user in the report"}
+    if claimed:
+        accounts.finish_intent(r, run_id, entry.provider, fingerprint, answer)
     return answer
 
 
@@ -1183,7 +1229,7 @@ def handoff(run_id, operation_id):
     try:
         experience_result = draft_experience(
             r, run_id=run_id, scope=head["scope"],
-            rule_version=head["rule_version"], skill_version="0.5.8",
+            rule_version=head["rule_version"], skill_version="0.5.9-rc1",
             output=experience_path)
         result["experience_candidate"] = str(experience_path)
         result["experience_incidents"] = experience_result["incidents"]
@@ -1312,7 +1358,7 @@ PUBLIC_TOOLS = frozenset({
     "marketops_pool_import", "marketops_pool_claim", "marketops_pool_complete",
     "marketops_pool_status", "marketops_harvest_batch", "marketops_lessons_report",
     "marketops_jev_triage", "marketops_suppression", "marketops_feedback_pack",
-    "marketops_pool_reopen", "marketops_costs", "marketops_update_check",
+    "marketops_pool_reopen", "marketops_costs", "marketops_update_check", "marketops_accounts",
 })
 
 
@@ -1345,7 +1391,7 @@ def build_server():
     # Direct by default; only an explicitly configured proxy changes that.
     research_config.load_upstream_proxy_into_environment()
     from mcp.server import MCPServer
-    mcp = MCPServer("MarketOps Lite Research", version="0.5.8")
+    mcp = MCPServer("MarketOps Lite Research", version="0.5.9-rc1")
 
     def tool(fn):
         if fn.__name__ not in PUBLIC_TOOLS:
@@ -1679,7 +1725,7 @@ def build_server():
     @tool
     def marketops_costs(action: str = "report", run_id: str = "", provider: str = "",
                         capability: str = "", usd_per_unit: str = "", plan: str = "",
-                        left: float | None = None, unit: str = "") -> dict:
+                        left: float | None = None, unit: str = "", account_ref: str = "") -> dict:
         """Money, not just call counts: spend per project/Run/provider and account balances.
 
         action="report": estimated spend (all Runs, or run_id), free allowances left.
@@ -1700,13 +1746,33 @@ def build_server():
             return research_costs.balances(data_root)
         if action == "set_rate":
             return research_costs.set_rate(data_root, provider=provider, capability=capability,
-                                           usd_per_unit=usd_per_unit or None, plan=plan)
+                                           usd_per_unit=usd_per_unit or None, plan=plan,
+                                           account_ref=account_ref)
         if action == "set_balance":
             if left is None:
                 raise ValueError("BALANCE_REQUIRED: left=<number shown in the console>")
             return research_balances.record_manual(data_root, provider=provider, left=left,
-                                                   unit=unit or "credit")
+                                                   unit=unit or "credit", account_ref=account_ref)
         raise ValueError("COSTS_ACTION_INVALID: report, balances, set_rate or set_balance")
+
+    @tool
+    def marketops_accounts(action: str = "status", account_ref: str = "") -> dict:
+        """List billing accounts/key aliases, or claim a once-only balance question.
+
+        No key values or owner emails are returned. action='ask_balance' atomically
+        returns ask_now=true once per account; record the answer with marketops_costs
+        set_balance, or continue with UNKNOWN if the user does not know. Account
+        registration and key changes use the local research_accounts.py CLI (stdin).
+        """
+        import research_accounts
+        if action == "status":
+            return research_accounts.status(root())
+        if action == "ask_balance":
+            accounts = research_accounts.status(root())["accounts"]
+            if account_ref not in {a["account_ref"] for a in accounts}:
+                raise ValueError("ACCOUNT_NOT_REGISTERED")
+            return research_accounts.claim_balance_question(root(), account_ref)
+        raise ValueError("ACCOUNT_ACTION_INVALID")
 
     @tool
     def marketops_update_check(include_prerelease: bool = False) -> dict:
@@ -1916,7 +1982,7 @@ def build_server():
             raise ValueError("EXPERIENCE_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT")
         output.parent.mkdir(parents=True, exist_ok=True)
         return draft_experience(r, run_id=run_id, scope=scope,
-                                rule_version=rule_version, skill_version="0.5.8",
+                                rule_version=rule_version, skill_version="0.5.9-rc1",
                                 output=output)
 
     @tool

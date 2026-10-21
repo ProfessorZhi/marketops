@@ -949,8 +949,10 @@ class JevAdapter:
                           reason=f"JEV_UPSTREAM_FAILED:"
                                  f"{type(exc).__name__}:{self._scrub(str(exc))}"[:200])
             text = f"{type(exc).__name__} {exc}".casefold()
-            extra = (["UPSTREAM_QUOTA_OR_PAYMENT"] if any(m in text for m in _QUOTA_MARKERS)
-                     else ["UPSTREAM_RATE_LIMITED"] if any(m in text for m in _RATE_MARKERS)
+            status_code = getattr(exc, "status_code", None)
+            extra = (["UPSTREAM_RATE_LIMITED"] if status_code == 429 or any(m in text for m in _RATE_MARKERS)
+                     else ["UPSTREAM_QUOTA_OR_PAYMENT"] if status_code == 402 or
+                     (status_code not in {401, 403} and any(m in text for m in _QUOTA_MARKERS))
                      else [])
             return _result(OUTCOME_UNKNOWN if timed_out else OUTCOME_FAILED,
                            reason="JEV_UPSTREAM_FAILED",

@@ -106,7 +106,7 @@ PROVIDER_ADAPTERS: dict[str, tuple[str, str]] = {
 }
 
 
-def assemble_adapters(registry=None, root=None) -> dict:
+def assemble_adapters(registry=None, root=None, credential_overrides=None) -> dict:
     """Build every adapter whose module is present *and* the gateway can call.
 
     Two failures are reported, never skipped. A module that exists but cannot be
@@ -135,7 +135,10 @@ def assemble_adapters(registry=None, root=None) -> dict:
             failures[provider] = f"{module_name} has no {class_name}"
             continue
         try:
-            adapter = _construct_adapter(adapter_class, root)
+            adapter = (_construct_adapter(adapter_class, root,
+                                          api_key=credential_overrides[provider])
+                       if credential_overrides and provider in credential_overrides
+                       else _construct_adapter(adapter_class, root))
         except Exception as exc:  # noqa: BLE001 - reported, never swallowed
             failures[provider] = f"{type(exc).__name__}: {exc}"
             continue
@@ -157,7 +160,7 @@ def assemble_adapters(registry=None, root=None) -> dict:
     return built
 
 
-def _construct_adapter(adapter_class, root):
+def _construct_adapter(adapter_class, root, *, api_key=None):
     """Construct one adapter, injecting the data root when it accepts one.
 
     The Jev adapter reads saved evidence from a data root it deliberately does
@@ -176,10 +179,10 @@ def _construct_adapter(adapter_class, root):
     import research_runtime_transport as transport
     name = adapter_class.__name__
     if name == "SerperAdapter":
-        return adapter_class(api_key=os.environ.get("SERPER_API_KEY"),
+        return adapter_class(api_key=api_key or os.environ.get("SERPER_API_KEY"),
                              transport=transport.serper_transport)
     if name == "JevAdapter":
-        return adapter_class(root=root, api_key=os.environ.get("TYPESAFE_API_KEY")
+        return adapter_class(root=root, api_key=api_key or os.environ.get("TYPESAFE_API_KEY")
                              or os.environ.get("JEV_API_KEY"))
     if name == "SerpApiAdapter":
         from serpapi_engine_catalog import EngineCatalog
@@ -302,7 +305,7 @@ def ledger_request_builder(root=None):
 
 
 def build_gateway(*, contract=None, registry=None, policy=None, ledger=None,
-                  adapters=None, root=None) -> gateway.CapabilityGateway:
+                  adapters=None, root=None, credential_overrides=None) -> gateway.CapabilityGateway:
     """Assemble the managed gateway, or say precisely what is still absent.
 
     Every collaborator may be handed in, and every one that is not is built from
@@ -348,7 +351,9 @@ def build_gateway(*, contract=None, registry=None, policy=None, ledger=None,
     # and a set of standalone modules: without this, every adapter is reachable
     # from its own tests and from nothing else.
     if adapters is None:
-        adapters = assemble_adapters(registry=registry, root=root)
+        adapters = (assemble_adapters(registry=registry, root=root,
+                                      credential_overrides=credential_overrides)
+                    if credential_overrides else assemble_adapters(registry=registry, root=root))
     if not adapters:
         absent.append("adapters")
     if absent:
@@ -479,13 +484,30 @@ class _GatewayAfterTheGate:
             settings = runtime.config(self._root)
             if settings:
                 registry = research_capability_registry.DEFAULT_REGISTRY
+                provider = registry.get(kwargs["capability_id"]).provider
+                account_ref = kwargs["account_ref"]
+                overrides = None
+                import research_accounts
+                if (provider in {"serper", "typesafe_jev"}
+                        and research_accounts.query(self._root,
+                            "SELECT 1 FROM accounts WHERE provider=? AND account_ref=?",
+                            (provider, account_ref))):
+                    secret = research_accounts.credential(self._root, provider, account_ref)
+                    if not secret:
+                        return gateway.GatewayOutcome(status="BLOCKED", reason_code="CAPABILITY_NOT_AVAILABLE",
+                            capability_id=kwargs["capability_id"], provider=provider,
+                            caveats=("ACCOUNT_KEY_MISSING",))
+                    overrides = {provider: secret}
                 policy = research_policy.Policy(registry=registry,
                     network_enabled=settings.get("network_enabled") is True,
                     allowed_domains=settings.get("allowed_domains", ()),
                     domain_scope=lambda urls: runtime.fetch_allowlist(
                         runtime.config(self._root), urls))
-                self._built = build_gateway(root=self._root, policy=policy,
-                    ledger=runtime.ledger_for(self._root, kwargs["account_ref"]))
+                ledger = (runtime.ledger_for(self._root, provider, account_ref=account_ref)
+                          if account_ref != provider else runtime.ledger_for(self._root, provider))
+                self._built = (build_gateway(root=self._root, policy=policy, ledger=ledger,
+                                             credential_overrides=overrides)
+                               if overrides else build_gateway(root=self._root, policy=policy, ledger=ledger))
             else:
                 self._built = build_gateway(root=self._root)
         import research_runtime_setup as runtime
@@ -500,12 +522,23 @@ class _GatewayAfterTheGate:
             # dropped the money column on every managed call.
             plan = runtime.state_ledger_caps(self._root, kwargs["run_id"],
                                              project=project, ledger=self._built.ledger)
-            provider_ceiling = settings.get("provider_limits", {}).get(
-                kwargs["account_ref"], plan["max_calls"])
+            import research_capability_registry
+            provider = research_capability_registry.DEFAULT_REGISTRY.get(kwargs["capability_id"]).provider
+            provider_ceiling = settings.get("provider_limits", {}).get(provider, plan["max_calls"])
+            # The supplier's cumulative cap must survive switching billing accounts.
+            aggregate_key = f"{project}/{provider}/*"
+            if not self._built.ledger.usage("provider_account", aggregate_key, window="total"):
+                money, enforced, seconds = runtime._existing_cap(
+                    self._built.ledger, "provider_account", f"{project}/{provider}/{provider}")
+                self._built.ledger.set_cap("provider_account", aggregate_key,
+                    ceiling_calls=provider_ceiling, ceiling_micros=money,
+                    usd_enforced=enforced, ceiling_seconds=seconds, source="LOCAL_CONSENT",
+                    if_absent=True)
             for kind, key, limit in (
                     ("provider_account",
-                     f"{project}/{kwargs['account_ref']}/{kwargs['account_ref']}",
+                     f"{project}/{provider}/{kwargs['account_ref']}",
                      provider_ceiling),
+                    ("provider_account", aggregate_key, provider_ceiling),
                     ("operation", f"{project}/*", 1)):
                 runtime.set_call_cap_preserving_money(
                     self._built.ledger, kind, key, ceiling_calls=limit,

@@ -32,7 +32,9 @@ deliver an evidence-backed workbook. Effect first, cost second.
 - `marketops_runs(limit=10)`: resume an existing Run for the same task instead of starting over.
 - Load `marketops-providers` (which provider for which job, cheapest first, what to do when one
   runs out) and call `marketops_costs(action='balances')`; tell the user in one line what each
-  account has left.
+  account has left, distinguishing reported snapshots, local estimates and UNKNOWN. For missing
+  Serper/Jev readings, follow the persistent once-only question in `marketops-providers`; do not
+  ask again just because this is a new conversation or Run.
 - Ask **once**, in one message, only for what is missing: scope (area, entity type, roles wanted),
   what the user sells and who buys it (customer vs competitor), delivery format, budget cap, and
   whether TinyFish's paid browser agent may be used for hard pages (default no; see

@@ -42,8 +42,13 @@ use it for those, sparingly.
 - **At the start of a task**: `marketops_costs(action='balances')` reads SerpApi and TinyFish
   accounts (free) and shows Serper/Jev from the last balance the user entered. Tell the user in one
   line what is left. `marketops_setup_status` lists `low_balance_warnings`.
-- **If Serper or Jev show no balance**: ask the user once to read it from the console and record it:
-  `marketops_costs(action='set_balance', provider='serper', left=<n>, unit='credit')`.
+- **If Serper or Jev show no balance**: read `marketops_accounts()`; only for
+  `ask_balance_once=true`, claim `marketops_accounts(action='ask_balance', account_ref=<ref>)`
+  and ask if it returns `ask_now=true`. Record the console's current available amount using
+  `marketops_costs(action='set_balance', provider='serper', account_ref=<ref>, left=<n>, unit='credit')`
+  (Jev dollars: `provider='typesafe_jev', unit='USD'`). If unknown, continue recording consumption
+  without repeating the question in later conversations. Never subtract historical dashboard
+  spend from a current balance; report snapshot time, local estimate and unknown exposure.
 - **At the end**: `marketops_handoff` returns `run_cost`; put it in the report (per provider, total,
   and which figures are estimates). `marketops_costs(action='report')` gives every Run.
 - If the user pays a different price (another SerpApi plan, a Serper bulk rate), record it:
@@ -63,6 +68,13 @@ results.
 - Write it down: `marketops_note(category='provider_blocked', ...)` and, in the report, which
   provider ran out when, who replaced it, and what the user should top up.
 - After the user tops up: `marketops_costs(action='balances')` (or `set_balance`) lifts the mark.
+
+Balances belong to accounts; keys from one account share a wallet. Jev can select the next
+locally authorised, enabled billing account after quota exhaustion; a sent request is not replayed.
+429 cooldown, 401/403, timeouts and UNKNOWN charges never rotate identities. Changing accounts
+does not reset project, Run or provider caps. Serper remains one billing account. No account
+creation for promotional credits or restriction avoidance. Local setup and exact semantics:
+[accounts and balances](../../references/ACCOUNT_BALANCES.md).
 
 ## TinyFish paid Agent: ask each user, default off
 
