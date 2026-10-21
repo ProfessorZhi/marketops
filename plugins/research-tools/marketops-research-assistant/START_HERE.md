@@ -1,6 +1,6 @@
 # MarketOps 调研插件：从这里开始
 
-版本 **0.5.7-rc7**，适用于 Windows 10/11（64 位）。可以装进 **Codex、WorkBuddy、Claude Code、DeepSeek Harness**，以及其他支持 MCP 的 agent。
+版本 **0.5.8**，适用于 Windows 10/11（64 位）。可以装进 **Codex、WorkBuddy、Claude Code、DeepSeek Harness**，以及其他支持 MCP 的 agent。
 
 ## 它能做什么
 
@@ -62,7 +62,20 @@ Crawl4AI 在本机运行，**不需要账号**。更详细的说明见 `referenc
 
 > 用 MarketOps 生成反馈包。
 
-## 四、遇到问题
+## 四、以后怎么更新
+
+插件发布新版本后（agent 每次开始调研时会自动检查并提醒你），对 agent 说一句：
+
+> 把 MarketOps 更新到 GitHub 最新版本：运行 MarketOps 文件夹里的 Update.cmd，完成后重启你自己，再调用 marketops_setup_status 确认版本号和五个服务都就绪。
+
+也可以自己双击 `%LOCALAPPDATA%\MarketOps\Update.cmd`。
+
+- 新版本装在旧版本旁边，自检通过后才切换。失败就保留旧版本，什么都不改。
+- 调研数据、Key、经验文件都不在安装目录里，更新不会动它们。
+- 新版本有问题时，运行 `Update.cmd --rollback` 回到上一个版本。
+- 更新后重启 Codex / WorkBuddy / Claude Code 即可。WorkBuddy 如果仍显示旧版本，在连接器管理里从 `MarketOps\current\connectors` 重新导入一次。
+
+## 五、遇到问题
 
 - 安装中断了：重新双击 `Install.cmd`，会从中断的地方继续，已保存的数据不会丢。
 - agent 说某个服务不可用：通常是 Key 填错或额度用完，登录对应网站看一下余额。

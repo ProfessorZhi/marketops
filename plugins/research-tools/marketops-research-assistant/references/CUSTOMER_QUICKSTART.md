@@ -1,6 +1,6 @@
 # MarketOps 安装与第一次调研
 
-> 本源码包版本为 **0.5.7-rc7（release candidate）**。它不同于既有 `0.5.5` 发行包；请使用本包自己的 ZIP 与 SHA256，不要覆盖或复用 `0.5.5` 的安装目录。
+> 本源码包版本为 **0.5.8（release candidate）**。它不同于既有 `0.5.5` 发行包；请使用本包自己的 ZIP 与 SHA256，不要覆盖或复用 `0.5.5` 的安装目录。
 
 一次安装包含业务 Skills、一个 MarketOps MCP、内嵌 TinyFish/SerpApi 官方 MCP 客户端，以及 Serper REST、Crawl4AI 本地 SDK 和 TypeSafe Jev SDK。**不用再安装两家供应商插件。** 四家账户由自己注册；Crawl4AI 本地无需账号。
 

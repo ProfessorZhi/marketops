@@ -227,6 +227,43 @@ def _build_note():
             "note": "Test build without a release receipt; research works normally."}
 
 
+def update_check(include_prerelease=False):
+    """Compare this install with the newest GitHub release, through the managed egress."""
+    import release_layout
+    import update_marketops as updater
+    version_dir = Path(__file__).resolve().parents[3]
+    app_root = release_layout.app_root_for(version_dir)
+    current = json.loads((Path(__file__).resolve().parents[1] / "plugin.json")
+                         .read_text(encoding="utf-8"))["version"]
+    if os.environ.get("MARKETOPS_RESEARCH_ALLOW_NETWORK") == "0":
+        return {"status": "NETWORK_DISABLED", "current": current}
+
+    def get(url):
+        import httpx2
+        from research_egress import open_session
+        with open_session(allowlist=frozenset({"api.github.com"})) as connection:
+            with httpx2.Client(proxy=connection.proxy.url, trust_env=False,
+                               follow_redirects=False,
+                               timeout=httpx2.Timeout(20, connect=10)) as http:
+                answer = http.get(url, headers={"Accept": "application/vnd.github+json",
+                                                "User-Agent": "marketops-update-check"})
+                answer.raise_for_status()
+                return answer.content
+    try:
+        release = updater.latest_release(release_layout.REPO, include_prerelease, get=get)
+    except Exception as exc:  # noqa: BLE001 - a failed check is reported, never raised
+        return {"status": "CHECK_FAILED", "current": current, "reason": type(exc).__name__}
+    latest = release["tag_name"].removeprefix("marketops-v") if release else None
+    newer = bool(latest and updater.version_key(latest) > updater.version_key(current))
+    how = (("Run Update.cmd (Windows) or update.sh in " + str(app_root) +
+            ", then restart this agent.") if app_root is not None else
+           "This install predates the update layout: install the new release once with "
+           "Install.cmd; later updates are one command.")
+    return {"status": "UPDATE_AVAILABLE" if newer else "UP_TO_DATE", "current": current,
+            "latest": latest, "notes": release.get("html_url") if release else None,
+            **({"how_to_update": how} if newer else {})}
+
+
 def setup_configure(data_root, experience_file, confirm=False):
     """Persist the two paths the user answered once at first use."""
     return research_config.configure(data_root, experience_file, confirm=confirm)
@@ -520,7 +557,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         configured_root = None
     if configured_root is not None and runtime_setup.config(configured_root):
         from research_runtime_status import view
-        return {"product": "MarketOps Research MCP", "version": "0.5.7-rc7",
+        return {"product": "MarketOps Research MCP", "version": "0.5.8",
                 **view(configured_root, task_kind=task_kind),
                 "external_host": _external_inventory(host_observed_tools),
                 "embedded_official_mcp": provider_policy.embedded_official_mcp_capabilities(),
@@ -595,7 +632,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         if task_kind else None)
     return {
         "product": "MarketOps Lite Research MCP",
-        "version": "0.5.7-rc7",
+        "version": "0.5.8",
         "providers": {
             "serpapi": {"transport": "REST through local MCP", **search["serpapi"]},
             "serper": {"transport": "REST through local MCP", **search["serper"]},
@@ -1146,7 +1183,7 @@ def handoff(run_id, operation_id):
     try:
         experience_result = draft_experience(
             r, run_id=run_id, scope=head["scope"],
-            rule_version=head["rule_version"], skill_version="0.5.7-rc7",
+            rule_version=head["rule_version"], skill_version="0.5.8",
             output=experience_path)
         result["experience_candidate"] = str(experience_path)
         result["experience_incidents"] = experience_result["incidents"]
@@ -1275,7 +1312,7 @@ PUBLIC_TOOLS = frozenset({
     "marketops_pool_import", "marketops_pool_claim", "marketops_pool_complete",
     "marketops_pool_status", "marketops_harvest_batch", "marketops_lessons_report",
     "marketops_jev_triage", "marketops_suppression", "marketops_feedback_pack",
-    "marketops_pool_reopen", "marketops_costs",
+    "marketops_pool_reopen", "marketops_costs", "marketops_update_check",
 })
 
 
@@ -1308,7 +1345,7 @@ def build_server():
     # Direct by default; only an explicitly configured proxy changes that.
     research_config.load_upstream_proxy_into_environment()
     from mcp.server import MCPServer
-    mcp = MCPServer("MarketOps Lite Research", version="0.5.7-rc7")
+    mcp = MCPServer("MarketOps Lite Research", version="0.5.8")
 
     def tool(fn):
         if fn.__name__ not in PUBLIC_TOOLS:
@@ -1672,6 +1709,16 @@ def build_server():
         raise ValueError("COSTS_ACTION_INVALID: report, balances, set_rate or set_balance")
 
     @tool
+    def marketops_update_check(include_prerelease: bool = False) -> dict:
+        """Is a newer MarketOps release on GitHub? Read-only; installs nothing.
+
+        Call at the start of a task. If one is available, tell the user in one line
+        and how to update: run Update.cmd (Windows) or update.sh in the MarketOps
+        folder, then restart this agent. Never run the update yourself mid-task.
+        """
+        return update_check(include_prerelease)
+
+    @tool
     def marketops_pool_reopen(pool_id: str, reason: str) -> dict:
         """Put HOLD targets back to pending once their cause is fixed.
 
@@ -1869,7 +1916,7 @@ def build_server():
             raise ValueError("EXPERIENCE_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT")
         output.parent.mkdir(parents=True, exist_ok=True)
         return draft_experience(r, run_id=run_id, scope=scope,
-                                rule_version=rule_version, skill_version="0.5.7-rc7",
+                                rule_version=rule_version, skill_version="0.5.8",
                                 output=output)
 
     @tool

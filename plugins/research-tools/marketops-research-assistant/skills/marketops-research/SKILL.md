@@ -27,6 +27,8 @@ deliver an evidence-backed workbook. Effect first, cost second.
 ## 1. Start (ask once)
 
 - First use only: `marketops_setup_status`; if not configured, follow `marketops-setup`.
+- `marketops_update_check()`: if a newer release exists, tell the user in one line (it says how
+  to update: Update.cmd, then restart the agent) and carry on with the task.
 - `marketops_runs(limit=10)`: resume an existing Run for the same task instead of starting over.
 - Load `marketops-providers` (which provider for which job, cheapest first, what to do when one
   runs out) and call `marketops_costs(action='balances')`; tell the user in one line what each
