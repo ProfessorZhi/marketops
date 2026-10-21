@@ -28,11 +28,16 @@ deliver an evidence-backed workbook. Effect first, cost second.
 
 - First use only: `marketops_setup_status`; if not configured, follow `marketops-setup`.
 - `marketops_runs(limit=10)`: resume an existing Run for the same task instead of starting over.
-- Ask **once**, only for what is missing: scope (area, entity type, roles wanted), delivery format,
-  budget cap. Do not ask for anything the user already said.
+- Load `marketops-providers` (which provider for which job, cheapest first, what to do when one
+  runs out) and call `marketops_costs(action='balances')`; tell the user in one line what each
+  account has left.
+- Ask **once**, in one message, only for what is missing: scope (area, entity type, roles wanted),
+  what the user sells and who buys it (customer vs competitor), delivery format, budget cap, and
+  whether TinyFish's paid browser agent may be used for hard pages (default no; see
+  `marketops-providers`). Do not ask for anything the user already said.
 - `marketops_start(run_id, scope, objective, rule_version, brief={record_type:'research_brief',
   target_kind:'venue'|'organization', goal:'pool'|'contacts', require_named_person:false,
-  roles_wanted:[<the roles the user named>],
+  roles_wanted:[<the roles the user named>], hard_case:{allowed:<the user's answer, default false>},
   minimum_targets:<the user's number or null>, evidence_requirements:{organization:['identity']}})`.
   Details: `marketops-discovery`.
 
@@ -44,7 +49,7 @@ deliver an evidence-backed workbook. Effect first, cost second.
 | Venue / org pool | dedupe, exclude out-of-scope types, keep reasons | `marketops_pool_import`, `marketops_jev_triage` |
 | Accounts | for each organisation: `marketops_site_harvest` on its own site, then judge role and grade from each route's context | Crawl4AI → TinyFish fetch inside the tool, Serper `site:` role search |
 | Evidence | every value has a literal quote from a saved page; the tools enforce this | `marketops_propose_batch`, `marketops_evidence_audit` |
-| Delivery | reconcile counts, verify a sample, hand off once | `marketops_handoff`; see `marketops-delivery` |
+| Delivery | reconcile counts, verify a sample, hand off once; report spend per provider from `run_cost` | `marketops_handoff`; see `marketops-delivery` |
 
 Load `marketops-discovery`, `marketops-accounts`, `marketops-providers` or `marketops-delivery`
 only when you reach that stage. Past runs' pitfalls, by stage: [lessons](../../references/MEMBER_A_LESSONS.md). Use `marketops_next(run_id)` to see gaps and the suggested next action.

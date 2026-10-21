@@ -1,45 +1,86 @@
 ---
 name: marketops-providers
-description: Router for the five research providers (Serper, SerpApi, Crawl4AI, TinyFish, Jev) behind the MarketOps MCP - which one each step uses, the escalation ladder, cost and budget, and failure handling. Load the matching provider skill only when you call it.
+description: Router for the five research providers (Serper, SerpApi, Crawl4AI, TinyFish, Jev) behind the MarketOps MCP - which one each job uses and in what order, how to spend as little as possible, how to check balances and spend, and what to do when a provider runs out. Load at the start of every research task; load a single provider's skill only when you call it.
 ---
 
-# Five providers, one ladder
+# Five providers: right job, cheapest first, never stuck
 
 Every call goes through MarketOps tools: material is saved in the Run, counted in one shared ledger
-and deduplicated across windows. Each call takes `run_id` and a fresh `operation_id`; retrying the
-same logical step reuses its id.
+and deduplicated across windows. Each call takes `run_id` and a fresh `operation_id`.
 
-In a normal run all five work, each where it is best:
+## Who does what, in this order
 
-| Job | Who does it | How |
-|---|---|---|
-| Find targets | Serper (Google web) + SerpApi (`google_maps` listings) + TinyFish search (its own index) | `marketops_search(provider=serper/serpapi/tinyfish)`, `marketops_serpapi_mcp_search`; union the three, each finds sites the others miss |
-| Read sites | Crawl4AI (local browser, free) first | inside `marketops_research_step` / `site_harvest` / `harvest_batch` |
-| Read what Crawl4AI cannot | TinyFish fetch (free): PDFs, pages Crawl4AI guesses are blocked, empty JS pages | automatic second rung; PDFs go straight to it |
-| Judge at volume | Jev: scope triage of the pool, role tag of every email | `marketops_jev_triage`, `harvest_batch(roles_wanted=...)` |
-| Hard sites (login, heavy JS), only when authorised | TinyFish browser Agent (paid) | ask once, with the expected yield |
+| Job | 1st | 2nd | 3rd | Notes |
+|---|---|---|---|---|
+| Find targets (web) | **Serper** `web` | TinyFish search (free) | SerpApi `google` | `marketops_search(provider='all')` runs Serper + TinyFish together; SerpApi steps in by itself when Serper is out |
+| List places in an area | **Serper** `maps` | SerpApi `google_maps` | — | SerpApi only where Serper's places are incomplete (it is 250 free searches a month) |
+| Read a page / an organisation's site | **Crawl4AI** (local, free) | TinyFish fetch (free) | — | inside `marketops_research_step`, `site_harvest`, `harvest_batch`; you rarely choose |
+| Judge many pages (in scope? whose email?) | **Jev** | you, on the short excerpt | — | `marketops_jev_triage`, `harvest_batch(roles_wanted=...)` |
+| Hard pages (click-to-reveal, paginated portals) | TinyFish paid Agent | — | — | only if this user said yes at the start (see below) |
 
-If a run report shows one provider unused, say why (not configured, failed, not needed).
+Search engines other than Google (Bing, Baidu, Yandex, Naver, Google Jobs) exist only in SerpApi:
+use it for those, sparingly.
 
-Composite tools already walk the ladder: `marketops_research_step` (one page or search),
-`marketops_site_harvest` (one organisation's own site), `marketops_harvest_batch` (a pool batch).
-Hosts where the local rung failed and TinyFish succeeded start at TinyFish automatically next time.
+## Spend as little as possible
 
-## Cost and budget
+- **Reuse before you call**: the same query in the same Run is answered from saved results.
+  `marketops_status` / `marketops_material_excerpt` read what you already have.
+- **Serper `limit` stays 10**: more than ten results bills a second credit. Page with `page=2`
+  only when the first page was all relevant.
+- **One whole-list source beats many searches**: an association directory or one map listing per
+  town, then `marketops_pool_import`.
+- **Harvest, don't fetch page by page**: `site_harvest` / `harvest_batch` read an organisation's
+  own contact pages in one call.
+- **Jev before your own reading**: a Jev judgment costs about $0.0001 and none of your context;
+  reading a page yourself costs thousands of tokens. Ask Jev only about targets still in scope
+  (skip ones already excluded), one question per page, and read the source yourself only for rows
+  Jev marks `needs_review`.
+- **Stop a method that does not pay**: test a source on ~30 targets; under 5% hit rate, switch.
 
-- Spending tools return `budget_after`: remaining calls and `unknown_held` (calls whose outcome is
-  unknown). `unbilled_successes` are normal successes without a vendor bill yet.
-- The user's cap is a stop condition: stop and report before the next step would exceed it.
-- Cheapest effective path first: one harvest over many fetches, one map listing over many searches,
-  saved material over refetching, Jev over reading pages yourself.
+## Know the balance and the spend
 
-## When a call fails
+- **At the start of a task**: `marketops_costs(action='balances')` reads SerpApi and TinyFish
+  accounts (free) and shows Serper/Jev from the last balance the user entered. Tell the user in one
+  line what is left. `marketops_setup_status` lists `low_balance_warnings`.
+- **If Serper or Jev show no balance**: ask the user once to read it from the console and record it:
+  `marketops_costs(action='set_balance', provider='serper', left=<n>, unit='credit')`.
+- **At the end**: `marketops_handoff` returns `run_cost`; put it in the report (per provider, total,
+  and which figures are estimates). `marketops_costs(action='report')` gives every Run.
+- If the user pays a different price (another SerpApi plan, a Serper bulk rate), record it:
+  `marketops_costs(action='set_rate', provider, capability='search', usd_per_unit, plan)`.
 
-- Challenge page, login wall, 401/403/429: stop that site for this Run; never switch identity or
+## When a provider runs out or slows you down
+
+The plugin recognises "not enough credits", 402 and 429. The provider is then marked out
+(SerpApi until the 1st of next month, others a day; a rate limit for a minute) and the next provider
+takes over automatically; you will see `provider_health`, `substituted` or `providers_out` in
+results.
+
+- Keep going with the next provider; do **not** stop the task or ask.
+- Search with Serper and SerpApi both out: TinyFish search (free, ~500 an hour) carries on alone.
+- Jev out: role tags come back `ungraded:...`; judge from the short contact context in the harvest
+  result (not whole pages) and say in the report that judgment moved to you.
+- Write it down: `marketops_note(category='provider_blocked', ...)` and, in the report, which
+  provider ran out when, who replaced it, and what the user should top up.
+- After the user tops up: `marketops_costs(action='balances')` (or `set_balance`) lifts the mark.
+
+## TinyFish paid Agent: ask each user, default off
+
+At the start of a task ask once, in the user's language: "Some sites only show contacts after
+clicking or paging. TinyFish's paid browser agent can do that (about $0.016 per step, your wallet).
+Allow it for this task? If yes: how many targets at most, and a total USD limit?" Record the answer
+in the brief as `hard_case: {allowed, max_targets, max_steps_per_target, max_usd}`; default
+`allowed: false`. In this release the paid Agent stays switched off in the plugin even when allowed:
+list those targets in the report as "would need the paid agent" with the reason, so the user can
+decide later. Never use it for CAPTCHAs, challenge pages, logins that are not the user's own, or
+anything a site forbids.
+
+## When a site refuses
+
+- Challenge page, login wall, 401/403: stop that site for this Run; never switch identity or
   proxy to get past it. Use another public source or HOLD.
 - Local browser down: the step falls through to TinyFish fetch; tell the user once.
 - Timeout / `UNKNOWN`: do not resend blindly; choose another step.
-- `NO_NEW_PERSISTED_RECORD_AFTER_ATTEMPT`: change source or target; never repeat the same call.
 
 Every wall is recorded automatically; `marketops_lessons_report` shows what keeps blocking you.
 Keys and accounts: [onboarding](../../references/PROVIDER_ONBOARDING.md).

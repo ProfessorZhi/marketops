@@ -31,9 +31,14 @@ read the databases or plugin code; the handoff applies the evidence gate you wou
    status is reported as partial, never as clean. Do not start new discovery just to avoid a
    partial result.
 5. **Report** in plain terms: targets covered; admitted routes by grade; generic inboxes counted
-   separately; HOLD/EXCLUDED with reasons; sources blocked; provider calls and known spend (unknown
-   stays unknown); what the user should review. Workbook rows are candidates for human review, not
-   approved contacts, and row counts are not market coverage.
+   separately; HOLD/EXCLUDED with reasons; sources blocked; what the user should review. Workbook
+   rows are candidates for human review, not approved contacts, and row counts are not market
+   coverage.
+6. **Money**, from the handoff's `run_cost` and `marketops_costs(action='balances')`: a small
+   table per provider (calls, billed units, estimated USD), the total, what each account has left,
+   which provider ran out or was replaced and when, and any provider not used with the reason.
+   Say which figures are estimates; unknown stays unknown, never 0.
+7. End with `marketops_feedback_pack` (see `marketops-feedback`).
 
 Editing a client template: keep the original, diff before writing, never delete HOLD/UNKNOWN rows
 and never promote a candidate with a formula.
