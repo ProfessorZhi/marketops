@@ -17,7 +17,7 @@ not proof that every recorded desktop failure has this origin.
 ## Change and acceptance
 
 Both BrowserConfig and CrawlerRunConfig explicitly disable terminal progress.
-Setting just the browser config is insufficient: `arun` replaces the logger's
+A private console sink also covers forced SDK warnings while preserving the formatted file log. Setting just the browser config is insufficient: `arun` replaces the logger's
 verbosity from its run config. Network refusals, egress policy, retry limits,
 material persistence and normal error receipts are unchanged.
 
@@ -28,13 +28,13 @@ the installed browser selection when a repair finished after server startup.
 
 Validation on the Windows development machine:
 
-- 130 focused crawler, health and research-continuation tests passed.
+- 135 focused crawler, health and research-continuation tests passed.
 - The real SDK, with both stdout and stderr rejecting writes, read two local
   HTML fixtures consecutively and produced a real PDF. This regression uses
   no provider credentials or public network.
 - The modified source completed the normal managed MCP page check with the
   injected failing console; the old source failed the same check.
-- The installed rc5 launcher advertised 31 tools. Its 163 packaged source
+- The installed updated launcher advertised 31 tools. Its 163 packaged source
   files and installer source digest matched the source tree.
 - On the existing Paris Run, a final handoff request remained a continuation
   checkpoint with 11 queued targets outstanding. This check made no provider

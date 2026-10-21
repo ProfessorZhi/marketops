@@ -34,11 +34,16 @@ kwargs = {"proxy_config": {"server": "http://127.0.0.1:9"},
           "extra_args": [LOOPBACK_BYPASS_GUARD, "--disable-quic"]}
 url = "raw:<html><body><h1>Background read proof</h1><p>Known local content.</p></body></html>"
 with patch("sys.stderr", DeadConsole()), patch("sys.stdout", DeadConsole()):
+    logger = adapter._crawler_options(crawl4ai)["logger"]
+    logger.warning("Forced SDK warning retained", force_verbose=True)
     for _ in range(2):
         page = adapter._run_sdk_once(crawl4ai, url=url, egress_kwargs=kwargs, page_timeout_ms=10000)
         assert page["success"] and "Background read proof" in page["html"], page
     pdf = adapter._run_sdk_artifact(crawl4ai, url=url, kind="pdf", egress_kwargs=kwargs, max_bytes=1000000)
     assert pdf["bytes"].startswith(b"%PDF"), "missing actual PDF"
+from pathlib import Path
+import os
+assert "Forced SDK warning retained" in (Path(os.environ["CRAWL4_AI_BASE_DIRECTORY"]) / ".crawl4ai" / "crawler.log").read_text(encoding="utf-8")
 print("BACKGROUND_READS_AND_PDF_OK")
 '''
         with tempfile.TemporaryDirectory() as folder:

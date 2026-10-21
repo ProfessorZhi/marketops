@@ -1,7 +1,7 @@
 {
   "name": "marketops-research-assistant",
-  "version": "0.5.10-rc5",
-  "description": "Member-A-informed semi-automatic evidence-first market research with five upstream provider capabilities and one managed local research MCP (release candidate 0.5.10-rc5)",
+  "version": "0.5.10-rc6",
+  "description": "Member-A-informed semi-automatic evidence-first market research with five upstream provider capabilities and one managed local research MCP (release candidate 0.5.10-rc6)",
   "author": {
     "name": "ProfessorZhi"
   },

@@ -60,6 +60,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import re
 import time
 import urllib.error
@@ -1981,6 +1982,28 @@ class Crawl4AIAdapter:
         )
 
     # -- 真库调用：**每一个出口都只有一次** --------------------------------
+    def _crawler_options(self, module: Any) -> dict[str, Any]:
+        extra = ({"base_directory": self._cache_base_directory}
+                 if self._cache_base_directory is not None else {})
+        factory = getattr(module, "AsyncLogger", None)
+        if callable(factory):
+            from rich.console import Console
+
+            class ProgressSink:
+                def write(self, text):
+                    return len(text)
+
+                def flush(self):
+                    pass
+
+            # The SDK can force warnings even with verbose=False. Keep its
+            # formatted file log, but give its console a private discard sink;
+            # never redirect process-global stdout/stderr in parallel workers.
+            base = self._cache_base_directory or os.environ.get("CRAWL4_AI_BASE_DIRECTORY") or str(Path.home())
+            extra["logger"] = factory(log_file=str(Path(base) / ".crawl4ai" / "crawler.log"),
+                                      verbose=False, console=Console(file=ProgressSink(), force_terminal=False))
+        return extra
+
     def _run_sdk_once(self, module: Any, *, url: str, egress_kwargs: Mapping[str, object],
                       page_timeout_ms: int) -> dict[str, Any]:
         """起一次浏览器、抓一页。**没有重试循环。**
@@ -1996,8 +2019,7 @@ class Crawl4AIAdapter:
         run_config = _build_run_config(module, page_timeout_ms=page_timeout_ms)
 
         async def run() -> dict[str, Any]:
-            extra = ({"base_directory": self._cache_base_directory}
-                     if self._cache_base_directory is not None else {})
+            extra = self._crawler_options(module)
             async with module.AsyncWebCrawler(config=browser_config, **extra) as crawler:
                 result = await crawler.arun(url=url, config=run_config)
                 return {
@@ -2059,8 +2081,7 @@ class Crawl4AIAdapter:
                                        artifact=kind)
 
         async def run() -> dict[str, Any]:
-            extra = ({"base_directory": self._cache_base_directory}
-                     if self._cache_base_directory is not None else {})
+            extra = self._crawler_options(module)
             async with module.AsyncWebCrawler(config=browser_config, **extra) as crawler:
                 result = await crawler.arun(url=url, config=run_config)
                 return {
