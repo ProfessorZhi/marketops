@@ -26,7 +26,9 @@ def isolated_env(tmp: str):
     """A clean process environment: own HOME/XDG, no data-root override."""
     env = {k: v for k, v in os.environ.items()
            if not k.startswith("MARKETOPS_")}
-    env.update({"HOME": str(Path(tmp) / "home"), "XDG_CONFIG_HOME": str(Path(tmp) / "xdg")})
+    env.update({"HOME": str(Path(tmp) / "home"), "USERPROFILE": str(Path(tmp) / "home"),
+                "APPDATA": str(Path(tmp) / "appdata"), "XDG_CONFIG_HOME": str(Path(tmp) / "xdg"),
+                "MARKETOPS_RESEARCH_CONFIG": str(Path(tmp) / "config.json")})
     Path(env["HOME"]).mkdir(parents=True, exist_ok=True)
     with patch.dict(os.environ, env, clear=True):
         yield env
@@ -92,6 +94,8 @@ class SetupInterviewTests(unittest.TestCase):
             env = {"HOME": str(Path(tmp) / "home"), "XDG_CONFIG_HOME": str(Path(tmp) / "xdg"),
                    "PATH": os.environ.get("PATH", ""),
                    "MARKETOPS_RESEARCH_DATA_ROOT": str(Path(tmp) / "env-root")}
+            env.update({"USERPROFILE": env["HOME"], "APPDATA": str(Path(tmp) / "appdata"),
+                        "MARKETOPS_RESEARCH_CONFIG": str(Path(tmp) / "config.json")})
             Path(env["HOME"]).mkdir(parents=True, exist_ok=True)
             with patch.dict(os.environ, env, clear=True):
                 result = mcp.start("env-run", "s", "o", "r")
@@ -186,7 +190,8 @@ class AutomaticRefreshTests(unittest.TestCase):
             mcp.setup_configure(str(data), str(exp))
             seed_source_run("run-a", data)
             result = mcp.handoff("run-a", "handoff-1")
-            self.assertEqual("CANDIDATE_HANDOFF_NOT_BUSINESS_VERIFIED", result["status"])
+            self.assertEqual("CHECKPOINT_RESEARCH_NOT_FINISHED", result["status"])
+            self.assertFalse(result["is_final"])
             self.assertEqual(str(exp.resolve()), result["experience_file"])
             self.assertEqual("REFRESHED", result["experience_refresh"]["status"])
 
@@ -195,6 +200,8 @@ class AutomaticRefreshTests(unittest.TestCase):
             env = {"HOME": str(Path(tmp) / "home"), "XDG_CONFIG_HOME": str(Path(tmp) / "xdg"),
                    "PATH": os.environ.get("PATH", ""),
                    "MARKETOPS_RESEARCH_DATA_ROOT": str(Path(tmp) / "env-root")}
+            env.update({"USERPROFILE": env["HOME"], "APPDATA": str(Path(tmp) / "appdata"),
+                        "MARKETOPS_RESEARCH_CONFIG": str(Path(tmp) / "config.json")})
             Path(env["HOME"]).mkdir(parents=True, exist_ok=True)
             with patch.dict(os.environ, env, clear=True):
                 seed_source_run("run-a", Path(env["MARKETOPS_RESEARCH_DATA_ROOT"]))
