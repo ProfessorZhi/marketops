@@ -150,7 +150,6 @@ def provider_readiness() -> dict:
     (SerpApi/TinyFish) the connection check passed at setup; Crawl4AI needs no
     key, only its local install. It is not a check of the account's credit.
     """
-    import research_egress
     import research_runtime_setup
     try:
         # An installing agent may have stored keys after this server started;
@@ -170,12 +169,25 @@ def provider_readiness() -> dict:
         if provider == "crawl4ai":
             import research_crawl_doctor
             checked = research_crawl_doctor.cached(data_root) if data_root is not None else None
-            if not research_egress.crawl4ai_ready():
+            # Importing the SDK here initializes its global database before the
+            # managed transport can select the customer's cache directory.
+            sdk_present = "crawl4ai" in sys.modules or importlib.util.find_spec("crawl4ai") is not None
+            cache_issue = ""
+            if sdk_present and data_root is not None:
+                from research_runtime_transport import validate_crawl_cache
+                try:
+                    validate_crawl_cache(data_root)
+                except ValueError as exc:
+                    cache_issue = str(exc).split(":", 1)[0]
+            if not sdk_present:
                 state = "NOT_INSTALLED"
+            elif cache_issue:
+                state = "RESTART_REQUIRED" if cache_issue == "CRAWL_CACHE_RESTART_REQUIRED" else "CACHE_CONFIGURATION_INVALID"
             elif checked is None:
                 state = "INSTALLED_NOT_CHECKED"
             else:
-                state = "READY" if checked["status"] == "WORKING" else "NOT_WORKING"
+                state = ("READY" if checked.get("page_read_verified") is True else
+                         "BROWSER_READY_PAGE_UNCHECKED") if checked["status"] == "WORKING" else "NOT_WORKING"
         elif not configured(PROVIDER_KEYS[provider]):
             state = "KEY_MISSING"
         else:
@@ -192,6 +204,9 @@ def provider_readiness() -> dict:
              "NOT_INSTALLED": "marketops_crawl4ai_check(repair=True), or run Repair.cmd "
                               "(Windows) / repair.sh in the MarketOps folder",
              "INSTALLED_NOT_CHECKED": "marketops_crawl4ai_check() (starts the browser once)",
+             "BROWSER_READY_PAGE_UNCHECKED": "marketops_crawl4ai_check(run_id=<current run>) to verify managed page reading",
+             "RESTART_REQUIRED": "restart the agent/MCP server to select the managed Crawl4AI cache before SDK import",
+             "CACHE_CONFIGURATION_INVALID": "correct the local Crawl4AI cache setting and restart the agent",
              "NOT_WORKING": "marketops_crawl4ai_check(repair=True), or run Repair.cmd / "
                             "repair.sh in the MarketOps folder"}
     import research_balances
@@ -610,7 +625,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         configured_root = None
     if configured_root is not None and runtime_setup.config(configured_root):
         from research_runtime_status import view
-        return {"product": "MarketOps Research MCP", "version": "0.5.9",
+        return {"product": "MarketOps Research MCP", "version": "0.5.10-rc1",
                 **view(configured_root, task_kind=task_kind),
                 "external_host": _external_inventory(host_observed_tools),
                 "embedded_official_mcp": provider_policy.embedded_official_mcp_capabilities(),
@@ -685,7 +700,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         if task_kind else None)
     return {
         "product": "MarketOps Lite Research MCP",
-        "version": "0.5.9",
+        "version": "0.5.10-rc1",
         "providers": {
             "serpapi": {"transport": "REST through local MCP", **search["serpapi"]},
             "serper": {"transport": "REST through local MCP", **search["serper"]},
@@ -908,6 +923,10 @@ def crawl4ai_down_notice(data_root) -> dict:
     """What the Agent tells the user when the local reader stops working."""
     import research_crawl_doctor as doctor
     last = (doctor.cached(data_root) or {})
+    if str(last.get("failed_step", "")).startswith("CACHE_"):
+        return {"status": "CRAWL4AI_NOT_WORKING_ON_THIS_COMPUTER", "failed_step": last["failed_step"],
+                "fix": last.get("fix", ""), "tell_the_user": last.get("fix", ""),
+                "repair": last.get("repair", "restart the agent/MCP server")}
     return {"status": "CRAWL4AI_NOT_WORKING_ON_THIS_COMPUTER",
             "failed_step": last.get("failed_step", ""), "fix": last.get("fix", ""),
             "tell_the_user": ("Crawl4AI, the free local page reader, is not working on this "
@@ -932,8 +951,9 @@ def crawl4ai_check(run_id="", repair=False) -> dict:
                                   run_id, "crawl4ai-self-check-" + os.urandom(4).hex())
             if answer.get("status") == "OK":
                 return True, ""
-            if answer.get("reason_code") in doctor.RUNTIME_FAILURES:
-                return False, answer.get("reason_code")
+            reason = answer.get("primary_reason_code") or answer.get("reason_code")
+            if reason in doctor.RUNTIME_FAILURES or answer.get("reason_code") == "CAPABILITY_NOT_AVAILABLE":
+                return False, reason
             return None  # the run's rules refused it: says nothing about the browser
     result = doctor.check(data_root, page_read=page_read)
     return {**result, "tell_the_user": "" if result["status"] == "WORKING"
@@ -1285,7 +1305,7 @@ def handoff(run_id, operation_id):
     try:
         experience_result = draft_experience(
             r, run_id=run_id, scope=head["scope"],
-            rule_version=head["rule_version"], skill_version="0.5.9",
+            rule_version=head["rule_version"], skill_version="0.5.10-rc1",
             output=experience_path)
         result["experience_candidate"] = str(experience_path)
         result["experience_incidents"] = experience_result["incidents"]
@@ -1450,7 +1470,7 @@ def build_server():
     _use_installed_browser()
     _ensure_repair_entrypoints()
     from mcp.server import MCPServer
-    mcp = MCPServer("MarketOps Lite Research", version="0.5.9")
+    mcp = MCPServer("MarketOps Lite Research", version="0.5.10-rc1")
 
     def tool(fn):
         if fn.__name__ not in PUBLIC_TOOLS:
@@ -2033,7 +2053,7 @@ def build_server():
             raise ValueError("EXPERIENCE_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT")
         output.parent.mkdir(parents=True, exist_ok=True)
         return draft_experience(r, run_id=run_id, scope=scope,
-                                rule_version=rule_version, skill_version="0.5.9",
+                                rule_version=rule_version, skill_version="0.5.10-rc1",
                                 output=output)
 
     @tool

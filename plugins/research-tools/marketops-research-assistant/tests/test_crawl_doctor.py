@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
@@ -54,6 +55,70 @@ class Check(unittest.TestCase):
     def test_a_failed_test_page_is_its_own_step(self):
         result = self.run_check(page_read=lambda: (False, "LOCAL_CRAWL_RUNTIME_FAILED"))
         self.assertEqual("PAGE_READ_FAILED", result["failed_step"])
+
+    def test_browser_start_alone_does_not_claim_page_read_verified(self):
+        result = self.run_check()
+        self.assertTrue(result["browser_verified"])
+        self.assertFalse(result["page_read_verified"])
+        self.assertEqual("NOT_REQUESTED", result["page_read_status"])
+
+    def test_initialized_wrong_sdk_cache_requires_restart_not_browser_reinstall(self):
+        fake = SimpleNamespace(DB_PATH=str(self.root / "wrong" / "crawl4ai.db"))
+        with patch.dict(sys.modules, {"crawl4ai.async_database": fake}):
+            result = self.run_check()
+        self.assertEqual("CACHE_RESTART_REQUIRED", result["failed_step"])
+        self.assertFalse(result["browser_verified"])
+        self.assertFalse(result["page_read_verified"])
+        self.assertIn("Restart", result["fix"])
+        self.assertNotIn("repair=True", result["repair"])
+
+    def test_policy_skipped_page_is_explicit_and_does_not_mark_browser_down(self):
+        result = self.run_check(page_read=lambda: None)
+        self.assertEqual("WORKING", result["status"])
+        self.assertEqual("SKIPPED_POLICY", result["page_read_status"])
+        self.assertFalse(result["page_read_verified"])
+        self.assertIsNone(health.blocked(self.root, "crawl4ai"))
+
+    def test_mcp_page_unavailable_is_a_failed_page_check(self):
+        import research_mcp as mcp
+        with patch.object(mcp, "root", return_value=self.root), \
+                patch.object(mcp, "managed_call", return_value={"status": "BLOCKED", "reason_code": "CAPABILITY_NOT_AVAILABLE"}), \
+                patch.object(live_local, "dependency_state", return_value=READY), \
+                patch.object(doctor, "_launch_probe", return_value=(True, "")):
+            result = mcp.crawl4ai_check(run_id="synthetic")
+        self.assertEqual("NOT_WORKING", result["status"])
+        self.assertEqual("PAGE_READ_FAILED", result["failed_step"])
+        self.assertFalse(result["page_read_verified"])
+
+    def test_status_does_not_import_sdk_or_create_cache_files(self):
+        import research_mcp as mcp
+        with patch.object(mcp, "root", return_value=self.root), \
+                patch("research_credentials.load_into_environment"), \
+                patch("research_egress.crawl4ai_ready", side_effect=AssertionError("premature SDK import")), \
+                patch.object(mcp.importlib.util, "find_spec", return_value=SimpleNamespace()):
+            result = mcp.provider_readiness()
+        self.assertEqual("INSTALLED_NOT_CHECKED", result["providers"]["crawl4ai"])
+        self.assertEqual([], list(self.root.iterdir()))
+
+    def test_browser_only_cached_check_is_not_reported_as_full_ready(self):
+        import research_mcp as mcp
+        self.run_check()
+        with patch.object(mcp, "root", return_value=self.root), \
+                patch("research_credentials.load_into_environment"), \
+                patch.object(mcp.importlib.util, "find_spec", return_value=SimpleNamespace()):
+            result = mcp.provider_readiness()
+        self.assertEqual("BROWSER_READY_PAGE_UNCHECKED", result["providers"]["crawl4ai"])
+
+    def test_another_process_success_cannot_hide_this_process_cache_conflict(self):
+        import research_mcp as mcp
+        self.run_check(page_read=lambda: (True, ""))
+        fake = SimpleNamespace(DB_PATH=str(self.root / "old" / "crawl4ai.db"))
+        with patch.object(mcp, "root", return_value=self.root), \
+                patch("research_credentials.load_into_environment"), \
+                patch.object(mcp.importlib.util, "find_spec", return_value=SimpleNamespace()), \
+                patch.dict(sys.modules, {"crawl4ai.async_database": fake}):
+            result = mcp.provider_readiness()
+        self.assertEqual("RESTART_REQUIRED", result["providers"]["crawl4ai"])
 
 
 class Counter(unittest.TestCase):

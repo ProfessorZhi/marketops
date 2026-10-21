@@ -91,8 +91,12 @@ Crawl4AI is the reader every harvest depends on. Do not silently replace it with
 
 - `marketops_setup_status` shows `provider_readiness.providers.crawl4ai`. Anything other than
   `READY` means acting before the research starts.
-- `INSTALLED_NOT_CHECKED`: run `marketops_crawl4ai_check(run_id=<this run>)`. It starts the
+- `INSTALLED_NOT_CHECKED` or `BROWSER_READY_PAGE_UNCHECKED`: run `marketops_crawl4ai_check(run_id=<this run>)`. It starts the
   browser once and reads one test page.
+- `RESTART_REQUIRED` / `CACHE_RESTART_REQUIRED`: restart the agent/MCP server. The SDK
+  was initialized before its managed cache; reinstalling Chromium does not fix that.
+- A browser-only `WORKING` result is not a page-read pass. Require
+  `page_read_verified=true`; `SKIPPED_POLICY` means the page was not tested.
 - `NOT_INSTALLED`, `NOT_WORKING` or `LOCAL_DOWN_...`: tell the user what the check found, then
   offer the repair (`marketops_crawl4ai_check(repair=true)`, or Repair.cmd / repair.sh in the
   MarketOps folder).

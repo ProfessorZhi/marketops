@@ -9,6 +9,11 @@ Runs on this machine with its own Chromium; no key, no per-page cost. It is rung
 `marketops_research_step`, `marketops_site_harvest` and `marketops_harvest_batch`; you rarely call it
 directly.
 
+Before the first read, run `marketops_crawl4ai_check(run_id=<this run>)` if status
+is `BROWSER_READY_PAGE_UNCHECKED` or `INSTALLED_NOT_CHECKED`. Only
+`page_read_verified=true` verifies the managed read path. A blank browser opening
+does not. `CACHE_RESTART_REQUIRED` needs an agent/MCP restart, not a browser reinstall.
+
 **What it is good at**: JavaScript-rendered pages, following real links (link-driven discovery found
 emails at 62–88% of sites; guessed paths 6.5%), keeping `mailto:` addresses, PDFs (minutes, annual
 reports naming officers).

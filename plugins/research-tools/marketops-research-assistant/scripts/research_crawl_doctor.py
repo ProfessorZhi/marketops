@@ -40,6 +40,8 @@ RUNTIME_FAILURES = frozenset({"LOCAL_CRAWL_RUNTIME_FAILED", "CRAWL4AI_LOCAL_NOT_
                               "LOCAL_DEPENDENCY_NOT_INSTALLED"})
 
 FIXES = {
+    "CACHE_RESTART_REQUIRED": "Restart the agent/MCP server: the SDK was imported before its managed cache was selected. Reinstalling Chromium is not required.",
+    "CACHE_CONFIGURATION": "The Crawl4AI cache must be an absolute path outside source control. Correct the local cache setting, then restart the agent.",
     "PACKAGES_MISSING": "Crawl4AI is not installed in the plugin's Python. Run the repair.",
     "BROWSER_MISSING": "The Chromium browser Crawl4AI uses is missing. Run the repair.",
     "BROWSER_WONT_START": ("Chromium is installed but will not start. Run the repair; if it "
@@ -103,9 +105,20 @@ def check(root: Path, *, page_read=None) -> dict:
     """Run the steps; keep and return the result. ``page_read()`` -> (ok, detail) or None."""
     from research_crawl4ai_live_local import dependency_state
     result = {"checked_at": _now().isoformat(timespec="seconds"),
-              "browser_path": os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "")}
+              "browser_path": os.environ.get("PLAYWRIGHT_BROWSERS_PATH", ""),
+              "browser_verified": False, "page_read_verified": False,
+              "page_read_status": "NOT_REQUESTED" if page_read is None else "NOT_RUN"}
+    from research_runtime_transport import validate_crawl_cache
+    try:
+        validate_crawl_cache(root)
+    except ValueError as exc:
+        code = str(exc).split(":", 1)[0]
+        result.update(status="NOT_WORKING", failed_step="CACHE_RESTART_REQUIRED"
+                      if code == "CRAWL_CACHE_RESTART_REQUIRED" else "CACHE_CONFIGURATION", detail=code)
     state = dependency_state()
-    if not (state["crawl4ai_importable"] and state["safe_egress_importable"]
+    if result.get("status") == "NOT_WORKING":
+        pass
+    elif not (state["crawl4ai_importable"] and state["safe_egress_importable"]
             and state["research_egress_importable"]):
         result.update(status="NOT_WORKING", failed_step="PACKAGES_MISSING", detail="")
     elif not state["chromium_present"]:
@@ -116,21 +129,26 @@ def check(root: Path, *, page_read=None) -> dict:
         if not launched:
             result.update(status="NOT_WORKING", failed_step="BROWSER_WONT_START", detail=detail)
         elif page_read is not None:
+            result["browser_verified"] = True
             _clear_down(root)  # else the page read is refused by the old mark
             read = page_read()
             if read is None:
-                result.update(status="WORKING", failed_step="", detail="page read not run")
+                result.update(status="WORKING", failed_step="", detail="page read blocked by run policy",
+                              page_read_status="SKIPPED_POLICY")
             elif read[0]:
-                result.update(status="WORKING", failed_step="", detail="")
+                result.update(status="WORKING", failed_step="", detail="", page_read_status="OK",
+                              page_read_verified=True)
             else:
                 result.update(status="NOT_WORKING", failed_step="PAGE_READ_FAILED",
-                              detail=str(read[1])[:160])
+                              detail=str(read[1])[:160], page_read_status="FAILED")
         else:
-            result.update(status="WORKING", failed_step="", detail="page read not run")
+            result.update(status="WORKING", failed_step="", detail="page read not run", browser_verified=True)
     if result["status"] == "NOT_WORKING":
         result["fix"] = FIXES[result["failed_step"]]
         result["repair"] = "marketops_crawl4ai_check(repair=True), or run: " + " ".join(
             f'"{part}"' for part in repair_command())
+        if result["failed_step"].startswith("CACHE_"):
+            result["repair"] = result["fix"]
     data = _read(root)
     data["last_check"] = result
     if result["status"] == "WORKING":
