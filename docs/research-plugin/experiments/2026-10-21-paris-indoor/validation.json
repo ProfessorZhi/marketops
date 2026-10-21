@@ -1,0 +1,28 @@
+{
+  "schema": "marketops.pilot-audit-validation.v1",
+  "date": "2026-10-21",
+  "result": "PASS",
+  "spreadsheet_sheets_reconciled": 9,
+  "delivery_file_hashes_verified": 18,
+  "session_transcript_calls_matched": 165,
+  "country_error_reproduced_offline": true,
+  "evaluated_module_matches_pinned_commit": true,
+  "count_and_money_state_reconciliations": "PASS",
+  "public_files_scanned": [
+    "collect_metrics.py",
+    "country_reproduction.json",
+    "metrics.json",
+    "NEXT_TRIAL.md",
+    "README.md",
+    "reproduce_country_error.py",
+    "source_hashes.json",
+    "tool_trace.json",
+    "validation.json"
+  ],
+  "credential_email_and_private_path_scan": "PASS",
+  "relative_markdown_links": "PASS",
+  "workbooks_modified": false,
+  "raw_inputs_published": false,
+  "new_provider_calls": 0,
+  "business_facts_or_deliverability_certified": false
+}
