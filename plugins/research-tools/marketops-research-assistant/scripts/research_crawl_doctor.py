@@ -83,8 +83,8 @@ def repair_command() -> list[str]:
 def _launch_probe() -> tuple[bool, str]:
     """Start headless Chromium and open a blank page, in its own process."""
     probe = ("from playwright.sync_api import sync_playwright\n"
-             "with sync_playwright() as p:\n"
-             "    b = p.chromium.launch(headless=True)\n"
+             "with sync_playwright() as pw:\n"
+             "    b = pw.chromium.launch(headless=True)\n"
              "    b.new_page().goto('about:blank')\n"
              "    b.close()\n"
              "print('LAUNCHED')\n")
