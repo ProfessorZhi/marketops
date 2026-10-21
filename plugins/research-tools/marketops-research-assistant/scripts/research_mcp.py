@@ -1232,7 +1232,7 @@ PUBLIC_TOOLS = frozenset({
     "marketops_pool_import", "marketops_pool_claim", "marketops_pool_complete",
     "marketops_pool_status", "marketops_harvest_batch", "marketops_lessons_report",
     "marketops_jev_triage", "marketops_suppression", "marketops_feedback_pack",
-    "marketops_pool_reopen",
+    "marketops_pool_reopen", "marketops_costs",
 })
 
 
@@ -1597,6 +1597,38 @@ def build_server():
         return research_pool.status(root(), pool_id=pool_id)
 
     @tool
+    def marketops_costs(action: str = "report", run_id: str = "", provider: str = "",
+                        capability: str = "", usd_per_unit: str = "", plan: str = "",
+                        left: float | None = None, unit: str = "") -> dict:
+        """Money, not just call counts: spend per project/Run/provider and account balances.
+
+        action="report": estimated spend (all Runs, or run_id), free allowances left.
+        action="balances": read SerpApi and TinyFish accounts now (free reads) and
+          estimate Serper/Jev from the last balance a person entered.
+        action="set_rate": the user's own price, e.g. provider="serpapi",
+          capability="search", usd_per_unit="0.015", plan="Developer".
+        action="set_balance": what a provider console shows, e.g. provider="serper",
+          left=2380, unit="credit".
+        Estimates say so; a provider account reading is the authority.
+        """
+        import research_balances
+        import research_costs
+        data_root = root()
+        if action == "report":
+            return research_costs.report(data_root, run_id=run_id or None)
+        if action == "balances":
+            return research_costs.balances(data_root)
+        if action == "set_rate":
+            return research_costs.set_rate(data_root, provider=provider, capability=capability,
+                                           usd_per_unit=usd_per_unit or None, plan=plan)
+        if action == "set_balance":
+            if left is None:
+                raise ValueError("BALANCE_REQUIRED: left=<number shown in the console>")
+            return research_balances.record_manual(data_root, provider=provider, left=left,
+                                                   unit=unit or "credit")
+        raise ValueError("COSTS_ACTION_INVALID: report, balances, set_rate or set_balance")
+
+    @tool
     def marketops_pool_reopen(pool_id: str, reason: str) -> dict:
         """Put HOLD targets back to pending once their cause is fixed.
 
@@ -1738,8 +1770,19 @@ def build_server():
 
     @tool
     def marketops_handoff(run_id: str, operation_id: str) -> dict:
-        """Deliver one audited candidate XLSX/CSV snapshot and experience artifacts with partial failures visible."""
-        return handoff(run_id, operation_id)
+        """Deliver one audited candidate XLSX/CSV snapshot and experience artifacts with partial failures visible.
+
+        The reply carries this Run's estimated spend per provider; report it to the user.
+        """
+        result = handoff(run_id, operation_id)
+        try:
+            import research_costs
+            spend = research_costs.report(root(), run_id=run_id)
+            result["run_cost"] = {"total_estimated_usd": spend["total_estimated_usd"],
+                                  "by_provider": spend["by_provider"]}
+        except Exception as exc:  # noqa: BLE001 - delivery never fails for a cost summary
+            result["run_cost"] = {"status": "UNAVAILABLE", "reason": type(exc).__name__}
+        return result
 
     @tool
     def marketops_experience_recall(run_id: str, stage: str = "intake",

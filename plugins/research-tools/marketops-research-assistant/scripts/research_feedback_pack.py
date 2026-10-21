@@ -95,6 +95,18 @@ def build(data_root=None, *, reporter: str = "", out_dir: Path | None = None) ->
     lines += [f"- {p}: {n}" for p, n in usage.items()] or ["- 读不到调用台账"]
     if unused:
         lines += ["", "未被调用：" + ", ".join(unused) + "（请检查 key、额度或流程）"]
+    try:
+        import research_costs
+        spend = research_costs.report(root)
+        lines += ["", "按标价估算的费用（单价见插件价目表；免费额度内实际可能是 $0）：",
+                  f"- 合计：{spend['total_estimated_usd']}"]
+        lines += [f"- {p}: {b['estimated_usd']}（{b['calls']} 次，{b['units']} 个计费单位）"
+                  for p, b in spend["by_provider"].items()]
+        stored = __import__("research_balances").readings(root)
+        lines += [f"- {p} 账户余额：{r.get('left')} {r.get('unit')}（{r.get('observed_at')}）"
+                  for p, r in stored.items() if r.get("left") is not None]
+    except Exception:  # noqa: BLE001 - the pack is still useful without a cost section
+        lines += ["", "费用：读取失败"]
     lines += ["", "## 4. 被拦截最多的网站与类型", ""]
     lines += [f"- {code}: {n}" for code, n in walls["walls"].items()] or ["- 无"]
     lines += [f"- {host}: {n}" for host, n in walls["top_blocked_hosts"].items()]

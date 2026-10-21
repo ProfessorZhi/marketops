@@ -270,6 +270,7 @@ def ledger_request_builder(root=None):
     import research_usage_ledger as ledger_module
 
     project = ledger_module.project_for_root(root)
+    from research_costs import billed_units
 
     def build(entry, request):
         # The live entry is the authority, not `REVIEWED_CAPABILITY`: the gateway
@@ -292,6 +293,8 @@ def ledger_request_builder(root=None):
             transport=entry.transport,
             intent=getattr(request, "intent_fingerprint", "") or entry.capability_id,
             args=dict(getattr(request, "params", {}) or {}),
+            units=billed_units(entry.provider, capability,
+                               dict(getattr(request, "params", {}) or {})),
             grant=getattr(request, "grant_ref", None) or "")
 
     build.project = project  # type: ignore[attr-defined]
