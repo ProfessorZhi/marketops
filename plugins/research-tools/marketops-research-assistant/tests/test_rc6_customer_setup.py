@@ -18,7 +18,7 @@ class CustomerSetupTests(unittest.TestCase):
     def test_synced_folder_is_warned(self):
         out = io.StringIO()
         with redirect_stdout(out):
-            setup.warn_sync_folder("C:/Users/bruce/OneDrive/MarketOps")
+            setup.warn_sync_folder("C:/Users/someone/OneDrive/MarketOps")
             setup.warn_sync_folder("D:/MarketOps/data")
         self.assertEqual(1, out.getvalue().count("警告"))
 

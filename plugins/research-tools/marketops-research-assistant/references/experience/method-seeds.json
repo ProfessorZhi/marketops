@@ -2,7 +2,7 @@
   "schema_version": "marketops.method-seeds.v1",
   "methods": [
     {
-      "id": "bruce-source-first", "source_type": "historical_advisory",
+      "id": "method-source-first", "source_type": "historical_advisory",
       "source_revision": "627ff430c64ebe5339ae15034343db4ff726fed6", "source_locator": "GOLDEN_PATTERNS:GP-08",
       "stages": ["intake", "discovery", "acquisition"], "providers": [],
       "when": "A public directory or source must be discovered.",
@@ -11,7 +11,7 @@
       "limitations": "Generalized historical method; access permission, freshness and the current Brief still govern. No historical success rate is promised."
     },
     {
-      "id": "bruce-real-body", "source_type": "historical_advisory",
+      "id": "method-real-body", "source_type": "historical_advisory",
       "source_revision": "627ff430c64ebe5339ae15034343db4ff726fed6", "source_locator": "GOLDEN_PATTERNS:GP-07,GP-11,GP-12",
       "stages": ["acquisition", "review", "handoff"], "providers": [],
       "when": "A tool reports success or an extraction returns zero.",
@@ -20,8 +20,8 @@
       "limitations": "Intact bytes prove integrity only. Semantic meaning, source authority and business criteria still need assessment."
     },
     {
-      "id": "bruce-reconcile-delivery", "source_type": "historical_advisory",
-      "source_revision": "627ff430c64ebe5339ae15034343db4ff726fed6", "source_locator": "GOLDEN_PATTERNS:GP-13,GP-14;BRUCE_INTERVENTION_MAP:INT-042,INT-054",
+      "id": "method-reconcile-delivery", "source_type": "historical_advisory",
+      "source_revision": "627ff430c64ebe5339ae15034343db4ff726fed6", "source_locator": "GOLDEN_PATTERNS:GP-13,GP-14;INTERVENTION_MAP:INT-042,INT-054",
       "stages": ["entities", "review", "export", "handoff"], "providers": [],
       "when": "Collected candidates are saved or delivered.",
       "do": "Reconcile unique input objects with stored, held and rejected objects; reopen the actual export and its source references.",
@@ -29,8 +29,8 @@
       "limitations": "A complete export can contain unresolved candidates; report business completeness separately."
     },
     {
-      "id": "bruce-entity-role", "source_type": "historical_advisory",
-      "source_revision": "627ff430c64ebe5339ae15034343db4ff726fed6", "source_locator": "GOLDEN_PATTERNS:GP-17;BRUCE_INTERVENTION_MAP:INT-033,INT-052",
+      "id": "method-entity-role", "source_type": "historical_advisory",
+      "source_revision": "627ff430c64ebe5339ae15034343db4ff726fed6", "source_locator": "GOLDEN_PATTERNS:GP-17;INTERVENTION_MAP:INT-033,INT-052",
       "stages": ["intake", "entities", "qualification", "people", "routes"], "providers": [],
       "when": "A venue, organization, person or contact route is classified.",
       "do": "Bind each relationship to source text and the current Brief. One organization may operate several venues; customers and equipment suppliers differ.",
@@ -38,7 +38,7 @@
       "limitations": "The current task defines target roles and whether a named person is required. This method cannot change those rules."
     },
     {
-      "id": "bruce-correct-and-stop", "source_type": "historical_advisory",
+      "id": "method-correct-and-stop", "source_type": "historical_advisory",
       "source_revision": "627ff430c64ebe5339ae15034343db4ff726fed6", "source_locator": "GOLDEN_PATTERNS:GP-05,GP-06",
       "stages": ["discovery", "acquisition", "review", "handoff"], "providers": [],
       "when": "A method stops yielding evidence or a later observation contradicts prior advice.",

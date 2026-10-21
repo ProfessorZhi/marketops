@@ -169,7 +169,7 @@ class NoteTests(unittest.TestCase):
             self.assertEqual("RECORDED", result["result"])
             self.assertIsInstance(result["sequence"], int)
 
-    def test_the_bruce_audit_categories_are_recordable(self):
+    def test_the_audit_categories_are_recordable(self):
         with tempfile.TemporaryDirectory() as tmp:
             data, _ = paths(tmp)
             seed_run(data, "run-a")
