@@ -42,7 +42,7 @@ def _rewrite(path: Path, old: str, new: str) -> bool:
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return False
-    # The same path appears as written, JSON-escaped (C:\\Users), and with
+    # The same path appears as written, JSON-escaped (doubled backslashes), and with
     # forward slashes; each spelling is replaced by the same spelling of `new`.
     pairs = [(old.replace("\\", "\\\\"), new.replace("\\", "\\\\")),
              (old, new),
