@@ -14,6 +14,8 @@ the next provider takes over at once.
 from __future__ import annotations
 
 import json
+import sqlite3
+from contextlib import closing
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -37,6 +39,17 @@ def _now() -> datetime:
 
 
 def _read(root: Path) -> dict:
+    database = Path(root) / "state" / "provider-health.sqlite3"
+    if database.is_file():
+        with closing(sqlite3.connect(database, timeout=30)) as db:
+            if db.execute("SELECT 1 FROM sqlite_master WHERE name='health'").fetchone() is None:
+                return _legacy_read(root)
+            return {provider: json.loads(entry)
+                    for provider, entry in db.execute("SELECT provider, entry FROM health")}
+    return _legacy_read(root)
+
+
+def _legacy_read(root: Path) -> dict:
     try:
         data = json.loads(_path(root).read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -44,12 +57,24 @@ def _read(root: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def _write(root: Path, data: dict) -> None:
-    path = _path(root)
+def _update(root: Path, provider: str, entry: dict | None) -> None:
+    # Discovery runs two providers concurrently, and several chats share this
+    # root. A JSON read/modify/replace can lose another provider's quota mark.
+    path = Path(root) / "state" / "provider-health.sqlite3"
     path.parent.mkdir(parents=True, exist_ok=True)
-    temp = path.with_suffix(".tmp")
-    temp.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-    temp.replace(path)
+    with closing(sqlite3.connect(path, timeout=30)) as db, db:
+        db.execute("BEGIN IMMEDIATE")
+        db.execute("CREATE TABLE IF NOT EXISTS health (provider TEXT PRIMARY KEY, entry TEXT)")
+        db.execute("CREATE TABLE IF NOT EXISTS migration (version INTEGER PRIMARY KEY)")
+        if db.execute("SELECT 1 FROM migration WHERE version=1").fetchone() is None:
+            db.executemany("INSERT OR IGNORE INTO health VALUES (?, ?)",
+                           [(p, json.dumps(e)) for p, e in _legacy_read(root).items()])
+            db.execute("INSERT INTO migration VALUES (1)")
+        if entry is None:
+            db.execute("DELETE FROM health WHERE provider=?", (provider,))
+        else:
+            db.execute("INSERT OR REPLACE INTO health VALUES (?, ?)",
+                       (provider, json.dumps(entry)))
 
 
 def classify(answer: dict) -> str:
@@ -78,34 +103,32 @@ def _until(provider: str, state: str) -> str:
 
 
 def record(root: Path, provider: str, state: str, *, detail: str = "") -> dict:
-    data = _read(root)
     entry = {"state": state, "since": _now().isoformat(), "until": _until(provider, state),
              "detail": str(detail)[:120]}
-    data[provider] = entry
-    _write(root, data)
+    _update(root, provider, entry)
     return entry
 
 
 def clear(root: Path, provider: str) -> None:
     """A person topped up or a new balance was read: try the provider again."""
-    data = _read(root)
-    if data.pop(provider, None) is not None:
-        _write(root, data)
+    if provider in _read(root):
+        _update(root, provider, None)
 
 
 def blocked(root: Path, provider: str) -> dict | None:
     entry = _read(root).get(provider)
-    if not entry:
-        return None
-    try:
-        until = datetime.fromisoformat(entry["until"])
-    except (KeyError, ValueError):
-        return None
-    return entry if until > _now() else None
+    return entry if entry and _active(entry) else None
 
 
 def status(root: Path) -> dict:
-    return {p: e for p in _read(root) if (e := blocked(root, p))}
+    return {p: e for p, e in _read(root).items() if _active(e)}
+
+
+def _active(entry: dict) -> bool:
+    try:
+        return datetime.fromisoformat(entry["until"]) > _now()
+    except (KeyError, ValueError, TypeError):
+        return False
 
 
 def refusal(provider: str, capability_id: str, entry: dict) -> dict:

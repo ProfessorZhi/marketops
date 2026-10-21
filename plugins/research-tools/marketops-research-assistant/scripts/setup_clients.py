@@ -490,7 +490,8 @@ def install(destination: Path, client: str, *, dependencies: bool,
         # Run builder with the installed venv interpreter on *this machine*.
         # Its mcp.json paths are fixed to the customer-controlled stable package directory.
         command = [str(py), str(target / "scripts" / "build_client_bundles.py"),
-                   "--output", str(dest / "connectors"), "--with-research-mcp"]
+                   "--output", str(dest / "connectors"), "--with-research-mcp",
+                   "--host-install-root", str(dest)]
         if browser:
             command += ["--browser-cache", str(browser_root)]
         bundle_receipt = dest / "WORKBUDDY_BUNDLE.json"
@@ -529,10 +530,12 @@ def install(destination: Path, client: str, *, dependencies: bool,
     app_root = release_layout.app_root_for(dest)
     if app_root is not None:
         results["host_files_rebased"] = release_layout.rebase_host_files(dest, target)
-        results["update_entrypoints"] = release_layout.write_update_entrypoints(
-            app_root, client=client, register_codex=register_codex)
         if switch_current:
             results["current"] = release_layout.switch_current(app_root, dest)
+            results["update_entrypoints"] = release_layout.write_update_entrypoints(
+                app_root, client=client, register_codex=register_codex,
+                runtime={"dependencies": dependencies, "local_crawl": local_crawl,
+                         "browser": browser})
             if register_codex:
                 _register_codex(release_layout.current_link(app_root), results)
         stable = str(release_layout.current_link(app_root))

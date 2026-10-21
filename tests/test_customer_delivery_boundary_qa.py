@@ -66,7 +66,8 @@ LEGIT_MATERIAL = (
     b"<h1>Example Borough Council</h1>"
     b"<p>Grounds team contact: grounds@example.org</p>"
     b"<p>Secondary mailbox: secondary@example.org</p>"
-    b"<p>Venue: Example Sports Ground. Staff: Grounds Team.</p>"
+    b"<p>Example Borough Council operates Example Sports Ground.</p>"
+    b"<p>Example Borough Council staff: Grounds Team.</p>"
     b"</body></html>"
 )
 UNBOUND_MATERIAL = b"<html><body><p>Unbound mailbox: unbound@example.org</p></body></html>"
@@ -142,7 +143,8 @@ class CustomerDeliveryBoundaryQATest(unittest.TestCase):
                 "name": "Example Sports Ground",
                 "organization_id": LEGIT_ORG_KEY,
                 "claims": [
-                    {"field": "identity", "artifact_id": ART, "quote": "Example Sports Ground"}
+                    {"field": "identity", "artifact_id": ART,
+                     "quote": "Example Borough Council operates Example Sports Ground"}
                 ],
             },
             [ART],
@@ -166,7 +168,8 @@ class CustomerDeliveryBoundaryQATest(unittest.TestCase):
                 "role_title": "Grounds Team",
                 "organization_id": LEGIT_ORG_KEY,
                 "claims": [
-                    {"field": "identity", "artifact_id": ART, "quote": "Staff: Grounds Team"}
+                    {"field": "identity", "artifact_id": ART,
+                     "quote": "Example Borough Council staff: Grounds Team"}
                 ],
             },
             [ART],

@@ -769,7 +769,6 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
     # Admitted relationships are reported in the manifest; the fixed nine-sheet
     # contract has no client relationship sheet, so no row is invented for them.
     relationships = admitted_by_kind["relationship"]
-    org_by_key = {org["entity_key"]: org for org in organizations}
 
     issues: list[dict] = []
 

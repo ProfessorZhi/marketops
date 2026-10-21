@@ -86,6 +86,7 @@ class AllFiveTakePartTests(unittest.TestCase):
         self.assertEqual("wanted_role_person", result["routes"][0]["role"])
 
     def test_discovery_search_merges_serper_and_tinyfish(self):
+        import tempfile
         from unittest import mock
         import research_mcp as mcp
 
@@ -96,7 +97,9 @@ class AllFiveTakePartTests(unittest.TestCase):
                     "tinyfish": ["https://b.example/", "https://c.example/"]}[provider]
             return {"organic": [{"url": u, "title": u} for u in urls]}
         real = mcp.search
-        with mock.patch.object(mcp, "search", side_effect=fake):
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(mcp, "root", return_value=Path(tmp)), \
+                mock.patch.object(mcp, "search", side_effect=fake):
             out = mcp.search("all", "coworking Austin", "us", "en", "r", "s1")
         self.assertEqual(["https://a.example/", "https://b.example/", "https://c.example/"],
                          [r["url"] for r in out["results"]])

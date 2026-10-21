@@ -21,7 +21,6 @@ blocked hosts and unknown charges are reported, never retried.
 from __future__ import annotations
 
 import hashlib
-import html as html_lib
 import json
 import re
 import time

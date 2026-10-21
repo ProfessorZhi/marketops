@@ -1,5 +1,10 @@
 # sources/ —— 业务原始材料冻结快照
 
+公开仓例外：本树经过 [脱敏](../REDACTION.md)，下文的逐字节复制纪律描述脱敏前的
+采集阶段。`snapshot_sha256` 保留原始历史 pin，`public_snapshot_sha256` 校验当前
+公开文件；`manifest.yaml` 的 `publication` 声明这两种含义。详见
+[公开快照 provenance](../docs/PUBLIC_SNAPSHOT_PROVENANCE.md)。
+
 ## 1. 这是什么
 
 `sources/` 是 **MarketOps 使用的业务原始材料的冻结快照**。

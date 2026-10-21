@@ -59,6 +59,9 @@ def latest_release(repo: str, prerelease: bool, get=None) -> dict | None:
     releases = json.loads((get or _get)(API.format(repo=repo)))
     best = None
     for release in releases:
+        tag = TAG.fullmatch(release.get("tag_name", ""))
+        if tag is None or (tag.group(4) and not prerelease):
+            continue
         if release.get("draft") or (release.get("prerelease") and not prerelease):
             continue
         key = version_key(release.get("tag_name", ""))
@@ -68,8 +71,10 @@ def latest_release(repo: str, prerelease: bool, get=None) -> dict | None:
 
 
 def _asset(release: dict, suffix: str) -> dict:
+    version = release["tag_name"].removeprefix("marketops-v")
+    expected = f"{PLUGIN}-v{version}{suffix}"
     for asset in release.get("assets", []):
-        if asset["name"].startswith(PLUGIN) and asset["name"].endswith(suffix):
+        if asset["name"] == expected:
             return asset
     raise ValueError(f"RELEASE_ASSET_MISSING: {suffix}")
 
@@ -100,6 +105,8 @@ def self_check(version_dir: Path) -> dict:
 
 
 def install(root: Path, release: dict, settings: dict) -> Path:
+    if not TAG.fullmatch(release.get("tag_name", "")):
+        raise ValueError("RELEASE_TAG_INVALID")
     version = release["tag_name"].removeprefix("marketops-v")
     work = root / "downloads" / version
     zip_path = download(release, work)
@@ -110,14 +117,22 @@ def install(root: Path, release: dict, settings: dict) -> Path:
     installer = source / PLUGIN / "scripts" / "setup_clients.py"
     target = root / "releases" / version
     command = [sys.executable, str(installer), "--destination", str(target),
-               "--client", settings.get("client", "both"), "--apply", "--bootstrap-runtime",
-               "--no-switch-current"]
+               "--client", settings.get("client", "both"), "--apply", "--no-switch-current"]
+    runtime = settings.get("runtime", {"dependencies": True})
+    for key, flag in (("dependencies", "--install-deps"),
+                      ("local_crawl", "--install-local-crawl"),
+                      ("browser", "--install-crawl-browser")):
+        if runtime.get(key):
+            command.append(flag)
     if target.exists():
         command.append("--resume")
     done = subprocess.run(command, capture_output=True, text=True)
-    if done.returncode not in (0, 2):
-        raise ValueError("NEW_VERSION_INSTALL_FAILED: see " + str(work / "install.log"))
     (work / "install.log").write_text(done.stdout[-20000:], encoding="utf-8")
+    if done.returncode != 0:
+        raise ValueError("NEW_VERSION_INSTALL_FAILED: see " + str(work / "install.log"))
+    manifest = target / "plugins" / PLUGIN / "plugin.json"
+    if json.loads(manifest.read_text(encoding="utf-8")).get("version") != version:
+        raise ValueError("NEW_VERSION_MANIFEST_MISMATCH")
     return target
 
 
@@ -148,13 +163,19 @@ def main(argv=None) -> int:
     current = installed_version(root)
 
     if args.rollback:
-        older = [v for v in release_layout.installed_versions(root)
-                 if version_key(v) and version_key(v) < version_key(current)]
-        if not older:
+        # A directory can be a failed staged install. Roll back only to the
+        # version that was active before a successful update, never the highest
+        # directory name left behind by a failed attempt.
+        back = settings.get("previous_version", "")
+        if not version_key(back) or not (root / "releases" / back).is_dir():
             print(json.dumps({"status": "NO_EARLIER_VERSION", "current": current}))
             return 1
-        back = max(older, key=version_key)
+        if not self_check(root / "releases" / back)["ok"]:
+            print(json.dumps({"status": "ROLLBACK_VERSION_FAILED_CHECK", "current": current}))
+            return 2
         release_layout.switch_current(root, root / "releases" / back)
+        settings.pop("previous_version", None)
+        _save_settings(root, settings)
         print(json.dumps({"status": "ROLLED_BACK", "from": current, "to": back,
                           "codex": reregister(root, settings),
                           "next": "restart your agent (Codex / WorkBuddy / Claude Code)"}))
@@ -177,6 +198,8 @@ def main(argv=None) -> int:
                           "current": current, "tried": newest, "check": check}))
         return 2
     switched = release_layout.switch_current(root, target)
+    settings["previous_version"] = current
+    _save_settings(root, settings)
     print(json.dumps({"status": "UPDATED", "from": current, "to": newest,
                       "tools": check["tools"], "codex": reregister(root, settings),
                       "previous_kept_for_rollback": switched["previous"],
@@ -184,6 +207,13 @@ def main(argv=None) -> int:
                               "WorkBuddy: if it still shows the old version, re-import the "
                               "connector from <root>/current/connectors once"}, ensure_ascii=False))
     return 0
+
+
+def _save_settings(root: Path, settings: dict) -> None:
+    path = root / "update-settings.json"
+    staged = path.with_suffix(".tmp")
+    staged.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
+    staged.replace(path)
 
 
 if __name__ == "__main__":

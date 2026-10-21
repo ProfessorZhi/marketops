@@ -1,6 +1,8 @@
 # MarketOps 业务原始材料 —— 冻结快照的 provenance 清单
 #
 # 本文件回答的唯一问题：sources/ 里每一个字节是从哪里来的、选了多少、怎么选出来的。
+# 公开树经过脱敏：以下逐字节约束描述采集阶段。snapshot_sha256 保留原始 pin，
+# public_snapshot_sha256 校验当前公开字节；见 publication 与 REDACTION.md。
 #
 # 三条不变量（由 tests/test_business_sources.py 守着）：
 #   1. 每条快照消息都是上游对应行的**逐字节**副本 —— 不做重写、不补字段、不删字段。
@@ -45,6 +47,12 @@
 #     `test_entry_level_pins_are_reachable_from_the_upstream_remote`。
 
 schema: marketops/business-source-snapshot.v1
+
+publication:
+  snapshot_kind: redacted-public-derivative
+  redaction_policy: REDACTION.md
+  snapshot_sha256: Historical pre-redaction snapshot pin; never rewritten.
+  public_snapshot_sha256: SHA256 of the published derivative bytes in this repository.
 
 source_repository: ProfessorZhi/upstream-records
 source_repository_commit: b81eb7760e6c93b3a361c1e300a908095cbfeebc
@@ -131,6 +139,7 @@ sources:
     snapshot_path: sources/member-a-private/marketops-messages.jsonl
     snapshot_message_count: 20
     snapshot_sha256: 206420c655ebc0e1548c5262c757ddda0c0ab716c37222089c2878b1556baefe
+    public_snapshot_sha256: 1fabe8c9549a2bbf4d6f45ce44d7b8d564ea17a0b7efc1d29d52f2bb97e57a71
 
   - id: member-d-private
     type: feishu-p2p-chat
@@ -152,6 +161,7 @@ sources:
     snapshot_path: sources/member-d-private/marketops-messages.jsonl
     snapshot_message_count: 0
     snapshot_sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    public_snapshot_sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 
   - id: member-c-private
     type: feishu-p2p-chat
@@ -252,6 +262,7 @@ sources:
     snapshot_path: sources/member-c-private/marketops-messages.jsonl
     snapshot_message_count: 67
     snapshot_sha256: a594f1b7dca225e016a51930dde1d9d05fa12795b1dc3e362679b872acb7c8a4
+    public_snapshot_sha256: fef2643fb04e9b440604612143518d864801f3777f56718c202ee9cb1f84dd8d
     # 与本段同期的两个 .docx 与一张 .png 见下方「私聊附件」一节。09-11 那天的那张 jpg
     # 不在这里：它属于被排除的那一段，且带凭据形状（上游已占位）—— 排除段与排除附件
     # 是同一个决定，所以这份快照里没有凭据形状的附件。
@@ -271,6 +282,7 @@ sources:
     snapshot_path: sources/party-group/messages.jsonl
     snapshot_message_count: 22
     snapshot_sha256: 6c7102da5ab5821fac06cd8ca0bdf97213373ffea266f46f425dc9b871404821
+    public_snapshot_sha256: a5c7b3b3a1620f36e555dee76cc095bfb1946e6d1bb885e6f5a31ef36e610a29
 
   # ---------------------------------------------------------------- SOP（原样复制）
   - id: sop-uk-natural-grass-acme-v1
@@ -296,6 +308,7 @@ sources:
       正文里的飞书链接与「当前暂停」状态属于原文，不得为了整洁而修掉。
     snapshot_path: sources/party-group/sop/uk-natural-grass-acme-sop-v1.md
     snapshot_sha256: 7d9c602c6e8cca0eceaaaac47ac9e41c559e9d007c2cd41b88a5a89bc59628ec
+    public_snapshot_sha256: 2e4b837b60ec8d5ed86007e669c6f3fcb30bc5c381efb902b2dbafdbbb8cc6c3
 
   # ---------------------------------------------------------------- 图片（原样复制）
   - id: member-c-scene-email-pool-sheet

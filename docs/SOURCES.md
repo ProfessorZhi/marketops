@@ -1,5 +1,9 @@
 # MarketOps — 业务来源权威声明
 
+公开仓的 `sources/` 是脱敏派生文件。以下逐字节约束指采集阶段；原始历史 pin
+由 `snapshot_sha256` 保留，公开文件完整性由 `public_snapshot_sha256` 校验，见
+[公开快照 provenance](PUBLIC_SNAPSHOT_PROVENANCE.md) 与根目录 `REDACTION.md`。
+
 本文件不是「来源说明」。它声明**谁是业务事实的权威、谁不是**，以及两边冲突时哪一边赢。
 
 `docs/` 下其它文件回答「我们怎么做」；本文件回答「我们凭什么认为该这么做」。

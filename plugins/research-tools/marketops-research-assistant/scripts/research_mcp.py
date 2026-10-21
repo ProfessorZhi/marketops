@@ -924,7 +924,7 @@ def _search_all(query, country, language, run_id, operation_id, limit):
                 seen.add(url)
                 merged.append({"title": hit.get("title"), "url": url,
                                "snippet": hit.get("snippet") or hit.get("description"),
-                               "found_by": provider})
+                               "found_by": answer.get("substituted_by", provider)})
     import research_provider_health as health
     out = {"status": "OK", "query": query, "results": merged,
            "by_provider": {p: (len(_hits(a)) if "error" not in a else a["error"])

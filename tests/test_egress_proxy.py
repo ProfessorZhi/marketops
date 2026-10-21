@@ -54,6 +54,8 @@ _PUBLIC = "93.184.216.34"
 class _StubGate:
     """一个说死了的判据。它存在的理由是让「代理照判据的结论做了什么」可观测。"""
 
+    upstream = None
+
     def __init__(self, verdict: EgressVerdict) -> None:
         self._verdict = verdict
         self.asked: list[tuple[str, int]] = []

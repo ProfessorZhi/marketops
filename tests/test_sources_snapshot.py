@@ -355,7 +355,9 @@ def test_every_entry_resolves_to_a_full_sha_commit(manifest):
 
 #: 快照条目才有的字段。声明为「刻意未捕获」的条目**一个都不许带** ——
 #: 两个状态都写会让「它到底收没收」在文件里没有唯一答案。
-_SNAPSHOT_ONLY_FIELDS = ("snapshot_path", "snapshot_sha256", "selection", "message_ids")
+_SNAPSHOT_ONLY_FIELDS = (
+    "snapshot_path", "snapshot_sha256", "public_snapshot_sha256", "selection", "message_ids"
+)
 
 
 def _declared_entries(manifest: dict) -> list[dict]:
@@ -469,9 +471,9 @@ def test_snapshot_hashes_match_the_files(manifest):
         path = REPO_ROOT / entry["snapshot_path"]
         if not path.is_file():
             continue
-        declared = str(entry.get("snapshot_sha256", ""))
+        declared = str(entry.get("public_snapshot_sha256", ""))
         assert _SHA256_RE.match(declared), (
-            f"{entry['id']} 的 snapshot_sha256 不是 64 位小写 hex: {declared!r}"
+            f"{entry['id']} 的 public_snapshot_sha256 不是 64 位小写 hex: {declared!r}"
         )
         actual = _sha256(path)
         checked += 1
@@ -483,6 +485,27 @@ def test_snapshot_hashes_match_the_files(manifest):
     assert not offenders, (
         "快照被改过（或 manifest 被改过）:\n  " + "\n  ".join(offenders)
     )
+
+
+def test_publication_declares_redaction_and_preserves_upstream_pins(manifest):
+    publication = manifest.get("publication", {})
+    assert publication.get("snapshot_kind") == "redacted-public-derivative"
+    assert publication.get("redaction_policy") == "REDACTION.md"
+    for entry in _declared_entries(manifest):
+        for field in ("snapshot_sha256", "public_snapshot_sha256"):
+            assert _SHA256_RE.fullmatch(str(entry.get(field, ""))), (
+                f"{entry['id']}: missing or invalid {field}"
+            )
+
+
+@pytest.mark.parametrize("field", ["snapshot_sha256", "public_snapshot_sha256"])
+def test_removing_either_snapshot_pin_is_rejected(manifest, field):
+    import copy
+
+    changed = copy.deepcopy(manifest)
+    _declared_entries(changed)[0].pop(field)
+    with pytest.raises(AssertionError, match=field):
+        test_publication_declares_redaction_and_preserves_upstream_pins(changed)
 
 
 def test_every_file_under_sources_is_declared(manifest):

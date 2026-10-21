@@ -1,5 +1,6 @@
 """A provider out of credit is skipped at once, remembered, and reported."""
 import sys
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -59,8 +60,47 @@ class Remember(unittest.TestCase):
         balances.record_manual(self.root, provider="serper", left=50, unit="credit")
         self.assertTrue(any(w.startswith("serper") for w in balances.warnings(self.root)))
 
+    def test_concurrent_provider_failures_do_not_lose_each_others_marks(self):
+        from concurrent.futures import ThreadPoolExecutor
+
+        providers = [f"provider-{i}" for i in range(30)]
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            list(pool.map(lambda p: health.record(self.root, p, "QUOTA_EXHAUSTED"), providers))
+        self.assertEqual(set(providers), set(health.status(self.root)))
+
+    def test_legacy_json_is_migrated_once_and_a_cleared_mark_stays_cleared(self):
+        health.record(self.root, "serper", "QUOTA_EXHAUSTED")
+        legacy = health.status(self.root)
+        database = self.root / "state/provider-health.sqlite3"
+        database.unlink()
+        health._path(self.root).write_text(json.dumps(legacy), encoding="utf-8")
+        health.clear(self.root, "serper")
+        health.record(self.root, "jev", "RATE_LIMITED")
+        self.assertEqual({"jev"}, set(health.status(self.root)))
+
 
 class Chain(unittest.TestCase):
+    def test_discovery_credits_the_substitute_and_keeps_the_healthy_provider(self):
+        from unittest.mock import patch
+        import research_mcp as mcp
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            health.record(root, "serper", "QUOTA_EXHAUSTED")
+
+            def search(provider, *args, **kwargs):
+                if provider == "serper":
+                    raise ValueError("BUDGET_PROVIDER_CEILING")
+                return {"results": [{"url": f"https://{provider}.example/"}]}
+
+            with patch.object(mcp, "root", return_value=root), \
+                    patch.object(mcp, "search", side_effect=search) as called:
+                answer = mcp._search_all("clubs", "us", "en", "r", "op", 10)
+            self.assertEqual({"serper", "serpapi", "tinyfish"},
+                             {call.args[0] for call in called.call_args_list})
+            self.assertEqual(["serpapi", "tinyfish"], [h["found_by"] for h in answer["results"]])
+            self.assertEqual({"serper": "serpapi"}, answer["substituted"])
+
     def test_the_first_exhausted_answer_moves_the_chain_on(self):
         answer = {**failed("HTTP 400: Not enough credits"),
                   "provider_health": {"provider": "serper", "state": "QUOTA_EXHAUSTED"}}

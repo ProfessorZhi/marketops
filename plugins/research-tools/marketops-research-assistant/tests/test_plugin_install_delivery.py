@@ -227,7 +227,7 @@ class DeliveryTests(unittest.TestCase):
 
     def test_unsupported_python_is_rejected_before_writing(self):
         with tempfile.TemporaryDirectory() as tmp, patch.object(setup_clients.sys, "version_info", (3, 11, 9)):
-            with self.assertRaisesRegex(ValueError, "PYTHON_312_64BIT_REQUIRED") as caught:
+            with self.assertRaisesRegex(ValueError, "PYTHON_312_64BIT_REQUIRED"):
                 setup_clients.plan(Path(tmp) / "new", "codex")
         self.assertIn("PYTHON_312_64BIT_REQUIRED", setup_clients.REMEDIES)
         self.assertIn("Python 3.12", setup_clients.REMEDIES["PYTHON_312_64BIT_REQUIRED"])

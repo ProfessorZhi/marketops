@@ -63,6 +63,10 @@ def rebase_host_files(destination: Path, plugin_dir: Path) -> list[str]:
     The receipt and the install state keep the real path: they describe this
     version. What a host reads names the stable path, so it survives an update.
     """
+    # The builder resolves its output. Normalize Windows short-name aliases
+    # here too so the same directory is not mistaken for a different prefix.
+    original = str(destination)
+    destination = Path(destination).resolve()
     root = app_root_for(destination)
     if root is None:
         return []
@@ -72,12 +76,27 @@ def rebase_host_files(destination: Path, plugin_dir: Path) -> list[str]:
     connectors = Path(destination) / "connectors"
     if connectors.is_dir():
         files += [p for p in connectors.rglob("*") if p.is_file() and p.suffix in {".json", ".md"}]
-    return [str(p) for p in files if p.is_file() and _rewrite(p, real, stable)]
+    changed = []
+    for path in files:
+        if not path.is_file():
+            continue
+        rewritten = _rewrite(path, real, stable)
+        if original != real:
+            rewritten = _rewrite(path, original, stable) or rewritten
+        if rewritten:
+            changed.append(str(path))
+    return changed
 
 
 def switch_current(app_root: Path, version_dir: Path) -> dict:
     """Point ``current`` at ``version_dir``; the old target is reported for rollback."""
     link = current_link(app_root)
+    version_dir = Path(version_dir)
+    if (not version_dir.is_dir()
+            or not version_dir.resolve().is_relative_to((Path(app_root) / "releases").resolve())):
+        raise ValueError("RELEASE_TARGET_INVALID")
+    if link.exists() and not (link.is_symlink() or link.is_junction()):
+        raise ValueError("CURRENT_IS_NOT_A_LINK")
     previous = None
     if link.exists() or link.is_symlink():
         try:
@@ -87,9 +106,25 @@ def switch_current(app_root: Path, version_dir: Path) -> dict:
     staged = link.with_name("current.next")
     _remove_link(staged)
     _make_link(staged, Path(version_dir))
-    if link.exists() or link.is_symlink():
-        _remove_link(link)
-    os.replace(staged, link) if sys.platform != "win32" else staged.rename(link)
+    if sys.platform != "win32":
+        # Replacing a symlink is atomic on POSIX; never unlink the working one first.
+        os.replace(staged, link)
+    else:
+        # Windows cannot replace an existing directory junction. Keep the old
+        # junction under a backup name until the replacement succeeds.
+        backup = link.with_name("current.previous")
+        _remove_link(backup)
+        had_link = link.exists() or link.is_symlink()
+        if had_link:
+            link.rename(backup)
+        try:
+            staged.rename(link)
+        except OSError:
+            if had_link:
+                backup.rename(link)
+            _remove_link(staged)
+            raise
+        _remove_link(backup)
     return {"current": str(link), "now": str(version_dir), "previous": previous}
 
 
@@ -103,8 +138,10 @@ def _make_link(link: Path, target: Path) -> None:
 
 
 def _remove_link(link: Path) -> None:
-    if not (link.exists() or link.is_symlink()):
+    if not (link.exists() or link.is_symlink() or link.is_junction()):
         return
+    if not (link.is_symlink() or link.is_junction()):
+        raise ValueError("CURRENT_IS_NOT_A_LINK")
     if sys.platform == "win32":
         os.rmdir(link)  # removes the junction itself, never its target's files
     else:
@@ -117,11 +154,13 @@ def installed_versions(app_root: Path) -> list[str]:
 
 
 def write_update_entrypoints(app_root: Path, *, client: str, register_codex: bool,
-                             channel: str = "stable") -> list[str]:
+                             channel: str = "stable", runtime: dict | None = None) -> list[str]:
     """Update.cmd / update.sh at the app root, plus the settings they read."""
     root = Path(app_root)
     settings = {"repository": REPO, "channel": channel, "client": client,
                 "register_codex": bool(register_codex)}
+    if runtime is not None:
+        settings["runtime"] = runtime
     (root / "update-settings.json").write_text(json.dumps(settings, indent=2) + "\n",
                                                encoding="utf-8")
     script = r"current\plugins\marketops-research-assistant\scripts\update_marketops.py"
