@@ -412,7 +412,7 @@ def research_step(data_root, *, run_id, operation_id, task_kind, managed_call, a
         if capability in LOCAL_CAPABILITIES:
             item["local_reader_down_confirmed"] = bool(response.get("crawl4ai_down"))
             detail = (response.get("payload") or {}).get("detail", "") if isinstance(response.get("payload"), dict) else ""
-            if isinstance(detail, str) and re.fullmatch(r"(?:[A-Za-z][A-Za-z0-9_]{0,79}(?::[A-Z_]{1,80})?|HTTP [1-5][0-9]{2})", detail):
+            if isinstance(detail, str) and re.fullmatch(r"(?:[A-Za-z][A-Za-z0-9_]{0,79}(?::[A-Z0-9_]{1,80})?|HTTP [1-5][0-9]{2})", detail):
                 item["local_runtime_diagnostic"] = detail
         if response.get("status") == "OK" and action in {"SUCCESS", "NEXT"}:
             try:

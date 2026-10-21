@@ -659,6 +659,19 @@ def runtime_failure_detail(exc: Exception) -> str:
         kind = "ENCODING_ERROR"
     elif isinstance(exc, TimeoutError):
         kind = "RUNTIME_TIMEOUT"
+    elif isinstance(exc, OSError):
+        # Keep numeric OS diagnoses, never exception messages, URLs or paths.
+        kind = "OS_ERROR"
+        frames = []
+        tb = exc.__traceback__
+        while tb is not None:
+            frames.append(Path(tb.tb_frame.f_code.co_filename).name)
+            tb = tb.tb_next
+        if "async_logger.py" in frames and "console.py" in frames:
+            kind = "CONSOLE_WRITE_FAILED"
+        for label, value in (("ERRNO", exc.errno), ("WINERROR", getattr(exc, "winerror", None))):
+            if type(value) is int and 0 <= value <= 65535:
+                kind += f"_{label}_{value}"
     name = type(exc).__name__
     if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,79}", name):
         name = "Exception"
@@ -1019,6 +1032,9 @@ def _build_browser_config(module: Any, *, egress_kwargs: Mapping[str, object],
         )
     return module.BrowserConfig(
         headless=headless,
+        # MCP is a background transport, not a terminal. A progress write to a
+        # closed/invalid host stderr must never turn fetched HTML into failure.
+        verbose=False,
         user_agent=user_agent,
         proxy_config=dict(egress_kwargs.get("proxy_config") or {}),
         extra_args=hardened_browser_extra_args(egress_kwargs),
@@ -1037,6 +1053,8 @@ def _build_run_config(module: Any, *, page_timeout_ms: int,
     """
     kwargs: dict[str, object] = {
         "page_timeout": page_timeout_ms,
+        # arun overwrites the logger's verbosity from this separate config.
+        "verbose": False,
         "cache_mode": "BYPASS",
         "max_retries": 0,
     }
