@@ -8,7 +8,7 @@
 
 从 [START_HERE](START_HERE.md) 开始。Windows x64 双击 `Install.cmd`；Linux x64 使用 `install.sh`。运行时为 Python 3.12。安装器在目标电脑生成 Codex、Claude Code 或 WorkBuddy 配置；WorkBuddy 导入须在客户端完成。
 
-[四账户指引](references/FOUR_ACCOUNT_START.md)提供注册、API Key、官方赠金及余额入口：Serper、SerpApi、TinyFish、TypeSafe。Crawl4AI 在本地运行，无需第五个账户。Key 在本地隐藏输入，保存在系统凭据库，重启后读取。
+[四账户指引](references/FOUR_ACCOUNT_START.md)提供注册、API Key、官方赠金及余额入口：Serper、SerpApi、TinyFish、TypeSafe。Crawl4AI 在本地运行，无需第五个账户。Key 在本地隐藏输入、或由安装 agent 写进系统凭据库，重启后读取。
 
 **TinyFish 和 SerpApi 的官方 MCP 客户端直接随包安装。** 宿主只连接一个 MarketOps MCP，不必再分别安装两个厂商插件。首次设置检查实际连接、已批准网站和有限请求数。已有账号检查剩余额度，不自动充值或重新领取新用户赠金。
 

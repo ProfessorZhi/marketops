@@ -28,7 +28,7 @@ Windows 用 `py -3.12` 代替 `python`，安装路径放在引号内，含空格
 
 ## 2. 四账户、赠金与本地 Key
 
-查看[四账户启动指南](FOUR_ACCOUNT_START.md)，注册、按官方条件领取新用户额度、创建四个 API Key。已有账户直接使用。安装后的本地向导通过隐藏输入保存 Key 到系统凭据库，不写入插件目录。不要把密钥发给聊天中的助手。
+查看[四账户启动指南](FOUR_ACCOUNT_START.md)，注册、按官方条件领取新用户额度、创建四个 API Key。已有账户直接使用。安装后的本地向导通过隐藏输入保存 Key 到系统凭据库，不写入插件目录；也可以把 Key 直接交给本机帮你安装的 agent，它用 `configure --stdin` 写进同一个凭据库。Key 不要发到邮件、工单、群聊或其他外部系统。
 
 安装目录的 `INSTALL_RECEIPT.json` 包含 `customer_setup_argv` 和 `credentials_configure_argv`，根目录 `START_HERE.md` 已转换成可直接执行的本机命令。
 

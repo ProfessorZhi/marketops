@@ -163,7 +163,7 @@ def format_text(data: dict) -> str:
         "",
         "## 下一步",
         "1. 到四家官网注册/登录现有账户，按官方条件领取新用户额度；Crawl4AI 本地无需第五个账号。",
-        "2. 运行安装回执 credentials_configure_argv 或 customer_setup_argv，在本地隐藏输入四个 Key，存入原生系统凭据库；不要输入聊天或提交到Git。",
+        "2. 运行安装回执 credentials_configure_argv 或 customer_setup_argv，在本地隐藏输入四个 Key，存入原生系统凭据库；也可由本机安装 agent 用 research_credentials.py configure --stdin 写入。不要提交到 Git，也不要发到本机以外的任何地方。",
         "3. TinyFish/SerpApi官方MCP客户端已内嵌；用户自行配置API Key或在本机用可选OAuth命令完成TinyFish登录，确认实际 tools/list 与账户额度。",
         "4. 先配置两条本地数据路径。网络与付费上限默认关闭；授权时明确项目、站点、调用次数与钱包。",
         "5. 先做不付费的tools/list与只读状态检查，再考虑小规模真实调研。",

@@ -153,6 +153,13 @@ def provider_readiness() -> dict:
     import research_egress
     import research_runtime_setup
     try:
+        # An installing agent may have stored keys after this server started;
+        # re-read them so the answer is about the keyring as it is now.
+        from research_credentials import load_into_environment
+        load_into_environment()
+    except Exception:  # noqa: BLE001 - readiness must answer without a usable keyring
+        pass
+    try:
         data_root = root()
         settings = research_runtime_setup.config(data_root) or {}
     except (ValueError, OSError):

@@ -1,11 +1,13 @@
 """Customer setup behavior; never use real credentials or a real keyring."""
 from __future__ import annotations
+import io
 import json
 import os
 from pathlib import Path
 import sys
 import tempfile
 import unittest
+from contextlib import ExitStack
 from unittest.mock import patch
 
 try:
@@ -60,6 +62,70 @@ class CredentialTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "INTERACTIVE_TERMINAL_REQUIRED"):
                 c.configure_keys()
         prompt.assert_not_called()
+
+    def test_agent_supplied_keys_reach_the_native_store_without_a_terminal(self):
+        import research_credentials as c
+        stored = {}
+
+        class Store:
+            def set_password(self, service, name, value): stored[(service, name)] = value
+            def get_password(self, service, name): return stored.get((service, name))
+
+        # Empty and absent entries must stay untouched: a user may have only some accounts.
+        with patch.object(c, "_backend", return_value=Store()):
+            receipt = c.configure_keys_from_values(
+                {"serper": "test-serper-value", "serpapi": "", "tinyfish": None})
+            env = {}
+            loaded = c.load_into_environment(env)
+        self.assertEqual({(c.KEYRING_SERVICE, "SERPER_API_KEY"): "test-serper-value"}, stored)
+        self.assertEqual("UNCHANGED", receipt["providers"]["serpapi"])
+        self.assertEqual("UNCHANGED", receipt["providers"]["typesafe"])
+        self.assertEqual("test-serper-value", env["SERPER_API_KEY"])
+        self.assertNotIn("test-serper-value", json.dumps([receipt, loaded]))
+        self.assertFalse(receipt["secret_values_returned"])
+
+    def test_agent_supplied_keys_reject_placeholders_and_control_characters(self):
+        import research_credentials as c
+
+        class Store:
+            def set_password(self, *args): raise AssertionError("must not write an invalid key")
+
+        with patch.object(c, "_backend", return_value=Store()):
+            newlines = "line1" + chr(10) + "line2"
+            nul = "zero" + chr(0) + "byte"
+            for bad in ("   ", "${SERPER_API_KEY}", newlines, nul, 42, ["x"]):
+                with self.assertRaisesRegex(ValueError, "INVALID_API_KEY_INPUT"):
+                    c.configure_keys_from_values({"serper": bad}, ["serper"])
+
+    def test_stdin_mode_keeps_every_key_out_of_the_command_line(self):
+        import research_credentials as c
+        stored = {}
+
+        class Store:
+            def set_password(self, service, name, value): stored[name] = value
+
+        out = io.StringIO()
+        with ExitStack() as stack:
+            stack.enter_context(patch.object(c, "_backend", return_value=Store()))
+            stack.enter_context(patch.object(c.sys, "stdin", io.StringIO('{"serper": "test-serper-value"}')))
+            stack.enter_context(patch.object(c.sys, "stdout", out))
+            code = c.main(["configure", "--stdin"])
+        self.assertEqual(0, code)
+        self.assertEqual({"SERPER_API_KEY": "test-serper-value"}, stored)
+        self.assertNotIn("test-serper-value", out.getvalue())
+
+    def test_stdin_mode_rejects_anything_that_is_not_a_json_object(self):
+        import research_credentials as c
+
+        class Store:
+            def set_password(self, *args): raise AssertionError("must not write")
+
+        for payload in ("", "not json", '["serper"]'):
+            with ExitStack() as stack:
+                stack.enter_context(patch.object(c, "_backend", return_value=Store()))
+                stack.enter_context(patch.object(c.sys, "stdin", io.StringIO(payload)))
+                stack.enter_context(patch.object(c.sys, "stderr", io.StringIO()))
+                self.assertEqual(2, c.main(["configure", "--stdin"]))
 
 
 class DeliveryTests(unittest.TestCase):

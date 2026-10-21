@@ -42,7 +42,7 @@ Default networking is disabled for every provider. All provider call limits defa
 
 python scripts/setup_clients.py --destination CUSTOMER-DIRECTORY --client codex|workbuddy|both --apply
 
-Only add `--install-deps` after separately confirming that downloading Python packages is permitted. That flag does not create provider accounts. The installer stays conservative: nothing is downloaded and no marketplace is registered unless you ask for it explicitly. All keys remain with the customer OS or WorkBuddy credential form, never in source/Git/logs/chat.
+Only add `--install-deps` after separately confirming that downloading Python packages is permitted. That flag does not create provider accounts. The installer stays conservative: nothing is downloaded and no marketplace is registered unless you ask for it explicitly. All keys remain in the customer OS credential store, never in source/Git/logs or any system outside the user's machine. They arrive either through the installer's hidden prompt or as a JSON object on stdin to `research_credentials.py configure --stdin`.
 
 For Codex: register the generated marketplace with the official Codex CLI and have the user enable plugin/Skills, then test MCP tool listing. For WorkBuddy: build the connector on the target machine after installing from source and import from its stable folder. An archive generated on a different machine is not a portable installed MCP.
 

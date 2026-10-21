@@ -13,7 +13,7 @@ TinyFish 的[官方价格页](https://www.tinyfish.ai/pricing)当前列出 Searc
 
 **Crawl4AI 本地模式不需要账户或 API Key。** 安装器会准备本地 SDK 和 Chromium。Cloud/Docker 是另选配置，不属于四账户首次启动步骤。
 
-取得四个 Key 后，继续本机安装器的隐藏输入提示；或者使用安装目录 `INSTALL_RECEIPT.json` 的 `credentials_configure_argv` 命令。对应变量：
+取得四个 Key 后，继续本机安装器的隐藏输入提示；或者把 Key 交给本机安装的 agent（`configure --stdin`，见 `AGENT_INSTALL.md`）；也可以自己运行安装目录 `INSTALL_RECEIPT.json` 里的 `credentials_configure_argv`。对应变量：
 
 - Serper：`SERPER_API_KEY`
 - SerpApi：`SERPAPI_API_KEY`

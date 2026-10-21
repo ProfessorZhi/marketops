@@ -15,7 +15,7 @@
 ## 凭据与激活
 
 1. 客户自己注册四家账户，取得 `SERPER_API_KEY`、`SERPAPI_API_KEY`、`TINYFISH_API_KEY`、`TYPESAFE_API_KEY`。
-2. 使用安装回执 `credentials_configure_argv` 运行本地隐藏输入。原生系统凭据库保存 Key；MCP 启动时读取。显式进程环境值优先，空值和未替换占位符视为未配置。
+2. 使用安装回执 `credentials_configure_argv` 运行本地隐藏输入，或由本机安装 agent 用 `research_credentials.py configure --stdin` 写入。原生系统凭据库保存 Key；状态查询和 MCP 启动时读取。显式进程环境值优先，空值和未替换占位符视为未配置。
 3. TinyFish 可选择已有的本机 OS Keyring OAuth 登录命令；这是 API Key 的可选替代。它与目标网站登录权限分开，不会自动授权网站 Profile。
 4. `provider_onboarding.py` 只显示配置线索，`research_runtime_setup.py status` 只读检查本地运行条件；真实认证/schema 通过逐家 bootstrap 检查。缺失其他账户不应伪装成所选账户不可用。
 5. 本地设置为任务选择服务、目标范围、域名和有限请求数。Key 存在不代表已允许消费；请求数限制不代表已经掌握美元费用。
