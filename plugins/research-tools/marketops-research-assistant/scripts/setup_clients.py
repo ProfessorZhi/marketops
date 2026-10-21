@@ -16,7 +16,7 @@ import venv
 from pathlib import Path
 
 SOURCE = Path(__file__).resolve().parents[1]
-VERSION = "0.5.7-rc7"
+VERSION = "0.5.8"
 CLIENTS = ("codex", "workbuddy", "both", "claude", "all")
 STATE_FILE = "INSTALL_STATE.json"
 STATE_OWNER = "marketops.setup_clients.v1"
@@ -252,7 +252,8 @@ def _register_codex(dest: Path, results: dict) -> None:
 
 def install(destination: Path, client: str, *, dependencies: bool,
             register_codex: bool, local_crawl: bool = False,
-            browser: bool = False, resume: bool = False) -> dict:
+            browser: bool = False, resume: bool = False,
+            switch_current: bool = True) -> dict:
     # Validate all permissions before touching the install directory.
     if browser and not local_crawl:
         raise ValueError("BROWSER_REQUIRES_LOCAL_CRAWL")
@@ -478,15 +479,19 @@ def install(destination: Path, client: str, *, dependencies: bool,
         results["codex_next_argv"] = ["codex", "plugin", "marketplace", "add", str(dest)]
         results["codex_install_argv"] = ["codex", "plugin", "add", "marketops-research-assistant@marketops-local", "--json"]
         results["codex_next"] = subprocess.list2cmdline(results["codex_next_argv"])
-        if register_codex:
+        import release_layout
+        if register_codex and release_layout.app_root_for(dest) is None:
             _register_codex(dest, results)
-        else:
+        elif not register_codex:
             results["codex_marketplace_registered"] = False
+        # Under <root>/releases/<version>, Codex is registered with <root>/current
+        # once it points here (end of install), so an update needs no re-pointing.
     if client in {"workbuddy", "both", "all"}:
         # Run builder with the installed venv interpreter on *this machine*.
         # Its mcp.json paths are fixed to the customer-controlled stable package directory.
         command = [str(py), str(target / "scripts" / "build_client_bundles.py"),
-                   "--output", str(dest / "connectors"), "--with-research-mcp"]
+                   "--output", str(dest / "connectors"), "--with-research-mcp",
+                   "--host-install-root", str(dest)]
         if browser:
             command += ["--browser-cache", str(browser_root)]
         bundle_receipt = dest / "WORKBUDDY_BUNDLE.json"
@@ -520,6 +525,25 @@ def install(destination: Path, client: str, *, dependencies: bool,
     starter = dest / "START_HERE.md"
     starter.write_text(_start_here(results), encoding="utf-8")
     results["start_here"] = str(starter)
+    # <root>/releases/<version>: hosts get <root>/current, which an update moves.
+    import release_layout
+    app_root = release_layout.app_root_for(dest)
+    if app_root is not None:
+        results["host_files_rebased"] = release_layout.rebase_host_files(dest, target)
+        if switch_current:
+            results["current"] = release_layout.switch_current(app_root, dest)
+            results["update_entrypoints"] = release_layout.write_update_entrypoints(
+                app_root, client=client, register_codex=register_codex,
+                runtime={"dependencies": dependencies, "local_crawl": local_crawl,
+                         "browser": browser})
+            if register_codex:
+                _register_codex(release_layout.current_link(app_root), results)
+        stable = str(release_layout.current_link(app_root))
+        for key in ("claude_next_argv", "codex_next_argv"):
+            if key in results:
+                results[key] = [part.replace(str(dest), stable) for part in results[key]]
+        if "codex_next_argv" in results:
+            results["codex_next"] = subprocess.list2cmdline(results["codex_next_argv"])
     (dest / "INSTALL_RECEIPT.json").write_text(
         json.dumps(results, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     state["stage"] = "COMPLETE" if validation_ok else "VALIDATION_PENDING"
@@ -599,6 +623,9 @@ def main() -> int:
                         help="one-step opt-in to download core SDKs, local crawler and Chromium")
     parser.add_argument("--register-codex", action="store_true",
                         help="explicitly run the Codex marketplace add command")
+    parser.add_argument("--no-switch-current", action="store_true",
+                        help="install beside the version in use without moving <root>/current "
+                             "(the updater switches after its own check)")
     args = parser.parse_args()
     if not args.apply and (args.install_deps or args.register_codex or
                            args.install_local_crawl or args.install_crawl_browser or
@@ -617,7 +644,8 @@ def main() -> int:
                       register_codex=args.register_codex,
                       local_crawl=args.install_local_crawl or args.bootstrap_runtime,
                       browser=args.install_crawl_browser or args.bootstrap_runtime,
-                      resume=args.resume
+                      resume=args.resume,
+                      switch_current=not args.no_switch_current,
                   ) if args.apply
                   else {"status": "DRY_RUN", **plan(args.destination, args.client)})
         print(json.dumps(result, ensure_ascii=False, indent=2))

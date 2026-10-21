@@ -214,6 +214,17 @@ _MAX_STRING = 20_000
 _CLEANED = "<redacted>"
 
 
+def _vendor_message(exc) -> str:
+    """The short message in an error body, cleaned; empty when there is none."""
+    try:
+        body = exc.read(400)
+        message = json.loads(body.decode("utf-8", errors="replace")).get("message", "")
+    except Exception:  # noqa: BLE001 - a body without a message is still an HTTP status
+        return ""
+    message = re.sub(r"[^A-Za-z0-9 .,'()-]", "", str(message))[:80].strip()
+    return f": {message}" if message else ""
+
+
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     """Do not follow a redirect. The route was chosen; a redirect is a new one."""
 
@@ -545,7 +556,10 @@ class SerperAdapter:
             # the whole repo uses, so it does not depend on that staying true.
             # A status *was* received, so this is a settled failure rather than an
             # unresolved one.
-            return self._failure("SERPER_UPSTREAM_FAILED", f"HTTP {exc.code}",
+            # The vendor's own short message ("Not enough credits") is what tells
+            # an exhausted account from a wrong key; it comes from the body only.
+            return self._failure("SERPER_UPSTREAM_FAILED",
+                                 f"HTTP {exc.code}" + _vendor_message(exc),
                                  capability_id=capability_id)
         except TimeoutError:
             # Handed to the transport, no answer, no way to prove whether the

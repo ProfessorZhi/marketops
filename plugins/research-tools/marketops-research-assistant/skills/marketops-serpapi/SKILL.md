@@ -22,5 +22,12 @@ need real result URLs.
 ownership, surface or an email: confirm on the official site. Map websites are often `http://`;
 harvest tools upgrade them to HTTPS.
 
-**Cost**: one search per call (paid credits); more expensive than Serper, so use it for listings,
-not for every query.
+**Cost and scarcity**: on the free plan it is 250 searches a month (resets on the 1st); paid plans
+are $15–25 per thousand, about 15× Serper. Before a listing sweep, check what is left with
+`marketops_costs(action='balances')` and plan the sweep to fit (one query per town, not per street).
+Use it for: areas where Serper `maps` returned too few places, other engines (Bing, Baidu, Yandex,
+Naver, Google Jobs), and as Serper's stand-in when Serper is out. Do not use it for plain Google
+web queries Serper can answer.
+
+**When it runs out**: it is marked out until the 1st of next month; Serper `maps` and TinyFish
+search carry on. Say so in the report.

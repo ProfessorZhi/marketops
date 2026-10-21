@@ -271,7 +271,13 @@ NOTES = {
     "MODEL_IS_AN_ALIAS_NOT_A_PINNED_VERSION": "No model was pinned; an alias may drift between calls.",
     "JUDGMENT_IS_NOT_SOURCE_EVIDENCE": "Typed model judgment is not source evidence or SOP approval.",
     "UPSTREAM_ERROR_DETAIL_IN_EVENT_JOURNAL": "The exception type and text are in the run's event journal, not here.",
+    "UPSTREAM_QUOTA_OR_PAYMENT": "The provider refused for credits or payment (402 / insufficient credits).",
+    "UPSTREAM_RATE_LIMITED": "The provider asked to slow down (429 / rate limit).",
 }
+
+#: Words in an upstream error that mean "out of credits" or "slow down".
+_QUOTA_MARKERS = ("402", "payment required", "insufficient", "credit", "quota", "balance")
+_RATE_MARKERS = ("429", "too many requests", "rate limit", "ratelimit")
 
 #: AdapterResult, field-for-field per contract §3.4. `caveats[0]` carries the
 #: adapter-local reason code when there is one, so the field set stays exactly the
@@ -942,9 +948,13 @@ class JevAdapter:
             self._journal(store_root, run_id, operation_id, status="unknown",
                           reason=f"JEV_UPSTREAM_FAILED:"
                                  f"{type(exc).__name__}:{self._scrub(str(exc))}"[:200])
+            text = f"{type(exc).__name__} {exc}".casefold()
+            extra = (["UPSTREAM_QUOTA_OR_PAYMENT"] if any(m in text for m in _QUOTA_MARKERS)
+                     else ["UPSTREAM_RATE_LIMITED"] if any(m in text for m in _RATE_MARKERS)
+                     else [])
             return _result(OUTCOME_UNKNOWN if timed_out else OUTCOME_FAILED,
                            reason="JEV_UPSTREAM_FAILED",
-                           caveats=["UPSTREAM_ERROR_DETAIL_IN_EVENT_JOURNAL"])
+                           caveats=["UPSTREAM_ERROR_DETAIL_IN_EVENT_JOURNAL", *extra])
         return self._collect(store_root, run_id, operation_id, asked, response, bindings)
 
     # ---------------------------------------------------------------------- output

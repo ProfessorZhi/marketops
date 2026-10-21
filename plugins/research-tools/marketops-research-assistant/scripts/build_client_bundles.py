@@ -23,7 +23,7 @@ META = {
     "description_en": "Research business workflow, five-provider routing and bounded evidence-first local MCP.",
     "source": "marketops-research-assistant-lite",
     "type": "skill-only",
-    "version": "0.5.7-rc7",
+    "version": "0.5.8",
     "minWorkbuddyVersion": "4.24.0",
     "examples_zh": [
         "调查指定地区的场地和运营组织，先列官方来源，将待核实项标为HOLD。",
@@ -123,7 +123,8 @@ def _verify_egress_slice(slice_root: Path) -> None:
 
 
 def build(output: Path, *, with_search_mcp: bool = False,
-          with_research_mcp: bool = False, browser_cache: Path | None = None) -> dict:
+          with_research_mcp: bool = False, browser_cache: Path | None = None,
+          host_install_root: Path | None = None) -> dict:
     if with_search_mcp and with_research_mcp:
         raise ValueError("Select exactly one MCP mode")
     output = output.expanduser().resolve()
@@ -300,6 +301,11 @@ def build(output: Path, *, with_search_mcp: bool = False,
         (target / "token-schema.json").write_text(
             json.dumps(schema, indent=2) + "\n", encoding="utf-8")
     # The default skill-only bundle has no MCP; explicitly request search for tool mode.
+    if host_install_root is not None:
+        # The archive is what WorkBuddy imports. Rewrite its generated files
+        # before zipping so both the folder and ZIP use the stable current path.
+        import release_layout
+        release_layout.rebase_host_files(host_install_root, target)
     make_zip(target, package)
     machine_bound = with_search_mcp or with_research_mcp
     if machine_bound:
@@ -416,15 +422,19 @@ def main() -> int:
     parser.add_argument("--with-research-mcp", action="store_true", help="one local MCP for all 5 provider integrations (beta)")
     parser.add_argument("--browser-cache", type=Path,
                         help="optional machine-local Chromium cache path from explicit installer")
+    parser.add_argument("--host-install-root", type=Path,
+                        help="versioned install root whose host paths use current")
     args = parser.parse_args()
-    if args.source_package and (args.with_search_mcp or args.with_research_mcp or args.browser_cache):
+    if args.source_package and (args.with_search_mcp or args.with_research_mcp
+                                or args.browser_cache or args.host_install_root):
         parser.error("--source-package cannot bind this machine's MCP or browser paths")
     if args.qa_receipt and not args.source_package:
         parser.error("--qa-receipt requires --source-package")
     try:
         result = build_source(args.output, qa_receipt=args.qa_receipt) if args.source_package else build(args.output, with_search_mcp=args.with_search_mcp,
                                with_research_mcp=args.with_research_mcp,
-                               browser_cache=args.browser_cache)
+                               browser_cache=args.browser_cache,
+                               host_install_root=args.host_install_root)
         print(json.dumps(result, ensure_ascii=False, indent=2))
     except (OSError, ValueError) as exc:
         parser.exit(status=2, message=f"ERROR: {exc}\n")

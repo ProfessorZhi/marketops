@@ -181,21 +181,18 @@ class LivePublicSourceResearchE2E(unittest.TestCase):
                     self.assertIn("ORGANIZATION_PROVENANCE_MISMATCH",
                                   decisions["venue-west-common"]["reason_codes"])
                     self.assertNotIn(venue_name, client_text)
-                if contact_span:
-                    self.assertEqual(1, report["counts"]["联系人路线"])
-                    with (Path(report["directory"]) / "联系人路线.csv").open(
-                        encoding="utf-8-sig", newline=""
-                    ) as f:
-                        contact = next(csv.DictReader(f))
-                    self.assertEqual("RENDERED_EMAIL_LITERAL_NOT_BUSINESS_VERIFIED",
-                                     contact["来源字面校验"])
-                    self.assertEqual("RULES_UNKNOWN", contact["研究评级"])
-                else:
-                    self.assertEqual(0, report["counts"]["联系人路线"],
-                                     "contact must stay out without a local org+email span")
-                    self.assertIn("ORGANIZATION_PROVENANCE_MISMATCH",
-                                  decisions["lincoln-grounds-contact"]["reason_codes"])
-                    self.assertNotIn(email, client_text)
+                # Either a local org+email span or the organisation's own site
+                # binds the route (rc6): the address is quoted from the council's
+                # own official page, so it is admitted in both cases.
+                self.assertEqual(1, report["counts"]["联系人路线"])
+                with (Path(report["directory"]) / "联系人路线.csv").open(
+                    encoding="utf-8-sig", newline=""
+                ) as f:
+                    contact = next(csv.DictReader(f))
+                self.assertEqual("RENDERED_EMAIL_LITERAL_NOT_BUSINESS_VERIFIED",
+                                 contact["来源字面校验"])
+                self.assertEqual("RULES_UNKNOWN", contact["研究评级"])
+                self.assertTrue(decisions["lincoln-grounds-contact"]["admitted"])
 
 
 class LocalSpanTests(unittest.TestCase):

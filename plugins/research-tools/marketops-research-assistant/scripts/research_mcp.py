@@ -183,8 +183,19 @@ def provider_readiness() -> dict:
              "NOT_ENABLED_FOR_PROJECT": "rerun the local setup and answer y to enable research",
              "CONNECTION_NOT_CHECKED": "rerun the local setup; check the key and the account",
              "NOT_INSTALLED": "rerun the installer; it installs Crawl4AI and Chromium"}
+    import research_balances
+    import research_provider_health as health
+    for provider, entry in health.status(data_root).items() if data_root is not None else ():
+        if provider in out and out[provider] == "READY":
+            out[provider] = f"{entry['state']}_UNTIL_{entry['until'][:10]}"
+    fixes.update({"QUOTA_EXHAUSTED": "top up the account (or wait for the monthly reset), then "
+                                     "marketops_costs(action='balances') to clear it",
+                  "RATE_LIMITED": "wait a minute; other providers carry on meanwhile"})
+    low = research_balances.warnings(data_root) if data_root is not None else []
     return {"providers": out,
-            "how_to_fix": {p: fixes[s] for p, s in out.items() if s in fixes},
+            "low_balance_warnings": low,
+            "how_to_fix": {p: fixes[s.split("_UNTIL_")[0]] for p, s in out.items()
+                           if s.split("_UNTIL_")[0] in fixes},
             "note": "READY is local readiness, not a check of the account's remaining credit."}
 
 
@@ -214,6 +225,43 @@ def _build_note():
         return {"tested_release": True, "source_revision": receipt["source_revision"]}
     return {"tested_release": False,
             "note": "Test build without a release receipt; research works normally."}
+
+
+def update_check(include_prerelease=False):
+    """Compare this install with the newest GitHub release, through the managed egress."""
+    import release_layout
+    import update_marketops as updater
+    version_dir = Path(__file__).resolve().parents[3]
+    app_root = release_layout.app_root_for(version_dir)
+    current = json.loads((Path(__file__).resolve().parents[1] / "plugin.json")
+                         .read_text(encoding="utf-8"))["version"]
+    if os.environ.get("MARKETOPS_RESEARCH_ALLOW_NETWORK") == "0":
+        return {"status": "NETWORK_DISABLED", "current": current}
+
+    def get(url):
+        import httpx2
+        from research_egress import open_session
+        with open_session(allowlist=frozenset({"api.github.com"})) as connection:
+            with httpx2.Client(proxy=connection.proxy.url, trust_env=False,
+                               follow_redirects=False,
+                               timeout=httpx2.Timeout(20, connect=10)) as http:
+                answer = http.get(url, headers={"Accept": "application/vnd.github+json",
+                                                "User-Agent": "marketops-update-check"})
+                answer.raise_for_status()
+                return answer.content
+    try:
+        release = updater.latest_release(release_layout.REPO, include_prerelease, get=get)
+    except Exception as exc:  # noqa: BLE001 - a failed check is reported, never raised
+        return {"status": "CHECK_FAILED", "current": current, "reason": type(exc).__name__}
+    latest = release["tag_name"].removeprefix("marketops-v") if release else None
+    newer = bool(latest and updater.version_key(latest) > updater.version_key(current))
+    how = (("Run Update.cmd (Windows) or update.sh in " + str(app_root) +
+            ", then restart this agent.") if app_root is not None else
+           "This install predates the update layout: install the new release once with "
+           "Install.cmd; later updates are one command.")
+    return {"status": "UPDATE_AVAILABLE" if newer else "UP_TO_DATE", "current": current,
+            "latest": latest, "notes": release.get("html_url") if release else None,
+            **({"how_to_update": how} if newer else {})}
 
 
 def setup_configure(data_root, experience_file, confirm=False):
@@ -509,7 +557,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         configured_root = None
     if configured_root is not None and runtime_setup.config(configured_root):
         from research_runtime_status import view
-        return {"product": "MarketOps Research MCP", "version": "0.5.7-rc7",
+        return {"product": "MarketOps Research MCP", "version": "0.5.8",
                 **view(configured_root, task_kind=task_kind),
                 "external_host": _external_inventory(host_observed_tools),
                 "embedded_official_mcp": provider_policy.embedded_official_mcp_capabilities(),
@@ -584,7 +632,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         if task_kind else None)
     return {
         "product": "MarketOps Lite Research MCP",
-        "version": "0.5.7-rc7",
+        "version": "0.5.8",
         "providers": {
             "serpapi": {"transport": "REST through local MCP", **search["serpapi"]},
             "serper": {"transport": "REST through local MCP", **search["serper"]},
@@ -768,13 +816,27 @@ def managed_call(capability_id, params, run_id, operation_id, account_ref="",
                              "web" if capability_id == "serper.search"
                              else _catalog.DEFAULT_ENGINE)
     fingerprint = results.identity(capability_id, arguments)
+    # A provider that said it is out of credit (or to slow down) is answered here,
+    # in a form the fallback chain skips, instead of being asked again.
+    import research_provider_health as health
+    known = health.blocked(r, entry.provider)
+    if known:
+        return health.refusal(entry.provider, capability_id, known)
     # IDs are run-scoped at the MCP boundary, ledger-scoped internally.
     ledger_operation = "op-" + hashlib.sha256((run_id + ":" + operation_id).encode()).hexdigest()[:40]
     guarded = research_wiring.managed_invoke(
         capability_id=capability_id, params=arguments, run_id=run_id,
         operation_id=ledger_operation, account_ref=entry.provider,
         intent_fingerprint=fingerprint, root=r, grant_ref=grant_ref or None)
-    return results.persist(r, run_id, operation_id, guarded, params=arguments)
+    answer = results.persist(r, run_id, operation_id, guarded, params=arguments)
+    state = health.classify(answer)
+    if state:
+        health.record(r, entry.provider, state,
+                      detail=str((answer.get("payload") or {}).get("detail") or "")[:120])
+        answer["provider_health"] = {"provider": entry.provider, "state": state,
+                                     "next": "the next provider in the chain takes over; "
+                                             "tell the user in the report"}
+    return answer
 
 
 def search(provider, query, country, language, run_id, operation_id, mode="web", limit=10):
@@ -841,6 +903,16 @@ def _search_all(query, country, language, run_id, operation_id, limit):
             return provider, search(provider, query, country, language, run_id,
                                     f"{operation_id}-{provider}", limit=limit)
         except ValueError as exc:
+            import research_provider_health as health
+            if provider == "serper" and health.blocked(root(), "serper"):
+                # Serper is out of credit: SerpApi answers the same Google query.
+                try:
+                    return provider, {**search("serpapi", query, country, language, run_id,
+                                               f"{operation_id}-serpapi", limit=limit),
+                                      "substituted_by": "serpapi"}
+                except ValueError as again:
+                    return provider, {"error": str(again).split(":", 1)[0],
+                                      "substitute_failed": "serpapi"}
             return provider, {"error": str(exc).split(":", 1)[0]}
     with ThreadPoolExecutor(max_workers=2) as pool:
         answers = dict(pool.map(one, ("serper", "tinyfish")))
@@ -852,11 +924,19 @@ def _search_all(query, country, language, run_id, operation_id, limit):
                 seen.add(url)
                 merged.append({"title": hit.get("title"), "url": url,
                                "snippet": hit.get("snippet") or hit.get("description"),
-                               "found_by": provider})
-    return {"status": "OK", "query": query, "results": merged,
-            "by_provider": {p: (len(_hits(a)) if "error" not in a else a["error"])
-                            for p, a in answers.items()},
-            "artifact_ids": [x for a in answers.values() for x in a.get("artifact_ids") or []]}
+                               "found_by": answer.get("substituted_by", provider)})
+    import research_provider_health as health
+    out = {"status": "OK", "query": query, "results": merged,
+           "by_provider": {p: (len(_hits(a)) if "error" not in a else a["error"])
+                           for p, a in answers.items()},
+           "artifact_ids": [x for a in answers.values() for x in a.get("artifact_ids") or []]}
+    substituted = {p: a["substituted_by"] for p, a in answers.items() if a.get("substituted_by")}
+    if substituted:
+        out["substituted"] = substituted
+    exhausted = health.status(root())
+    if exhausted:
+        out["providers_out"] = {p: e["state"] for p, e in exhausted.items()}
+    return out
 
 
 def _hits(answer):
@@ -1103,7 +1183,7 @@ def handoff(run_id, operation_id):
     try:
         experience_result = draft_experience(
             r, run_id=run_id, scope=head["scope"],
-            rule_version=head["rule_version"], skill_version="0.5.7-rc7",
+            rule_version=head["rule_version"], skill_version="0.5.8",
             output=experience_path)
         result["experience_candidate"] = str(experience_path)
         result["experience_incidents"] = experience_result["incidents"]
@@ -1232,7 +1312,7 @@ PUBLIC_TOOLS = frozenset({
     "marketops_pool_import", "marketops_pool_claim", "marketops_pool_complete",
     "marketops_pool_status", "marketops_harvest_batch", "marketops_lessons_report",
     "marketops_jev_triage", "marketops_suppression", "marketops_feedback_pack",
-    "marketops_pool_reopen",
+    "marketops_pool_reopen", "marketops_costs", "marketops_update_check",
 })
 
 
@@ -1265,7 +1345,7 @@ def build_server():
     # Direct by default; only an explicitly configured proxy changes that.
     research_config.load_upstream_proxy_into_environment()
     from mcp.server import MCPServer
-    mcp = MCPServer("MarketOps Lite Research", version="0.5.7-rc7")
+    mcp = MCPServer("MarketOps Lite Research", version="0.5.8")
 
     def tool(fn):
         if fn.__name__ not in PUBLIC_TOOLS:
@@ -1597,6 +1677,48 @@ def build_server():
         return research_pool.status(root(), pool_id=pool_id)
 
     @tool
+    def marketops_costs(action: str = "report", run_id: str = "", provider: str = "",
+                        capability: str = "", usd_per_unit: str = "", plan: str = "",
+                        left: float | None = None, unit: str = "") -> dict:
+        """Money, not just call counts: spend per project/Run/provider and account balances.
+
+        action="report": estimated spend (all Runs, or run_id), free allowances left.
+        action="balances": read SerpApi and TinyFish accounts now (free reads) and
+          estimate Serper/Jev from the last balance a person entered.
+        action="set_rate": the user's own price, e.g. provider="serpapi",
+          capability="search", usd_per_unit="0.015", plan="Developer".
+        action="set_balance": what a provider console shows, e.g. provider="serper",
+          left=2380, unit="credit".
+        Estimates say so; a provider account reading is the authority.
+        """
+        import research_balances
+        import research_costs
+        data_root = root()
+        if action == "report":
+            return research_costs.report(data_root, run_id=run_id or None)
+        if action == "balances":
+            return research_costs.balances(data_root)
+        if action == "set_rate":
+            return research_costs.set_rate(data_root, provider=provider, capability=capability,
+                                           usd_per_unit=usd_per_unit or None, plan=plan)
+        if action == "set_balance":
+            if left is None:
+                raise ValueError("BALANCE_REQUIRED: left=<number shown in the console>")
+            return research_balances.record_manual(data_root, provider=provider, left=left,
+                                                   unit=unit or "credit")
+        raise ValueError("COSTS_ACTION_INVALID: report, balances, set_rate or set_balance")
+
+    @tool
+    def marketops_update_check(include_prerelease: bool = False) -> dict:
+        """Is a newer MarketOps release on GitHub? Read-only; installs nothing.
+
+        Call at the start of a task. If one is available, tell the user in one line
+        and how to update: run Update.cmd (Windows) or update.sh in the MarketOps
+        folder, then restart this agent. Never run the update yourself mid-task.
+        """
+        return update_check(include_prerelease)
+
+    @tool
     def marketops_pool_reopen(pool_id: str, reason: str) -> dict:
         """Put HOLD targets back to pending once their cause is fixed.
 
@@ -1738,8 +1860,19 @@ def build_server():
 
     @tool
     def marketops_handoff(run_id: str, operation_id: str) -> dict:
-        """Deliver one audited candidate XLSX/CSV snapshot and experience artifacts with partial failures visible."""
-        return handoff(run_id, operation_id)
+        """Deliver one audited candidate XLSX/CSV snapshot and experience artifacts with partial failures visible.
+
+        The reply carries this Run's estimated spend per provider; report it to the user.
+        """
+        result = handoff(run_id, operation_id)
+        try:
+            import research_costs
+            spend = research_costs.report(root(), run_id=run_id)
+            result["run_cost"] = {"total_estimated_usd": spend["total_estimated_usd"],
+                                  "by_provider": spend["by_provider"]}
+        except Exception as exc:  # noqa: BLE001 - delivery never fails for a cost summary
+            result["run_cost"] = {"status": "UNAVAILABLE", "reason": type(exc).__name__}
+        return result
 
     @tool
     def marketops_experience_recall(run_id: str, stage: str = "intake",
@@ -1783,7 +1916,7 @@ def build_server():
             raise ValueError("EXPERIENCE_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT")
         output.parent.mkdir(parents=True, exist_ok=True)
         return draft_experience(r, run_id=run_id, scope=scope,
-                                rule_version=rule_version, skill_version="0.5.7-rc7",
+                                rule_version=rule_version, skill_version="0.5.8",
                                 output=output)
 
     @tool

@@ -65,7 +65,8 @@ async def journey(python: Path, plugin: Path, output: Path, env: dict) -> dict:
             tools = {t.name for t in (await session.list_tools()).tools}
             required = {"marketops_start", "marketops_next", "marketops_handoff",
                         "marketops_experience_recall", "marketops_experience_feedback",
-                        "marketops_managed_call", "marketops_runs", "marketops_research_step"}
+                        "marketops_runs", "marketops_research_step", "marketops_setup_status",
+                        "marketops_site_harvest", "marketops_feedback_pack"}
             assert required <= tools, sorted(required - tools)
             assert all(t.startswith("marketops_") for t in tools)
 
@@ -94,12 +95,15 @@ async def journey(python: Path, plugin: Path, output: Path, env: dict) -> dict:
             assert next_step["status"] != "BRIEF_REQUIRED", next_step
             recalled = await call("marketops_experience_recall", run_id=fields["run_id"],
                                   stage="intake", limit=5)
-            refused = await call("marketops_managed_call", capability_id="serper.search",
-                                 params={"query": "synthetic"}, run_id=fields["run_id"],
-                                 operation_id="not-authorized", account_ref="serper",
-                                 intent_fingerprint="synthetic-install")
-            assert refused["status"] == "BLOCKED", refused
-            assert refused["gateway_invoked"] is False, refused
+            # Network and paid calls are off in this check: a public search must be
+            # refused before any provider is reached.
+            search = await session.call_tool("marketops_search", {
+                "provider": "serper", "query": "synthetic", "country": "us",
+                "language": "en", "run_id": fields["run_id"],
+                "operation_id": "not-authorized"})
+            search_text = " ".join(getattr(b, "text", "") for b in search.content)
+            assert getattr(search, "is_error", False), search_text
+            refused = {"status": "BLOCKED", "detail": search_text[:300]}
             empty_handoff = await session.call_tool("marketops_handoff", {
                 "run_id": fields["run_id"], "operation_id": "installed-handoff"})
             handoff_text = " ".join(getattr(b, "text", "") for b in empty_handoff.content)

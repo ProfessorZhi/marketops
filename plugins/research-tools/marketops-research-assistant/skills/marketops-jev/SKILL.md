@@ -29,3 +29,12 @@ labels; always include `unknown`.
 
 **Rules**: Jev ranks and filters; it never establishes a fact, a final grade or a merge. Facts come
 only from quotes. At ≥0.85 confidence its answer is a candidate; below, you check the source.
+
+**Efficient use**: about $0.0001 per judgment (input tokens only), so use it freely at volume, but
+only on targets still in scope: drop excluded and duplicate targets first, ask one question per
+page, never ask again about a page already judged. `harvest_batch(roles_wanted=...)` tags every
+email with no extra call from you.
+
+**When Jev is unavailable** (no key, out of credit, refused): tags come back `ungraded:...`. Judge
+from the short contact context in the harvest result rather than whole pages, keep a smaller
+shortlist, and say in the report that judgment cost moved to you.

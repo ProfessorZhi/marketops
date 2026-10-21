@@ -40,7 +40,7 @@ def warn_sync_folder(root) -> None:
     lowered = str(root).casefold()
     if any(marker in lowered for marker in SYNC_FOLDER_MARKERS):
         print("警告：研究数据目录看起来在同步盘里。多个窗口同时写数据库时，同步盘可能损坏数据；"
-              "建议改用本机硬盘目录（例如 D:\\MarketOps\\data 或 ~/MarketOps/data）。")
+              "建议改用本机硬盘目录（例如 %LOCALAPPDATA%\\MarketOps\\data 或 ~/MarketOps/data）。")
 
 
 def default_paths() -> tuple[Path, Path]:

@@ -32,7 +32,7 @@ from research_event_journal import _root, append_event, append_note
 from research_experience_summary import refresh_quietly as refresh_summary
 from _xlsx import Sheet, render_workbook
 
-VERSION = "0.5.7-rc7"
+VERSION = "0.5.8"
 EMAIL = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 FORMULA = ("=", "+", "-", "@")
 NAMESPACE = {"x": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
@@ -769,7 +769,6 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
     # Admitted relationships are reported in the manifest; the fixed nine-sheet
     # contract has no client relationship sheet, so no row is invented for them.
     relationships = admitted_by_kind["relationship"]
-    org_by_key = {org["entity_key"]: org for org in organizations}
 
     issues: list[dict] = []
 

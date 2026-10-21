@@ -134,6 +134,7 @@ def test_refusal_vocabulary_is_closed() -> None:
         "resolves_to_private",
         "redirect_limit",
         "redirect_without_location",
+        "port_not_allowed",
     }
 
 

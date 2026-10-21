@@ -13,7 +13,6 @@ generic 0.6 schema is introduced; the input is the existing Lite store row shape
 """
 from __future__ import annotations
 
-from collections import defaultdict
 from urllib.parse import urlsplit
 
 __all__ = ["SCHEMA", "POLICY", "select_next_sources", "blocked_domains_from_sources"]

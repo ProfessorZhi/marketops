@@ -353,17 +353,102 @@ def test_every_entry_resolves_to_a_full_sha_commit(manifest):
     assert entries, "没有条目可解析 —— 上面那个循环为空时这条会假绿"
 
 
+#: 快照条目才有的字段。声明为「刻意未捕获」的条目**一个都不许带** ——
+#: 两个状态都写会让「它到底收没收」在文件里没有唯一答案。
+_SNAPSHOT_ONLY_FIELDS = (
+    "snapshot_path", "snapshot_sha256", "public_snapshot_sha256", "selection", "message_ids"
+)
+
+
 def _declared_entries(manifest: dict) -> list[dict]:
+    """返回所有**已捕获**条目 —— 下游每条判据都在文件上做。
+
+    条目分两类，且只有两类：
+
+    * **已捕获**：有 ``snapshot_path`` 与封闭取值里的 ``selection``；
+    * **刻意未捕获**：有 ``why_not_captured``，且不带任何快照字段。
+
+    两类都没有的条目仍然失败。这一点是承重的：没有它，「删掉 snapshot_path」
+    就会成为让整套文件判据静默放行的开关，而报错会变成「没有条目可检查」。
+    未捕获条目的形状（理由、locator、无快照字段）由
+    :func:`test_an_uncaptured_entry_declares_why_and_no_snapshot_fields` 守着。
+    """
     entries = manifest.get("sources")
     assert isinstance(entries, list) and entries, "manifest.sources 必须是非空列表"
+    captured: list[dict] = []
     for entry in entries:
         assert isinstance(entry, dict), f"sources 条目不是 mapping: {entry!r}"
         assert entry.get("id"), f"sources 条目没有 id: {entry!r}"
+        if entry.get("why_not_captured"):
+            present = [field for field in _SNAPSHOT_ONLY_FIELDS if entry.get(field)]
+            assert not present, (
+                f"{entry['id']} 声明了 why_not_captured，却仍带着快照字段 {present} —— "
+                "「未捕获」与「有快照」只能有一个是真的"
+            )
+            continue
         assert entry.get("snapshot_path"), f"{entry.get('id')} 没有 snapshot_path"
         assert entry.get("selection") in SELECTION_KINDS, (
             f"{entry.get('id')} 的 selection={entry.get('selection')!r} 不在封闭取值里"
         )
-    return entries
+        captured.append(entry)
+    return captured
+
+
+def test_an_uncaptured_entry_declares_why_and_no_snapshot_fields(manifest):
+    """「刻意未捕获」必须是一条**记录过的决定**，不是缺字段的另一种写法。
+
+    ``member-c-scene-email-pool-sheet`` 是一条活文档，且正文很可能是联系方式；
+    本仓对它的边界是**只记 locator、正文不入库**（见 manifest 里那条
+    ``why_not_captured``）。所以「没有 snapshot_path」是结论，不是遗漏。这条
+    判据要求那半边同样完整：理由可复核、locator 还在、没有任何快照字段。缺了
+    理由又没有快照的条目，仍由 ``_declared_entries`` 判失败 —— 两处一起把
+    「删掉 snapshot_path」挡在门外。
+    """
+    uncaptured = [
+        entry
+        for entry in manifest.get("sources", [])
+        if isinstance(entry, dict) and entry.get("why_not_captured")
+    ]
+    assert uncaptured, (
+        "manifest 里没有 why_not_captured 条目 —— 若最后一条已被正式捕获，"
+        "请连同这条测试与 _declared_entries 的分类一起复核，而不是让它悄悄失去执行器"
+    )
+    for entry in uncaptured:
+        reason = str(entry.get("why_not_captured", "")).strip()
+        assert len(reason) >= 80, (
+            f"{entry['id']}: why_not_captured 太短（{len(reason)} 字）——"
+            "「不收」必须写出可复核的理由，而不是一句状态"
+        )
+        assert entry.get("locator"), (
+            f"{entry['id']}: 未捕获条目必须留下 locator —— 否则它连「在哪」都没有"
+        )
+        present = [field for field in _SNAPSHOT_ONLY_FIELDS if entry.get(field)]
+        assert not present, (
+            f"{entry['id']}: 声明未捕获却带着 {present} —— 两种状态只能有一个"
+        )
+
+
+def test_a_source_without_a_snapshot_must_say_why_it_is_not_captured():
+    """分类是二选一：缺 ``snapshot_path`` 且没有理由，仍然失败。
+
+    这是上面那条分类的**反向控制**。如果「没有 snapshot_path」本身就能让条目被
+    跳过，那整套文件判据可以被逐条静默关掉，而报告只会说「没有条目可检查」。
+    """
+    captured = {"id": "c", "snapshot_path": "sources/x", "selection": "complete-chat"}
+    uncaptured = {
+        "id": "u",
+        "why_not_captured": "活文档，正文不入库；边界说明见 docs/。",
+        "locator": "https://example.feishu.cn/sheets/TOKEN",
+    }
+    assert _declared_entries({"sources": [captured, uncaptured]}) == [captured]
+
+    with pytest.raises(AssertionError, match="没有 snapshot_path"):
+        _declared_entries({"sources": [{"id": "x", "selection": "complete-chat"}]})
+
+    with pytest.raises(AssertionError, match="只能有一个是真的"):
+        _declared_entries(
+            {"sources": [dict(uncaptured, snapshot_path="sources/u")]}
+        )
 
 
 def test_every_declared_snapshot_path_exists(manifest):
@@ -386,9 +471,9 @@ def test_snapshot_hashes_match_the_files(manifest):
         path = REPO_ROOT / entry["snapshot_path"]
         if not path.is_file():
             continue
-        declared = str(entry.get("snapshot_sha256", ""))
+        declared = str(entry.get("public_snapshot_sha256", ""))
         assert _SHA256_RE.match(declared), (
-            f"{entry['id']} 的 snapshot_sha256 不是 64 位小写 hex: {declared!r}"
+            f"{entry['id']} 的 public_snapshot_sha256 不是 64 位小写 hex: {declared!r}"
         )
         actual = _sha256(path)
         checked += 1
@@ -400,6 +485,27 @@ def test_snapshot_hashes_match_the_files(manifest):
     assert not offenders, (
         "快照被改过（或 manifest 被改过）:\n  " + "\n  ".join(offenders)
     )
+
+
+def test_publication_declares_redaction_and_preserves_upstream_pins(manifest):
+    publication = manifest.get("publication", {})
+    assert publication.get("snapshot_kind") == "redacted-public-derivative"
+    assert publication.get("redaction_policy") == "REDACTION.md"
+    for entry in _declared_entries(manifest):
+        for field in ("snapshot_sha256", "public_snapshot_sha256"):
+            assert _SHA256_RE.fullmatch(str(entry.get(field, ""))), (
+                f"{entry['id']}: missing or invalid {field}"
+            )
+
+
+@pytest.mark.parametrize("field", ["snapshot_sha256", "public_snapshot_sha256"])
+def test_removing_either_snapshot_pin_is_rejected(manifest, field):
+    import copy
+
+    changed = copy.deepcopy(manifest)
+    _declared_entries(changed)[0].pop(field)
+    with pytest.raises(AssertionError, match=field):
+        test_publication_declares_redaction_and_preserves_upstream_pins(changed)
 
 
 def test_every_file_under_sources_is_declared(manifest):

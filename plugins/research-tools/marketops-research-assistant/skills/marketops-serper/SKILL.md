@@ -16,12 +16,17 @@ operation_id, mode='web', limit=10)`. Rung 1 for discovery: cheapest per query.
 - Staff pages on a known site: `site:{domain} "{wanted role}" OR "{other wanted role}"`.
 - Officers in public documents: `site:{domain} "committee" filetype:pdf`, `"{venue}" minutes secretary`.
 
-**Modes**: `web` (default), `maps`, `news`, `images`, `scholar`, `patents`, `shopping`,
+**Modes**: `web` (default), `maps` (places with address, phone and website: the first choice for
+listing an area, before SerpApi), `news`, `images`, `scholar`, `patents`, `shopping`,
 `autocomplete`; `page` only where the mode paginates.
 
 **Use the result**: titles/snippets are leads, never facts. Pass directory URLs to
 `marketops_research_step` and official sites to `marketops_site_harvest` or `marketops_pool_import`.
 Record how many entities a directory lists before importing it.
 
-**Cost**: one request per call (account credits). The same query is charged once per Run even if
+**Cost**: one credit per 10 results (about $0.001), so keep `limit=10`; asking for 20 bills two
+credits. New accounts get 2,500 free credits once. The same query is charged once per Run even if
 retried through another route.
+
+**When it runs out**: "not enough credits" marks Serper out; `marketops_search(provider='all')`
+then asks SerpApi instead and TinyFish search keeps running. Tell the user to top up Serper.

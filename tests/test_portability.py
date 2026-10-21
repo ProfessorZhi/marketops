@@ -288,7 +288,7 @@ def test_settings_accepts_posix_data_root(tmp_path: Path) -> None:
 
 def test_slugify_is_platform_independent() -> None:
     """同一输入在 Windows 与 Linux 必须得到同一文件名。"""
-    assert slugify("AcmeCorp / Natural Grass Ltd.") == "acme-natural-grass-ltd"
+    assert slugify("AcmeCorp / Natural Grass Ltd.") == "acmecorp-natural-grass-ltd"
     assert "/" not in slugify("a/b")
     assert "\\" not in slugify("a\\b")
     assert ":" not in slugify("C:something")

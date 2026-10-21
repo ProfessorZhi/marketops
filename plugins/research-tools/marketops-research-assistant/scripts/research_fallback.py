@@ -248,6 +248,10 @@ def _decision(response, request):
         return "STOP", "FALLBACK_UNKNOWN_OUTCOME_HOLD"
     if codes & SHARED_STOPS:
         return "STOP", sorted(codes & SHARED_STOPS)[0]
+    health = response.get("provider_health")
+    if isinstance(health, dict) and health.get("state") in {"QUOTA_EXHAUSTED", "RATE_LIMITED"}:
+        # The provider said it is out of credit or busy: the next one takes over.
+        return "NEXT", "PROVIDER_" + health["state"]
     if response.get("status") == "BLOCKED":
         return ("NEXT", sorted(codes & SKIPPABLE)[0]) if codes & SKIPPABLE else ("STOP", "FALLBACK_UNCLASSIFIED_REFUSAL")
     if response.get("status") == "FAILED":

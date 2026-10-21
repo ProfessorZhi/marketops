@@ -15,7 +15,6 @@ Nobody has to remember to write a note. Two things come out of it:
 from __future__ import annotations
 
 import csv
-import json
 import sqlite3
 from collections import Counter, defaultdict
 from contextlib import closing
@@ -118,7 +117,6 @@ def report(root, *, out_dir: Path | None = None, pool_id: str = "") -> dict:
                             "rescued_by,cost_unknown FROM wall_events").fetchall()
     failures = [e for e in events if e[3] not in ("OK", "SKIPPED")]
     by_code = Counter(e[4] or "UNCLASSIFIED" for e in failures)
-    by_capability = Counter(e[2] for e in failures)
     rescue = defaultdict(lambda: [0, 0])  # failed capability -> [chains, rescued]
     for e in failures:
         rescue[e[2]][0] += 1

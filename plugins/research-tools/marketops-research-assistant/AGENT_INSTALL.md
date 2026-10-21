@@ -80,7 +80,7 @@ commands in PowerShell.
    Tell me when it finishes."
 
 6. **Connect the plugin to this agent.** The installer writes
-   `%LOCALAPPDATA%\MarketOps\releases\0.5.7-rc7\START_HERE.md` (or the folder the user chose) with
+   `%LOCALAPPDATA%\MarketOps\current\START_HERE.md` (or the folder the user chose) with
    the exact paths for this computer. Read it and do the part for the agent you are:
    - **Codex**: run the two `codex plugin ...` commands it lists, then restart Codex.
    - **WorkBuddy**: Connector management → import custom connector → choose the `connectors\workbuddy`
@@ -97,3 +97,19 @@ commands in PowerShell.
 
 8. **Show the user how to start**, e.g.:
    > 用 MarketOps 调研：<地区> 的 <目标类型>，要找 <角色> 的邮箱。我们卖的是 <产品>，买来使用的是客户，卖同类产品的是竞品要排除。预算已授权，不要停下来问我，完成后给我 Excel、报告和反馈包。
+
+## Updating later
+
+Installs under `%LOCALAPPDATA%\MarketOps\releases\<version>` get a stable
+`%LOCALAPPDATA%\MarketOps\current` that every host config points at, plus `Update.cmd`.
+When `marketops_update_check` reports `UPDATE_AVAILABLE`, or the user asks to update:
+
+```powershell
+$env:MARKETOPS_NO_PAUSE = "1"
+& "$env:LOCALAPPDATA\MarketOps\Update.cmd"
+```
+
+It installs the newest GitHub release beside the current one, checks it, and only then moves
+`current`; on any failure nothing changes. Then tell the user to restart this agent and call
+`marketops_setup_status`. `Update.cmd --rollback` returns to the previous version. Never run the
+update in the middle of a research task.

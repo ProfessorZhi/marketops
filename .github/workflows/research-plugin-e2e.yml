@@ -120,7 +120,8 @@ jobs:
               manifest_name = next(n for n in members if n.endswith("/SOURCE_MANIFEST.json"))
               prefix = manifest_name.removesuffix("SOURCE_MANIFEST.json")
               manifest = json.loads(z.read(manifest_name))
-              assert manifest["version"] == "0.5.7-rc7"
+              declared = json.loads(pathlib.Path("plugins/research-tools/marketops-research-assistant/plugin.json").read_text())["version"]
+              assert manifest["version"] == declared, (manifest["version"], declared)
               assert manifest["qa_verified"] is False
               for rel,digest in manifest["files"].items():
                   assert hashlib.sha256(z.read(prefix + rel)).hexdigest() == digest, rel
