@@ -52,26 +52,25 @@ class InstalledArtifactTests(unittest.TestCase):
                         self.result["install_smoke_probe"])
 
     def test_generated_configs_have_no_shell_entry_and_one_server(self):
-        # This is the Windows contract: an absolute interpreter plus a .py entry,
-        # with nothing that needs a POSIX shell.
+        # Codex needs a bare host command; the stdlib launcher hands off to the
+        # absolute customer venv. The compatibility config stays client-specific.
         for name in (".mcp.json", "mcp.json"):
             server = next(iter(json.loads((self.tree / name).read_text(
                 encoding="utf-8"))["mcpServers"].values()))
-            self.assertEqual(self.result["venv_python"], server["command"], name)
-            # The managed entry is research_mcp.py: it is the one path the
-            # installers, the client configs and the acceptance gate all name,
-            # and it is where host compatibility has to hold. The facade remains
-            # shipped and is imported by that entry rather than launched directly.
-            self.assertEqual([str(self.tree / "scripts" / "research_mcp.py")],
-                             server["args"], name)
-            # "not a shell wrapper" stated precisely. The substring form this
-            # replaces (`"sh" not in command`) false-positived on the *random*
-            # temp directory the tree is unpacked into: a run whose path was
-            # `.../tmpnshif41q/...` failed while six isolated runs passed. The
-            # exact command equality above already pins the binary; this line
-            # only has to say "and it is not an interpreter we did not choose".
-            self.assertNotIn(Path(server["command"]).name,
-                             {"sh", "bash", "zsh", "dash"}, name)
+            if name == "mcp.json":
+                command, prefix = install._codex_host_python()
+                self.assertEqual(command, server["command"], name)
+                self.assertEqual([*prefix,
+                                  str(self.tree / "scripts" / "launch_research_mcp.py"),
+                                  "scripts/research_mcp.py"], server["args"], name)
+                self.assertEqual(self.result["venv_python"],
+                                 server["env"]["MARKETOPS_RESEARCH_PYTHON"], name)
+                self.assertNotIn("env_vars", server, name)
+                self.assertNotIn("default_tools_approval_mode", server, name)
+            else:
+                self.assertEqual(self.result["venv_python"], server["command"], name)
+                self.assertEqual([str(self.tree / "scripts" / "research_mcp.py")],
+                                 server["args"], name)
             self.assertNotIn("-c", server["args"], name)
 
     def test_installed_tree_passes_the_installed_artifact_probe(self):

@@ -67,6 +67,8 @@ REMEDIES = {
     "CODEX_CLI_UNAVAILABLE":
         "Install the Codex CLI, or rerun without --register-codex to keep the "
         "generated marketplace unregistered.",
+    "CODEX_PYTHON_LAUNCHER_REQUIRED":
+        "Put python/python3 or the Python 3.12 py launcher on PATH, then rerun the installer.",
     "CODEX_REGISTRATION_REQUIRES_CODEX_CLIENT":
         "Use --client codex, both or all together with --register-codex.",
     "INSTALL_STEP_FAILED":
@@ -147,6 +149,18 @@ def _state_write(dest, state):
 
 def _python(venv_path: Path) -> Path:
     return venv_path / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+
+
+def _codex_host_python() -> tuple[str, list[str]]:
+    """Return a bare Python command accepted by Codex's plugin stdio parser."""
+    for candidate in ("python", "python3", "py"):
+        resolved = shutil.which(candidate)
+        if not resolved or "\\WindowsApps\\" in resolved:
+            continue
+        return candidate, (["-3.12"] if candidate == "py" else [])
+    raise ValueError(
+        "CODEX_PYTHON_LAUNCHER_REQUIRED: add Python to PATH or make the py launcher available"
+    )
 
 
 def normalize_destination(destination) -> Path:
@@ -247,6 +261,8 @@ def install(destination: Path, client: str, *, dependencies: bool,
     if register_codex and client not in {"codex", "both", "all"}:
         raise ValueError("CODEX_REGISTRATION_REQUIRES_CODEX_CLIENT")
     result = plan(destination, client, resume=resume)
+    codex_requested = client in {"codex", "both", "all"}
+    codex_command, codex_prefix = _codex_host_python() if codex_requested else (None, [])
     # Never install source with malformed manifests, Skills or Python syntax.
     from preflight import report as static_report
     outcome = static_report()
@@ -353,35 +369,36 @@ def install(destination: Path, client: str, *, dependencies: bool,
             "page=b.new_page(); page.goto('about:blank'); b.close(); p.stop()"],
             env=env, capture_output=True, timeout=60)
         browser_verified = check.returncode == 0
-    # Bind the installed Codex plugin to this customer's venv instead of PATH.
-    # No keys are written; env_vars remain inherited from the client process.
+    # Bind each generated MCP config to the customer-owned package copy.
     for config_name in ("mcp.json", ".mcp.json"):
         config_path = target / config_name
         config = json.loads(config_path.read_text(encoding="utf-8"))
         servers = config.get("mcpServers") or config.get("mcp_servers") or {}
         for server in servers.values():
-            server["command"] = str(py)
-            # Every generated client config names the one managed MarketOps
-            # entrypoint `scripts/research_mcp.py` — the same module the plugin's
-            # manifests and the source-tree configs point at, so no client can
-            # load a second (or a differently-built) server. An absolute
-            # interpreter path also removes the POSIX-shell entry, which is what
-            # makes the generated config usable on Windows.
-            server["args"] = [str(target / "scripts" / "research_mcp.py")]
-            # Codex may cache a local plugin under a different plugin root and
-            # rejects a cwd outside that root. The script uses __file__, so cwd
-            # is unnecessary: let Codex select its installed plugin directory.
-            server.pop("cwd", None)
-            if config_name == "mcp.json" and client in {"codex", "both", "all"}:
-                # Codex Desktop's portable-plugin stdio parser rejects the
-                # portable Agent Plugins `env_vars` passthrough list and the
-                # approval-policy field. Keep those in the source manifest for
-                # other hosts, but emit only Codex-supported fields in the
-                # installed Codex-facing manifest. Credentials are loaded from
-                # the OS keyring by the server; configured runtime settings are
-                # read from its customer-owned config file.
+            codex_config = codex_requested and (
+                config_name == "mcp.json" or client in {"codex", "both"})
+            if codex_config:
+                # Codex's Agent Plugins parser requires a bare stdio command;
+                # it rejects `env_vars` and absolute executable paths. Launch
+                # the stdlib wrapper with host Python, then hand off to the
+                # isolated venv through MARKETOPS_RESEARCH_PYTHON.
+                server["type"] = "stdio"
+                server["command"] = codex_command
+                server["args"] = [
+                    *codex_prefix,
+                    str(target / "scripts" / "launch_research_mcp.py"),
+                    "scripts/research_mcp.py",
+                ]
                 server.pop("env_vars", None)
                 server.pop("default_tools_approval_mode", None)
+                server.pop("cwd", None)
+                server.setdefault("env", {})["MARKETOPS_RESEARCH_PYTHON"] = str(py)
+            else:
+                server["command"] = str(py)
+                server["args"] = [str(target / "scripts" / "research_mcp.py")]
+                # Claude's plugin launcher is resolved relative to its plugin;
+                # it does not need the source-tree cwd after installation.
+                server.pop("cwd", None)
             if browser:
                 server.setdefault("env", {})["PLAYWRIGHT_BROWSERS_PATH"] = str(browser_root)
         config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
