@@ -1,0 +1,180 @@
+{
+  "schema": "marketops.rc-integration-manifest/1",
+  "baseline": "4f87bc3306b90d55bfd0332ef1efc8b97f1dcc44",
+  "baseline_branch": "feat/bruce-plugin-delivery-20261020",
+  "rc_branch": "rc/marketops-0.5.6-rc2-20261020",
+  "base_commit": "38dcef853f526f64f669c475c96ad9c3bad3ad47",
+  "base_branch": "fix/marketops-rc-release-hygiene-20261020",
+  "version": "0.5.6-rc5",
+  "note": "commits 只填已落到 Lane 分支的精确 SHA；空列表表示该 Lane 尚未交付，不猜测、不代填。",
+  "lanes": [
+    {
+      "id": "A",
+      "name": "delivery-admission-gate",
+      "branch": "fix/marketops-rc-delivery-gate-20261020",
+      "worktree": "worktrees/marketops/rc-gate-20261020",
+      "owned_paths": [
+        "plugins/research-tools/marketops-research-assistant/scripts/research_delivery.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_research_delivery.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_delivery_admission_gate.py"
+      ],
+      "commits": [
+        "6b2548991acddc52d1efce0e344b3d8f704ece40"
+      ]
+    },
+    {
+      "id": "B",
+      "name": "client-view",
+      "branch": "fix/marketops-rc-client-view-20261020",
+      "worktree": "worktrees/marketops/rc-clientview-20261020",
+      "owned_paths": [
+        "plugins/research-tools/marketops-research-assistant/scripts/research_client_view.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_client_view_generation.py",
+        "plugins/research-tools/marketops-research-assistant/references/CLIENT_VIEW_CONTRACT.md"
+      ],
+      "commits": [
+        "76991cb76ec3b56e70732ea898e1b6458b271202"
+      ]
+    },
+    {
+      "id": "C",
+      "name": "installer-optin",
+      "branch": "fix/marketops-rc-installer-20261020",
+      "worktree": "worktrees/marketops/rc-installer-20261020",
+      "owned_paths": [
+        "plugins/research-tools/marketops-research-assistant/install.sh",
+        "plugins/research-tools/marketops-research-assistant/scripts/setup_clients.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_installer_optin_security.py"
+      ],
+      "commits": [
+        "ed4836ba32f17378e61563f2493c5c0fd08beb4a"
+      ]
+    },
+    {
+      "id": "D",
+      "name": "search-transport-dedup",
+      "branch": "fix/marketops-rc-search-cost-20261020",
+      "worktree": "worktrees/marketops/rc-search-cost-20261020",
+      "owned_paths": [
+        "plugins/research-tools/marketops-research-assistant/scripts/search_canonical.py",
+        "plugins/research-tools/marketops-research-assistant/scripts/dual_search_mcp.py",
+        "plugins/research-tools/marketops-research-assistant/scripts/research_provider_extensions.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_serpapi_cross_transport_no_double_charge.py"
+      ],
+      "commits": [
+        "eefd8b6a4ae14fff7c8e6caed3bc2e1a2027f38c"
+      ]
+    },
+    {
+      "id": "E",
+      "name": "jev-evidence-locator",
+      "branch": "fix/marketops-rc-jev-target-20261020",
+      "worktree": "worktrees/marketops/rc-jev-target-20261020",
+      "owned_paths": [
+        "plugins/research-tools/marketops-research-assistant/scripts/research_adapter_jev.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_jev_targeted_excerpt.py"
+      ],
+      "commits": [
+        "da3005018ac625fec02c22f18435f075e60aeddc"
+      ]
+    },
+    {
+      "id": "H",
+      "name": "release-hygiene",
+      "branch": "fix/marketops-rc-release-hygiene-20261020",
+      "worktree": "worktrees/marketops/rc-release-hygiene-20261020",
+      "owned_paths": [
+        "docs/rc-20261020/",
+        "plugins/research-tools/marketops-research-assistant/plugin.json",
+        "plugins/research-tools/marketops-research-assistant/.claude-plugin/plugin.json",
+        "plugins/research-tools/marketops-research-assistant/.codex-plugin/plugin.json",
+        "plugins/research-tools/marketops-research-assistant/scripts/build_client_bundles.py",
+        "plugins/research-tools/marketops-research-assistant/scripts/setup_clients.py"
+      ],
+      "commits": [
+        "38dcef853f526f64f669c475c96ad9c3bad3ad47"
+      ],
+      "note": "RC5 integrates from this exact commit; it is the branch base of the final PR."
+    },
+    {
+      "id": "F",
+      "name": "money-gate",
+      "branch": "fix/marketops-rc-money-gate-20261020",
+      "worktree": "worktrees/marketops/rc-money-gate-20261020",
+      "base": "4f87bc3306b90d55bfd0332ef1efc8b97f1dcc44",
+      "owned_paths": [
+        "plugins/research-tools/marketops-research-assistant/scripts/research_gateway.py",
+        "plugins/research-tools/marketops-research-assistant/scripts/research_runtime_setup.py",
+        "plugins/research-tools/marketops-research-assistant/scripts/research_usage_ledger.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_runtime_dollar_cap_contract.py"
+      ],
+      "commits": [
+        "a3e45df134bc88305a7647d3f8f9f646be317450"
+      ],
+      "integrated_as": "57fd5036",
+      "note": "Independent run/project call ceilings, explicit USD caps with fail-closed unknown pricing, and execution outcome kept separate from charge uncertainty."
+    },
+    {
+      "id": "G",
+      "name": "browser-egress",
+      "branch": "fix/marketops-rc-browser-egress-20261020",
+      "worktree": "worktrees/marketops/rc-browser-egress-20261020",
+      "base": "4f87bc3306b90d55bfd0332ef1efc8b97f1dcc44",
+      "owned_paths": [
+        "plugins/research-tools/marketops-research-assistant/scripts/research_adapter_crawl4ai.py",
+        "plugins/research-tools/marketops-research-assistant/scripts/research_runtime_transport.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_crawl_browser_webrtc_egress.py"
+      ],
+      "commits": [
+        "f977c6a149235b68b1388d2bd793f71d86675615"
+      ],
+      "integrated_as": "b6e66e96",
+      "note": "WebRTC non-proxied UDP guard and host-resolver rules on every managed browser launch; OS-level UDP isolation remains UNPROVEN without a packet capture."
+    },
+    {
+      "id": "I",
+      "name": "rc5-final-integration",
+      "branch": "rc/marketops-0.5.6-rc2-20261020",
+      "worktree": "worktrees/marketops/rc-final-20261020",
+      "base": "38dcef853f526f64f669c475c96ad9c3bad3ad47",
+      "owned_paths": [
+        "plugins/research-tools/marketops-research-assistant/scripts/dual_search_mcp.py",
+        "plugins/research-tools/marketops-research-assistant/scripts/research_provider_extensions.py",
+        "plugins/research-tools/marketops-research-assistant/scripts/research_wiring.py",
+        "plugins/research-tools/marketops-research-assistant/scripts/research_runtime_status.py",
+        "plugins/research-tools/marketops-research-assistant/scripts/research_delivery.py",
+        "plugins/research-tools/marketops-research-assistant/scripts/research_lite_store.py",
+        "plugins/research-tools/marketops-research-assistant/scripts/research_evidence_store.py",
+        "plugins/research-tools/marketops-research-assistant/scripts/research_runtime_setup.py",
+        "plugins/research-tools/marketops-research-assistant/scripts/build_client_bundles.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_rc2_integration_seams.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_rc3_evidence_p0.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_rc3_release_qa.py",
+        "scripts/rc-20261020/check_release_gate.py",
+        "scripts/rc-20261020/check_release_hygiene.py",
+        "plugins/research-tools/marketops-research-assistant/scripts/research_source_selection.py",
+        "plugins/research-tools/marketops-research-assistant/scripts/research_workflow.py",
+        "plugins/research-tools/marketops-research-assistant/scripts/research_mcp.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_rc4_supersedes_write_guard.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_rc4_source_selection.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_rc5_review_type_guard.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_rc5_source_evidence.py"
+      ],
+      "commits": [],
+      "note": "The only lane allowed to edit the seam files after F and G. RC5 closes the review_type supersedes bypass and requires linked quote support for rate/phone/contact binding. Its commit SHA is filled in after the final candidate commit."
+    }
+  ],
+  "qa": {
+    "id": "Q",
+    "branch": "qa/marketops-rc-customer-gate-20261020",
+    "worktree": "worktrees/marketops/rc-independent-qa-20261020",
+    "artifact": "tests/test_customer_delivery_boundary_qa.py",
+    "acceptance_doc": "docs/RC_CUSTOMER_DELIVERY_ACCEPTANCE.md",
+    "commits": [
+      "cdb1d9a3f7c4b9d7c8d12923364bcd091fcd2a95"
+    ],
+    "integrate_into_product_branch": false,
+    "run_against": "RC plugin root via MARKETOPS_QA_PLUGIN_ROOT; never copies QA files into the product branch"
+  },
+  "branch_name_note": "The PR #22 branch keeps its rc2 name; the product version is 0.5.6-rc5. One development branch only."
+}

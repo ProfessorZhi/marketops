@@ -1414,6 +1414,32 @@ class OutreachManifest(StrictModel):
         return sha256_text("\n".join(parts))
 
 
+class AuthorizationProvenance(str, Enum):
+    """这份授权**经由哪条路径**进入账本。
+
+    ## 它回答的问题，以及它不回答的问题
+
+    它回答：这条记录是**受管入口**写入的，还是任意一段能 import 本模块的代码
+    自己构造的。``UNVERIFIED`` 是默认值 —— 直接调用
+    :func:`marketops.application.outreach.record_authorization` 造出来的记录
+    就是这一格。``BEARER_PRINCIPAL`` 只由 MCP 的 ``authorize_wave`` 写入，
+    那一处的主体取自传输层已认证的 Bearer 令牌，不是调用载荷里的字段。
+
+    它**不**回答「这个主体真的有权批准这笔外联吗」。那需要一个可验证的
+    外部批准记录来源；本仓今天没有接入这样的来源，所以
+    :class:`marketops.security.authorization.NoAuthoritySource` 的判决是
+    ``BLOCKED_TRUST_SOURCE``，而不是一个乐观的 ``VERIFIED``。
+
+    ## 为什么默认值必须是「未验证」
+
+    一个默认 ``BEARER_PRINCIPAL`` 的字段会让「忘了传」与「受管入口写入」在盘上
+    同形 —— 而前者正是要挡的那条绕过路径。默认拒绝，显式声明才放行。
+    """
+
+    UNVERIFIED = "unverified"
+    BEARER_PRINCIPAL = "bearer_principal"
+
+
 class WaveAuthorization(StrictModel):
     """**一份授权**：谁、在什么范围内、批准了哪一批内容。
 
@@ -1455,6 +1481,11 @@ class WaveAuthorization(StrictModel):
     #: 批准的范围：允许发多少条。**可以小于清单条数**（批准 10 条而清单有 20 条
     #: 是常态）—— 于是它必须单独存在，不能读成 ``len(entries)``。
     approved_count: int = Field(ge=0)
+    #: 这份授权**经由哪条路径**进入账本。默认 ``UNVERIFIED``，而
+    #: :func:`marketops.application.outreach.dispatch_wave` 只放行
+    #: ``BEARER_PRINCIPAL`` —— 于是「绕过 MCP 的 ``authorize_wave``、直接调应用层
+    #: 登记一份授权」这条路径默认发不出去。见 :class:`AuthorizationProvenance`。
+    provenance: AuthorizationProvenance = AuthorizationProvenance.UNVERIFIED
     revoked_at: datetime | None = None
     revoked_reason: str = ""
 

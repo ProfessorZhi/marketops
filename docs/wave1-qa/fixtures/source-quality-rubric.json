@@ -1,0 +1,70 @@
+{
+  "schema": "marketops.qa.source_quality_rubric.v1",
+  "_comment": "Transparent rubric. It is published *before* the run so the scoring is not chosen after seeing which method won. Every row the run produces is graded by these rules and no others.",
+  "grades": [
+    {
+      "grade": "A",
+      "label": "official_primary",
+      "definition": "A page on the organisation's own official domain, or on the domain of its governing public body, that states the fact directly.",
+      "counts_as_evidence": true,
+      "examples": ["the organisation's own /contact page", "a council page listing its own venue"]
+    },
+    {
+      "grade": "B",
+      "label": "official_secondary",
+      "definition": "A page on an official domain that corroborates the fact but does not state it directly (for example an annual report, a governance page, a public register).",
+      "counts_as_evidence": true,
+      "note": "Two B rows for the same fact may be aggregated, but the aggregate is recorded as B, never promoted to A."
+    },
+    {
+      "grade": "C",
+      "label": "third_party_authoritative",
+      "definition": "A recognised public reference (national register, government open-data portal, an established encyclopaedia) that is not the organisation's own domain.",
+      "counts_as_evidence": false,
+      "note": "May be used to *locate* an official page. Never sufficient on its own to accept a field."
+    },
+    {
+      "grade": "D",
+      "label": "aggregator_or_directory",
+      "definition": "A commercial directory, ticketing site, review site or venue-hire broker.",
+      "counts_as_evidence": false,
+      "note": "Explicitly excluded by the brief when it is the organisation's only presence in the geography."
+    },
+    {
+      "grade": "E",
+      "label": "search_snippet_only",
+      "definition": "A search-result title/snippet with no retrieved page behind it.",
+      "counts_as_evidence": false,
+      "note": "Treating a snippet as the source is one of the owner's zero-tolerance items."
+    },
+    {
+      "grade": "F",
+      "label": "challenge_or_login_page",
+      "definition": "A CAPTCHA, 'verify you are human', consent-wall or login page returned in place of the content.",
+      "counts_as_evidence": false,
+      "note": "Must never be persisted as validated evidence, even when served with HTTP 200."
+    }
+  ],
+  "field_acceptance": {
+    "_comment": "A field is accepted only on a grade that counts_as_evidence, and only when the excerpt hash is present.",
+    "rule": "accepted(field) := source.grade in {A,B} AND source.url_accessible_at(retrieved_at) AND excerpt_sha256 is a 64-char lowercase hex AND the excerpt actually contains the field value",
+    "otherwise": "the row is emitted with verification=PENDING or UNVERIFIED, never as a fact"
+  },
+  "measurements": [
+    {"id": "official_domain_accuracy", "definition": "accepted rows whose official_domain resolves on the organisation's own site / accepted rows"},
+    {"id": "traceable_fact_ratio", "definition": "candidate facts with an accessible source page AND excerpt hash / candidate facts"},
+    {"id": "accepted_valid_rows", "definition": "rows a human reviewer accepted / rows submitted"},
+    {"id": "duplicates_per_accepted_entity", "definition": "duplicate candidate rows per accepted entity"},
+    {"id": "missed_required_fields", "definition": "required fields absent from accepted rows"},
+    {"id": "false_positives", "definition": "accepted rows a reviewer later rejected, per reviewer-checked sample"},
+    {"id": "manual_minutes_per_accepted_row", "definition": "human review minutes / accepted rows"},
+    {"id": "usd_per_accepted_row", "definition": "provider spend in USD / accepted rows"},
+    {"id": "credits_per_accepted_row", "definition": "provider credits or units / accepted rows"},
+    {"id": "failure_causes", "definition": "count by closed-set reason code across all attempts"}
+  ],
+  "comparison_rule": "Methods are compared on cost per human-accepted valid result, not on API call count. A cheaper method that yields no accepted rows is not cheaper.",
+  "blind_audit": {
+    "definition": "The reviewer scores a subset without seeing which method produced which row, and the subset is drawn so it is independently checkable afterwards.",
+    "two_pass": "pass 1 scores the row; pass 2 re-checks the cited source page still resolves and still contains the excerpt."
+  }
+}

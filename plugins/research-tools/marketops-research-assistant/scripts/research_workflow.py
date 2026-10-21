@@ -16,15 +16,16 @@ from contextlib import closing
 from pathlib import Path
 
 import research_lite_store as store
+import research_source_selection as source_selection
 from research_event_journal import append_event, append_note
 
 MAX_ROWS = 20_000
 DISPOSITIONS = frozenset({"RESEARCHED_CANDIDATE", "HOLD", "EXCLUDED", "DUPLICATE"})
 SKILLS = {
-    "intake": "marketops-intake", "discovery": "marketops-source-discovery",
-    "entities": "marketops-venue-account", "acquisition": "marketops-evidence",
-    "people": "marketops-person-research", "review": "marketops-research-acceptance",
-    "handoff": "marketops-handoff",
+    "intake": "marketops-discovery", "discovery": "marketops-discovery",
+    "entities": "marketops-accounts", "acquisition": "marketops-accounts",
+    "people": "marketops-accounts", "review": "marketops-delivery",
+    "handoff": "marketops-delivery",
 }
 
 
@@ -87,6 +88,27 @@ def _tip(rows: list[dict]) -> dict | None:
     return tip if len(seen) == len(index) else None
 
 
+def active_records(records: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Select only unambiguous live tips for business-facing views.
+
+    History is NOT deleted. A version fork is not resolved by created_at, so
+    neither conflicting candidate enters the customer sheet. The caller's
+    complete snapshot stays available in the audit sheet and manifest.
+    """
+    versions = defaultdict(list)
+    for row in records:
+        versions[(row["kind"], row["entity_key"])].append(row)
+    selected, conflicts = [], []
+    for (kind, entity_key), group in versions.items():
+        tip = _tip(group)
+        if tip is None:
+            conflicts.append({"kind": kind, "entity_key": entity_key,
+                              "record_ids": sorted(row["record_id"] for row in group)})
+        else:
+            selected.append(tip)
+    return selected, conflicts
+
+
 def _text(value: object) -> bool:
     return (isinstance(value, str) and bool(value.strip())
             and value.strip().upper() not in {"UNKNOWN", "NONE", "N/A", "NULL", "TBD", "NOT_FOUND"})
@@ -139,17 +161,29 @@ def assess_records(run_id: str, records: list[dict], *, limit: int = 25) -> dict
     # A quantity cannot silently migrate from "venues to investigate" to
     # "organizations with named email routes". Aspirational quantities are not
     # hard minimums; old briefs must explicitly confirm their unit.
-    if (not isinstance(kind, str) or kind not in {"venue", "organization"}
-            or not isinstance(goal, str) or goal not in {"pool", "contacts"}
-            or (minimum is not None and (type(minimum) is not int or not 1 <= minimum <= MAX_ROWS))
-            or type(named) is not bool
-            or (goal == "contacts" and kind != "organization")
-            or (named and goal != "contacts")
-            or (minimum_unit is not None and minimum_unit != kind)):
+    # Name the broken rule. "BRIEF_INVALID" on its own told the Agent nothing about
+    # which of ten conditions it had missed, so the retry was a guess.
+    problems = []
+    if not isinstance(kind, str) or kind not in {"venue", "organization"}:
+        problems.append("target_kind must be venue or organization")
+    if not isinstance(goal, str) or goal not in {"pool", "contacts"}:
+        problems.append("goal must be pool or contacts")
+    if minimum is not None and (type(minimum) is not int or not 1 <= minimum <= MAX_ROWS):
+        problems.append("minimum_targets must be an integer 1-" + str(MAX_ROWS))
+    if type(named) is not bool:
+        problems.append("require_named_person must be true or false")
+    if goal == "contacts" and kind != "organization":
+        problems.append("goal=contacts requires target_kind=organization")
+    if named and goal != "contacts":
+        problems.append("require_named_person=true requires goal=contacts")
+    if minimum_unit is not None and minimum_unit != kind:
+        problems.append("minimum_targets_unit must equal target_kind")
+    if problems:
         return {**base, "status": "BRIEF_INVALID", "stage": "intake",
                 "recommended_skill": SKILLS["intake"], "targets": [], "target_ids": [],
                 "gap_counts": {"BRIEF_INVALID": 1}, "goal_satisfied": False,
-                "blocked_target_count": 0, "completion_rule": "correct_the_structured_brief"}
+                "blocked_target_count": 0, "problems": problems,
+                "completion_rule": "correct_the_structured_brief"}
 
     if minimum is not None and minimum_unit is None:
         # Legacy Runs may have misinterpreted a venue exploration target as a
@@ -294,8 +328,36 @@ def assess_records(run_id: str, records: list[dict], *, limit: int = 25) -> dict
             "warning": "Source presence and candidate disposition do not validate facts, SOP grade or market coverage."}
 
 
+def _advisory_selection(records: list[dict], result: dict, links: dict[str, set[str]],
+                        *, budget: dict | None, blocked_domains) -> dict | None:
+    """Bounded source advisory over the existing rows; never writes or searches."""
+    kind = result.get("target_kind")
+    if kind not in {"organization", "venue"}:
+        return None
+    active, _conflicts = active_records(records)
+    candidates = [row for row in active if row["kind"] == kind]
+    related_by_org = defaultdict(list)
+    for row in active:
+        if row["kind"] in {"person", "role", "contact_point", "relationship"}:
+            organization = (row.get("data") or {}).get("organization_id")
+            if isinstance(organization, str):
+                related_by_org[organization].append(row)
+    org_by_key = {row["entity_key"]: row for row in active if row["kind"] == "organization"}
+    sources = [row for row in active if row["kind"] == "source"]
+    blocked = source_selection.blocked_domains_from_sources(sources)
+    for domain in blocked_domains or ():
+        if isinstance(domain, str) and domain.strip():
+            blocked.add(domain.strip().casefold().removeprefix("www."))
+    return source_selection.select_next_sources(
+        brief=result, candidates=candidates,
+        related_by_org=related_by_org, org_by_key=org_by_key,
+        links_by_record=links, sources=sources,
+        budget=budget or {}, blocked_domains=blocked)
+
+
 def next_step(root: Path | str, run_id: str, limit: int = 25,
-              previous_snapshot_id: str = "", after_attempt: bool = False) -> dict:
+              previous_snapshot_id: str = "", after_attempt: bool = False, *,
+              budget: dict | None = None, blocked_domains=None) -> dict:
     """Read-only progress guard; no hidden scheduler or extra mutable state.
 
     An unchanged record snapshot after an attempted batch is a stop/switch
@@ -314,7 +376,52 @@ def next_step(root: Path | str, run_id: str, limit: int = 25,
             "SELECT record_id,stage,kind,status,entity_key,payload_json,artifact_ids_json "
             "FROM records WHERE run_id=? ORDER BY record_id LIMIT ?", (run_id, MAX_ROWS + 1)
         ).fetchall()
-    result = assess_records(run_id, [_decode(r) for r in rows], limit=limit)
+        link_rows = db.execute(
+            "SELECT record_id,field FROM evidence_links WHERE run_id=?", (run_id,)
+        ).fetchall()
+    records = [_decode(r) for r in rows]
+    links_by_record: dict[str, set[str]] = defaultdict(set)
+    for record_id, field in link_rows:
+        if isinstance(field, str):
+            links_by_record[record_id].add(field)
+    result = assess_records(run_id, records, limit=limit)
+    if result.get("stage") in {"entities", "acquisition", "people", "review"}:
+        result["candidate_write_contract"] = {
+            "tool": "marketops_propose_batch",
+            "arguments": "run_id, items (1..20 objects)",
+            "item_fields": ["record_id", "stage", "kind", "entity_key", "facts", "artifact_ids"],
+            "facts_by_kind": {
+                "organization/entities": ["name"], "venue/entities": ["name"],
+                "person/people": ["name", "organization_id"],
+                "role/people": ["organization_id", "role_title OR role_function"],
+                "contact_point/routes": ["organization_id", "type", "value"],
+                "relationship/entities": ["venue_id", "organization_id", "relationship_type"],
+                "review/review": ["review_type=target_disposition", "target_kind",
+                                  "target_entity_key", "disposition", "reason"],
+            },
+            "dispositions": ["RESEARCHED_CANDIDATE", "HOLD", "EXCLUDED", "DUPLICATE"],
+            "claims": "facts.claims is at most 12 objects {field, artifact_id, quote}; quote is 12..600 characters from a listed same-Run artifact_id, exactly as published.",
+            "suggested_claim_fields": {"organization": ["identity"], "venue": ["identity"],
+                             "person": ["name", "organization_id"],
+                             "role": ["organization_id", "role_title", "role_function"],
+                             "contact_point": ["organization_id", "value"],
+                             "relationship": ["relationship"], "excluded_review": ["exclusion"]},
+            "joins": "organization_id/person_id reference entity_key, not record_id. Named roles AND contacts need the same person_id and a source-backed claim for that link.",
+            "claim_selection": "Use claim fields for facts actually asserted; do not invent a title when only a function is sourced. Brief requirements and identity/relationship/exclusion still apply.",
+            "unknowns": "Register ALL supplied target names first in batches <=20, with no claimed verification. Research 1..2 at a time. Missing evidence remains unverified; append a HOLD review when stopping. Never invent claims or artifact IDs.",
+            "corrections": "New record_id, same kind/entity_key, facts.supersedes=previous record_id. Never fork or overwrite.",
+            "next_action": ("REGISTER_ALL_SUPPLIED_TARGET_NAMES_BEFORE_MORE_DISCOVERY"
+                            if not result.get("target_count") else "SAVE_CURRENT_TARGET_FINDINGS_OR_HOLD_BEFORE_EXPANDING"),
+        }
+        requirements = next((json.loads(row[5]).get("evidence_requirements", {})
+                             for row in rows if row[0] == result.get("brief_record_id")), {})
+        if isinstance(requirements, dict):
+            result["candidate_write_contract"]["brief_evidence_requirements"] = requirements
+    selection = _advisory_selection(records, result, links_by_record,
+                                    budget=budget, blocked_domains=blocked_domains)
+    if selection is not None:
+        result["source_selection"] = selection
+        result["next_best_source_action"] = selection.get("next_action")
     unchanged = bool(previous_snapshot_id) and previous_snapshot_id == result["snapshot_id"]
     if after_attempt and unchanged:
         return {**result, "progress_state": "NO_NEW_PERSISTED_RECORD_AFTER_ATTEMPT",

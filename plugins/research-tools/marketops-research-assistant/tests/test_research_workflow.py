@@ -55,13 +55,29 @@ class WorkflowTests(unittest.TestCase):
     def test_existing_source_selects_entity_extraction(self):
         self.brief()
         self.put("src", "source", "src", {"title": "Synthetic"})
-        self.assertEqual("entities", workflow.next_step(self.root, "run-a")["stage"])
+        result = workflow.next_step(self.root, "run-a")
+        self.assertEqual("entities", result["stage"])
+        contract = result["candidate_write_contract"]
+        self.assertEqual("REGISTER_ALL_SUPPLIED_TARGET_NAMES_BEFORE_MORE_DISCOVERY",
+                         contract["next_action"])
+        # An input target can be persisted immediately without manufacturing
+        # source support; its absence of evidence remains actionable on resume.
+        store.put_candidates_batch(self.root, "run-a", [{
+            "record_id": "input-org", "stage": "entities", "kind": "organization",
+            "entity_key": "org", "facts": {"name": "Input-only organization"},
+            "artifact_ids": [],
+        }])
+        resumed = workflow.next_step(self.root, "run-a")
+        self.assertEqual("acquisition", resumed["stage"])
+        self.assertIn("target_source_material", resumed["gap_counts"])
+        self.assertFalse(resumed["goal_satisfied"])
+        self.assertFalse(resumed["business_verified"])
 
     def test_known_organization_does_not_restart_discovery(self):
         self.brief()
         self.organization()
         result = workflow.next_step(self.root, "run-a")
-        self.assertEqual("marketops-person-research", result["recommended_skill"])
+        self.assertEqual("marketops-accounts", result["recommended_skill"])
         self.assertEqual(["org"], result["target_ids"])
 
     def test_missing_entity_material_selects_evidence(self):
@@ -124,13 +140,17 @@ class WorkflowTests(unittest.TestCase):
         self.disposition("RESEARCHED_CANDIDATE", rid="review-r2", supersedes="review-r")
         self.assertTrue(workflow.next_step(self.root, "run-a")["goal_satisfied"])
 
-    def test_forked_dispositions_are_conflicts(self):
+    def test_forked_dispositions_are_refused_at_write_time(self):
         self.brief()
         self.organization()
         self.disposition("HOLD")
-        self.disposition("EXCLUDED", rid="review-r2")
-        result = workflow.next_step(self.root, "run-a")
-        self.assertIn("disposition_version_conflict", result["gap_counts"])
+        with self.assertRaises(ValueError) as ctx:
+            self.disposition("EXCLUDED", rid="review-r2")
+        self.assertIn("TARGET_DISPOSITION_ALREADY_EXISTS", str(ctx.exception))
+        # The first disposition is still the only one; history was not rewritten.
+        rows = store.list_run(self.root, "run-a", limit=100)["records"]
+        self.assertEqual(["review-r"],
+                         [row["record_id"] for row in rows if row["kind"] == "review"])
 
     def test_invalid_brief_and_boolean_integer_rejected(self):
         self.brief(minimum=True)

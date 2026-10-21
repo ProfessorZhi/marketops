@@ -1,0 +1,13 @@
+{
+  "_comment_0": "Claude Code 在**插件根**自动发现这一份。同目录的 .codex-mcp.json 是 Codex 的形状（bearer_token_env_var），Claude Code 读不了它 —— 这就是「Skill 在、MCP 不在」那一次的成因。两份并存，各给各的宿主。",
+  "_comment_1": "NEVER paste a token value here. ${MARKETOPS_MCP_TOKEN} 由宿主进程在运行时从环境里解析；${MARKETOPS_MCP_URL} 同理 —— 端点不是插件的一个事实，它随部署变。",
+  "mcpServers": {
+    "marketops": {
+      "type": "http",
+      "url": "${MARKETOPS_MCP_URL}",
+      "headers": {
+        "Authorization": "Bearer ${MARKETOPS_MCP_TOKEN}"
+      }
+    }
+  }
+}

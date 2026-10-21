@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "marketops.qa.cost_ledger.v1",
+  "_comment": "Per-campaign cost ledger for the real run. It keeps the owner's four money states apart (§1) and carries the 20% floor explicitly, so 'we did not go below the floor' is a checkable row rather than a claim.",
+  "type": "object",
+  "required": ["schema", "campaign_id", "providers", "operations", "totals"],
+  "properties": {
+    "schema": {"const": "marketops.qa.cost_ledger.v1"},
+    "campaign_id": {"type": "string"},
+    "providers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["provider", "account_ref", "meter", "b0", "b0_source",
+                     "b0_observed_at", "floor", "max_cumulative_drawdown",
+                     "spendable_ceiling", "current_available", "checked_at"],
+        "additionalProperties": false,
+        "properties": {
+          "provider": {"enum": ["tinyfish", "serpapi", "serper", "crawl4ai", "jev"]},
+          "account_ref": {
+            "type": "string",
+            "description": "A local opaque reference. Never an account id, email, key, key hash or key length."
+          },
+          "meter": {
+            "enum": ["usd", "credits", "requests", "steps", "tokens"],
+            "description": "The unit the ceiling is enforced in. Units are never summed across each other."
+          },
+          "b0": {
+            "type": "string",
+            "description": "Fixed initial available balance for the campaign, as a decimal string. It is observed ONCE and reused for the whole campaign; it is not re-derived from the running balance."
+          },
+          "b0_source": {
+            "enum": ["provider_tool_read", "provider_api_read", "provider_console_export"],
+            "description": "Environment variables, documentation prices, mocked tools and credential-file presence are NOT in this enum: §1.1 says none of them is evidence of a balance."
+          },
+          "b0_observed_at": {"type": "string", "format": "date-time"},
+          "period_resets_at": {"type": ["string", "null"], "format": "date-time"},
+          "floor": {
+            "type": "string",
+            "description": "max(0.20*B0, provider minimum), rounded up for indivisible credit units. For tinyfish the provider minimum is US$0.20."
+          },
+          "max_cumulative_drawdown": {"type": "string", "description": "0.80*B0 — an upper bound, not a target."},
+          "spendable_ceiling": {"type": "string"},
+          "current_available": {"type": "string"},
+          "checked_at": {"type": "string", "format": "date-time"},
+          "meter_trust": {
+            "enum": ["verified", "unknown", "stale", "unverifiable"],
+            "description": "Anything other than 'verified' forbids a chargeable operation (§1.6)."
+          },
+          "in_flight_or_unknown_exposure": {
+            "type": "string",
+            "description": "Reserved-but-unsettled plus dispatched-UNKNOWN, counted against the ceiling like real spend."
+          },
+          "external_account_spend": {
+            "type": "string",
+            "description": "Usage by other users of the same account during the campaign, when observable."
+          }
+        }
+      }
+    },
+    "operations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["operation_id", "provider", "capability_id", "tier",
+                     "reserved", "estimated", "derived", "actual", "state"],
+        "additionalProperties": false,
+        "properties": {
+          "operation_id": {"type": "string"},
+          "provider": {"type": "string"},
+          "capability_id": {"type": "string"},
+          "tier": {"enum": ["T0", "T1", "T2", "T3", "T4"]},
+          "initiating_client": {"enum": ["claude_code", "codex", "workbuddy", "offline_benchmark"]},
+          "reserved": {"type": "string", "description": "Quota reservation, in the provider's meter."},
+          "estimated": {"type": "string", "description": "Estimated charge before dispatch."},
+          "derived": {"type": "string", "description": "Charge derived from usage after the fact."},
+          "actual": {"type": ["string", "null"], "description": "Provider-reported actual. Null means not confirmed — never treated as zero."},
+          "state": {"enum": ["RESERVED", "SETTLED", "NO_CHARGE_PROVEN", "UNKNOWN_CHARGE_OUTSTANDING", "BLOCKED"]},
+          "reason_code": {"type": ["string", "null"]},
+          "floor_after": {"type": "string", "description": "current_available minus this operation, checked against the floor before dispatch."}
+        }
+      }
+    },
+    "totals": {
+      "type": "object",
+      "required": ["attempted", "succeeded", "blocked", "unknown",
+                   "usd_estimated", "usd_actual_confirmed", "usd_unreconciled",
+                   "accepted_rows", "usd_per_accepted_row", "credits_per_accepted_row",
+                   "tokens_in", "tokens_out"],
+      "additionalProperties": false,
+      "properties": {
+        "attempted": {"type": "integer"},
+        "succeeded": {"type": "integer"},
+        "blocked": {"type": "integer"},
+        "unknown": {"type": "integer"},
+        "usd_estimated": {"type": "string"},
+        "usd_actual_confirmed": {"type": "string"},
+        "usd_unreconciled": {"type": "string", "description": "Never folded into usd_actual_confirmed."},
+        "accepted_rows": {"type": "integer"},
+        "usd_per_accepted_row": {"type": ["string", "null"], "description": "Null when no row was accepted; never zero."},
+        "credits_per_accepted_row": {"type": ["string", "null"]},
+        "tokens_in": {"type": "integer"},
+        "tokens_out": {"type": "integer"},
+        "floor_breached": {"type": "boolean", "description": "True if any provider ended below its floor. Must be false."}
+      }
+    }
+  }
+}

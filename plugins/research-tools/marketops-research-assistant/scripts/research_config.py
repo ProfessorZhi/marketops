@@ -25,7 +25,7 @@ import os
 import re
 import sys
 import tempfile
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 CONFIG_VERSION = 1
 APP_DIR = "marketops-research"
@@ -176,7 +176,22 @@ def status(env: dict | None = None, platform: str = sys.platform,
     if experience_value:
         result["experience_file"] = (_redact(str(experience_value), env) if redact
                                      else str(experience_value))
+    stored_root = (stored or {}).get("data_root")
+    if env_root_usable and stored_root and not _same_location(env_root.strip(), stored_root, platform):
+        # The env override moves new material but not the experience file, which
+        # still comes from the stored config. A run then reads one root and
+        # writes its summary under another installation's directory. Say so
+        # instead of reporting a pair that looks consistent.
+        result["data_root_mismatch"] = True
+        result["stored_data_root"] = (_redact(str(stored_root), env) if redact
+                                      else str(stored_root))
     return result
+
+
+def _same_location(left: str, right: str, platform: str = sys.platform) -> bool:
+    """Whether two configured paths name the same directory, without touching disk."""
+    normalise = (lambda text: os.path.normpath(text).casefold()) if platform.startswith("win")         else (lambda text: os.path.normpath(text))
+    return normalise(str(left)) == normalise(str(right))
 
 
 def _redact(text: str, env: dict) -> str:
@@ -199,13 +214,12 @@ def _inside_plugin_source(path: Path) -> bool:
 
 
 def _validate_target(kind: str, value: str, platform: str):
-    code_prefix = "DATA_ROOT" if kind == "data_root" else "EXPERIENCE_FILE"
     if not is_absolute_path(value, platform):
         raise ConfigError("PATH_NOT_ABSOLUTE",
                           f"{kind} must be an absolute path, got {value!r}")
-    if platform == "win32":
+    if platform == "win32" and sys.platform != "win32":
         # Do not resolve a Windows path with a POSIX Path: it cannot be checked
-        # for existence on this host anyway, and resolving would mangle it.
+        # for existence on this host. Native Windows still runs all checks below.
         return Path(value.strip())
     resolved = Path(value.strip()).expanduser().resolve()
     if _inside_plugin_source(resolved):
@@ -239,7 +253,9 @@ def configure(data_root: str, experience_file: str, *, confirm: bool = False,
     env = os.environ if env is None else env
     data_path = _validate_target("data_root", data_root, platform)
     exp_path = _validate_target("experience_file", experience_file, platform)
-    if platform != "win32" and exp_path.is_relative_to(data_path):
+    summary_inside = (PureWindowsPath(str(exp_path)).is_relative_to(PureWindowsPath(str(data_path)))
+                      if platform == "win32" else exp_path.is_relative_to(data_path))
+    if summary_inside:
         raise ConfigError("EXPERIENCE_FILE_INSIDE_DATA_ROOT",
                           "the experience file must be collectable on its own, "
                           "outside the research data directory")
@@ -259,6 +275,43 @@ def configure(data_root: str, experience_file: str, *, confirm: bool = False,
             "config_file": str(path), "data_root": str(data_path),
             "experience_file": str(exp_path),
             "env_data_root_override": bool((env.get(DATA_ROOT_ENV) or "").strip())}
+
+
+UPSTREAM_PROXY_ENV = "MARKETOPS_EGRESS_UPSTREAM_PROXY"
+
+
+def set_upstream_proxy(value: str, env: dict | None = None,
+                       platform: str = sys.platform) -> dict:
+    """Store (or clear, with "") the http://host:port proxy research traffic goes through."""
+    env = os.environ if env is None else env
+    data = load(env, platform)
+    if data is None:
+        raise ConfigError("CONFIG_REQUIRED", "configure the data paths first")
+    value = str(value or "").strip()
+    if value and not re.fullmatch(r"http://[A-Za-z0-9.\-]+:\d{1,5}/?", value):
+        raise ConfigError("UPSTREAM_PROXY_INVALID", "use http://host:port without a password")
+    if value:
+        data["upstream_proxy"] = value.rstrip("/")
+    else:
+        data.pop("upstream_proxy", None)
+    _atomic_write(config_path(env, platform), json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+    return {"status": "SAVED", "upstream_proxy": data.get("upstream_proxy", "")}
+
+
+def load_upstream_proxy_into_environment(env: dict | None = None,
+                                         platform: str = sys.platform) -> str:
+    """An explicit environment value wins; otherwise the stored one, if any."""
+    env = os.environ if env is None else env
+    if (env.get(UPSTREAM_PROXY_ENV) or "").strip():
+        return "ENVIRONMENT"
+    try:
+        data = load(env, platform)
+    except ConfigError:
+        return "CONFIG_UNREADABLE"
+    if data and data.get("upstream_proxy"):
+        env[UPSTREAM_PROXY_ENV] = data["upstream_proxy"]
+        return "CONFIG"
+    return "DIRECT"
 
 
 def _atomic_write(path: Path, text: str) -> None:

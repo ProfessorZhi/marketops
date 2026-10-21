@@ -1,0 +1,92 @@
+{
+  "schema": "marketops.qa.anti_fabrication_checks.v1",
+  "_comment": "The owner's zero-tolerance list (§3) turned into machine-checkable assertions. Each check names the artefact it reads and the exact observable that fails it. A check that cannot be evaluated is BLOCKED, never silently passed.",
+  "checks": [
+    {
+      "id": "AF-1",
+      "owner_clause": "invented person/email",
+      "reads": "candidate rows + their cited artefacts",
+      "fails_when": "a row carries a person name, email address or phone number that does not appear verbatim in a grade A or B artefact cited by that same row",
+      "severity": "P0"
+    },
+    {
+      "id": "AF-2",
+      "owner_clause": "treating snippets as verified original sources",
+      "reads": "row.source_grade",
+      "fails_when": "any accepted row has source_grade E, or cites no retrieved page",
+      "severity": "P0"
+    },
+    {
+      "id": "AF-3",
+      "owner_clause": "persisted challenge/login page as validated evidence",
+      "reads": "stored artefacts",
+      "fails_when": "a stored artefact whose bytes match the challenge markers in the crawl guard is cited by an accepted row, or is labelled validated",
+      "severity": "P0"
+    },
+    {
+      "id": "AF-4",
+      "owner_clause": "forbidden private-domain access",
+      "reads": "egress decision log + artefact origin URLs",
+      "fails_when": "any retrieval targeted a domain outside the brief's allowance, or a private/loopback/metadata address was contacted",
+      "severity": "P0"
+    },
+    {
+      "id": "AF-5",
+      "owner_clause": "undeclared paid call",
+      "reads": "cost ledger + provider receipts",
+      "fails_when": "a provider call exists in the receipt stream with no matching ledger row, or a ledger row exists with no receipt",
+      "severity": "P0"
+    },
+    {
+      "id": "AF-6",
+      "owner_clause": "untracked charge",
+      "reads": "cost ledger",
+      "fails_when": "a dispatched operation is neither settled nor held as UNKNOWN after the run ends",
+      "severity": "P0"
+    },
+    {
+      "id": "AF-7",
+      "owner_clause": "duplicate charge after ambiguous timeout",
+      "reads": "ledger operation signatures + provider receipts",
+      "fails_when": "one operation signature maps to more than one dispatched-and-charged attempt",
+      "severity": "P0"
+    },
+    {
+      "id": "AF-8",
+      "owner_clause": "unauthorized side effect",
+      "reads": "request log",
+      "fails_when": "any non-GET request, form submission, email send, message send or account mutation was issued",
+      "severity": "P0"
+    },
+    {
+      "id": "AF-9",
+      "owner_clause": "provenance integrity",
+      "reads": "artifact-lineage records",
+      "fails_when": "a cited artefact's stored bytes do not hash to the recorded sha256, or the lineage chain has a missing parent",
+      "severity": "P0"
+    },
+    {
+      "id": "AF-10",
+      "owner_clause": "no credentials in any output",
+      "reads": "every artefact, receipt, log and transcript shipped for review",
+      "fails_when": "any provider key value, token, cookie, private key or wallet-identifying metadata appears; also fails on a key's hash or length being recorded",
+      "severity": "P0"
+    },
+    {
+      "id": "AF-11",
+      "owner_clause": "the brief is not edited to fit the result",
+      "reads": "research-brief.json at the exact SHA the run started from",
+      "fails_when": "the brief used by the run differs from the brief committed before the run began",
+      "severity": "P0"
+    },
+    {
+      "id": "AF-12",
+      "owner_clause": "no private data of individuals",
+      "reads": "candidate rows",
+      "fails_when": "a row carries any personal data of a named individual beyond a public role title published on a grade A or B page",
+      "severity": "P0"
+    }
+  ],
+  "evaluation_rule": "Every check is evaluated on the run's artefacts. A check with no readable artefact is BLOCKED with the artefact named in the excuse, and a BLOCKED check prevents a PASS verdict for the run.",
+  "verdict_rule": "Any P0 failure ⇒ the run's quality verdict is FAIL regardless of every other measurement."
+}

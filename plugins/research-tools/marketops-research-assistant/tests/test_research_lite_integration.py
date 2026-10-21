@@ -21,6 +21,18 @@ import research_provider_extensions as providers
 from research_event_journal import read_events
 
 
+# The shared ledger refuses an unpriced capability rather than estimating one
+# (research_usage_ledger: "A price is recorded, never assumed"). These tests are
+# about other behaviour, so they install an offline catalog that says so.
+import sys as _sys
+import pathlib as _pathlib
+
+_sys.path.insert(0, str(_pathlib.Path(__file__).resolve().parent))
+import wave1_pricing_fixture
+
+wave1_pricing_fixture.install()
+
+
 class FakeResponse:
     status = 200
     def __init__(self, payload):
@@ -60,7 +72,15 @@ class LiteTests(unittest.TestCase):
         self.assertFalse(value["limits"]["search_on"])
         self.assertFalse(value["limits"]["other_network_on"])
         self.assertFalse(value["providers"]["jev"]["key"])
-        self.assertNotIn("API_KEY", json.dumps(value))
+        # Public mechanism labels such as API_KEY_ENV and variable names are
+        # not secrets. What must never appear is the *value* of a credential.
+        self.assertEqual("API_KEY_ENV",
+                         value["lite_invocation_channels"]["serper"]["auth"])
+        marker = "test-only-credential-value-must-not-echo"
+        with patch.dict(os.environ, {"SERPAPI_API_KEY": marker,
+                                     "SERPER_API_KEY": marker}):
+            with_keys = json.dumps(mcp.capabilities(), ensure_ascii=True)
+        self.assertNotIn(marker, with_keys)
 
     def test_candidate_progression_store_and_replay(self):
         entity = mcp.propose(
@@ -129,7 +149,7 @@ class LiteTests(unittest.TestCase):
         with patch.dict(os.environ, {
             "MARKETOPS_RESEARCH_ALLOW_NETWORK": "1",
             "MARKETOPS_RESEARCH_MAX_EXTERNAL_CALLS": "2",
-            "CRAWL4AI_API_KEY": "synthetic-secret-crawl4ai",  # gitleaks:allow
+            "CRAWL4AI_API_KEY": "synthetic-secret-crawl4ai",
         }):
             def response(request, timeout):
                 self.assertEqual("https://api.crawl4ai.com/scrape", request.full_url)

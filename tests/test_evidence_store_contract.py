@@ -32,7 +32,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import tempfile
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -284,36 +284,54 @@ def test_non_ascii_content_round_trips(store) -> None:
     assert store.list_evidence("a1")[0].literal_value == "контакт@例え.jp"
 
 
-def test_insertion_order_is_preserved(store) -> None:
-    """顺序是判据的一部分：报告按它读，对账也按它读。
+def test_read_order_is_the_same_for_both_insertion_orders(store) -> None:
+    """读序不随写入先后变化：报告按它读，对账也按它读。
 
-    「先写 A 再写 B，读出来是 [A, B]」这条对三个实现都成立，但它们成立的**理由**
-    各不相同（文件追加顺序 / 主键自增 / dict 插入序）。写下来是因为换实现时这条
-    最容易被无声地破坏，而破坏之后没有任何东西会红。
+    ``list_routes`` 的契约是**按 ``canonical_key`` 升序**（``ports/store.py``），
+    而规范键是内容寻址的（``route-<16 位十六进制>``）—— 所以键序**既不等于**
+    写入先后，**也不等于**邮箱字典序。这条判据不假设其中任何一种：同两条观察用
+    两种先后写进两个同类存储，读出来的键序列必须逐位相同，并且都等于按键排序的
+    结果。否则同一份存档在两个 worker 手里会给出两个列表顺序，而报告是要被逐行
+    比对的。
     """
-    store.record_route(make_observation(email="first@example.co.uk"))
-    store.record_route(make_observation(email="second@example.co.uk"))
+    first = make_observation(email="first@example.co.uk")
+    second = make_observation(email="second@example.co.uk")
 
-    assert [r.route.email for r in store.list_routes("a1")] == [
-        "first@example.co.uk",
-        "second@example.co.uk",
-    ]
+    store.record_route(first)
+    store.record_route(second)
+
+    other = _fresh_store(store)
+    other.record_route(second)
+    other.record_route(first)
+
+    expected = sorted([first.canonical_key, second.canonical_key])
+    assert [r.canonical_key for r in store.list_routes("a1")] == expected
+    assert [r.canonical_key for r in other.list_routes("a1")] == expected
 
 
 def test_projection_order_is_by_key_not_by_arrival(store) -> None:
-    """投影按 ``canonical_key`` 排，**不按写入先后**。
+    """投影按 ``canonical_key`` 升序，**不按写入先后**。
 
-    写 B 再写 A，读出来是 [A, B] —— 与反过来写得到的是同一个列表。这条判据的
-    意义在于报告：同一份存档在两台机器上导出，行序必须相同，否则「对一下这两个
-    文件」没法做。按到达序排的实现会在这一条上红，而在上面那条（写入顺序也是键
-    顺序）上**是绿的** —— 两条要一起看才有意义。
+    规范键是内容寻址的，所以「键序」只能由键本身算出来，不能假设它等于邮箱
+    字典序 —— 这组数据**故意按降键序写入**，于是到达序与键序一定不同。按到达序
+    排的实现会在这一条上红；而上面那条（两种写入序得到同一个列表）单独看是能
+    被到达序实现骗过的，两条要一起看才有意义。
     """
-    store.record_route(make_observation(email="zebra@example.co.uk"))
-    store.record_route(make_observation(email="aardvark@example.co.uk"))
+    observations = [
+        make_observation(email="first@example.co.uk"),
+        make_observation(email="second@example.co.uk"),
+    ]
+    by_key = sorted(observations, key=lambda observation: observation.canonical_key)
+    by_arrival = list(reversed(by_key))
+    assert [o.canonical_key for o in by_arrival] != [o.canonical_key for o in by_key], (
+        "两条观察的键序恰好相同 —— 这组数据测不出「按到达序 vs 按键序」的区别"
+    )
 
-    assert [r.route.email for r in store.list_routes("a1")] == [
-        "aardvark@example.co.uk",
-        "zebra@example.co.uk",
+    for observation in by_arrival:
+        store.record_route(observation)
+
+    assert [r.canonical_key for r in store.list_routes("a1")] == [
+        observation.canonical_key for observation in by_key
     ]
 
 
@@ -471,20 +489,30 @@ def test_the_fold_does_not_take_the_maximum(store) -> None:
 
     ## 为什么这里只断读数，不断 ``revision``
 
-    三对观察（9/12/18 点各一对 D 与 X）折出来，**读数**是 18 点那一条读法里的
-    X，这一条与到达顺序无关。``revision`` 却是「这个存储改写了几次」，它与顺序
-    有关（见 ``CanonicalContactRoute`` 的 docstring）—— 在同一个瞬间到达的 D 与
-    X 由内容哈希定序，所以这里**不能**断言一个具体的次数。断它的实现会在
-    「同一批观察换个顺序」时红，而那正是设计说会发生的事。
+    三对观察（9/12/18 点各一对 D 与 X）折出来，**读数**是 18 点那一对里更晚的
+    那一条，这一条与到达顺序无关。``revision`` 却是「这个存储改写了几次」，它与
+    顺序有关（见 ``CanonicalContactRoute`` 的 docstring），所以这里**不能**断言
+    一个具体的次数。断它的实现会在「同一批观察换个顺序」时红，而那正是设计说会
+    发生的事。
+
+    ## 为什么 X 比同一对的 D 晚一分钟
+
+    ``fold_observation`` 用 ``(observed_at, observation_id)`` 定序；同一瞬间的
+    两条观察只能由内容哈希分先后，而哈希不承载「哪一条是后来的」这层意思。这里
+    要让「D 先、X 后」是**时间**上的事实而不是哈希上的巧合，于是每对的 X 都晚
+    一分钟 —— 读数因此确定是 X，而断言的仍然是「没有取等级最大值」。
     """
     times = [FETCHED_AT.replace(hour=h) for h in (9, 12, 18)]
     for at in times:
         store.record_route(make_observation(observed_at=at, grade=Grade.D))
-        store.record_route(make_observation(observed_at=at, grade=Grade.X))
+        store.record_route(
+            make_observation(observed_at=at + timedelta(minutes=1), grade=Grade.X)
+        )
 
+    last_reading_at = times[-1] + timedelta(minutes=1)
     projection = store.list_routes("a1")[0]
     assert projection.route.grade is Grade.X, "取最大值了 —— 一条旧的 D 活着"
-    assert projection.last_observed_at == times[-1], "读数不是时间上最后那一条"
+    assert projection.last_observed_at == last_reading_at, "读数不是时间上最后那一条"
     # 全部六条都在历史里，一条没少 —— 投影只有一行不代表观察被丢了。
     assert len(store.list_route_observations("a1")) == 6
 

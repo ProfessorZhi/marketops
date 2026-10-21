@@ -1,23 +1,101 @@
 ---
 name: marketops-research
-description: Single entry for one human-initiated MarketOps candidate research Run; resume persistent state, load only the needed stage Skill, deliver audited XLSX and collectable experience without formal contact promotion.
+description: Single entry for a MarketOps research task (venues, organisations, key contacts, any market). Runs autonomously from brief to audited XLSX using the MarketOps MCP tools, five providers and, where the host supports it, parallel subagents.
 ---
 
-# MarketOps Research — 一个入口，最小上下文
+# MarketOps Research
 
-未配置时先调用 `marketops_setup_status` 并只问数据根与经验文件两个绝对路径；已配置不再问。新 Run 用 `marketops-intake` 保存明确研究目标；先检查已有 Run，绝不因模型重启而重新抓取。未知国家/产品/场景保持未知，**不默认绑定任何固定市场 Profile**。
+Goal: the user does as little as possible; you run the whole task in long autonomous stretches and
+deliver an evidence-backed workbook. Effect first, cost second.
 
-## 小批次：只取需要的信息
+## Hard rules (read first)
 
-1. 每批 `marketops_next(run_id, limit=10)`；只加载当前推荐的阶段 Skill（需要语义解释时才读单个 reference）。已知对象直接用过滤的 `marketops_status(limit=20)`，禁止每轮 dump 全库。
-2. 需要资料才调用 provider router。优先复用当前 Run 的真实材料；用 `marketops_material_excerpt` 根据关键词读最多1200字符，不把整页 HTML、全部 Skill 或整批候选堆入上下文。允许联网和费用必须**明确、有限、可停**。
-3. 对多个候选用 `marketops_propose_batch` 一次提交最多20条，原子写入、失败全回滚。不得在正式 Run 插测试探针。每条主张要有 `claims=[{field,artifact_id,quote}]`，关系、排除和场景要求的关键事实必须给出**同源引文**；仅有 artifact_id 不构成论据。
-4. 用户要求哪些实体、数量、字段，严格按原话区分：场地探索数 ≠ 已核实客户数 ≠ 具名邮箱数；“争取”不是强制 `minimum_targets`。若有硬最低值，必须保存其 `minimum_targets_unit`，与 `target_kind` 一致。场景特定门槛写在 Brief 的 `evidence_requirements`，不写死在插件代码。
-5. 每批调用 `marketops_evidence_audit` 看简短缺口码，再判断继续取证、HOLD、EXCLUDED 或暂停。
-6. **防空转**：保存本批 `marketops_next.snapshot_id`；一次真实工具尝试后，带 `previous_snapshot_id`、`after_attempt=true` 再查询。若返回 `NO_NEW_PERSISTED_RECORD_AFTER_ATTEMPT`，不可原地重复同一搜索/抓取或反复加载相同 Skill；要么选择另一独立且已授权的来源/对象，要么记录 HOLD 和卡点，结束该路径。重复只读查询不算失败；“新增行”也不等于可靠事实。引文匹配仅证明文本出现，**不代表事实语义、当前任职、采购权限或正式 SOP 通过**。查不到有效原文就 HOLD，禁猜邮箱/关系，禁绕访问墙。
+1. **Only the `marketops_*` tools.** Do not use Bash, Read, Grep or Python on the plugin's code,
+   its SQLite databases or its data directory. Do not use the host's WebSearch/WebFetch.
+2. **A refusal tells you the fix.** Write caveats such as `QUOTE_NOT_IN_ARTIFACT` show the closest
+   text on the page: copy a verbatim 12-600 character span from it and resubmit with a new
+   `record_id` and `facts.supersedes`. If it cannot be fixed in two tries, record HOLD and move on.
+   Never reverse-engineer the gate.
+3. **Deliver only with `marketops_handoff`.** Never write an XLSX or CSV yourself.
+4. **Keep going, then finish.** While budget and in-scope targets remain, research the next target
+   instead of asking whether to continue. If you see two ways forward, do the one with the better
+   expected yield now and name the other in the report; never end a turn with "which do you want?"
+   while budget remains. A blocked site is not a question for the user: use another source. Stop
+   only when the targets are covered, the budget cap is near, or about 10 turns remain; then
+   `marketops_handoff` and a short report, even when partial.
 
-## 收口与经验
+## 1. Start (ask once)
 
-经 `marketops-research-acceptance` 审查后**只调用一次** `marketops_handoff`：九表 XLSX/CSV/manifest + 经验文件回执。完整文件≠完成业务目标；汇报时分别列技术完整性、证据缺口、范围内有效结果与未完成核验。
+- First use only: `marketops_setup_status`; if not configured, follow `marketops-setup`.
+- `marketops_update_check()`: if a newer release exists, tell the user in one line (it says how
+  to update: Update.cmd, then restart the agent) and carry on with the task.
+- `marketops_runs(limit=10)`: resume an existing Run for the same task instead of starting over.
+- Load `marketops-providers` (which provider for which job, cheapest first, what to do when one
+  runs out) and call `marketops_costs(action='balances')`; tell the user in one line what each
+  account has left.
+- Ask **once**, in one message, only for what is missing: scope (area, entity type, roles wanted),
+  what the user sells and who buys it (customer vs competitor), delivery format, budget cap, and
+  whether TinyFish's paid browser agent may be used for hard pages (default no; see
+  `marketops-providers`). Do not ask for anything the user already said.
+- `marketops_start(run_id, scope, objective, rule_version, brief={record_type:'research_brief',
+  target_kind:'venue'|'organization', goal:'pool'|'contacts', require_named_person:false,
+  roles_wanted:[<the roles the user named>], hard_case:{allowed:<the user's answer, default false>},
+  minimum_targets:<the user's number or null>, evidence_requirements:{organization:['identity']}})`.
+  Details: `marketops-discovery`.
 
-失败/改路由/人工纠错时 `marketops_note` 只记录脱敏观察、采取措施、实际结果与独立假设，经验只累计不自动改代码或 SOP。不得自动扩大任务、调用未批准收费 API、外联或发送。
+## 2. Run the funnel (no check-ins)
+
+| Stage | What you do | Main tools / providers |
+|---|---|---|
+| Source pool | find bulk sources and the full list of targets; note each source's listed count | Serper search, SerpApi `google_maps`, `marketops_research_step` (Crawl4AI → TinyFish) |
+| Venue / org pool | dedupe, exclude out-of-scope types, keep reasons | `marketops_pool_import`, `marketops_jev_triage` |
+| Accounts | for each organisation: `marketops_site_harvest` on its own site, then judge role and grade from each route's context | Crawl4AI → TinyFish fetch inside the tool, Serper `site:` role search |
+| Evidence | every value has a literal quote from a saved page; the tools enforce this | `marketops_propose_batch`, `marketops_evidence_audit` |
+| Delivery | reconcile counts, verify a sample, hand off once; report spend per provider from `run_cost` | `marketops_handoff`; see `marketops-delivery` |
+
+Load `marketops-discovery`, `marketops-accounts`, `marketops-providers` or `marketops-delivery`
+only when you reach that stage. Past runs' pitfalls, by stage: [lessons](../../references/MEMBER_A_LESSONS.md). Use `marketops_next(run_id)` to see gaps and the suggested next action.
+
+**Large tasks (over ~50 targets) or several windows**: load `marketops-orchestrate`. Targets go
+into a shared pool on this machine's data directory; worker windows claim batches with
+`marketops_harvest_batch` and never collide. The scene pack for the market (e.g.
+[UK natural grass](../../references/ACCEPTANCE_PROFILE_UK_GRASS.md)) supplies roles, grades,
+exclusions, authority sources and query templates.
+
+**Parallel accounts.** If the host can start subagents (Claude Code: `account-researcher`), give
+each subagent 1–3 organisations with `run_id`, published name, `organization_key` and website, in
+batches of 5–10 subagents. You dispatch and merge; they harvest. Hosts without subagents (Codex,
+WorkBuddy) run the same account procedure from `marketops-accounts` one organisation at a time.
+
+## 3. When to stop and ask
+
+Only: the budget cap is about to be reached; a paid tier (TinyFish Agent) is needed but not
+authorised; the same rule conflict keeps recurring (many `RULES_UNKNOWN`); a credential or
+configuration is missing. Everything else: pick another authorised source or record HOLD with the
+reason, and continue with the next target. Report all of it at the end.
+
+## 4. Non-negotiables
+
+- Never guess an email or a relationship; a value without a literal quote from a saved page stays HOLD.
+- Never bypass a challenge page, login or block; record `SOURCE_ACCESS_BLOCKED` and move on.
+- Every target gets a result: admitted routes, or HOLD/EXCLUDED with the reason and pages tried.
+- Do not use the host's own WebSearch/WebFetch for research: evidence and budget only exist inside
+  the MarketOps tools.
+- Research only. No outreach, form submission or sending.
+
+## 5. Experience
+
+`marketops_start` and `marketops_next` return a few relevant lessons; `marketops_experience_recall`
+gives more for a stage or provider. They are advice, not rules. After using one, report the outcome
+with `marketops_experience_feedback` (helped / not_helped / contradicted / unknown, with an
+`artifact:` or `event:` reference from this Run). Record every blocked source, provider failure and
+user correction with `marketops_note` the moment it happens (no URLs, emails or secrets), and end
+every session with `marketops_feedback_pack`; the method is in `marketops-feedback`.
+
+## 6. Do-not-contact list
+
+Before the first handoff of a task, call `marketops_suppression(action="status")`. If the user has
+a No-Go / unsubscribe / complaint list (a sheet, a pasted list, an earlier export), add it with
+`marketops_suppression(action="add", entries=[...], reason=..., source=...)`; matching contacts are
+then kept out of every delivery from every conversation. If no list exists, say so in the report
+(`NO_LIST`): never describe an unchecked delivery as clean.

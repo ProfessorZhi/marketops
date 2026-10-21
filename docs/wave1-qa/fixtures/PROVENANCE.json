@@ -1,0 +1,80 @@
+{
+  "schema": "marketops.qa.fixture-restoration.v1",
+  "restored_on": "2026-10-20",
+  "source_repository": "ProfessorZhi/marketops-private",
+  "source_ref": "integration/wave1-candidate-20261017",
+  "source_revision": "dd075e314b0a63dc803ed6ef3aa073b1b2bef11e",
+  "source_directory": "docs/wave1-qa/fixtures",
+  "files": [
+    {
+      "path": "anti-fabrication-checks.json",
+      "bytes": 4138,
+      "source_git_blob": "cfa661a49659f68c9c4ea2ee61a7d0c4a92e1d5f",
+      "sha256": "16b2bff80fabc40483dc92134bd8ae69fb53e45863501437e3701b10a0430903",
+      "transformation": "none; byte-for-byte restoration",
+      "review": "reviewed public-organization seeds or schema/quality rules; no individual contact records or secret values"
+    },
+    {
+      "path": "artifact-lineage.schema.json",
+      "bytes": 2832,
+      "source_git_blob": "1683e4a8a07fa4e973ba78ee106de9d3d06fa668",
+      "sha256": "b8f136ba34ca9df3bd3d3886746c8073dcac3eabeb3e9d109a57b7906a7afc6b",
+      "transformation": "none; byte-for-byte restoration",
+      "review": "reviewed public-organization seeds or schema/quality rules; no individual contact records or secret values"
+    },
+    {
+      "path": "cost-ledger.schema.json",
+      "bytes": 5855,
+      "source_git_blob": "07c7fe33e4af234bf7ba0d7366e2ca27d06c3e9b",
+      "sha256": "d365e603adc0c5a00139af7a819fadef1cfcee974e58303d70fbde5f75247099",
+      "transformation": "none; byte-for-byte restoration",
+      "review": "reviewed public-organization seeds or schema/quality rules; no individual contact records or secret values"
+    },
+    {
+      "path": "research-brief.json",
+      "bytes": 2541,
+      "source_git_blob": "d706ec83b21e96245a5bd1acdf632b2815bcd1aa",
+      "sha256": "b4589d36aae347e7dcd62261e789729fd05e800e0585f1ad5c8dbe95544f1a72",
+      "transformation": "none; byte-for-byte restoration",
+      "review": "reviewed public-organization seeds or schema/quality rules; no individual contact records or secret values"
+    },
+    {
+      "path": "source-quality-rubric.json",
+      "bytes": 4399,
+      "source_git_blob": "a7794e796abe395ad8406542eb021ae486c9e796",
+      "sha256": "6faa34c8144d6666c348ce674a1cfe579cd5de276ade6c3a3587a98c65896421",
+      "transformation": "none; byte-for-byte restoration",
+      "review": "reviewed public-organization seeds or schema/quality rules; no individual contact records or secret values"
+    },
+    {
+      "path": "targets.jsonl",
+      "bytes": 3576,
+      "source_git_blob": "7a48e185b944a31f36a28430176ad593035694d1",
+      "sha256": "0021e88dbed7875d8e40d1850ef43d0b77dfc331c2aa81318bbb304b9b398099",
+      "transformation": "none; byte-for-byte restoration",
+      "review": "reviewed public-organization seeds or schema/quality rules; no individual contact records or secret values"
+    }
+  ],
+  "consumer_comparison": [
+    {
+      "path": "plugins/research-tools/marketops-research-assistant/tests/qa_gate/test_qa_research_fixture.py",
+      "source_sha256": "c1f083e9e6f91398c819eda574aa36e8e90500bc13da578c27502b426487a8a8",
+      "public_sha256": "c1f083e9e6f91398c819eda574aa36e8e90500bc13da578c27502b426487a8a8",
+      "byte_identical": true
+    },
+    {
+      "path": "plugins/research-tools/marketops-research-assistant/tests/qa_gate/test_qa_offline_benchmark.py",
+      "source_sha256": "01da17ac9a017337dee51f7ad2202b5348db375f6faab45a049169c4034979e4",
+      "public_sha256": "f1c10ff2cfd4fe46b4bc69f34b04776f4082db2d69e4214fccc8e74a82bfb547",
+      "byte_identical": false
+    }
+  ],
+  "security_review": {
+    "method": "full text inspection plus credential, individual-email, IP-literal and local-path scans",
+    "findings": [],
+    "redactions": [],
+    "customer_records_included": false
+  },
+  "interpretation": "Historical offline QA inputs only. Target names/operator hints are unverified seeds, including possible historical names or duplicates. They are not current business facts, live research results, a spend authorization, or QA PASS evidence.",
+  "original_fixture_commit": "f7606e6c165ac1ddf12de0526709b100446e3c62"
+}

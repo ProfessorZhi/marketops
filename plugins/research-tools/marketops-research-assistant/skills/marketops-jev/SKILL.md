@@ -1,20 +1,40 @@
 ---
 name: marketops-jev
-description: Apply TypeSafe Jev Choice, Noul and Score to evidence-backed market qualification, role relevance and candidate selection; retain probabilities, abstain on missing context and leave policy and execution outside the model.
+description: Jev typed judgments through MarketOps - the speed layer that classifies and ranks saved pages so you do not read each one (venue type, page value, role group, grade pre-check, same-entity). Load before triaging more than a handful of targets.
 ---
 
-# Jev：把小块语义判断交给专门模型
+# Jev: let it read, you decide
 
-MarketOps自编业务使用Skill，参考官方：https://github.com/typesafe-ai/skills/blob/main/skills/typesafe-ai/SKILL.md 。官方Skill是方法知识，不等于已连接MCP；实际可调用能力来自已配置TypeSafe SDK/API或MarketOps受管decide工具。先读当前官方文档/已装SDK类型，访问失败写明版本未知，不猜接口。
+A Jev judgment costs a few hundred tokens and none of your context; reading a page yourself costs
+thousands. Use Jev wherever the same small question repeats.
 
-输入：已取得的资料/证据引用、实体关联、规则版本、候选集合、明确问题。缺证据先补，不让Jev臆测一家公司或一个人的事实。
+**Many pages at once**: `marketops_jev_triage(run_id, operation_id, artifact_ids=[...],
+question, options, threshold=0.85)` returns one row per page with choice and confidence; rows under
+the threshold are `needs_review` - judge only those from the source.
+**One page**: `marketops_jev_choice(run_id, operation_id, source_excerpt=<artifact_id>, question,
+options, primitive)`.
 
-- Choice：在已定义的候选角色/来源/实体解释中选一项；允许none/unknown，不能省略真实可能答案。
-- Noul：一个是否成立的条件；near 0.5是yes/no不确定，不是“中等强度”，不要杜撰独立confidence字段。
-- Score：按可观察的有序描述评价相关性/证据支持程度，不把score当成交概率或原始计数。
-- 独立问题共用同一state可一批提问；后题依赖前题结果/新资料则分轮。题目ID不承载必须让模型知道的语义，含义写在instructions和criteria。
-- 输入中把身份、原职位、文档时间、事实、推断和目标场景分开。选择已有原文span后由程序复制值，不生成猜测邮箱。
-- 保存原始分布、实际模型/题面版本、证据快照、用量和判断结果；语义未变的权重/显示调整不必重问。
-- 阈值按获准业务数据验证；confidence集中不等于真实性，也不等于授权。规则、去重、计算、预算、正式晋升用代码/人，不靠Jev批准。
+**Inputs**: `source_excerpt`/`artifact_ids` are saved artifacts of this Run. `options` are snake_case
+labels; always include `unknown`.
 
-失败归因依次检查：证据缺失、候选集漏项、题意/规则冲突、模型误判、组合代码bug、服务错误。现有英国profile的采购等级缺口不能让Jev自行填平。低置信度/冲突进入review，保留原判断，复盘生成待验证题面改进而非自动发布新标准。
+| Use | Question | Options |
+|---|---|---|
+| Scope triage | Is this target in the brief's scope? (e.g. natural-grass pitch, coworking space) | `in_scope`, `out_of_scope_<type>`, `unknown` |
+| Page value | Does this page list staff or contact details? | `contacts`, `no_contacts`, `unknown` |
+| Role group | Which role does the contact in this text hold? | the scene pack's role groups + `unknown` |
+| Grade pre-check | Which grade fits this route? | `a`, `b`, `c`, `d`, `x`, `unknown` |
+| Hire / fit | Does this page offer hourly hire? | `hourly_hire`, `events_only`, `unknown` |
+
+`primitive='noul'` for a yes/no probability (near 0.5 = unsure), `'score'` for ordered levels.
+
+**Rules**: Jev ranks and filters; it never establishes a fact, a final grade or a merge. Facts come
+only from quotes. At ≥0.85 confidence its answer is a candidate; below, you check the source.
+
+**Efficient use**: about $0.0001 per judgment (input tokens only), so use it freely at volume, but
+only on targets still in scope: drop excluded and duplicate targets first, ask one question per
+page, never ask again about a page already judged. `harvest_batch(roles_wanted=...)` tags every
+email with no extra call from you.
+
+**When Jev is unavailable** (no key, out of credit, refused): tags come back `ungraded:...`. Judge
+from the short contact context in the harvest result rather than whole pages, keep a smaller
+shortlist, and say in the report that judgment cost moved to you.

@@ -1,20 +1,32 @@
 ---
 name: marketops-serper
-description: Use authorized Serper Search, Maps and Places to discover market sources and venue/account candidates with explicit geography, query provenance and downstream fetching; not a Serper official MCP implementation.
+description: Serper (Google results as JSON) through MarketOps - cheap broad discovery of directories, source lists, PDFs and site-restricted role pages. Load when you are about to search for sources or staff pages.
 ---
 
-# Serper：从需求找对来源
+# Serper: find the list and the people page
 
-MarketOps自编使用Skill。官方API：https://serper.dev/；账号/Key申请见包内 [serper 手册](../../references/providers/serper.md)（规范来源在插件目录之外，不进包）。入口须已配置为官方API、受管MarketOps工具或经审核社区MCP，不能把本Skill当安装器。
+**Call**: `marketops_search(provider='serper', query, country='gb', language='en', run_id,
+operation_id, mode='web', limit=10)`. Rung 1 for discovery: cheapest per query.
 
-输入：Brief、国家/语言/子区域、来源类型、存量索引、可消费额度。
+**Good queries** name the source type, the area and the document kind:
 
-- 查询围绕“来源/名录/目标类型/区域”，先找有结构的协会/市政/学校/运营商目录，再找独立场地。地区参数与查询语言分别记，不用地名字符串代替授权范围。
-- Search发现官网/文档；Maps/Places补位置/官网候选，店铺分类和摘要不证明天然草、运营权或采购责任。
-- 批量前检查接口实际schema和分页口径；每次请求保留query、locale、时间、实际credits/unknown及原始回执。同query重试绑定原操作，未知消费先查。
-- 不按主机折成唯一场地；source去重与实体去重分开。目录的多个页面和多个实体都保留来源。
-- 按真实名称、地址、已确认外部id产生候选匹配；有冲突进入review，不推断官网。
-- 下一步将选中URL交抓取Skill。未抓原文不能生成已核实邮箱或人物任职。
-- 零命中记录检索覆盖和输入有效性；查询失败不是市场不存在，不无限猜词。
+- Whole lists: `"{target type}" "{region}" directory`, `"{association}" members list`,
+  `"{region}" "{target type}" filetype:pdf`,
+  `site:{association domain} members`.
+- Staff pages on a known site: `site:{domain} "{wanted role}" OR "{other wanted role}"`.
+- Officers in public documents: `site:{domain} "committee" filetype:pdf`, `"{venue}" minutes secretary`.
 
-输出：sources/SourceReceipt与候选实体引用、尚未覆盖范围、下游读回结果。复盘按query/source family记录有效实体收益，不只统计搜索结果数。成功率分母带单位，失效域名、配额不足、schema变化分别归因。
+**Modes**: `web` (default), `maps` (places with address, phone and website: the first choice for
+listing an area, before SerpApi), `news`, `images`, `scholar`, `patents`, `shopping`,
+`autocomplete`; `page` only where the mode paginates.
+
+**Use the result**: titles/snippets are leads, never facts. Pass directory URLs to
+`marketops_research_step` and official sites to `marketops_site_harvest` or `marketops_pool_import`.
+Record how many entities a directory lists before importing it.
+
+**Cost**: one credit per 10 results (about $0.001), so keep `limit=10`; asking for 20 bills two
+credits. New accounts get 2,500 free credits once. The same query is charged once per Run even if
+retried through another route.
+
+**When it runs out**: "not enough credits" marks Serper out; `marketops_search(provider='all')`
+then asks SerpApi instead and TinyFish search keeps running. Tell the user to top up Serper.

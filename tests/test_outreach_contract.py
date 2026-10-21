@@ -76,9 +76,15 @@ from marketops.domain.enums import (
     RouteStatus,
 )
 from marketops.domain.errors import ConfigError, MarketOpsError
+from marketops.security.authorization import (
+    AuthorityCheck,
+    AuthorityVerdict,
+    NoAuthoritySource,
+)
 from marketops.domain.maintenance import RefreshPlan
 from marketops.domain.outreach import (
     KIND_DISPOSITION,
+    AuthorizationProvenance,
     CorrespondenceEvent,
     CorrespondenceKind,
     DraftState,
@@ -754,7 +760,16 @@ def freeze(
     )
 
 
-def authorise(store, manifest, *, approved_count=None, at=T0, expires_at=T2, authorization_id="auth-0001"):
+def authorise(
+    store,
+    manifest,
+    *,
+    approved_count=None,
+    at=T0,
+    expires_at=T2,
+    authorization_id="auth-0001",
+    provenance=AuthorizationProvenance.BEARER_PRINCIPAL,
+):
     auth = WaveAuthorization(
         authorization_id=authorization_id,
         wave_id=manifest.wave_id,
@@ -766,6 +781,10 @@ def authorise(store, manifest, *, approved_count=None, at=T0, expires_at=T2, aut
         authorized_at=at,
         expires_at=expires_at,
         approved_count=len(manifest.entries) if approved_count is None else approved_count,
+        # 这一支测试的是投递链本身；受管来源标记是 MCP authorize_wave 写入的，
+        # 这里显式声明同一个取值，否则 `dispatch_wave` 会按默认的 UNVERIFIED
+        # 整批拒绝 —— 那一条由本节后面的授权边界用例单独钉住。
+        provenance=provenance,
     )
     record_authorization(authorization=auth, store=store, at=at)
     mark_authorized(wave_id=manifest.wave_id, authorization_id=auth.authorization_id, store=store, at=at)
@@ -2469,3 +2488,308 @@ def test_a_reply_that_does_not_say_stop_lets_the_frozen_wave_go_out(store, scene
     )
     assert report.summary_line == "sent=1"
     assert len(transport.sent) == 2
+
+
+# --- 九、授权边界：真实副作用入口的最后核验 ----------------------------------
+#
+# 这一节对应 public Issue #6 的验收目标。它不是第二套引擎：用的仍然是
+# `record_authorization` / `dispatch_wave` / `lapse_authorization`，只是把
+# 「授权从哪来」「执行者是谁」「批次中途失效」三格补成可拒绝的判据。
+#
+# 每一条都在**传输层之前**断言 `transport.sent`。只断言返回值的写法，
+# 会把一次「报告说拒绝了、字节其实已经出去」读成绿。
+
+
+class _LapsingTransport(RecordingTransport):
+    """在第一封离开之后调用一个回调 —— 用来模拟「批次执行中授权被撤回」。"""
+
+    def __init__(self, *, on_first, **kwargs):
+        super().__init__(**kwargs)
+        self._on_first = on_first
+
+    def send(self, *, entry, subject: str, body: str, from_address: str):
+        receipt = super().send(
+            entry=entry, subject=subject, body=body, from_address=from_address
+        )
+        if len(self.sent) == 1:
+            self._on_first()
+        return receipt
+
+
+class _FixedAuthoritySource:
+    """一个按给定判决回答的来源替身。不读环境、不读网络。"""
+
+    def __init__(self, verdict: AuthorityVerdict, detail: str = ""):
+        self._verdict = verdict
+        self._detail = detail
+        self.asked: list[dict] = []
+
+    def check(self, **kwargs) -> AuthorityCheck:
+        self.asked.append(kwargs)
+        return AuthorityCheck(self._verdict, self._detail)
+
+
+def _authorization(manifest, **overrides):
+    values = dict(
+        authorization_id="auth-0001",
+        wave_id=manifest.wave_id,
+        workspace=manifest.workspace,
+        scene_id=manifest.scene_id,
+        manifest_sha256=manifest.manifest_sha256,
+        authorized_by="operator:member-a",
+        authority_ref="approval-ticket-0001",
+        authorized_at=T0,
+        expires_at=T2,
+        approved_count=len(manifest.entries),
+        provenance=AuthorizationProvenance.BEARER_PRINCIPAL,
+    )
+    values.update(overrides)
+    return WaveAuthorization(**values)
+
+
+def _three_recipient_wave(store, scenes, *, expires_at=T2):
+    """三封的批次：足够在一次投递之后观察「剩下的还发不发」。"""
+    recipients = (
+        "grounds@example.co.uk",
+        "office@example.co.uk",
+        "hello@example.co.uk",
+    )
+    scenes.put_record(make_scene(), expected_revision=None)
+    seed(store)
+    routes = [
+        make_route(account_id=f"account-{index:04d}", email=email)
+        for index, email in enumerate(recipients, start=1)
+    ]
+    draft_them(store, routes)
+    manifest = freeze(store, routes)
+    authorise(store, manifest, expires_at=expires_at)
+    return manifest
+
+
+def test_an_unverified_authorization_never_reaches_the_transport(store, scenes):
+    """默认 ``UNVERIFIED`` 的授权是「绕过受管入口登记」的那条路径。
+
+    它可能由任何一段能 import 应用层的代码构造出来；``dispatch_wave`` 在
+    **真正投递之前**整批拒绝，并报 ``BLOCKED_TRUST_SOURCE``。判据钉在
+    ``transport.sent == []`` 上：只断言返回值会把「报告拒绝了、字节已出去」
+    读成绿。
+    """
+    scenes.put_record(make_scene(), expected_revision=None)
+    seed(store)
+    routes = [make_route()]
+    draft_them(store, routes)
+    manifest = freeze(store, routes)
+    authorise(store, manifest, provenance=AuthorizationProvenance.UNVERIFIED)
+
+    transport = RecordingTransport()
+    report = do_dispatch(store, scenes, transport)
+
+    assert transport.sent == []
+    assert report.outcomes[0].state == "skipped"
+    assert "BLOCKED_TRUST_SOURCE" in report.outcomes[0].detail
+
+
+def test_the_executor_and_the_authorizer_must_be_two_different_subjects(store, scenes):
+    """批准与执行落在同一个主体上时，整批不发。
+
+    调用方给出的 ``executor`` 与授权上的 ``authorized_by`` 相同 —— 这正是
+    「自批自发」的形状。MCP 的 ``send_wave`` 总是把传输层已认证的主体传进来；
+    这里直接给同一个名字。
+    """
+    _, manifest = a_sendable_wave(store, scenes)
+    transport = RecordingTransport()
+    report = dispatch_wave(
+        wave_id=manifest.wave_id,
+        store=store,
+        scenes=scenes,
+        transport=transport,
+        rules=make_rules(),
+        at=T1,
+        executor="operator:member-a",
+    )
+
+    assert transport.sent == []
+    assert report.outcomes[0].state == "skipped"
+    assert "批准" in report.outcomes[0].detail
+
+
+def test_revocation_during_a_batch_stops_the_remaining_messages(store, scenes):
+    """批次开始时有授权，第一封之后被退回待授权 —— 剩下的不得再发。
+
+    这是 TOCTOU：批次开始时取到的是一份快照，而副作用发生在循环里。
+    逐封重查读的是**存储里的当前事实**（批次状态），不是开始时的那个对象。
+    """
+    manifest = _three_recipient_wave(store, scenes)
+    transport = _LapsingTransport(
+        on_first=lambda: lapse_authorization(
+            wave_id=manifest.wave_id,
+            reason="授权在执行中被撤回",
+            store=store,
+            at=T1,
+        )
+    )
+    report = dispatch_wave(
+        wave_id=manifest.wave_id,
+        store=store,
+        scenes=scenes,
+        transport=transport,
+        rules=make_rules(),
+        at=T1,
+        clock=lambda: T1,
+    )
+
+    assert len(transport.sent) == 1
+    assert report.outcomes[0].state == "sent"
+    assert [row.state for row in report.outcomes[1:]] == ["skipped", "skipped"]
+    assert "退回" in report.outcomes[1].detail
+
+
+def test_expiry_during_a_batch_stops_the_remaining_messages(store, scenes):
+    """授权在批次执行中过期 —— 逐封重查用的时钟能看见这件事。
+
+    默认 ``clock`` 是批次的 ``at``，批次一般很短；一个可能跨过 ``expires_at``
+    的调用方必须传 ``utc_now``。这一条用注入时钟把「跨过去」变成确定的：
+    第一封在 T1 出发（授权仍在有效期内），第二封的时钟已经越过 ``expires_at``。
+    """
+    manifest = _three_recipient_wave(store, scenes, expires_at=T1)
+    moments = iter((T1, T1 + timedelta(seconds=1), T1 + timedelta(seconds=2)))
+    transport = RecordingTransport()
+    report = dispatch_wave(
+        wave_id=manifest.wave_id,
+        store=store,
+        scenes=scenes,
+        transport=transport,
+        rules=make_rules(),
+        at=T1,
+        clock=lambda: next(moments),
+    )
+
+    assert len(transport.sent) == 1
+    assert report.outcomes[0].state == "sent"
+    assert [row.state for row in report.outcomes[1:]] == ["skipped", "skipped"]
+    assert "过期" in report.outcomes[1].detail
+
+
+def test_a_blocked_trust_source_refuses_to_register_the_authorization(store, scenes):
+    """没有受管批准记录来源时，登记这一步就拒绝。
+
+    本仓今天没有接入任何来源，所以 ``NoAuthoritySource`` 的判决是
+    ``BLOCKED_TRUST_SOURCE`` —— 把它当成通过，会让「没有验证」与
+    「验证通过」在盘上长得一样。
+    """
+    scenes.put_record(make_scene(), expected_revision=None)
+    seed(store)
+    routes = [make_route()]
+    draft_them(store, routes)
+    manifest = freeze(store, routes)
+    authorization = _authorization(manifest)
+
+    with pytest.raises(MarketOpsError) as caught:
+        record_authorization(
+            authorization=authorization,
+            store=store,
+            at=T0,
+            authority_source=NoAuthoritySource(),
+        )
+
+    assert "BLOCKED_TRUST_SOURCE" in str(caught.value)
+    assert store.authorizations(wave_id=manifest.wave_id) == ()
+
+
+@pytest.mark.parametrize(
+    "verdict",
+    [AuthorityVerdict.NOT_FOUND, AuthorityVerdict.UNTRUSTED],
+    ids=lambda value: value.value,
+)
+def test_an_untrusted_verdict_is_refused_before_the_record_is_written(store, scenes, verdict):
+    """``NOT_FOUND`` 与 ``UNTRUSTED`` 分开报，但都不登记。"""
+    scenes.put_record(make_scene(), expected_revision=None)
+    seed(store)
+    routes = [make_route()]
+    draft_them(store, routes)
+    manifest = freeze(store, routes)
+
+    with pytest.raises(MarketOpsError) as caught:
+        record_authorization(
+            authorization=_authorization(manifest),
+            store=store,
+            at=T0,
+            authority_source=_FixedAuthoritySource(verdict, "合成来源的回答"),
+        )
+
+    assert verdict.value in str(caught.value)
+    assert store.authorizations(wave_id=manifest.wave_id) == ()
+
+
+def test_a_verified_authority_source_is_accepted_and_asked_with_the_bound_facts(store, scenes):
+    """正向对照：``VERIFIED`` 才登记，而且问的是这次批准绑定的全部事实。
+
+    没有这一条，「所有来源都被拒绝」也会让上面三条绿 —— 一个永远拒绝的
+    验证器与一个正确的验证器在负测上同形。
+    """
+    scenes.put_record(make_scene(), expected_revision=None)
+    seed(store)
+    routes = [make_route()]
+    draft_them(store, routes)
+    manifest = freeze(store, routes)
+    authorization = _authorization(manifest)
+    source = _FixedAuthoritySource(AuthorityVerdict.VERIFIED, "合成工单存在且覆盖本次范围")
+
+    record_authorization(
+        authorization=authorization, store=store, at=T0, authority_source=source
+    )
+
+    assert [row.authorization_id for row in store.authorizations(wave_id=manifest.wave_id)] == [
+        authorization.authorization_id
+    ]
+    assert source.asked == [
+        {
+            "authority_ref": authorization.authority_ref,
+            "authorized_by": authorization.authorized_by,
+            "workspace": authorization.workspace,
+            "scene_id": authorization.scene_id,
+            "action": "outreach.send",
+            "target": authorization.manifest_sha256,
+        }
+    ]
+
+
+def test_an_authority_source_that_crashes_is_a_refusal_not_a_pass(store, scenes):
+    """验证器崩溃按拒绝处理。一个没有答案的来源不是一次批准。"""
+    scenes.put_record(make_scene(), expected_revision=None)
+    seed(store)
+    routes = [make_route()]
+    draft_them(store, routes)
+    manifest = freeze(store, routes)
+
+    class _Crashing:
+        def check(self, **kwargs):
+            raise RuntimeError("来源不可达")
+
+    with pytest.raises(MarketOpsError) as caught:
+        record_authorization(
+            authorization=_authorization(manifest),
+            store=store,
+            at=T0,
+            authority_source=_Crashing(),
+        )
+
+    assert "验证失败按**拒绝**处理" in str(caught.value)
+    assert store.authorizations(wave_id=manifest.wave_id) == ()
+
+
+def test_no_authorization_sends_nothing(store, scenes):
+    """没有授权时一封都不发 —— 这是本节的基线，防止「拒绝」被别的原因解释。"""
+    scenes.put_record(make_scene(), expected_revision=None)
+    seed(store)
+    routes = [make_route()]
+    draft_them(store, routes)
+    manifest = freeze(store, routes)
+
+    transport = RecordingTransport()
+    report = do_dispatch(store, scenes, transport)
+
+    assert manifest.wave_id == WAVE
+    assert transport.sent == []
+    assert report.outcomes[0].state == "skipped"
+    assert "授权" in report.outcomes[0].detail

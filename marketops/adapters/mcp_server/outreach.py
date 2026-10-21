@@ -90,6 +90,7 @@ from ...domain.entities import ContactRoute
 from ...domain.errors import MarketOpsError, StoreError
 from ...domain.outreach import (
     ApprovedClaim,
+    AuthorizationProvenance,
     OutreachCampaign,
     OutreachStage,
     SalesHandoff,
@@ -1644,6 +1645,10 @@ def _authorize_wave(
         authorized_at=moment,
         expires_at=_moment(expires_at, "expires_at"),
         approved_count=approved_count,
+        # 这一格是**受管入口的标记**：主体 `by` 取自传输层已认证的 Bearer 令牌，
+        # 不是载荷字段。`dispatch_wave` 只放行这个取值 —— 于是绕过本入口、
+        # 直接调应用层登记出来的授权（默认 UNVERIFIED）发不出去。
+        provenance=AuthorizationProvenance.BEARER_PRINCIPAL,
     )
     try:
         outreach_use_cases.record_authorization(
@@ -1720,6 +1725,9 @@ def _send_wave(
             transport=transport,
             rules=rules,
             at=utc_now(),
+            # 执行主体来自传输层，**不是参数**：批准与执行必须落在两个主体上，
+            # 而这一条只有在副作用入口拿得到执行者时才判得出来。
+            executor=_require_principal(),
         )
     except MarketOpsError as exc:
         raise ToolError(str(exc)) from exc

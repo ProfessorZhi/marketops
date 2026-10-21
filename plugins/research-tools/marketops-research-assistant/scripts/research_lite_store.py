@@ -6,6 +6,7 @@ No method grants contact-route readiness, sends messages or changes SOP.
 """
 from __future__ import annotations
 
+import base64
 import csv
 import hashlib
 import json
@@ -24,6 +25,14 @@ KINDS = frozenset({"source", "venue", "organization", "relationship", "person",
                    "role", "contact_point", "contact_route", "observation", "review"})
 STAGES = frozenset({"discovery", "acquisition", "entities", "qualification", "people",
                     "routes", "review", "export"})
+#: Material kinds a caller may store. `image` holds fetched picture bytes so a
+#: visual judgment (Jev Box) can be bound to a *saved* artifact like any other
+#: evidence; its bytes are validated against the real file signatures below, so
+#: text relabelled as a picture is refused rather than stored.
+MATERIAL_KINDS = frozenset({"provider_extracted", "provider_html", "rendered_html", "raw_response",
+                            "decision_response", "image"})
+#: File signatures the SDK itself recognises (see `typesafe_sdk._core.assets`).
+IMAGE_SIGNATURES = (b"\x89PNG\r\n\x1a\n", b"\xff\xd8\xff")
 MAX_RECORD = 16_384
 NO_EVIDENCE = "evidence_missing_not_verified"
 
@@ -55,6 +64,23 @@ def _connection(root: Path) -> sqlite3.Connection:
             stage TEXT NOT NULL, kind TEXT NOT NULL, status TEXT NOT NULL,
             entity_key TEXT NOT NULL, payload_json TEXT NOT NULL,
             artifact_ids_json TEXT NOT NULL, created_at TEXT NOT NULL);
+        CREATE INDEX IF NOT EXISTS records_run_entity ON records(run_id, entity_key);
+        CREATE TABLE IF NOT EXISTS evidence_links (
+            link_id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES runs(run_id),
+            record_id TEXT NOT NULL, artifact_id TEXT NOT NULL,
+            content_sha256 TEXT NOT NULL, span_sha256 TEXT NOT NULL,
+            locator_kind TEXT NOT NULL, locator TEXT NOT NULL,
+            material_kind TEXT NOT NULL, field TEXT NOT NULL,
+            created_at TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS evidence_envelopes (
+            evidence_id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES runs(run_id),
+            operation_id TEXT NOT NULL, artifact_id TEXT NOT NULL,
+            ledger_id TEXT, provider TEXT NOT NULL, capability_id TEXT NOT NULL,
+            source_url TEXT, retrieved_at TEXT NOT NULL, content_sha256 TEXT NOT NULL,
+            raw_artifact_ref TEXT NOT NULL, derived_refs_json TEXT NOT NULL,
+            extraction_method TEXT NOT NULL, verified_state TEXT NOT NULL,
+            candidate_only INTEGER NOT NULL, egress_decision_ref TEXT,
+            caveats_json TEXT NOT NULL, created_at TEXT NOT NULL);
     """)
     return db
 
@@ -78,6 +104,96 @@ def start_run(root: Path | str | None, run_id: str, scope: str, objective: str,
     return {"run_id": run_id, "status": "RUN_CREATED"}
 
 
+def list_runs(root: Path | str | None, *, limit: int = 10, cursor: str = "",
+              scope: str = "") -> dict:
+    """Discover resumable tasks without opening a writable database or creating one."""
+    if type(limit) is not int or not 1 <= limit <= 50:
+        raise ValueError("RUN_LIST_LIMIT_INVALID")
+    if not isinstance(scope, str) or len(scope) > 300:
+        raise ValueError("RUN_LIST_SCOPE_INVALID")
+    if cursor:
+        _id(cursor, "cursor")
+    base = _root(root, create=False)
+    path = (base / "state" / "research-lite.sqlite3").resolve()
+    if not path.is_relative_to(base):
+        raise ValueError("RUN_STORE_OUTSIDE_DATA_ROOT")
+    if not path.is_file():
+        if cursor:
+            raise ValueError("RUN_CURSOR_UNKNOWN")
+        return {"runs": [], "next_cursor": None, "limit": limit, "mutates_nothing": True}
+    clauses, arguments = [], []
+    with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=20)) as db:
+        db.execute("BEGIN")
+        if scope:
+            clauses.append("r.scope=?")
+            arguments.append(scope)
+        if cursor:
+            previous = db.execute("SELECT created_at,scope FROM runs WHERE run_id=?", (cursor,)).fetchone()
+            if previous is None or (scope and previous[1] != scope):
+                raise ValueError("RUN_CURSOR_UNKNOWN")
+            clauses.append("(r.created_at<? OR (r.created_at=? AND r.run_id<?))")
+            arguments.extend((previous[0], previous[0], cursor))
+        where = " WHERE " + " AND ".join(clauses) if clauses else ""
+        rows = db.execute(
+            "SELECT r.run_id,r.scope,r.rule_version,r.objective,r.created_at,"
+            "(SELECT COUNT(*) FROM records c WHERE c.run_id=r.run_id) "
+            "FROM runs r" + where + " ORDER BY r.created_at DESC,r.run_id DESC LIMIT ?",
+            (*arguments, limit + 1),
+        ).fetchall()
+    names = ("run_id", "scope", "rule_version", "objective", "created_at", "record_count")
+    return {"runs": [dict(zip(names, row)) for row in rows[:limit]],
+            "next_cursor": rows[limit - 1][0] if len(rows) > limit else None,
+            "limit": limit, "mutates_nothing": True}
+
+
+def list_materials(root: Path | str | None, run_id: str, *, limit: int = 20,
+                   cursor: str = "") -> dict:
+    """Read-only metadata discovery; a new session need not remember artifact IDs."""
+    _id(run_id, "run_id")
+    if type(limit) is not int or not 1 <= limit <= 50:
+        raise ValueError("MATERIAL_LIST_LIMIT_INVALID")
+    base = _root(root, create=False)
+    path = (base / "state" / "research-lite.sqlite3").resolve()
+    if not path.is_relative_to(base) or not path.is_file():
+        raise ValueError("MATERIAL_STORE_UNAVAILABLE")
+    with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=20)) as db:
+        db.execute("BEGIN")
+        if db.execute("SELECT 1 FROM runs WHERE run_id=?", (run_id,)).fetchone() is None:
+            raise ValueError("UNKNOWN_RUN")
+        if cursor:
+            try:
+                if not isinstance(cursor, str) or len(cursor) > 2048:
+                    raise ValueError()
+                token = json.loads(base64.b64decode(cursor.encode(), altchars=b"-_", validate=True))
+                high, after = token["high"], token["after"]
+                if (token.get("kind") != "materials" or token.get("run_id") != run_id
+                        or type(high) is not int or type(after) is not int
+                        or not 0 <= after <= high <= 2**63 - 1):
+                    raise ValueError()
+            except (ValueError, KeyError, TypeError, UnicodeError):
+                raise ValueError("MATERIAL_CURSOR_INVALID_OR_MISMATCHED") from None
+        else:
+            high = db.execute("SELECT COALESCE(MAX(rowid),0) FROM artifacts WHERE run_id=?",
+                              (run_id,)).fetchone()[0]
+            after = 0
+        total = db.execute("SELECT COUNT(*) FROM artifacts WHERE run_id=? AND rowid<=?",
+                           (run_id, high)).fetchone()[0]
+        rows = db.execute("SELECT rowid,artifact_id,provider,origin_url,material_kind,content_sha256,acquired_at "
+                          "FROM artifacts WHERE run_id=? AND rowid>? AND rowid<=? ORDER BY rowid LIMIT ?",
+                          (run_id, after, high, limit + 1)).fetchall()
+    visible = rows[:limit]
+    next_cursor = None
+    if len(rows) > limit:
+        next_cursor = base64.urlsafe_b64encode(json.dumps(
+            {"kind": "materials", "run_id": run_id, "high": high, "after": visible[-1][0]},
+            separators=(",", ":")).encode()).decode()
+    fields = ("artifact_id", "provider", "source_url", "material_kind", "content_sha256", "acquired_at")
+    return {"run_id": run_id, "kind": "artifact", "artifact_count": total,
+            "artifacts": [dict(zip(fields, row[1:])) for row in visible],
+            "next_cursor": next_cursor, "mutates_nothing": True,
+            "read_with": "marketops_material_excerpt", "facts_verified": False}
+
+
 def _safe_name(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
@@ -91,8 +207,17 @@ def save_artifact(root: Path | str | None, run_id: str, artifact_id: str,
     list_run(store_root, run_id, limit=1)
     if not isinstance(content, bytes) or not content or len(content) > 4_000_000:
         raise ValueError("Nonempty material bytes required (<=4 MB)")
-    if material_kind not in {"provider_extracted", "rendered_html", "raw_response", "decision_response"}:
+    if material_kind not in MATERIAL_KINDS:
         raise ValueError("Unknown material kind")
+    if material_kind == "provider_html":
+        from research_provider_html import canonical_url, validate_content
+        canonical_url(origin_url)
+        validate_content(content.decode("utf-8"))
+    # A picture is only a picture if its leading bytes say so. Without this check a
+    # text page stored as `image` would later be handed to a visual judgment as if
+    # it were a fetched screenshot.
+    if material_kind == "image" and not content.startswith(IMAGE_SIGNATURES):
+        raise ValueError("IMAGE_ARTIFACT_REQUIRES_IMAGE_BYTES")
     if len(origin_url) > 2048 or len(provider) > 60 or not provider:
         raise ValueError("Invalid material metadata")
     digest = hashlib.sha256(content).hexdigest()
@@ -136,6 +261,191 @@ def save_artifact(root: Path | str | None, run_id: str, artifact_id: str,
             "storage_status": "SAVED_NOT_BUSINESS_VERIFIED"}
 
 
+def _supersedes_error(code: str, detail: str) -> ValueError:
+    """Stable, material-free refusal text; the caller can act on the code."""
+    return ValueError(code + ": " + detail)
+
+
+def _validate_supersedes(db: sqlite3.Connection, run_id: str, record_id: str,
+                         stage: str, kind: str, entity_key: str,
+                         payload: dict) -> None:
+    """Validate an append-only correction *inside* the write transaction.
+
+    The Essex run wrote seven review revisions whose ``supersedes`` pointed at an
+    old record but whose ``entity_key`` was new. The old write accepted them and
+    the fork only became visible at export (``DISPOSITION_VERSION_CONFLICT``),
+    after the paid work was done. A correction must reuse the previous version's
+    run, kind, stage and entity_key; the caller may not "inherit" a new entity key
+    by assertion. Nothing here rewrites the caller's facts or touches old rows.
+    """
+    parent = payload.get("supersedes")
+    if parent is None or parent == "":
+        # A first disposition is legal; a second one for the same target is a
+        # fork even without `supersedes`, because the export cannot choose.
+        if kind == "review" and payload.get("review_type") == "target_disposition":
+            target_kind = payload.get("target_kind")
+            target_key = payload.get("target_entity_key")
+            if not isinstance(target_kind, str) or not isinstance(target_key, str):
+                raise _supersedes_error(
+                    "TARGET_DISPOSITION_FIELDS_INVALID",
+                    "target_disposition needs target_kind and target_entity_key")
+            siblings = db.execute(
+                "SELECT record_id,payload_json FROM records WHERE run_id=? AND kind='review'",
+                (run_id,)).fetchall()
+            for sibling_id, sibling_body in siblings:
+                try:
+                    sibling = json.loads(sibling_body)
+                except (TypeError, ValueError):
+                    continue
+                if (isinstance(sibling, dict)
+                        and sibling.get("review_type") == "target_disposition"
+                        and sibling.get("target_kind") == target_kind
+                        and sibling.get("target_entity_key") == target_key):
+                    raise _supersedes_error(
+                        "TARGET_DISPOSITION_ALREADY_EXISTS",
+                        f"target {target_kind}/{target_key} already has disposition "
+                        f"{sibling_id}; append a revision with facts.supersedes={sibling_id} "
+                        "and reuse its entity_key")
+        return
+    if not isinstance(parent, str) or not ID.fullmatch(parent):
+        raise _supersedes_error(
+            "SUPERSEDES_INVALID",
+            "facts.supersedes must be an existing record_id string")
+    if parent == record_id:
+        raise _supersedes_error(
+            "SUPERSEDES_SELF_REFERENCE",
+            "a record cannot supersede itself; append a new record_id")
+    row = db.execute(
+        "SELECT run_id,stage,kind,entity_key,payload_json FROM records WHERE record_id=?",
+        (parent,)).fetchone()
+    if row is None:
+        raise _supersedes_error(
+            "SUPERSEDES_UNKNOWN_RECORD",
+            f"previous record {parent} does not exist in this store; append a new "
+            "candidate instead of inventing a parent")
+    p_run, p_stage, p_kind, p_entity, p_body = row
+    if p_run != run_id:
+        raise _supersedes_error(
+            "SUPERSEDES_CROSS_RUN",
+            f"previous record {parent} belongs to another run; corrections stay "
+            "inside one run")
+    if p_kind != kind:
+        raise _supersedes_error(
+            "SUPERSEDES_KIND_MISMATCH",
+            f"reuse kind {p_kind} from {parent}")
+    if p_stage != stage:
+        raise _supersedes_error(
+            "SUPERSEDES_STAGE_MISMATCH",
+            f"reuse stage {p_stage} from {parent}")
+    if p_entity != entity_key:
+        raise _supersedes_error(
+            "SUPERSEDES_ENTITY_KEY_MISMATCH",
+            f"reuse entity_key from {parent}")
+    try:
+        parent_data = json.loads(p_body)
+    except (TypeError, ValueError):
+        parent_data = {}
+    if not isinstance(parent_data, dict):
+        parent_data = {}
+    if kind == "review":
+        # A note may not replace a disposition (or vice versa). The two carry
+        # different authority; equality of kind/stage/entity_key alone let a
+        # `review_type=note` become the live tip over a HOLD disposition, which
+        # silently released a held venue in the real run.
+        parent_type = parent_data.get("review_type")
+        child_type = payload.get("review_type")
+        if parent_type != child_type:
+            raise _supersedes_error(
+                "SUPERSEDES_REVIEW_TYPE_MISMATCH",
+                f"reuse review_type {parent_type!r} from {parent}; a review may "
+                "only supersede the same review_type")
+    # The parent must be the unique live tip of its own kind/entity group. A
+    # parent that is already superseded, or a group with a fork, would create a
+    # second branch; refuse rather than pick a winner.
+    group = db.execute(
+        "SELECT record_id,payload_json FROM records WHERE run_id=? AND kind=? AND "
+        "entity_key=?", (run_id, kind, entity_key)).fetchall()
+    parents = set()
+    for group_id, body in group:
+        try:
+            data = json.loads(body)
+        except (TypeError, ValueError):
+            data = {}
+        value = data.get("supersedes") if isinstance(data, dict) else None
+        if isinstance(value, str) and value:
+            parents.add(value)
+    tips = {group_id for group_id, _ in group if group_id not in parents}
+    if len(tips) != 1:
+        raise _supersedes_error(
+            "SUPERSEDES_FORKED_HISTORY",
+            f"{kind}/{entity_key} already has {len(tips)} live tips; resolve the "
+            "existing fork before appending another revision")
+    if parent not in tips:
+        tip = next(iter(tips))
+        raise _supersedes_error(
+            "SUPERSEDES_NOT_CURRENT_TIP",
+            f"previous record {parent} is not the current tip; append against {tip}")
+    # Walk the chain for a cycle. The table is bounded by MAX_ROWS in the read
+    # model, and a small cap here stops a corrupted chain from looping.
+    seen = {record_id, parent}
+    current = parent
+    for _ in range(1000):
+        body = db.execute("SELECT payload_json FROM records WHERE record_id=?",
+                          (current,)).fetchone()
+        if body is None:
+            break
+        try:
+            data = json.loads(body[0])
+        except (TypeError, ValueError):
+            break
+        nxt = data.get("supersedes") if isinstance(data, dict) else None
+        if not isinstance(nxt, str) or not nxt:
+            break
+        if nxt in seen:
+            raise _supersedes_error(
+                "SUPERSEDES_CYCLE",
+                f"the supersedes chain through {parent} is cyclic")
+        seen.add(nxt)
+        current = nxt
+
+    if kind == "review" and payload.get("review_type") == "target_disposition":
+        target_kind = payload.get("target_kind")
+        target_key = payload.get("target_entity_key")
+        if not isinstance(target_kind, str) or not isinstance(target_key, str):
+            raise _supersedes_error(
+                "TARGET_DISPOSITION_FIELDS_INVALID",
+                "target_disposition needs target_kind and target_entity_key")
+        if (parent_data.get("review_type") != "target_disposition"
+                or parent_data.get("target_kind") != target_kind
+                or parent_data.get("target_entity_key") != target_key):
+            raise _supersedes_error(
+                "SUPERSEDES_REVIEW_TARGET_MISMATCH",
+                f"reuse review target from {parent}; a revision may not move to a "
+                "different target entity")
+        # One live disposition per target. A different review record already
+        # holding this target is a fork, even if it is not the parent.
+        siblings = db.execute(
+            "SELECT record_id,payload_json FROM records WHERE run_id=? AND kind='review'",
+            (run_id,)).fetchall()
+        for sibling_id, sibling_body in siblings:
+            # Ancestors of this parent are history, not a competing branch.
+            if sibling_id in seen:
+                continue
+            try:
+                sibling = json.loads(sibling_body)
+            except (TypeError, ValueError):
+                continue
+            if (isinstance(sibling, dict)
+                    and sibling.get("review_type") == "target_disposition"
+                    and sibling.get("target_kind") == target_kind
+                    and sibling.get("target_entity_key") == target_key):
+                raise _supersedes_error(
+                    "TARGET_DISPOSITION_ALREADY_EXISTS",
+                    f"target {target_kind}/{target_key} already has disposition "
+                    f"{sibling_id}; append a revision with facts.supersedes={sibling_id} "
+                    "and reuse its entity_key")
+
+
 def _insert_candidate(db: sqlite3.Connection, run_id: str, record_id: str,
                       stage: str, kind: str, entity_key: str, payload: dict,
                       artifact_ids: list[str] | None = None) -> dict:
@@ -167,11 +477,91 @@ def _insert_candidate(db: sqlite3.Connection, run_id: str, record_id: str,
         if prior != (run_id, stage, kind, entity_key, body, refs):
             raise ValueError("RECORD_ID_COLLISION_OR_CROSS_RUN: append a new ID")
         return {"record_id": record_id, "status": "IDEMPOTENT"}
+    _validate_supersedes(db, run_id, record_id, stage, kind, entity_key, payload)
     status = "candidate_with_material" if ids else "candidate_unverified"
     db.execute("INSERT INTO records VALUES (?,?,?,?,?,?,?,?,?)",
                (record_id, run_id, stage, kind, status, entity_key,
                 body, refs, datetime.now(timezone.utc).isoformat()))
     return {"record_id": record_id, "status": status, "artifact_ids": ids}
+
+
+_DISPOSITIONS = ("RESEARCHED_CANDIDATE", "HOLD", "EXCLUDED", "DUPLICATE")
+
+
+def _disposition_caveat(kind: str, payload: dict) -> str:
+    """Name the four legal dispositions the moment an unknown one is written."""
+    if kind != "review" or (payload or {}).get("review_type") != "target_disposition":
+        return ""
+    if payload.get("disposition") in _DISPOSITIONS:
+        return ""
+    return ("DISPOSITION_INVALID: disposition must be one of " + ", ".join(_DISPOSITIONS)
+            + " (RESEARCHED_CANDIDATE = researched, routes recorded). Resubmit with a new "
+              "record_id and facts.supersedes=<this record_id>.")
+
+
+def _miss_caveat(miss: dict) -> str:
+    """One claim that did not link, with the page's own nearby text to copy from."""
+    if miss.get("problem") != "QUOTE_NOT_IN_ARTIFACT":
+        return f"field={miss.get('field')}: {miss.get('problem')}"
+    closest = miss.get("closest_text_on_page") or ""
+    return (f"QUOTE_NOT_IN_ARTIFACT field={miss.get('field')} artifact={miss.get('artifact_id')}: "
+            "the quote is not on that page verbatim. "
+            + (f"Closest text on the page: \"{closest}\". Copy 12-600 characters exactly from it "
+               "and resubmit with a new record_id and facts.supersedes."
+               if closest else "No similar text on that page; quote a different saved page "
+               "(marketops_material_excerpt) or record HOLD.")
+            + " Do not read plugin source code to debug this.")
+
+
+def _span_caveat(kind: str, payload: dict, artifact_ids, linked) -> str:
+    """Say it at write time: material without a linked required claim stays out.
+
+    The delivery gate reports a missing required claim only after the run has
+    ended, which is exactly when the Agent can no longer fix it. Staging stays
+    legal — it simply does not reach the business tables — so this is a caveat,
+    never a refusal.
+
+    A *linked* quote is not the same as the *required* quote. An organisation
+    staged with ``field=name`` has a link, so the old caveat was empty; delivery
+    then refused it with ``MISSING_REQUIRED_IDENTITY`` after the work was spent.
+    The warning now names the missing field and the exact repair, and never
+    rewrites the caller's claims into a quote they did not supply.
+    """
+    if not artifact_ids:
+        return ""
+    if kind not in {"venue", "organization", "relationship", "person", "role",
+                    "contact_point", "contact_route"}:
+        return ""
+    claims = (payload or {}).get("claims")
+    if not claims:
+        return ("SPAN_NOT_RECORDED: no facts.claims, so no quote is linked to "
+                + ", ".join(str(a) for a in artifact_ids[:3])
+                + "; add facts.claims=[{field, artifact_id, quote}] with a 12-600 character "
+                  "quote taken from that artifact, or this record stays out of the "
+                  "business tables")
+    linked_fields = {link.get("field") for link in (linked or ())
+                     if isinstance(link, dict)}
+    if not linked_fields:
+        return ("SPAN_NOT_RECORDED: " + str(len(claims)) + " claim(s) supplied but none linked; "
+                "each claim needs artifact_id from artifact_ids, a field matching "
+                "^[a-z][a-z0-9_]{0,39}$ and a 12-600 character quote found in that artifact")
+    supplied = sorted(str(claim.get("field")) for claim in claims
+                      if isinstance(claim, dict) and claim.get("field"))
+    artifact_hint = str(artifact_ids[0])
+    if kind in {"organization", "venue"} and "identity" not in linked_fields:
+        return ("MISSING_REQUIRED_IDENTITY: linked field(s)="
+                + (", ".join(supplied) or "<none>")
+                + " but no field=identity; add facts.claims field=identity with a "
+                  "12-600 character quote from " + artifact_hint
+                + " that contains the recorded name. field=name alone is not an "
+                  "identity claim")
+    if kind == "relationship" and "relationship" not in linked_fields:
+        return ("MISSING_REQUIRED_RELATIONSHIP: linked field(s)="
+                + (", ".join(supplied) or "<none>")
+                + " but no field=relationship; add facts.claims field=relationship "
+                  "with a 12-600 character quote from " + artifact_hint
+                + " that states the related entities")
+    return ""
 
 
 def put_candidate(root: Path | str | None, run_id: str, record_id: str, stage: str,
@@ -183,8 +573,15 @@ def put_candidate(root: Path | str | None, run_id: str, record_id: str, stage: s
         db.execute("BEGIN IMMEDIATE")
         result = _insert_candidate(db, run_id, record_id, stage, kind, entity_key,
                                    payload, artifact_ids)
+        from research_evidence_store import link_candidate_claims
+        misses: list[dict] = []
+        linked = link_candidate_claims(store_root, db, run_id, record_id, payload, artifact_ids,
+                                       misses=misses)
         db.commit()
-    return result
+    caveat = _span_caveat(kind, payload, artifact_ids, linked)
+    caveats = [c for c in (caveat, _disposition_caveat(kind, payload)) if c]
+    caveats += [_miss_caveat(miss) for miss in misses]
+    return {**result, "caveats": caveats} if caveats else result
 
 
 def put_candidates_batch(root: Path | str | None, run_id: str,
@@ -202,7 +599,7 @@ def put_candidates_batch(root: Path | str | None, run_id: str,
     if len(json.dumps(items, ensure_ascii=False).encode("utf-8")) > 65_536:
         raise ValueError("BATCH_PAYLOAD_TOO_LARGE")
     store_root = _root(root)
-    results = []
+    results, caveats = [], []
     with closing(_connection(store_root)) as db:
         db.execute("BEGIN IMMEDIATE")
         if db.execute("SELECT 1 FROM runs WHERE run_id=?", (run_id,)).fetchone() is None:
@@ -216,12 +613,26 @@ def put_candidates_batch(root: Path | str | None, run_id: str,
             results.append(_insert_candidate(
                 db, run_id, item["record_id"], item["stage"], item["kind"],
                 item["entity_key"], item["facts"], item.get("artifact_ids")))
+            from research_evidence_store import link_candidate_claims
+            misses: list[dict] = []
+            linked = link_candidate_claims(store_root, db, run_id, item["record_id"],
+                                           item["facts"], item.get("artifact_ids"), misses=misses)
+            caveat = _span_caveat(item["kind"], item["facts"], item.get("artifact_ids"), linked)
+            if caveat:
+                caveats.append(item["record_id"] + " " + caveat)
+            disposition = _disposition_caveat(item["kind"], item["facts"])
+            if disposition:
+                caveats.append(item["record_id"] + " " + disposition)
+            caveats += [item["record_id"] + " " + _miss_caveat(miss) for miss in misses]
         db.commit()
-    return {"status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED",
-            "requested": len(items),
-            "created": sum(x["status"] != "IDEMPOTENT" for x in results),
-            "idempotent": sum(x["status"] == "IDEMPOTENT" for x in results),
-            "record_ids": [x["record_id"] for x in results]}
+    report = {"status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED",
+              "requested": len(items),
+              "created": sum(x["status"] != "IDEMPOTENT" for x in results),
+              "idempotent": sum(x["status"] == "IDEMPOTENT" for x in results),
+              "record_ids": [x["record_id"] for x in results]}
+    if caveats:
+        report["caveats"] = caveats[:12]
+    return report
 
 def list_run(root: Path | str | None, run_id: str, limit: int = 300) -> dict:
     _id(run_id, "run_id")
@@ -270,3 +681,44 @@ def export_csv(root: Path | str | None, run_id: str, output: Path) -> dict:
                              json.dumps(row["artifact_ids"]), safe])
     return {"status": "CANDIDATE_CSV_EXPORTED_NOT_FORMALLY_VERIFIED",
             "rows": snapshot["record_count"], "path": str(output)}
+
+
+# --------------------------------------------------------------------- readback
+def read_artifact(root: Path | str | None, run_id: str, artifact_id: str) -> dict:
+    """Saved bytes, read back from disk and hash-verified against the recorded row.
+
+    An artifact is only usable as evidence if the bytes on disk still hash to the
+    value written at save time. Reading without that check would let a later edit
+    pass silently as the original material.
+    """
+    store_root = _root(root)
+    _id(run_id, "run_id"); _id(artifact_id, "artifact_id")
+    with closing(_connection(store_root)) as db:
+        row = db.execute(
+            "SELECT material_kind,origin_url,content_sha256,relative_path,acquired_at,provider "
+            "FROM artifacts WHERE run_id=? AND artifact_id=?", (run_id, artifact_id)).fetchone()
+    if row is None:
+        raise ValueError("ARTIFACT_NOT_IN_RUN")
+    path = (store_root / row[3]).resolve()
+    if not path.is_relative_to((store_root / "artifacts").resolve()):
+        raise ValueError("ARTIFACT_PATH_OUTSIDE_ROOT")
+    if not path.is_file():
+        raise ValueError("ARTIFACT_MISSING")
+    data = path.read_bytes()
+    if hashlib.sha256(data).hexdigest() != row[2]:
+        raise ValueError("ARTIFACT_READBACK_HASH_MISMATCH")
+    return {"artifact_id": artifact_id, "run_id": run_id, "content": data,
+            "material_kind": row[0], "origin_url": row[1], "content_sha256": row[2],
+            "provider": row[5], "acquired_at": row[4]}
+
+
+def artifact_sha256(root: Path | str | None, run_id: str, artifact_id: str) -> str:
+    return read_artifact(root, run_id, artifact_id)["content_sha256"]
+
+
+def artifact_kind(root: Path | str | None, run_id: str, artifact_id: str) -> str:
+    return read_artifact(root, run_id, artifact_id)["material_kind"]
+
+
+def is_image_artifact(root: Path | str | None, run_id: str, artifact_id: str) -> bool:
+    return artifact_kind(root, run_id, artifact_id) == "image"

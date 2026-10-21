@@ -46,11 +46,13 @@ from urllib.parse import urlsplit
 
 __all__ = [
     "ALLOWED_SCHEMES",
+    "DEFAULT_EGRESS_PORTS",
     "MAX_REDIRECTS",
     "RESERVED_HOSTS",
     "RESERVED_HOST_SUFFIXES",
     "TargetRefusal",
     "TargetVerdict",
+    "check_port",
     "check_resolved",
     "check_target",
     "is_loopback_host",
@@ -120,6 +122,30 @@ class TargetRefusal(str, Enum):
 
     REDIRECT_WITHOUT_LOCATION = "redirect_without_location"
     """3xx 却没有 ``Location``：下一跳无法确定，所以不能当成「页面拿到了」。"""
+
+    PORT_NOT_ALLOWED = "port_not_allowed"
+    """端口不在这一层允许的集合里。
+
+    ## 为什么它必须是一条判据，而不是一个「顺便」
+
+    采集设计 §7 逐字把**端口**与协议、解析、私网网段、来源策略并列：一条被批准的
+    **主机名**不等于它的**每一个端口**都被批准。少了这一格，一个页面可以把浏览器
+    当成端口扫描器去敲 ``approved.example:6379``（Redis）、``:3306``（MySQL）、
+    ``:22``（SSH）—— 每一次都发生在「主机被批准过」这句话的庇护之下，而出口上
+    留下的是一条**放行**记录。这和「名字被批准 ≠ 它解析出来的地址可以随便」是
+    同一句话的另一个面。
+
+    缺省的允许集合是 :data:`DEFAULT_EGRESS_PORTS`（80 / 443）—— 与
+    ``research_provider_extensions._public_https_url`` 对端口的口径一致。
+    """
+
+
+#: 缺省允许的端口：两个被允许协议的缺省端口。
+#:
+#: 刻意**不含** 8080 / 8443 / 3000 这类「开发时常开」的端口：一个默认放宽的口子
+#: 会在没人看的时候变成一条常开的旁路，而需要非标准端口的部署只要显式传一个集合
+#: 就行（``EgressGate(allowed_ports=…)``）。
+DEFAULT_EGRESS_PORTS: frozenset[int] = frozenset({80, 443})
 
 
 @dataclass(frozen=True)
@@ -235,6 +261,42 @@ def check_target(url: str) -> TargetVerdict:
                 f"{host!r} 不是全局可路由地址（私网 / 环回 / 链路本地 / CGNAT / 未指定）",
             )
 
+    return TargetVerdict(True)
+
+
+def check_port(port: int, *, allowed: frozenset[int]) -> TargetVerdict:
+    """这个端口允不允许被连。与 :func:`check_target` / :func:`check_resolved` 同形。
+
+    判据与另外两条一样是**纯函数**：不解析、不连网，可以在逐跳的循环里被调用。
+
+    ## 空集合是「谁都连不上」，不是「不设限」
+
+    与 ``security/scope.py`` 的名单同向：「没配」与「配成了空」的处置都是**停**。
+    另一个方向（空 = 全部端口）会让一次漏配表现为「连得出去，看起来完全正常」——
+    而那正是这一格存在的理由被抹掉的那种失败。
+
+    ## 不合法的端口也走同一个理由码
+
+    ``0`` 与 ``70000`` 不是「另一个端口」，是**不是一个端口**。它们与「不在允许
+    集合里」共用 :attr:`TargetRefusal.PORT_NOT_ALLOWED`，因为对调用方来说处置是
+    同一条（改配置或改目标），而理由是另一句话（``detail`` 里写着）。
+    """
+    if not isinstance(port, int) or not 0 < port < 65536:
+        return TargetVerdict(
+            False,
+            TargetRefusal.PORT_NOT_ALLOWED,
+            f"{port!r} 不是一个可连接的端口（1..65535）",
+        )
+    if port not in allowed:
+        listed = ", ".join(str(item) for item in sorted(allowed)) or "（空）"
+        return TargetVerdict(
+            False,
+            TargetRefusal.PORT_NOT_ALLOWED,
+            f"端口 {port} 不在这一层允许的集合里（{listed}）。\n"
+            "一个被批准的主机名不等于它的每一个端口都被批准 —— 少了这一格，"
+            "页面可以把浏览器当成端口扫描器去敲 6379 / 3306 / 22，"
+            "而出口上留下的是一条放行记录。",
+        )
     return TargetVerdict(True)
 
 

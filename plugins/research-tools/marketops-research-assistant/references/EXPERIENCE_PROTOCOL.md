@@ -1,3 +1,7 @@
+> 0.5 更新：当前统一 MCP 已实现事件记录、跨任务召回和反馈。下文 v0.2 的“未来统一 MCP”描述保留为历史；当前行为以本节、主 Skill 和工具目录为准。
+>
+> 现在可用 `marketops_runs` 找回任务，`marketops_start` / `marketops_next` 自动返回相关经验，`marketops_experience_recall` 按需查询。用 `marketops_experience_feedback` 将实际采用及结果绑定 `artifact:<id>` 或 `event:<sequence>`。默认读取当前有效观察，显式 `as_of` 重放历史；反馈保留反例并影响后续方法建议。hash 和引用有效只证明记录完整/可追溯，不证明业务语义或因果。未测量的时间/成本收益保持 UNKNOWN。
+
 # 调研经验包 v1：记录事实，归纳假设，保留验证路径
 
 目标：在半自动研究中积累能改进后续工作流的材料，而不是再造自动化平台。Agent负责归纳；一个小型离线脚本负责格式/引用检查和Markdown阅读版。没有后台任务、自动上传、自动采纳或隐式训练。

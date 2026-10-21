@@ -14,6 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import research_config as cfg
+from research_config import DATA_ROOT_ENV
 
 POSIX = "linux"
 
@@ -137,17 +138,15 @@ class PathValidationTests(unittest.TestCase):
 
     def test_accepts_a_windows_absolute_path(self):
         # The path is recognised as absolute on Windows without touching the OS.
-        self.assertTrue(cfg.is_absolute_path("C:" + r"\Users\member-a\research", "win32"))
+        self.assertTrue(cfg.is_absolute_path(r"C:\Users\member-a\research", "win32"))
         self.assertTrue(cfg.is_absolute_path(r"\\server\share\research", "win32"))
         self.assertFalse(cfg.is_absolute_path(r"research\data", "win32"))
         self.assertTrue(cfg.is_absolute_path("/home/member-a/research", "linux"))
 
     def test_windows_config_file_lives_under_appdata(self):
-        path = cfg.config_path(env={"APPDATA": "C:" + r"\Users\member-a\AppData\Roaming"},
-                               platform="win32")
-        self.assertEqual(
-            "C:" + r"\Users\member-a\AppData\Roaming\marketops-research\config.json",
-            str(path).replace("/", "\\"))
+        path = cfg.config_path(env={"APPDATA": r"C:\Users\member-a\AppData\Roaming"}, platform="win32")
+        self.assertEqual(r"C:\Users\member-a\AppData\Roaming\marketops-research\config.json",
+                         str(path).replace("/", "\\"))
 
     def test_unix_config_file_lives_under_xdg(self):
         path = cfg.config_path(env={"HOME": "/home/member-a", "XDG_CONFIG_HOME": "/home/member-a/.config"},
@@ -185,6 +184,29 @@ class CompatibilityTests(unittest.TestCase):
             self.assertEqual((Path(tmp) / "from-env").resolve(),
                              cfg.data_root(env=env, platform=POSIX))
             self.assertEqual("env", cfg.status(env=env, platform=POSIX)["data_root_source"])
+
+    def test_a_data_root_env_that_disagrees_with_the_stored_config_is_reported(self):
+        # The env override moves new material but leaves experience_file on the
+        # stored config, so a run reads one root and writes its summary under
+        # another installation's directory. That split has to be visible.
+        with tempfile.TemporaryDirectory() as tmp:
+            env = env_for(tmp)
+            cfg.configure(str(Path(tmp) / "from-config"), str(Path(tmp) / "a.md"),
+                          env=env, platform=POSIX)
+            env[DATA_ROOT_ENV] = str(Path(tmp) / "from-env")
+            status = cfg.status(env=env, platform=POSIX)
+            self.assertTrue(status["data_root_mismatch"])
+            self.assertEqual(str(Path(tmp) / "from-config"), status["stored_data_root"])
+            self.assertEqual(str(Path(tmp) / "a.md"), status["experience_file"])
+
+    def test_a_data_root_env_matching_the_stored_config_is_not_a_mismatch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            env = env_for(tmp)
+            same = Path(tmp) / "same-root"
+            cfg.configure(str(same), str(Path(tmp) / "a.md"), env=env, platform=POSIX)
+            env[DATA_ROOT_ENV] = str(same) + "/"
+            status = cfg.status(env=env, platform=POSIX)
+            self.assertNotIn("data_root_mismatch", status)
 
     def test_explicit_config_env_selects_a_different_config_file(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -1,0 +1,54 @@
+name: research-plugin-release
+
+# Push a tag `marketops-v<version>` (matching plugin.json) to publish the
+# portable source package as a GitHub Release. Installed copies update from it
+# with Update.cmd / update.sh. A tag with `-rc` is published as a pre-release,
+# which the updater only takes with --prerelease.
+on:
+  push:
+    tags:
+      - "marketops-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Tag matches the plugin version
+        run: |
+          declared=$(python -c "import json;print(json.load(open('plugins/research-tools/marketops-research-assistant/plugin.json'))['version'])")
+          test "marketops-v${declared}" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} != plugin.json ${declared}"; exit 1; }
+      - name: Build the portable source package
+        run: |
+          python plugins/research-tools/marketops-research-assistant/scripts/build_client_bundles.py \
+            --source-package --output "${{ runner.temp }}/release"
+      - name: Verify package and checksum
+        run: |
+          python - <<'PY'
+          import hashlib, pathlib, zipfile
+          target = pathlib.Path("${{ runner.temp }}/release")
+          archive = next(target.glob("marketops-research-assistant-v*-source.zip"))
+          checksum = archive.with_name(archive.name + ".sha256").read_text().split()[0]
+          assert hashlib.sha256(archive.read_bytes()).hexdigest() == checksum
+          with zipfile.ZipFile(archive) as z:
+              assert z.testzip() is None
+          print("VERIFIED", archive.name, checksum)
+          PY
+      - name: Publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          flags=""
+          case "${GITHUB_REF_NAME}" in *-rc*) flags="--prerelease";; esac
+          gh release create "${GITHUB_REF_NAME}" $flags \
+            --title "MarketOps ${GITHUB_REF_NAME#marketops-v}" \
+            --notes "Install: unzip and run Install.cmd (Windows) or install.sh. Update an existing install: run Update.cmd / update.sh in the MarketOps folder." \
+            "${{ runner.temp }}"/release/marketops-research-assistant-v*-source.zip \
+            "${{ runner.temp }}"/release/marketops-research-assistant-v*-source.zip.sha256

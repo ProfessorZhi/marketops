@@ -76,3 +76,10 @@ filterwarnings = ["error::DeprecationWarning:marketops.*"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.lint.per-file-ignores]
+# 研究插件子树（plugins/research-tools）是从私有分支整棵移植过来的，自带 preflight
+# 与 research-plugin-e2e 工作流。搬迁期不重排它的代码：那会把这次 diff 变成几百行
+# 纯格式改动，把真正的迁移内容埋掉，也会让上游分支与本仓永久分叉。
+# 只豁免**纯风格**规则；会藏 bug 的 F 类（未定义名、重复定义、未使用变量/导入）照旧全开。
+"plugins/research-tools/**" = ["E402", "E701", "E702", "E731"]

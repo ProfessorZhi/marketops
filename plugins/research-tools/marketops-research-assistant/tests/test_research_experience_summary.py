@@ -4,7 +4,6 @@ No network, no provider, no credentials and no real customer data: the notes and
 events here are synthetic.
 """
 from __future__ import annotations
-import json
 import re
 import sqlite3
 import sys
@@ -170,7 +169,7 @@ class NoteTests(unittest.TestCase):
             self.assertEqual("RECORDED", result["result"])
             self.assertIsInstance(result["sequence"], int)
 
-    def test_the_member_a_audit_categories_are_recordable(self):
+    def test_the_audit_categories_are_recordable(self):
         with tempfile.TemporaryDirectory() as tmp:
             data, _ = paths(tmp)
             seed_run(data, "run-a")
@@ -210,7 +209,7 @@ class NoteTests(unittest.TestCase):
                 ("problem", "see https://example.org/team for the list"),
                 ("action_taken", "used key sk-abcdefghijklmnopqrstuvwxyz012345"),
                 ("observed_result", "got cookie session=abc123def456ghi789"),
-                ("hypothesis", "token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"),  # gitleaks:allow
+                ("hypothesis", "token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"),
             ]
             for field, value in bad:
                 payload = dict(run_id="run-a", note_id="note-" + field + str(len(value)),

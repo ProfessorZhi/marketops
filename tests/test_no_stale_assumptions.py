@@ -92,11 +92,18 @@ RULE_CARRIER_FILES: frozenset[str] = frozenset(
     {
         "tests/test_no_stale_assumptions.py",
         "tests/test_portability.py",
+        # 插件树整棵并入后带进来的两个载体：一个是配置文档里的 Windows 示例路径，
+        # 一个是 win32 分支的路径断言本身。它们必须写下盘符路径 —— 否则「Windows
+        # 上配置放在哪」既没法举例也没法测，删掉它等于删掉这项支持。
+        "plugins/research-tools/marketops-research-assistant/references/mcp.windows.example.json",
+        "plugins/research-tools/marketops-research-assistant/tests/test_research_config.py",
+        # Native Windows containment/case-folding regression requires real drive paths.
+        "plugins/research-tools/marketops-research-assistant/tests/test_windows_config_contract.py",
     }
 )
 
 #: 载体数量上限。拓宽约束必须是有意识的决定，不是顺手加一行。
-MAX_RULE_CARRIER_FILES = 3
+MAX_RULE_CARRIER_FILES = 5  # 2 个本仓库规则 + 3 个插件树的 Windows 载体
 
 
 def _iter_scanned_files() -> list[Path]:

@@ -24,18 +24,16 @@ python -m pip install -e ".[dev]" pytest-timeout
 ### 跑测试
 
 ```bash
-CUDA_VISIBLE_DEVICES="" nice -n 10 python -m pytest -q --timeout=300 \
-  --ignore=tests/test_sources_snapshot.py \
-  --deselect tests/test_portability.py::test_slugify_is_platform_independent \
-  --deselect tests/test_security_egress.py::test_the_domain_part_is_normalised_and_the_local_part_is_not \
-  -k "not (test_insertion_order_is_preserved or test_projection_order_is_by_key_not_by_arrival or test_the_fold_does_not_take_the_maximum)"
+CUDA_VISIBLE_DEVICES="" nice -n 10 python -m pytest -q --timeout=300
 ```
 
-实测：选中 7813 条用例，rc=0，耗时约 445s。以上筛选对应 `main` 上已知失败的 4 组断言，未改代码：
+根套件不再排除快照、排序/折叠、slugify 或邮箱归一化测试。公开快照分别校验
+脱敏文件的 `public_snapshot_sha256` 与原始历史 pin 的格式，未改写原始 pin。
+排序与折叠断言遵循存储接口的既定契约。
 
-- `tests/test_sources_snapshot.py`：快照清单里 `member-c-scene-email-pool-sheet` 故意没有 `snapshot_path`（`why_not_captured`），测试却要求每条都有；12 项失败。
-- `test_slugify_is_platform_independent` 与 `test_the_domain_part_is_normalised_and_the_local_part_is_not`：测试期望把 `AcmeCorp` 归一成 `acme`，实现输出 `acmecorp`。
-- 证据库排序/折叠的 3 条用例（`test_insertion_order_is_preserved`、`test_projection_order_is_by_key_not_by_arrival`、`test_the_fold_does_not_take_the_maximum`）在当前 `main` 上失败。
+根套件包含 Linux 专用的 `fcntl` 身份锁模块，全量结果以 GitHub Linux CI 为准。
+Windows 安装流程由 `research-plugin-e2e` 的 Windows job 验证；Windows 上直接跑完整
+离线测试还会遇到既有夹具对 HOME、文件权限、短路径别名和 SQLite 句柄清理的假设。
 
 插件测试单独跑：
 
@@ -45,7 +43,8 @@ python -m pip install -r requirements-lite.txt
 CUDA_VISIBLE_DEVICES="" nice -n 10 python -m unittest discover -s tests -v
 ```
 
-实测：`Ran 236 tests in 4.859s`，`OK (skipped=1)`。
+完整插件套件的当前数量与结果见 `research-plugin-e2e` 的 `offline-3.12` 日志。
+`requirements-lite.txt` 里没有 pytest，用的是 `unittest discover`，但 `mcp` 与 `typesafe-sdk` 必须装上，否则相关用例走的是「SDK 未安装」的阻断分支。
 
 ### 本地启动
 

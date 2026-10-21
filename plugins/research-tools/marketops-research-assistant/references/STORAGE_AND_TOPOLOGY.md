@@ -40,7 +40,7 @@ flowchart TD
  HUMAN -. "批准版本更新" .-> SK
 ```
 
-**MCP Server** 是本插件 `scripts/research_mcp.py`；Codex/WorkBuddy 为 **MCP Client**。五家通过本地 REST、SDK 或本地 Python 爬虫适配执行；并非所有五家都拥有官方 MCP Server。TinyFish 的复杂 Browser Agent 仍需另接官方 MCP 且不自动进入本地事件记录；Jev 目前只桥接 Choice，不是全部原语。
+**MCP Server** 是本插件 `scripts/research_mcp.py`，对外入口是宿主侧门面 `scripts/research_mcp_facade.py`（同一 server、只收窄对外 schema 声明）；Codex/WorkBuddy 为 **MCP Client**。五家通过本地 REST、SDK 或本地 Python 爬虫适配执行；并非所有五家都拥有官方 MCP Server。TinyFish 的复杂 Browser Agent 仍需另接官方 MCP 且不自动进入本地事件记录；Jev 目前只桥接 Choice，不是全部原语。
 
 正式 MarketOps Business MCP 及领域模型位于主项目 `marketops/`。本地 Lite 的 candidate 不能改名成正式联系路线，当前工具也没有 A/B/C/D 晋升权限。
 
@@ -83,4 +83,4 @@ flowchart TD
 - 经验候选不自动上传GitHub，不自动修改正式SOP/Skills或批准外联。
 - 源码存在/能 import/MCP可列出/供应商认证/真实调用/业务交付是不同验收层。当前尚未完成 Codex 与 WorkBuddy 真机端到端。
 
-安装看 [MEMBER_A_INSTALL](MEMBER_A_INSTALL.md)，工具契约看 [MCP_TOOL_CATALOG](MCP_TOOL_CATALOG.md)，发布前门禁看 [RELEASE_GATE](RELEASE_GATE.md)。
+安装看 [MEMBER_A_INSTALL](MEMBER_A_INSTALL.md)，工具契约看 [MCP_TOOL_CATALOG](MCP_TOOL_CATALOG.md)，发布前门禁看 RELEASE_GATE (repository `docs/research-plugin-history/RELEASE_GATE.md`)。

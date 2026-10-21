@@ -1,19 +1,26 @@
 ---
 name: marketops-crawl4ai
-description: Use authorized Crawl4AI SDK, self-hosted MCP or Cloud MCP to acquire and batch-extract source materials while preserving per-URL errors, record boundaries, provenance and honest evidence status.
+description: Crawl4AI local browser crawler in MarketOps - the free default for fetching pages and organisation sites, rendering JavaScript, and reading directory listings and PDFs. Load when fetching or harvesting pages.
 ---
 
-# Crawl4AI：取得可消费的材料
+# Crawl4AI: the free default fetcher
 
-MarketOps自编使用Skill。先读 [路由合同](../../references/PROVIDER_ROUTING.md)。官方文档：https://docs.crawl4ai.com/ 与 https://docs.crawl4ai.com/core/self-hosting/ 。本地/Cloud是不同接口，读取实际catalog，不照抄其他端点工具名。
+Runs on this machine with its own Chromium; no key, no per-page cost. It is rung 1 inside
+`marketops_research_step`, `marketops_site_harvest` and `marketops_harvest_batch`; you rarely call it
+directly.
 
-输入：获准URL集合、必须取得的字段、存量/时效、输出schema与费用边界。
+**What it is good at**: JavaScript-rendered pages, following real links (link-driven discovery found
+emails at 62–88% of sites; guessed paths 6.5%), keeping `mailto:` addresses, PDFs (minutes, annual
+reports naming officers).
 
-1. 小样本查看真实HTML/链接/记录块，再选CSS/XPath或合适的结构提取；不能凭标题猜selector。
-2. 正文、链接/`mailto:`、姓名职位卡片、分页、PDF和来源发布时间按需求保留。Markdown过度清理丢掉字段时，改用已取得HTML/结构化材料重解析，而不是再抓相同站点。
-3. 批量逐URL记录成功、阻断、空、解析错误；一页失败不得伪称整批成功，也不得抹掉其他页成果。
-4. 保存真实取得的材料，明确raw/rendered/extracted及变换；字节hash由程序算。Provider只给Markdown时不谎称取得原始网页。
-5. 检查正文是不是权限墙、错误页或目录导航，再做事实和实体归属。HTTP200/hash不证明内容正确。
-6. 数据落到固定store并读回，输出实体id、evidence/claim引用及每条输入处置；多页一个组织与一页多个场地不能相互混淆。
+**When it fails**:
+- Browser cannot start (missing Chromium, blocked loopback): the step falls through to TinyFish
+  fetch automatically; tell the user once so they can fix the local install.
+- The site blocks it (403/429/challenge): that host is recorded; TinyFish fetch is tried only for
+  technical failures, never to get round a challenge or login.
+- HTTP 200 can still be a cookie wall or login page: check the saved text before quoting.
 
-遇到WAF/CAPTCHA/登录权限停止该来源，换获准公共资料；不得启动规避访问控制的代理/脚本。Cloud账单管理、远程执行脚本、充值及扩大额度不在研究许可内。提取结果异常先诊断压缩/编码/schema/record切分，经验记录精确到输入样本和版本。
+**Directories**: fetch the listing page, read it with `marketops_material_excerpt`, then import the
+entities into the pool with the count the page shows.
+
+Obfuscated emails (Cloudflare email protection, `name [at] domain`) are counted, never decoded.

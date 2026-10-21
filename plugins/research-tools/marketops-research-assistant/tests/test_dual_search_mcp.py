@@ -1,7 +1,6 @@
 """Synthetic dual-vendor search tests. Never make a paid API request or use real keys."""
 from __future__ import annotations
 
-import hashlib
 import io
 import json
 import os
@@ -15,6 +14,18 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import dual_search_mcp as dual
+
+
+# The shared ledger refuses an unpriced capability rather than estimating one
+# (research_usage_ledger: "A price is recorded, never assumed"). These tests are
+# about other behaviour, so they install an offline catalog that says so.
+import sys as _sys
+import pathlib as _pathlib
+
+_sys.path.insert(0, str(_pathlib.Path(__file__).resolve().parent))
+import wave1_pricing_fixture
+
+wave1_pricing_fixture.install()
 
 
 class Response:
@@ -45,6 +56,13 @@ class TestDualSearch(unittest.TestCase):
                 "MARKETOPS_SEARCH_MAX_CALLS": "2",
                 "SERPAPI_API_KEY": "synthetic-serpapi-secret",
                 "SERPER_API_KEY": "synthetic-serper-secret",
+                # The SerpApi REST compatibility path is DISABLED by default
+                # (Wave-1 D-2) and enabling it is an explicit operator decision.
+                # These cases are about that path's key handling, budget cap and
+                # redaction once it *is* reachable, so they opt in. The default
+                # is asserted separately in
+                # test_dual_search_serper_contract.SerpApiRestAvailabilityTests.
+                "MARKETOPS_SERPAPI_REST_ENABLE": "1",
             },
         )
         context.start()
@@ -180,8 +198,8 @@ class TestDualSearch(unittest.TestCase):
             output = Path(tmp) / "client-package"
             info = bundle.build(output, with_search_mcp=True)
             self.assertEqual(1, info["mcp_servers_bundled"])
-            self.assertEqual(17, info["skills"])
-            self.assertEqual(17, len(list((ROOT / "skills").glob("*/SKILL.md"))),
+            self.assertEqual(13, info["skills"])
+            self.assertEqual(13, len(list((ROOT / "skills").glob("*/SKILL.md"))),
                              "bundle Skill count must track the plugin source Skills")
             target = Path(info["directory"])
             mcp = json.loads((target / "mcp.json").read_text(encoding="utf-8"))

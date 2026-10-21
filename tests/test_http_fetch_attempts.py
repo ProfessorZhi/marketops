@@ -754,7 +754,7 @@ def test_no_exit_forgets_to_leave_a_diagnosis(
 
 
 def test_every_refusal_reason_has_a_decided_disposition() -> None:
-    """九个拒绝理由各自去哪一格，**逐条钉住**。
+    """十个拒绝理由各自去哪一格，**逐条钉住**。
 
     这一条不是重复 ``fetch_attempts.refusal_diagnosis`` 的实现：它判的是那张表**是一个分区**、
     而且没有成员落在「没想过」上。新加一个 ``TargetRefusal`` 成员时它会红 ——
@@ -782,10 +782,11 @@ def test_every_refusal_reason_has_a_decided_disposition() -> None:
         TargetRefusal.RESERVED_HOST,
         TargetRefusal.NUMERIC_HOST,
         TargetRefusal.RESOLVES_TO_PRIVATE,
+        TargetRefusal.PORT_NOT_ALLOWED,
     }
     assert unroutable == {TargetRefusal.REDIRECT_LIMIT, TargetRefusal.REDIRECT_WITHOUT_LOCATION}
     assert unsafe | unroutable == set(TargetRefusal), (
-        "九个成员必须各有去处 —— 这张表不许有别的落脚点"
+        "十个成员必须各有去处 —— 这张表不许有别的落脚点"
     )
 
 

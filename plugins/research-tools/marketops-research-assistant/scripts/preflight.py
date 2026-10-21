@@ -11,17 +11,15 @@ import ast
 import importlib.util
 import json
 import re
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_SKILLS = {
-    "marketops-research", "marketops-intake", "marketops-source-discovery",
-    "marketops-venue-account", "marketops-person-research", "marketops-evidence",
-    "marketops-excel", "marketops-handoff", "marketops-provider-router",
-    "marketops-serpapi", "marketops-serper", "marketops-crawl4ai",
-    "marketops-tinyfish", "marketops-jev", "marketops-research-retrospective",
-    "marketops-setup", "marketops-research-acceptance",
+    "marketops-research", "marketops-setup", "marketops-discovery",
+    "marketops-accounts", "marketops-providers", "marketops-delivery",
+    "marketops-orchestrate", "marketops-serper", "marketops-serpapi",
+    "marketops-crawl4ai", "marketops-tinyfish", "marketops-jev",
+    "marketops-feedback",
 }
 EXPECTED_VARS = {
     "SERPAPI_API_KEY", "SERPER_API_KEY", "TINYFISH_API_KEY",
@@ -30,6 +28,8 @@ EXPECTED_VARS = {
     "MARKETOPS_SEARCH_ALLOW_NETWORK", "MARKETOPS_SEARCH_MAX_CALLS",
     "MARKETOPS_RESEARCH_ALLOW_NETWORK", "MARKETOPS_RESEARCH_MAX_EXTERNAL_CALLS",
     "MARKETOPS_FETCH_ALLOWED_DOMAINS",
+    "TINYFISH_MCP_ACCESS_TOKEN", "MARKETOPS_TINYFISH_ACCOUNT_ALIAS",
+    "MARKETOPS_TINYFISH_AGENT_ALLOW_PAID",
 }
 
 
@@ -62,6 +62,32 @@ def report() -> dict:
             sorted(EXPECTED_SKILLS - set(skills)), sorted(set(skills) - EXPECTED_SKILLS),
         ))
 
+    # The end-user package MUST include real first-run instructions and a
+    # non-secret catalog for every provider, not just a vendor name in a Skill.
+    for rel in ("scripts/provider_onboarding.py",
+                "scripts/research_official_mcp.py",
+                "scripts/research_official_mcp_auth.py",
+                "references/CUSTOMER_QUICKSTART.md",
+                "references/PROVIDER_CONNECTIONS.json"):
+        if not (ROOT / rel).is_file():
+            errors.append("Required guided setup asset missing: " + rel)
+    catalog_path = ROOT / "references" / "PROVIDER_CONNECTIONS.json"
+    if catalog_path.is_file():
+        try:
+            catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+            entries = catalog.get("providers", [])
+            ids = [item["id"] for item in entries]
+            if (catalog.get("schema") != "marketops.provider-setup.v1"
+                    or len(ids) != 5
+                    or set(ids) != {"tinyfish", "serpapi", "serper", "crawl4ai", "jev"}
+                    or any(catalog.get("default_policy", {}).get(key) is not False
+                           for key in ("network_enabled", "paid_provider_calls_enabled",
+                                       "import_official_mcp", "site_profiles_enabled",
+                                       "provider_auth_verified"))):
+                errors.append("Provider connection catalog missing safe five-provider defaults")
+        except (OSError, ValueError, KeyError, TypeError):
+            errors.append("Provider connection catalog invalid")
+
     def load_json(name: str) -> dict:
         try:
             return json.loads((ROOT / name).read_text(encoding="utf-8"))
@@ -71,12 +97,19 @@ def report() -> dict:
 
     root_manifest = load_json("plugin.json")
     compat_manifest = load_json(".codex-plugin/plugin.json")
+    # Claude Code loads a plugin only when its own manifest is present. Without
+    # it the Skills appear and the MCP silently never starts, so its absence is
+    # an error, not a warning.
+    claude_manifest = load_json(".claude-plugin/plugin.json")
     root_mcp = load_json("mcp.json")
     compat_mcp = load_json(".mcp.json")
     if root_manifest.get("name") != "marketops-research-assistant":
         errors.append("Incorrect portable plugin name")
-    if root_manifest.get("version") != compat_manifest.get("version"):
-        errors.append("Portable/compat manifests disagree on version")
+    for label, manifest in (("portable", root_manifest), ("claude", claude_manifest)):
+        if manifest.get("version") != compat_manifest.get("version"):
+            errors.append(f"{label.capitalize()}/compat manifests disagree on version")
+    if claude_manifest.get("name") != compat_manifest.get("name"):
+        errors.append("Claude/compat manifests disagree on plugin name")
     for name, config in (("mcp.json", root_mcp), (".mcp.json", compat_mcp)):
         # Codex loader canonical JSON uses mcpServers, despite older docs showing mcp_servers.
         servers = config.get("mcpServers")
@@ -84,14 +117,28 @@ def report() -> dict:
             errors.append(f"{name}: exactly one 'marketops-research' server required")
             continue
         server = servers["marketops-research"]
-        if server.get("type") != "stdio" or server.get("command") != "python":
-            errors.append(f"{name}: expected pre-install stdio Python MCP")
+        launcher = name == ".mcp.json"
+        expected_command = "sh" if launcher else "python"
+        # Both hosts must land on the same managed entrypoint: the one
+        # `scripts/research_mcp.py`, which is also what the installer and the
+        # connector builder rebind every generated config to. The POSIX config
+        # names it as the launcher's argument; the portable config names it
+        # directly.
+        entrypoint = "/scripts/research_mcp.py"
+        expected_args = (["/scripts/launch_research_mcp.sh", entrypoint] if launcher else [entrypoint])
+        if server.get("type") != "stdio" or server.get("command") != expected_command:
+            errors.append(f"{name}: unexpected pre-install stdio MCP command")
         args = server.get("args")
-        if not isinstance(args, list) or len(args) != 1 or not args[0].endswith("/scripts/research_mcp.py"):
+        if not isinstance(args, list) or len(args) != len(expected_args) \
+                or not all(isinstance(item, str) and item.endswith(suffix)
+                           for item, suffix in zip(args, expected_args)):
             errors.append(f"{name}: unexpected MCP entrypoint")
         env_vars = set(server.get("env_vars") or [])
-        if env_vars != EXPECTED_VARS:
+        expected = EXPECTED_VARS | ({"MARKETOPS_RESEARCH_PYTHON"} if launcher else set())
+        if env_vars != expected:
             errors.append(f"{name}: missing or unapproved environment variable names")
+        if launcher and not (ROOT / "scripts" / "launch_research_mcp.sh").is_file():
+            errors.append(".mcp.json: launcher script missing")
     try:
         actual = importlib.util.find_spec("mcp") is not None
     except (ImportError, ValueError):

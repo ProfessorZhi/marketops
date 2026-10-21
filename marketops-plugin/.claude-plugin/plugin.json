@@ -1,0 +1,10 @@
+{
+  "name": "marketops",
+  "version": "0.1.0",
+  "description": "MarketOps business workflow Skill — routes market, pool, follow-up, draft and diagnostics requests to the MarketOps MCP server, which is the only source of business facts.",
+  "author": {
+    "name": "ProfessorZhi"
+  },
+  "license": "MIT",
+  "skills": "./skills/"
+}

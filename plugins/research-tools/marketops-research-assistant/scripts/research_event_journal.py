@@ -75,7 +75,7 @@ def _identifier(value: str, field: str, optional: bool = False) -> str:
     return value
 
 
-def _root(value: str | Path | None) -> Path:
+def _root(value: str | Path | None, *, create: bool = True) -> Path:
     configured = value if value is not None else os.environ.get("MARKETOPS_RESEARCH_DATA_ROOT")
     # A blank or unreplaced `${VAR}` override is "not configured", never a path:
     # treating it as one would create a literal directory named after the template.
@@ -95,7 +95,8 @@ def _root(value: str | Path | None) -> Path:
     # future agents may accidentally stage artifacts/PII into Git.
     if any((part / ".git").exists() for part in (root, *root.parents)):
         raise ValueError("Runtime/customer data must be outside all Git checkouts")
-    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if create:
+        root.mkdir(parents=True, exist_ok=True, mode=0o700)
     return root
 
 
@@ -272,10 +273,15 @@ def append_note(data_root: str | Path | None, *, run_id: str, note_id: str, stag
     run_id = _identifier(run_id, "run_id")
     note_id = _identifier(note_id, "note_id")
     if stage not in STAGES:
-        raise ValueError("Unsupported note stage")
+        raise ValueError("NOTE_STAGE_INVALID: " + str(stage)[:40] + " is not a stage; allowed: "
+                         + ", ".join(sorted(STAGES)))
     if category not in NOTE_CATEGORIES:
-        raise ValueError("Unsupported note category")
-    evidence_ref = _identifier(evidence_ref, "evidence_ref")
+        raise ValueError("NOTE_CATEGORY_INVALID: " + str(category)[:40]
+                         + " is not a category; allowed: " + ", ".join(NOTE_CATEGORIES))
+    # A person's spoken correction has no saved material to cite, so only that
+    # category may leave the reference empty; a present one is still checked.
+    if evidence_ref or category != "human_correction":
+        evidence_ref = _identifier(evidence_ref, "evidence_ref")
     fields = {
         "run_id": run_id, "note_id": note_id, "stage": stage, "category": category,
         "problem": sanitize_note_text(problem, "problem"),

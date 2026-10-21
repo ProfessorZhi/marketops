@@ -1,10 +1,10 @@
 # Unified Lite Research workflow contract
 
-Version: 2026-10-16. This contract governs the **Research MCP path**, not the optional legacy portable CSV-pack commands. Skills teach methods; the store holds candidate state; deterministic checks recommend work; source review and authorized SOP review remain separate.
+Version: 2026-10-20. This contract governs the **Research MCP path**, not the optional legacy portable CSV-pack commands. Skills teach methods; the store holds candidate state; deterministic checks recommend work; source review and authorized SOP review remain separate.
 
 ## Progressive loading and reference resolution
 
-Metadata exposes 17 Skills. Start with `marketops-research`; load only the selected stage Skill. Load this contract once when configuring a Run or resolving a schema question. Load provider details only after a concrete capability is needed. Do not preload all business SOPs or all provider manuals.
+Metadata exposes 6 Skills. Start with `marketops-research`; load only the stage Skill you need. Load this contract once when configuring a Run or resolving a schema question. Load provider details only after a concrete capability is needed. Do not preload all business SOPs or all provider manuals.
 
 Paths in Skills are relative to the containing SKILL.md. `../../references/` is the shared reference directory **inside the complete plugin bundle**. Install/copy the complete plugin, not a naked Skill directory. Packaging must retain every linked document within that bundle; absolute development paths and links to a parent repository are not portable dependencies. A standalone Skill-only client may teach methods but must not claim Research MCP runtime success.
 
@@ -37,6 +37,78 @@ All stage outputs use `marketops_propose` and the same SQLite Run, **not hand-ed
 | contact_point | routes | organization_id, type, value; person_id for a named contact |
 | contact_route | routes | source-backed proposed relationship, never a formal grade |
 | review | review | reason and the unresolved IDs; schema below for target disposition |
+
+### Write one target before researching the next batch
+
+Use `marketops_status(run_id, kind="artifact")` to find this Run's saved material
+IDs, then `marketops_material_excerpt` with at most 3 artifact IDs and 3 queries.
+After one or two targets have usable quotes or a clear unresolved gap, call
+`marketops_propose_batch` immediately. A retrieved page alone is not an
+organization, role or contact candidate. Do not defer all candidate writes until
+every target has been researched, and do not read implementation files to learn
+the write format: the complete format is below.
+
+`items` contains 1–20 objects. Each item has exactly these keys:
+`record_id`, `stage`, `kind`, `entity_key`, `facts`, `artifact_ids`.
+The business fields and `claims` go **inside `facts`**. Each claim has
+`field`, `artifact_id`, `quote`; use at most 12 claims, each quote 12–600
+characters, copied from the same Run's saved material. The claim's `artifact_id`
+must also occur in that item's `artifact_ids`. Do not supply `approved`, `ready`,
+`verified`, `send_authorized` or `reviewed_by`.
+
+**Synthetic example only.** Suppose the saved `rendered_html` artifact
+`art-example` in `run-example` contains this page. In a real Run, replace all
+example IDs, facts and quotations with values actually read from that Run;
+never write this example as research evidence.
+
+<!-- tested-source:example-material -->
+```html
+<main><p>Example Community Trust operates Example Centre.</p><p>The Facilities team at Example Community Trust manages the centre.</p><p>Contact the Facilities team at facilities@example.org.</p></main>
+```
+
+For an organization-contact Brief with `require_named_person=false`, this is a
+complete `marketops_propose_batch` call. Joins use the organization's
+**entity_key**, not its record ID. A department route has no `person_id`.
+
+<!-- tested-example:department-route -->
+```json
+{
+  "run_id": "run-example",
+  "items": [
+    {"record_id":"org-example-v1","stage":"entities","kind":"organization","entity_key":"org-example","facts":{"name":"Example Community Trust","claims":[{"field":"identity","artifact_id":"art-example","quote":"Example Community Trust operates Example Centre."}]},"artifact_ids":["art-example"]},
+    {"record_id":"role-example-v1","stage":"people","kind":"role","entity_key":"role-example","facts":{"organization_id":"org-example","role_title":"Facilities team","role_function":"Manages the centre","claims":[{"field":"role","artifact_id":"art-example","quote":"The Facilities team at Example Community Trust manages the centre."}]},"artifact_ids":["art-example"]},
+    {"record_id":"contact-example-v1","stage":"routes","kind":"contact_point","entity_key":"contact-example","facts":{"organization_id":"org-example","department":"Facilities team","type":"email","value":"facilities@example.org","claims":[{"field":"email","artifact_id":"art-example","quote":"Contact the Facilities team at facilities@example.org."}]},"artifact_ids":["art-example"]},
+    {"record_id":"review-example-v1","stage":"review","kind":"review","entity_key":"review-org-example","facts":{"review_type":"target_disposition","target_kind":"organization","target_entity_key":"org-example","disposition":"RESEARCHED_CANDIDATE","reason":"Saved source identifies the organization and a literal department contact; business fit and human approval remain pending."},"artifact_ids":["art-example"]}
+  ]
+}
+```
+
+Then call `marketops_evidence_audit` and `marketops_next` once. Quote matches
+support a candidate; they do not certify buying authority or satisfy missing
+Brief-specific evidence. If the Brief requires a named person, also create a
+`person` at `people` with `name`, `organization_id` and its own identity quote;
+both role and contact must use that person's **same entity_key** as `person_id`.
+Do not invent a person for the department-only example.
+
+If the requested target has no source-backed identity or contact, retain that
+gap instead of inventing `claims`. This valid batch preserves an explicitly
+unverified user-supplied target plus a HOLD. The audit will correctly report
+missing evidence; handoff can still deliver the partial result.
+
+<!-- tested-example:unknown-target-hold -->
+```json
+{
+  "run_id":"run-example",
+  "items":[
+    {"record_id":"org-unresolved-v1","stage":"entities","kind":"organization","entity_key":"org-unresolved","facts":{"name":"Unresolved Example Trust","identity_status":"UNKNOWN","input_basis":"User-supplied research target; official identity not established"},"artifact_ids":[]},
+    {"record_id":"review-unresolved-v1","stage":"review","kind":"review","entity_key":"review-org-unresolved","facts":{"review_type":"target_disposition","target_kind":"organization","target_entity_key":"org-unresolved","disposition":"HOLD","reason":"Approved methods did not establish official identity or a role-bound public contact."},"artifact_ids":[]}
+  ]
+}
+```
+
+HOLD does not need a fabricated quote. A hard `EXCLUDED` disposition does need
+an actual source and `field="exclusion"` claim. Use a new record ID and
+`facts.supersedes` for a correction; keep the same entity key and prior record.
 
 `artifact_ids` are real saved material IDs belonging to this Run. Never invent IDs or copy an earlier Run's IDs into a new Run. Search snippets, model decisions and challenge pages are not evidence of identity, employment, purchasing authority or an email. A named-contact target needs the **same person entity** linked by its sourced role and sourced contact point; an unrelated staff name beside a generic department mailbox does not qualify.
 
@@ -78,7 +150,7 @@ When a genuinely mandatory `minimum_targets` is set, also set `minimum_targets_u
 
 Record-specific support uses `facts.claims=[{"field":"identity","artifact_id":"...","quote":"actual published fragment"},...]`. `artifact_ids` must contain the same saved artifact. At minimum: `identity` for venues and organizations, `relationship` for typed relations, `exclusion` for hard excluded target dispositions. A Scene may add other required keys through `facts.evidence_requirements={"venue":["location","surface"],...}` **in the brief**, not code. Literal quote matches are auditable links, never proof of semantic truth, present employment, suitability or approval. Missing/derived-only material is visible as HOLD and gap codes in `marketops_evidence_audit` and the workbook manifest.
 
-A normal budget-conscious batch: call next(limit=10), use filtered status(limit=20), read <=1200 characters via material_excerpt, submit up to20 records atomically with propose_batch, then audit a compact summary. Do not load 17 Skills or all pages. One Run; resume after restart. Local `rendered_html` is a post-render DOM representation, not byte-for-byte HTTP raw; `provider_extracted` is derivative Markdown. The original bytes are UNKNOWN unless independently captured. Use an immutable delivery snapshot and do not attempt to rewrite an older workbook to hide corrected evidence.
+A normal budget-conscious batch: call next(limit=10), use filtered status(limit=20), read <=1200 characters via material_excerpt, submit up to20 records atomically with propose_batch, then audit a compact summary. Do not load every Skill or whole pages. One Run; resume after restart. Local `rendered_html` is a post-render DOM representation, not byte-for-byte HTTP raw; `provider_extracted` is derivative Markdown or the provider's response envelope. TinyFish `provider_html` is URL-bound, vendor-cleaned semantic HTML stored separately from that envelope: literal quotations are auditable, but original HTTP, browser DOM and business meaning are not verified. The original bytes are UNKNOWN unless independently captured. Use an immutable delivery snapshot and do not attempt to rewrite an older workbook to hide corrected evidence.
 
 ## Anti-loop and access-wall contract (scene-neutral)
 
@@ -87,3 +159,11 @@ Persisted Run state—not the Agent's conversation—is the checkpoint. Each bou
 Existing paid-search and provider attempt ledgers prevent replay of an identical fingerprint even if the Agent changes `operation_id`. A known public-host 403/429 or challenge in the current Run blocks later crawl/fetch attempts on that host. Changing the URL path, provider, identity or browser fingerprint does not authorize bypassing Cloudflare/CAPTCHA. Use a separate legitimately accessible official/public source, reuse saved material or HOLD; never assume an unknown/timeout request was unbilled.
 
 `marketops_events` returns a max-20 recent event view and bounded full-Run blocker counts. `marketops_note` captures short observed symptom/action/result/uncertain hypothesis once per mechanism and refreshes the configured experience file. No private reasoning traces, raw web documents or arbitrary execution transcripts go into this file. Continue the same Run instead of restarting discovery, and stop at the approved call/time budget.
+
+## Provider coverage, first-call Brief and cost gates
+
+A **new** Run should call `marketops_start(run_id,scope,objective,rule_version,brief={...})` once, so the structured goal is durably saved **before** a managed network attempt. An old Run without a Brief stays `BRIEF_REQUIRED` and the new managed Search/Crawl/Provider path refuses a request; append the missing same-Run structured Brief via `marketops_propose` after user policy review. Never guess the goal from prose or invent an explicit quantity.
+
+Use `marketops_capabilities(task_kind=<supported task>)` to view low-context route suggestions; they are advisory only. Official external MCPs are not auto-installed and host-reported names are not auth, wallet or rate proof. The five-vendor [onboarding](PROVIDER_ONBOARDING.md) distinguishes MarketOps data storage, each vendor's key/OAuth, TinyFish target-site Browser Context Profile, host spending authorization, per-Run allowed domains, provider-wallet/credit verification and research-only actions.
+
+Do not paste API keys into chat or Git, don't treat a logged-in Google identity as universal site access, don't use Cloud/Agent to bypass CAPTCHA, and don't let provider error 402/429/401 silently pick a second paid vendor.

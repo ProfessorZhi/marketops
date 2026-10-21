@@ -1,121 +1,50 @@
-# MarketOps Research Assistant — v0.4.0 Candidate (NOT a customer release)
+# MarketOps Research Assistant 0.5.8
 
-MarketOps has two deliverables: (1) this human-led, MCP+Skills market research plugin for Codex/WorkBuddy and later DeepSeek Harness; (2) a separate full autonomous Claude Code workflow to build only after the research process, data model and client experience have been verified.
+**Release candidate — 不是 0.5.5，也不是正式发行版。** 本包只用于 RC 验收；不得覆盖或重命名既有的 0.5.5 ZIP，不得据此宣布正式发布。正式发布前仍需完成真实供应商费用与客户授权验收。
 
-**This is a GitHub review candidate, not an installation-ready ZIP.** Do not give Member-A an archive claiming full success before running RELEASE_GATE on local Codex + WorkBuddy. No credentials or paid provider calls were made while preparing this branch.
+把市场研究方法、五个项目的使用经验、集中证据与交付放在同一个插件中。人确定目标和有限额度，Agent 连续研究、保存证据、交付结果，再将方法和反馈用于后续任务。
 
-## What the 17 Skills cover
+## 安装和首次启动
 
-- **9 Member-A business Skills**: one research entry, intake/Scene, source discovery, venues/organizations and their responsibilities, people/roles, Evidence, Excel, human-review handoff.
-- **6 provider Skills**: a tool router plus SerpApi, Serper, Crawl4AI, TinyFish and Jev. A live provider is optional per task; five vendors are not five mandatory sequential steps.
-- **1 retrospective Skill**: record real bottlenecks, successful methods, wrong assumptions and corrections; generate candidate experience lessons with provenance, replay and human approval.
-- **1 setup Skill**: onboard Codex or WorkBuddy in the customer's chosen local directory without silently enabling any paid calls.
+从 [START_HERE](START_HERE.md) 开始。Windows x64 双击 `Install.cmd`；Linux x64 使用 `install.sh`。运行时为 Python 3.12。安装器在目标电脑生成 Codex、Claude Code 或 WorkBuddy 配置；WorkBuddy 导入须在客户端完成。
 
-Member-A's business basis is recorded and bounded in [MEMBER_A_SKILL_ANALYSIS](references/MEMBER_A_SKILL_ANALYSIS.md), [BUSINESS_PLAYBOOK](references/BUSINESS_PLAYBOOK.md), [QUALITY_GATES](references/QUALITY_GATES.md) and [EXPERIENCE_PROTOCOL](references/EXPERIENCE_PROTOCOL.md). A Skill never fills a known UK SOP gap (e.g. strongly bound named procurement role) by silently changing A/B/C/D grades.
+[四账户指引](references/FOUR_ACCOUNT_START.md)提供注册、API Key、官方赠金及余额入口：Serper、SerpApi、TinyFish、TypeSafe。Crawl4AI 在本地运行，无需第五个账户。Key 在本地隐藏输入、或由安装 agent 写进系统凭据库，重启后读取。
 
-## One five-provider Lite Research MCP (new candidate code)
+**TinyFish 和 SerpApi 的官方 MCP 客户端直接随包安装。** 宿主只连接一个 MarketOps MCP，不必再分别安装两个厂商插件。首次设置检查实际连接、已批准网站和有限请求数。已有账号检查剩余额度，不自动充值或重新领取新用户赠金。
 
-The root plugin.json + mcp.json (new portable format) and compatibility .codex-plugin/plugin.json + .mcp.json reference one **MarketOps Lite Research stdio MCP**. Implemented in scripts/research_mcp.py with one local customer-owned SQLite staging store, append-only event journal and source material artifacts.
+## 从需求到有效结果
 
-| Provider | Current callable ability inside this one MCP | What's **not** implemented or verified yet |
-| --- | --- | --- |
-| SerpApi | Google Web/Maps discovery through official REST adapter, with Place ID and URL candidates | Full official MCP multi-engine tools still optional separately; real key test not done |
-| Serper | Google Web/Places discovery through official API adapter | Live authenticated test not done; no automatic double charge/fallback |
-| Crawl4AI | Local AsyncWebCrawler or official Cloud /scrape; saves extracted material as unverified artifact | Local Chromium and Cloud Key not tested on Member-A's machine; bulk/extract Cloud MCP separate |
-| TinyFish | Official Search and Fetch API through TINYFISH_API_KEY | Advanced browser Agent and OAuth MCP separately installed and human-authorized |
-| Jev / TypeSafe | Official typesafe-sdk Choice over bounded source text, returns a judgment artifact | Noul/Score not yet exposed as MCP tools; model and SOP verification not proven |
+1. `marketops_runs` 查已有任务；优先恢复。同类新批沿用确认过的 scope 和规则版本。
+2. 保存 Brief：地区、目标单位、角色、数量与证据要求。
+3. 召回适用经验，检查当前能力；优先复用材料，再搜索、抓取和判断。
+4. 保存场地、组织、责任关系、人员/部门与公开联系渠道；关键字段带同源引文。
+5. 检查证据缺口，每个输入目标都保留处置，区分已取得结果、HOLD、排除和重复。
+6. 交付九表 XLSX、CSV、来源/hash 清单与经验汇总，并重新读取核对。
 
-The standalone older dual_search_mcp.py stays as an internal search component. **Do not install both dual-search and the new research_mcp simultaneously**. The user sees only one MarketOps Research MCP in the new package.
+搜索摘要只用于发现。抓取成功、文本匹配、模型判断都不自动证明业务事实。联系人和角色必须有可回读原文及归属证据；输出供业务复核，不授予正式 SOP 等级或外联权限。
 
-## Stage flow, data, and experience
+## 五个项目和降级
 
-~~~text
-ResearchBrief (human-approved scope and business policy)
-    -> Search receipts and source candidates (Serper OR SerpApi / TinyFish)
-    -> Crawl/Fetch derived materials and source artifacts
-    -> Candidate VenueAsset / Account / relationship
-    -> Per-Scene qualification suggestions + review queue
-    -> Candidate Person / Department / RoleAssignment
-    -> Literal public contact signal candidates
-    -> Formal route review and official Excel/CSV handoff (pending business engine)
-               |
-               +-- every managed operation -> append-only Event Journal
-                         -> incident/experience candidate -> replay -> human approve
-~~~
+| 项目 | 用途 | 连接 |
+|---|---|---|
+| Serper | 来源搜索 | 受管 REST |
+| SerpApi | 已审核搜索引擎 | 内嵌官方 MCP |
+| TinyFish | 搜索、网页提取 | 内嵌官方 MCP |
+| Crawl4AI | 本地浏览器抓取，保存渲染 HTML | SDK + Chromium + 受限出口 |
+| Jev / TypeSafe | 对保存的材料做有界语义判断 | SDK |
 
-The local Lite database is **a research candidate and handoff staging store**, NOT MarketOps canonical production marketops.db and NOT an authenticated human-reviewed A/B/C/D promotion engine. All source results or Jev output remain candidates even after a tool reports succeeded. No outreach is available.
+`marketops_research_step` 在已准入服务之间进行有限降级，并记录原因和每次结果。最多三次尝试；未知消费/超时、预算耗尽和明确访问限制不会触发盲目重试。语义服务不可用时保留待核实。见[供应商选择](references/PROVIDER_ROUTING.md)。
 
-The runtime root is MARKETOPS_RESEARCH_DATA_ROOT, customer-owned, outside Git:
-- state/research-lite.sqlite3 — Runs, candidate facts and artifact references.
-- state/research-events.sqlite3 — started/succeeded/unknown operation events.
-- state/dual-search-ledger.sqlite3 and state/provider-reservations.sqlite3 — external attempt reservations, not dollar budgets.
-- artifacts/ and search-receipts/ — recorded provider-derived materials and hash.
-- exports/ — candidate-only CSV; a true Excel workbook requires client Excel tooling and evidence inspection.
-- experience/ — unapproved incident/lesson draft (historical measurements immutable).
+## 集中数据与经验迭代
 
-See [DATA_HANDOFF](references/DATA_HANDOFF.md), [STORAGE_AND_TOPOLOGY](references/STORAGE_AND_TOPOLOGY.md) and [MCP_TOOL_CATALOG](references/MCP_TOOL_CATALOG.md). A shared file SQLite must never be used by two computers over SMB; remote use needs one authenticated server instance.
+首次设置研究数据根和独立的 `Research_Experience.md`。任务、原始材料、候选、调用台账、反馈、导出都持久化；经验 Markdown 是可收取的阅读视图。升级保留数据，同根可明确续授权，累计消耗不会清零。多电脑不能共享 SQLite 文件并发写入。
 
-## First read for Member-A
+每条经验保存现象、动作、结果与证据。后续任务按范围、规则、阶段和供应商召回，采用后记录 `helped / not_helped / contradicted / unknown`。反例改变后续方法建议，历史不覆盖。历史方法与反馈是有条件建议，不改写 SOP、权限或额度。
 
-**[MEMBER_A_INSTALL — agent-assisted Codex / WorkBuddy installation](references/MEMBER_A_INSTALL.md)** gives the full operator-facing procedure and a copyable prompt. The installer is scripts/setup_clients.py: defaults to dry-run, creates a separate Python virtual environment on explicit --apply, and only downloads package dependencies when --install-deps is explicitly selected. Customers apply for their own five credentials and enter them locally. The script cannot register API accounts or open provider billing.
+## 验证与发行证据
 
-Quick offline plan:
+`references/BUILD_QA.json` 由真实测试生成，绑定发行源码摘要；缺失或漂移会明确报告。安装器实测依赖与 stdio 启动，完整安装还测试本地浏览器。安装、供应商认证、研究质量和原生客户端验收分别报告。
 
-~~~bash
-python scripts/setup_clients.py --destination /CUSTOMER/LOCAL/MARKETOPS-RESEARCH-v040 --client both
-~~~
+提效按同范围的有效结果、证据、请求数、耗时和人工介入测量。历史网页可能变化，任务壁钟不等于人工工时；不能用单测数量推算提效比例。
 
-After local authorization to install files and PyPI dependencies, use --apply --install-deps. The installed Codex marketplace and the WorkBuddy MCP+Skills connector are generated from the same source; WorkBuddy must be rebuilt on the target machine so its Python path is valid. Do not pass actual keys to the installer.
-
-Default external access is OFF: MARKETOPS_SEARCH_ALLOW_NETWORK=0, MARKETOPS_SEARCH_MAX_CALLS=0, MARKETOPS_RESEARCH_ALLOW_NETWORK=0, MARKETOPS_RESEARCH_MAX_EXTERNAL_CALLS=0. Each actual request requires a bounded Run, deliberate host/domain allowlist (for fetched pages), selected provider and user-controlled credentials.
-
-## First use — exactly two questions, then never again
-
-The first time the unified `marketops-research` MCP starts for a user, the agent calls the
-read-only tool `marketops_setup_status`. If it answers `CONFIG_REQUIRED`, the user is asked
-two things and nothing else:
-
-1. **Where should research data be stored?** (an absolute directory)
-2. **Where should the experience/bottleneck summary file live?** — an absolute path such as `Research_Experience.md`
-
-The answers are persisted as a versioned JSON config under the user's own config directory
-(or wherever `MARKETOPS_RESEARCH_CONFIG` points) by `marketops_setup_configure`. Later starts
-read the summary and stop asking. Changing either path needs an explicit instruction plus
-`confirm=true`; the plugin refuses otherwise and leaves the old paths intact.
-
-There is deliberately **no default path**: the plugin will not drop a customer's research into
-its own installation directory, and `marketops_setup_status` reports no `data_root` at all
-until it is configured. The experience file must sit *outside* the data directory so it stays
-collectable on its own. Neither location may be inside a Git checkout, and an existing
-non-MarketOps file is never overwritten. Windows and Unix absolute paths are both accepted.
-
-Compatibility: an explicit `MARKETOPS_RESEARCH_DATA_ROOT` still wins over the stored config for
-existing test/deployment setups. Resolution order is environment variable → config file →
-structured `CONFIG_REQUIRED`.
-
-**The user collects one file.** `Research_Experience.md` accumulates across every Run, grouped by
-stage and problem type: when each bottleneck happened, in which Run, which tool/reason code, what
-was tried, the evidence ref and the candidate lesson. It refreshes automatically on a real
-block/failure/HOLD/human correction and at the end of every export or handoff, and the delivery
-receipt carries `experience_file` plus an `experience_refresh` status — a refresh that failed is
-reported with its reason code rather than being called a clean handoff. The per-Run
-`experience.json` and the research workbook stay as the audit originals.
-
-## What about the Fengjiang model gateway and Crawl4AI?
-
-Crawl4AI executes HTTP/Chromium retrieval. The company LiteLLM model gateway cannot replace the browser. Once crawler output exists, an approved and OpenAI-chat-compatible gateway may later supply a model to Crawl4AI's optional LLMConfig(provider, base_url, api_token). Its concrete internal URL/model/Key have not been confirmed and are **not bundled or enabled**. First pilot may use Crawl4AI Cloud for fast client setup or local Crawl4AI for sensitive customer data after Chromium setup. Read [MEMBER_A_INSTALL](references/MEMBER_A_INSTALL.md).
-
-## Verification, test status and next release gate
-
-**Authored:** offline synthetic tests for dual-search, provider bridge, Lite store, event journal, first-use configuration, the collectable experience summary, installation scripts, source-vendor separation and rules rejecting false promotion. **Run for real on an authorized isolated runner (Python 3.12.14, `mcp==2.3.0`):** the offline suite is green. **Still not done:** a real Codex/WorkBuddy handshake and billed Provider endpoints. The underlying PR's GitHub Actions are red for an account-billing reason, not a Python one — never treat source readback, or that red X, as an execution test.
-
-**[AUDIT_STATUS_2026-10-16](references/AUDIT_STATUS_2026-10-16.md)** — 当前已写代码、兼容问题修复及发包阻断项。**[RELEASE_GATE](references/RELEASE_GATE.md)** must pass before preparing Member-A's versioned source ZIP. Specifically, the customer-facing promise of verified field contacts requires integrating the existing MarketOps business domain's human/SOP route promotion and proving end-to-end export; our local candidate tools do NOT currently do that.
-
-We keep this PR Draft and do not deploy anything to Tokyo, change company LiteLLM gateway settings, buy credits, store API keys or send emails. Member-A's actual credentials and Windows client install remain owned by Member-A.
-
-
-## XLSX delivery and independent acceptance (new candidate extension)
-
-The local Lite MCP exposes `marketops_export_xlsx`, backed by the existing MarketOps standard-library OOXML serializer technology. From the Lite SQLite Run it produces `Research_Result.xlsx` — a real **9-sheet** candidate workbook — plus individually checkable CSVs and a SHA-256 manifest. Saved source materials are reread and hashed, the workbook is reopened at ZIP/XML level, and contact values must occur literally in their attributed material. All routes remain `RULES_UNKNOWN` and research-only: this is NOT the formal SOP-approved A/B/C/D business exporter, and no Lite Agent can grant a grade or outbound authorization.
-
-The `marketops-research-acceptance` Skill and [E2E_VERIFICATION](references/E2E_VERIFICATION.md) define the L0–L5 verification ladder. A live, read-only public-council source test exists behind `MARKETOPS_LIVE_PUBLIC_E2E=1`. Offline checks, real public-source tests, billable provider E2E, formal business review and actual Codex/WorkBuddy E2E are separate levels; no release may claim the last three without observed client/provider evidence.
+更多：[工具目录](references/MCP_TOOL_CATALOG.md)、[业务手册](references/BUSINESS_PLAYBOOK.md)、[经验协议](references/EXPERIENCE_PROTOCOL.md)、[安装详解](references/CUSTOMER_QUICKSTART.md)。

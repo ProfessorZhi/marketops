@@ -5,7 +5,7 @@
 ## 申请 Cloud API Key
 
 1. 打开 https://api.crawl4ai.com/，选择 **Get a key / Sign in**，按控制台步骤注册并验证账号。
-2. 在 Cloud Dashboard 获取 Key（部分 Key 只展示一次）；妥善保存，勿粘贴进聊天或 Git。
+2. 在 Cloud Dashboard 获取 Key（部分 Key 只展示一次）；妥善保存，只交给本机凭据库或本机安装的 agent，勿粘贴进 Git 或本机以外的任何地方。
 3. 在控制台确认免费额度、余额、单次抓取/批量任务收费方式和账单设置；**不预设免费即无限额**。
 4. 官方远程 MCP 为 `https://api.crawl4ai.com/mcp`，请求需要 `Authorization: Bearer <CLOUD_KEY>`；不要把真实值写到可提交的配置文件里。
 

@@ -1,4 +1,6 @@
-# Codex / WorkBuddy / DSH 客户端配置（v0.4.0 Candidate）
+# Codex / WorkBuddy / DSH 客户端配置（v0.5.8 Release Candidate）
+
+> 版本说明：本文档随插件 `0.5.8` 发布候选更新。旧 `0.5.5` 安装包与本文档描述不同；不要混用两者的安装目录、连接器或 ZIP。
 
 **新版本唯一安装流程**：先读 [MEMBER_A_INSTALL.md](MEMBER_A_INSTALL.md) 再使用 skills/marketops-setup/SKILL.md 与 scripts/setup_clients.py。原有 v0.2/v0.3 的双搜索独立 MCP 和 8/15-Skills 指南已退居兼容用途。当前**只有一个** marketops-research Lite MCP 对接五家基础能力，不要同时安装旧 dual-search MCP 或另一个同名插件。
 
@@ -15,7 +17,13 @@ python scripts/setup_clients.py --destination /CUSTOMER/NEW/INSTALL --client bot
 
 它只展示 dry run 安装计划。用户确认该台机器允许创建文件后用 --apply。用户再次确认 PyPI 依赖安装后才加 --install-deps。
 
-3. Codex：脚本在安装根的 .agents/plugins/marketplace.json 创建来源，源码复制到 plugins/marketops-research-assistant，MCP 执行路径绑定本机 venv Python。由用户/Agent单独执行返回的 codex plugin marketplace add 命令，并在 Codex 插件界面启用。先做工具列举（零费用），再确认实际权限。官方规范：https://developers.openai.com/plugins/build/plugins 。
+`install.sh` 与 `Install.cmd` 是同一脚本的入口：`~/路径` 与相对路径都会在写入前解析成绝对路径，回执、venv 和后续命令指向同一个目录。没有终端（stdin 不是 TTY）时不会提问：缺少安装目录直接拒绝，并给出一条可恢复命令；安装结束后的本地账号设置留给用户自行执行。
+
+3. Codex：脚本在安装根的 .agents/plugins/marketplace.json 创建来源，源码复制到 plugins/marketops-research-assistant。Codex 的 MCP 命令使用 PATH 中的裸 Python 启动 `launch_research_mcp.py`，再由 `MARKETOPS_RESEARCH_PYTHON` 转入本机 venv；portable source 保留其他 Agent 所需字段，WorkBuddy connector 单独生成。**默认不注册全局 Codex**：只有显式 `--register-codex`（Linux/macOS）或 `-RegisterCodex`（Windows），或在交互终端里回答 yes，才会执行 `codex plugin marketplace add`。非交互环境一律跳过并打印稍后可执行的同一条命令。由用户/Agent单独执行返回的 codex plugin marketplace add 命令，并在 Codex 插件界面启用。先做工具列举（零费用），再确认实际权限。官方规范：https://developers.openai.com/plugins/build/plugins 。
+
+Windows 的 `Install.ps1` 在找不到 Python 3.12 x64 时**不会**静默运行 winget：需要交互确认或显式 `-InstallPython`；两者都没有时以一条可恢复步骤拒绝。`-NonInteractive` 与重定向输入等价：不读取答案、不打开 START_HERE.md，也不启动本地账号设置。`Install.cmd` 在 `MARKETOPS_NO_PAUSE=1` 或 `CI` 下不执行 `pause`。
+
+已安装过同一版本的目录可以用同样的命令重跑：状态文件与源码摘要一致时直接返回回执，不覆盖客户在安装目录里新增的数据；只有后来单独同意 Codex 注册时，才会补执行注册并更新回执。
 
 4. WorkBuddy：--client workbuddy|both 会在客户**当前机器**生成一个 connector-meta.json + mcp.json + token-schema.json + skills/ 目录，仅一个 marketops-research stdio MCP。WorkBuddy 官方规格：https://open.workbuddy.cn/docs/connector 。Token 表单由用户自己填写可选五家 Key、数据根与各预算/联网开关。需要 WorkBuddy >=4.24.0。**机器绑定的源码路径和Python路径不可拿到另一台电脑直接用。**
 
@@ -48,7 +56,7 @@ python scripts/setup_clients.py --destination /CUSTOMER/NEW/INSTALL --client bot
 - marketops_propose 仅写 candidate；
 - marketops_status / marketops_events 可读回实际数据；
 - marketops_handoff 同时生成候选 CSV 与未审批经验草稿，业务审核之后才能正式交付；
-- 按 [RELEASE_GATE](RELEASE_GATE.md) 完成 Codex 与 WorkBuddy 两端的完整测试。
+- 按 RELEASE_GATE (repository `docs/research-plugin-history/RELEASE_GATE.md`) 完成 Codex 与 WorkBuddy 两端的完整测试。
 
 用户不需要提供完整聊天原始日志、公开客户列表或任何密码给 MarketOps 项目维护者。真实源网页、雇员联系方式等业务资料只保存在客户自行控制的受限数据根中。不要把本地 SQLite 经网络共享，不自动上传 GitHub。
 

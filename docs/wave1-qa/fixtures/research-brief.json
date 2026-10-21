@@ -1,0 +1,53 @@
+{
+  "schema": "marketops.qa.research_brief.v1",
+  "brief_id": "wave1-live-cc-quality-2026-10-17",
+  "_comment": "Exact input Research Brief for the real Claude Code quality run. It is a fixture: the run consumes it verbatim, and the brief is never edited to fit a result.",
+  "input": {
+    "research_question": "Which publicly funded cultural and leisure organisations operate a permanent public venue in the bounded geography, and what is the official published route by which a member of the public contacts each one?",
+    "target_kind": "venue",
+    "geography": {
+      "name": "Greater London, United Kingdom",
+      "bounding": "the 32 London boroughs plus the City of London",
+      "excluded": [
+        "organisations whose only presence in the geography is a ticketing reseller or a venue hire broker",
+        "pop-up, seasonal or temporary sites",
+        "anything requiring a login, a paid database or a private account to view"
+      ]
+    },
+    "target_count": {"min": 10, "max": 20},
+    "required_fields_per_target": [
+      "organisation_name",
+      "venue_address_public",
+      "official_domain",
+      "official_contact_route",
+      "source_url",
+      "source_excerpt_sha256"
+    ],
+    "optional_fields_per_target": [
+      "operator_or_parent_body",
+      "public_opening_hours_url",
+      "accessibility_statement_url"
+    ],
+    "output": {
+      "format": "candidate_rows",
+      "deliverable": "one spreadsheet of candidate rows plus the evidence artefacts they cite",
+      "review_status": "candidate_unverified until a human reviewer accepts a row"
+    },
+    "budget": {
+      "paid_provider_calls": "none in this stage",
+      "note": "no outreach, no form submission, no email, no private-site access, no charged API call"
+    },
+    "hard_prohibitions": [
+      "invented person names, email addresses, phone numbers or roles",
+      "presenting a search-result snippet as if it were the source page",
+      "storing a CAPTCHA, login or challenge page as validated evidence",
+      "accessing any private, paid or login-walled resource",
+      "outreach of any kind: contacting any organisation, submitting any web form, sending any message or email",
+      "publishing personal data of any individual"
+    ],
+    "acceptance_thresholds": {
+      "_comment": "Deliberately absent. §3 of the owner document says the first real baseline sets realistic thresholds; inventing 100%-everything targets now would be a fake pass criterion.",
+      "status": "TO_BE_SET_FROM_FIRST_REAL_BASELINE"
+    }
+  }
+}

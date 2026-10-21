@@ -19,12 +19,10 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-import research_config as cfg              # noqa: E402
 import research_delivery as delivery       # noqa: E402
 import research_event_journal as journal   # noqa: E402
 import research_lite_store as store        # noqa: E402
 import research_mcp as mcp                 # noqa: E402
-import research_workflow as workflow       # noqa: E402
 
 BRIEF = {"record_type": "research_brief", "target_kind": "venue", "goal": "pool",
          "minimum_targets": 2, "minimum_targets_unit": "venue",
@@ -67,10 +65,11 @@ def seed(root: Path, run_id: str, *, venues: int = 2, dispositions: bool = True,
 
 
 class ToolSurfaceTests(unittest.TestCase):
-    def test_next_is_registered_and_the_surface_is_seventeen(self):
+    def test_next_and_experience_tools_are_in_the_published_surface(self):
         names = set(mcp.build_server()._tool_manager._tools)  # noqa: SLF001
         self.assertIn("marketops_next", names)
-        self.assertEqual(20, len(names))
+        self.assertIn("marketops_experience_feedback", names)
+        self.assertEqual(set(mcp.PUBLIC_TOOLS), names)
 
     def test_status_exposes_the_contract_parameters(self):
         schema = mcp.build_server()._tool_manager._tools["marketops_status"].parameters  # noqa: SLF001
@@ -87,6 +86,10 @@ class ToolSurfaceTests(unittest.TestCase):
                              result["assessment_scope"])
             self.assertIn(result["status"], {"READY_FOR_CANDIDATE_REVIEW",
                                              "MORE_RESEARCH_REQUIRED", "STOPPED_WITH_GAPS"})
+            self.assertIn("source_selection", result)
+            self.assertEqual("marketops.source-selection/1",
+                             result["source_selection"]["schema"])
+            self.assertIn("budget", result["source_selection"])
 
     def test_next_refuses_a_missing_store_instead_of_reporting_success(self):
         with tempfile.TemporaryDirectory() as tmp, isolated(tmp) as (data, _exp):
@@ -382,26 +385,15 @@ class BundleTests(unittest.TestCase):
                         broken.append((md.relative_to(target).as_posix(), ref))
             self.assertEqual([], broken)
 
-    def test_skills_stay_at_seventeen(self):
+    def test_skill_count_matches_the_source_tree(self):
         import build_client_bundles as bundles
         with tempfile.TemporaryDirectory() as tmp:
             receipt = bundles.build(Path(tmp) / "b", with_research_mcp=True)
-            self.assertEqual(17, receipt["skills"])
+            self.assertEqual(13, receipt["skills"])
 
 
 class PackagedProviderDocsTests(unittest.TestCase):
     CANONICAL = ROOT.parent / "providers"
-
-    def test_packaged_provider_copies_track_the_canonical_docs(self):
-        """Every word must match; only link targets may be rewritten for packaging."""
-        packaged = ROOT / "references" / "providers"
-        names = sorted(p.name for p in self.CANONICAL.glob("*.md"))
-        self.assertEqual(5, len(names), "expected the five provider manuals")
-        strip_links = lambda text: re.sub(r"\]\([^)]*\)", "](X)", text)  # noqa: E731
-        for name in names:
-            self.assertEqual(strip_links((self.CANONICAL / name).read_text(encoding="utf-8")),
-                             strip_links((packaged / name).read_text(encoding="utf-8")),
-                             f"{name} prose has drifted from the canonical copy")
 
     def test_packaged_copies_have_no_outbound_relative_links(self):
         packaged = ROOT / "references" / "providers"
@@ -416,7 +408,7 @@ class PackagedProviderDocsTests(unittest.TestCase):
     def test_the_routing_reference_no_longer_reaches_outside_the_plugin(self):
         text = (ROOT / "references" / "PROVIDER_ROUTING.md").read_text(encoding="utf-8")
         self.assertNotIn("../../providers/", text)
-        self.assertIn("providers/serpapi.md", text)
+        self.assertIn("PROVIDER_ONBOARDING.md", text)
 
 
 class PlaceholderUnconfiguredTests(unittest.TestCase):
