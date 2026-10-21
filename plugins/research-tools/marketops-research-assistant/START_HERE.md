@@ -1,6 +1,6 @@
 # MarketOps 调研插件：从这里开始
 
-版本 **0.5.8**，适用于 Windows 10/11（64 位）。可以装进 **Codex、WorkBuddy、Claude Code、DeepSeek Harness**，以及其他支持 MCP 的 agent。
+版本 **0.5.9**，适用于 Windows 10/11（64 位）。可以装进 **Codex、WorkBuddy、Claude Code、DeepSeek Harness**，以及其他支持 MCP 的 agent。
 
 ## 它能做什么
 
@@ -79,6 +79,10 @@ Crawl4AI 在本机运行，**不需要账号**。更详细的说明见 `referenc
 
 - 安装中断了：重新双击 `Install.cmd`，会从中断的地方继续，已保存的数据不会丢。
 - agent 说某个服务不可用：通常是 Key 填错或额度用完，登录对应网站看一下余额。
+- agent 说 Crawl4AI（本机免费网页读取器）不能用：双击 `%LOCALAPPDATA%\MarketOps\Repair.cmd`（Mac/Linux 运行 `repair.sh`）。
+  它会重新安装 Crawl4AI 和它用的浏览器，并真的启动一次浏览器确认。整个过程需要几分钟，下载约 200 MB。
+  修好前，agent 会先问你是否临时只用 TinyFish 读网页，不会悄悄换掉。
+  如果修复后仍不行，多半是杀毒软件拦住了浏览器：请把安装目录下的 `browsers` 文件夹加入信任列表。
 - 公司网络必须通过代理才能上网（大多数情况不需要）：在安装目录运行
   `<安装目录>\.venv\Scripts\python.exe <安装目录>\plugins\marketops-research-assistant\scripts\customer_setup.py --proxy http://代理地址:端口`
 - 其他问题：让 agent 生成反馈包，把 zip 发给插件维护者。

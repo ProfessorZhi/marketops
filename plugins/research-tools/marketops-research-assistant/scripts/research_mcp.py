@@ -168,7 +168,14 @@ def provider_readiness() -> dict:
     out = {}
     for provider in ("serper", "serpapi", "tinyfish", "crawl4ai", "typesafe_jev"):
         if provider == "crawl4ai":
-            state = "READY" if research_egress.crawl4ai_ready() else "NOT_INSTALLED"
+            import research_crawl_doctor
+            checked = research_crawl_doctor.cached(data_root) if data_root is not None else None
+            if not research_egress.crawl4ai_ready():
+                state = "NOT_INSTALLED"
+            elif checked is None:
+                state = "INSTALLED_NOT_CHECKED"
+            else:
+                state = "READY" if checked["status"] == "WORKING" else "NOT_WORKING"
         elif not configured(PROVIDER_KEYS[provider]):
             state = "KEY_MISSING"
         else:
@@ -182,7 +189,11 @@ def provider_readiness() -> dict:
     fixes = {"KEY_MISSING": "rerun the local setup command (START_HERE.md) and enter the key",
              "NOT_ENABLED_FOR_PROJECT": "rerun the local setup and answer y to enable research",
              "CONNECTION_NOT_CHECKED": "rerun the local setup; check the key and the account",
-             "NOT_INSTALLED": "rerun the installer; it installs Crawl4AI and Chromium"}
+             "NOT_INSTALLED": "marketops_crawl4ai_check(repair=True), or run Repair.cmd "
+                              "(Windows) / repair.sh in the MarketOps folder",
+             "INSTALLED_NOT_CHECKED": "marketops_crawl4ai_check() (starts the browser once)",
+             "NOT_WORKING": "marketops_crawl4ai_check(repair=True), or run Repair.cmd / "
+                            "repair.sh in the MarketOps folder"}
     import research_balances
     import research_provider_health as health
     for provider, entry in health.status(data_root).items() if data_root is not None else ():
@@ -190,7 +201,9 @@ def provider_readiness() -> dict:
             out[provider] = f"{entry['state']}_UNTIL_{entry['until'][:10]}"
     fixes.update({"QUOTA_EXHAUSTED": "top up the account (or wait for the monthly reset), then "
                                      "marketops_costs(action='balances') to clear it",
-                  "RATE_LIMITED": "wait a minute; other providers carry on meanwhile"})
+                  "RATE_LIMITED": "wait a minute; other providers carry on meanwhile",
+                  "LOCAL_DOWN": "marketops_crawl4ai_check(repair=True), or run Repair.cmd / "
+                                "repair.sh in the MarketOps folder"})
     low = research_balances.warnings(data_root) if data_root is not None else []
     return {"providers": out,
             "low_balance_warnings": low,
@@ -287,6 +300,46 @@ def root():
 def configured(name):
     value = os.environ.get(name, "").strip()
     return bool(value) and not value.startswith("$" + "{")
+
+
+def installed_browser_root() -> Path | None:
+    """The Chromium the installer put beside this copy (<install>/browsers), if any."""
+    folder = Path(__file__).resolve().parents[3] / "browsers"
+    try:
+        if folder.is_dir() and any(c.name.startswith(("chromium", "chromium_headless_shell"))
+                                   for c in folder.iterdir()):
+            return folder
+    except OSError:
+        return None
+    return None
+
+
+def _ensure_repair_entrypoints() -> None:
+    """An install from before Repair.cmd existed gets it from the first server start."""
+    try:
+        import release_layout
+        install = Path(__file__).resolve().parents[3]
+        app_root = release_layout.app_root_for(install) or (
+            install.parent if install.name == "current" else None)
+        if app_root is not None and not (Path(app_root) / "Repair.cmd").exists():
+            release_layout.write_repair_entrypoints(app_root)
+    except Exception:  # noqa: BLE001 - a read-only install still serves research
+        pass
+
+
+def _use_installed_browser() -> None:
+    """Find the plugin's own browser even when a host did not pass its path.
+
+    The installer downloads Chromium into <install>/browsers and writes the path
+    into each host's MCP config; a host that drops `env` left Crawl4AI looking in
+    the system default cache, finding nothing, and failing on every page.
+    """
+    current = os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "").strip()
+    if current and not current.startswith("$" + "{"):
+        return
+    folder = installed_browser_root()
+    if folder is not None:
+        os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(folder)
 
 
 def _local_browser_cache_hint() -> dict:
@@ -557,7 +610,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         configured_root = None
     if configured_root is not None and runtime_setup.config(configured_root):
         from research_runtime_status import view
-        return {"product": "MarketOps Research MCP", "version": "0.5.8",
+        return {"product": "MarketOps Research MCP", "version": "0.5.9",
                 **view(configured_root, task_kind=task_kind),
                 "external_host": _external_inventory(host_observed_tools),
                 "embedded_official_mcp": provider_policy.embedded_official_mcp_capabilities(),
@@ -632,7 +685,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         if task_kind else None)
     return {
         "product": "MarketOps Lite Research MCP",
-        "version": "0.5.8",
+        "version": "0.5.9",
         "providers": {
             "serpapi": {"transport": "REST through local MCP", **search["serpapi"]},
             "serper": {"transport": "REST through local MCP", **search["serper"]},
@@ -807,6 +860,13 @@ def managed_call(capability_id, params, run_id, operation_id, account_ref="",
         raise ValueError("CAPABILITY_PARAM_NOT_ALLOWED: account alias is deployment-owned")
     if not isinstance(params, dict):
         raise ValueError("CAPABILITY_PARAM_NOT_ALLOWED")
+    if capability_id in {"serper.search", "serpapi.search"}:
+        import research_locale
+        params = {**params}
+        for key, convert in (("country", research_locale.country_code),
+                             ("language", research_locale.language_code)):
+            if key in params:
+                params[key] = convert(params[key])
     arguments = results.normalize_params(capability_id, params)
     if capability_id in {"serper.search", "serpapi.search"}:
         for key, value in {"country": "US", "language": "en", "limit": 10}.items():
@@ -829,6 +889,11 @@ def managed_call(capability_id, params, run_id, operation_id, account_ref="",
         operation_id=ledger_operation, account_ref=entry.provider,
         intent_fingerprint=fingerprint, root=r, grant_ref=grant_ref or None)
     answer = results.persist(r, run_id, operation_id, guarded, params=arguments)
+    if capability_id == "crawl4ai.fetch_page":
+        import research_crawl_doctor as doctor
+        if doctor.note_local_result(r, ok=answer.get("status") == "OK",
+                                    reason_code=str(answer.get("reason_code") or "")):
+            answer["crawl4ai_down"] = crawl4ai_down_notice(r)
     state = health.classify(answer)
     if state:
         health.record(r, entry.provider, state,
@@ -837,6 +902,42 @@ def managed_call(capability_id, params, run_id, operation_id, account_ref="",
                                      "next": "the next provider in the chain takes over; "
                                              "tell the user in the report"}
     return answer
+
+
+def crawl4ai_down_notice(data_root) -> dict:
+    """What the Agent tells the user when the local reader stops working."""
+    import research_crawl_doctor as doctor
+    last = (doctor.cached(data_root) or {})
+    return {"status": "CRAWL4AI_NOT_WORKING_ON_THIS_COMPUTER",
+            "failed_step": last.get("failed_step", ""), "fix": last.get("fix", ""),
+            "tell_the_user": ("Crawl4AI, the free local page reader, is not working on this "
+                              "computer. Offer the repair (marketops_crawl4ai_check with "
+                              "repair=true). Until it works, pages are read by TinyFish fetch "
+                              "only if the user agrees; say so in the report."),
+            "repair": last.get("repair", "marketops_crawl4ai_check(repair=True)")}
+
+
+def crawl4ai_check(run_id="", repair=False) -> dict:
+    """Run (or repair and rerun) the Crawl4AI self-check; a run_id adds a real page read."""
+    import research_crawl_doctor as doctor
+    data_root = root()
+    if repair:
+        outcome = doctor.repair(data_root)
+        if outcome["status"] != "REPAIRED" or not run_id:
+            return outcome
+    page_read = None
+    if run_id:
+        def page_read():
+            answer = managed_call("crawl4ai.fetch_page", {"url": "https://example.com/"},
+                                  run_id, "crawl4ai-self-check-" + os.urandom(4).hex())
+            if answer.get("status") == "OK":
+                return True, ""
+            if answer.get("reason_code") in doctor.RUNTIME_FAILURES:
+                return False, answer.get("reason_code")
+            return None  # the run's rules refused it: says nothing about the browser
+    result = doctor.check(data_root, page_read=page_read)
+    return {**result, "tell_the_user": "" if result["status"] == "WORKING"
+            else crawl4ai_down_notice(data_root)["tell_the_user"]}
 
 
 def search(provider, query, country, language, run_id, operation_id, mode="web", limit=10):
@@ -911,9 +1012,10 @@ def _search_all(query, country, language, run_id, operation_id, limit):
                                                f"{operation_id}-serpapi", limit=limit),
                                       "substituted_by": "serpapi"}
                 except ValueError as again:
-                    return provider, {"error": str(again).split(":", 1)[0],
+                    return provider, {"error": str(again)[:160],
                                       "substitute_failed": "serpapi"}
-            return provider, {"error": str(exc).split(":", 1)[0]}
+            # The whole message: "IDENTITY_VALUE_INVALID" alone hid which field was wrong.
+            return provider, {"error": str(exc)[:160]}
     with ThreadPoolExecutor(max_workers=2) as pool:
         answers = dict(pool.map(one, ("serper", "tinyfish")))
     merged, seen = [], set()
@@ -1183,7 +1285,7 @@ def handoff(run_id, operation_id):
     try:
         experience_result = draft_experience(
             r, run_id=run_id, scope=head["scope"],
-            rule_version=head["rule_version"], skill_version="0.5.8",
+            rule_version=head["rule_version"], skill_version="0.5.9",
             output=experience_path)
         result["experience_candidate"] = str(experience_path)
         result["experience_incidents"] = experience_result["incidents"]
@@ -1313,6 +1415,7 @@ PUBLIC_TOOLS = frozenset({
     "marketops_pool_status", "marketops_harvest_batch", "marketops_lessons_report",
     "marketops_jev_triage", "marketops_suppression", "marketops_feedback_pack",
     "marketops_pool_reopen", "marketops_costs", "marketops_update_check",
+    "marketops_crawl4ai_check",
 })
 
 
@@ -1344,8 +1447,10 @@ def build_server():
     load_into_environment()
     # Direct by default; only an explicitly configured proxy changes that.
     research_config.load_upstream_proxy_into_environment()
+    _use_installed_browser()
+    _ensure_repair_entrypoints()
     from mcp.server import MCPServer
-    mcp = MCPServer("MarketOps Lite Research", version="0.5.8")
+    mcp = MCPServer("MarketOps Lite Research", version="0.5.9")
 
     def tool(fn):
         if fn.__name__ not in PUBLIC_TOOLS:
@@ -1719,6 +1824,18 @@ def build_server():
         return update_check(include_prerelease)
 
     @tool
+    def marketops_crawl4ai_check(run_id: str = "", repair: bool = False) -> dict:
+        """Is Crawl4AI, the free local page reader, really working on this computer?
+
+        Starts the browser once (and, with the current run_id, reads one test page).
+        Call at the start of a task when setup status shows crawl4ai as anything but
+        READY. If it is not working, tell the user and offer repair=True, which
+        reinstalls Crawl4AI and its browser into this install (a few minutes, about
+        200 MB). Never switch to TinyFish-only page reading without the user's yes.
+        """
+        return crawl4ai_check(run_id, repair)
+
+    @tool
     def marketops_pool_reopen(pool_id: str, reason: str) -> dict:
         """Put HOLD targets back to pending once their cause is fixed.
 
@@ -1916,7 +2033,7 @@ def build_server():
             raise ValueError("EXPERIENCE_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT")
         output.parent.mkdir(parents=True, exist_ok=True)
         return draft_experience(r, run_id=run_id, scope=scope,
-                                rule_version=rule_version, skill_version="0.5.8",
+                                rule_version=rule_version, skill_version="0.5.9",
                                 output=output)
 
     @tool

@@ -84,3 +84,18 @@ anything a site forbids.
 
 Every wall is recorded automatically; `marketops_lessons_report` shows what keeps blocking you.
 Keys and accounts: [onboarding](../../references/PROVIDER_ONBOARDING.md).
+
+## Before the first page read: is Crawl4AI working?
+
+Crawl4AI is the reader every harvest depends on. Do not silently replace it with something else.
+
+- `marketops_setup_status` shows `provider_readiness.providers.crawl4ai`. Anything other than
+  `READY` means acting before the research starts.
+- `INSTALLED_NOT_CHECKED`: run `marketops_crawl4ai_check(run_id=<this run>)`. It starts the
+  browser once and reads one test page.
+- `NOT_INSTALLED`, `NOT_WORKING` or `LOCAL_DOWN_...`: tell the user what the check found, then
+  offer the repair (`marketops_crawl4ai_check(repair=true)`, or Repair.cmd / repair.sh in the
+  MarketOps folder).
+- Go ahead with TinyFish fetch only if the user explicitly agrees. Write it in the report.
+- Any answer carrying `crawl4ai_down` mid-task means the same thing. Pause and ask the user;
+  do not carry on quietly.

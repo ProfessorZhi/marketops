@@ -33,6 +33,10 @@ deliver an evidence-backed workbook. Effect first, cost second.
 - Load `marketops-providers` (which provider for which job, cheapest first, what to do when one
   runs out) and call `marketops_costs(action='balances')`; tell the user in one line what each
   account has left.
+- Crawl4AI must be working: check `provider_readiness.providers.crawl4ai` in
+  `marketops_setup_status`. If it is not `READY`, follow "Before the first page read" in
+  `marketops-providers`. Put the repair offer, or the question about going on with TinyFish
+  only, into the same single message as the questions below.
 - Ask **once**, in one message, only for what is missing: scope (area, entity type, roles wanted),
   what the user sells and who buys it (customer vs competitor), delivery format, budget cap, and
   whether TinyFish's paid browser agent may be used for hard pages (default no; see
@@ -53,6 +57,15 @@ deliver an evidence-backed workbook. Effect first, cost second.
 | Evidence | every value has a literal quote from a saved page; the tools enforce this | `marketops_propose_batch`, `marketops_evidence_audit` |
 | Delivery | reconcile counts, verify a sample, hand off once; report spend per provider from `run_cost` | `marketops_handoff`; see `marketops-delivery` |
 
+**Contacts goal: go deep before going wide.** When the user wants contacts (`goal:'contacts'`):
+1. Shortlist 20–30 of the most likely targets from the pool: own site known, the right type, and
+   in scope.
+2. Run accounts on those to delivery, so the user gets usable people and emails early.
+3. Only then widen the pool.
+
+A pool of 300 names with no contacts does not meet a contacts goal. The Paris run did
+exactly that: 0 venues and 0 people delivered.
+
 Load `marketops-discovery`, `marketops-accounts`, `marketops-providers` or `marketops-delivery`
 only when you reach that stage. Past runs' pitfalls, by stage: [lessons](../../references/MEMBER_A_LESSONS.md). Use `marketops_next(run_id)` to see gaps and the suggested next action.
 
@@ -71,7 +84,8 @@ WorkBuddy) run the same account procedure from `marketops-accounts` one organisa
 
 Only: the budget cap is about to be reached; a paid tier (TinyFish Agent) is needed but not
 authorised; the same rule conflict keeps recurring (many `RULES_UNKNOWN`); a credential or
-configuration is missing. Everything else: pick another authorised source or record HOLD with the
+configuration is missing; Crawl4AI stopped working (`crawl4ai_down`) and the user has not yet
+agreed to TinyFish-only reading. Everything else: pick another authorised source or record HOLD with the
 reason, and continue with the next target. Report all of it at the end.
 
 ## 4. Non-negotiables

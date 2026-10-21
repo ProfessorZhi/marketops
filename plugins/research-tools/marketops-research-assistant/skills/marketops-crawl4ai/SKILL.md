@@ -14,8 +14,18 @@ emails at 62–88% of sites; guessed paths 6.5%), keeping `mailto:` addresses, P
 reports naming officers).
 
 **When it fails**:
-- Browser cannot start (missing Chromium, blocked loopback): the step falls through to TinyFish
-  fetch automatically; tell the user once so they can fix the local install.
+- Browser cannot start (missing Chromium, blocked by antivirus, broken install): this is a
+  problem with this computer, not with the site, and it is never handled silently.
+  - Three such failures in a row trigger a browser check. If the browser really does not start,
+    Crawl4AI is marked down for this computer, and the answer carries `crawl4ai_down`.
+  - When that happens, stop and tell the user. Offer the repair: `marketops_crawl4ai_check`
+    with `repair=true`, or Repair.cmd (Windows) or repair.sh in the MarketOps folder. It
+    reinstalls Crawl4AI and Chromium into this install, takes a few minutes and downloads
+    about 200 MB.
+  - Continue with TinyFish fetch only, which is free but has no JavaScript rendering and is
+    slower, only if the user says yes. Write that in the report.
+  - After a repair, run `marketops_crawl4ai_check(run_id=...)` to confirm with a real page
+    read.
 - The site blocks it (403/429/challenge): that host is recorded; TinyFish fetch is tried only for
   technical failures, never to get round a challenge or login.
 - HTTP 200 can still be a cookie wall or login page: check the saved text before quoting.

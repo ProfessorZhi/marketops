@@ -42,6 +42,13 @@ code. Two failed tries on one target means HOLD and the next target.
 - A contact binds to its organisation when the quote names the organisation, or it comes from the
   organisation's own site (where it has an identity quote and no other organisation does), or a
   relationship record names both. Directory pages never bind a contact.
+- `ORGANIZATION_PROVENANCE_MISMATCH` on a person, role or contact usually means the page names a
+  brand and the organisation record is the legal entity, or the reverse (Paris: 1 person and 5
+  roles were rejected this way).
+  - If a saved page says they are the same body (legal notice, "about", imprint), add a
+    relationship record quoting it.
+  - Otherwise put the person under the organisation the page actually names.
+  - If neither works, the row is HOLD. Never drop the gate to get a row through.
 - Literal values only: no email patterns, no search-snippet emails, no Markdown-only emails.
 - A named person's role and contact share the person's `entity_key` as `person_id`; a department
   mailbox has no `person_id` and does not satisfy a named-person brief.
