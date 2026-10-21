@@ -35,6 +35,9 @@ def next_step(run_id, limit=10, previous_snapshot_id="", after_attempt=False):
     result = workflow.next_step(root(), run_id, limit, previous_snapshot_id, after_attempt,
                                 budget=_source_selection_budget(run_id))
     result["experience"] = _experience_view(run_id, stage=result.get("stage", "intake"))
+    import research_execution
+    result["execution"] = research_execution.assess(root(), run_id, goal=result,
+                                                    budget=_source_selection_budget(run_id))
     return result
 
 
@@ -633,7 +636,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         configured_root = None
     if configured_root is not None and runtime_setup.config(configured_root):
         from research_runtime_status import view
-        return {"product": "MarketOps Research MCP", "version": "0.5.10-rc2",
+        return {"product": "MarketOps Research MCP", "version": "0.5.10-rc3",
                 **view(configured_root, task_kind=task_kind),
                 "external_host": _external_inventory(host_observed_tools),
                 "embedded_official_mcp": provider_policy.embedded_official_mcp_capabilities(),
@@ -708,7 +711,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         if task_kind else None)
     return {
         "product": "MarketOps Lite Research MCP",
-        "version": "0.5.10-rc2",
+        "version": "0.5.10-rc3",
         "providers": {
             "serpapi": {"transport": "REST through local MCP", **search["serpapi"]},
             "serper": {"transport": "REST through local MCP", **search["serper"]},
@@ -1244,7 +1247,7 @@ def evidence_workbook(run_id, delivery_id):
         r, run_id, delivery_id, ledger=ledger, project=project)
 
 
-def handoff(run_id, operation_id):
+def handoff(run_id, operation_id, mode="auto"):
     """One audited workbook snapshot plus experience artifacts and an honest receipt.
 
     Counts come from the workbook manifest, not a preceding status query. A child
@@ -1254,6 +1257,8 @@ def handoff(run_id, operation_id):
     r = root()
     store._id(run_id, "run_id")
     store._id(operation_id, "operation_id")
+    if mode not in {"auto", "checkpoint", "final"}:
+        raise ValueError("HANDOFF_MODE_INVALID: auto, checkpoint or final")
     # Run metadata is immutable; counts are not. Use this read only to validate
     # existence and obtain scope/policy for the experience draft.
     head = workflow.page(r, run_id, 1)
@@ -1313,7 +1318,7 @@ def handoff(run_id, operation_id):
     try:
         experience_result = draft_experience(
             r, run_id=run_id, scope=head["scope"],
-            rule_version=head["rule_version"], skill_version="0.5.10-rc2",
+            rule_version=head["rule_version"], skill_version="0.5.10-rc3",
             output=experience_path)
         result["experience_candidate"] = str(experience_path)
         result["experience_incidents"] = experience_result["incidents"]
@@ -1329,10 +1334,19 @@ def handoff(run_id, operation_id):
                                          "reason_type": type(exc).__name__}
         reasons.append("EXPERIENCE_FEEDBACK_SUMMARY_FAILED")
 
+    import research_execution
+    try:
+        execution = research_execution.assess(r, run_id, goal=workbook.get("goal_assessment") or {})
+    except Exception as exc:
+        reasons.append("EXECUTION_ASSESSMENT_FAILED_" + type(exc).__name__)
+        execution = {"state": "CHECKPOINT_EXECUTION_STATE_UNAVAILABLE", "is_final": False,
+                     "continuation_required": True, "next_action": "RESTORE_EXECUTION_STATE_BEFORE_FINALIZING",
+                     "reason_type": type(exc).__name__}
     try:
         append_event(r, run_id=run_id, operation_id=operation_id,
                      stage="handoff", kind="handoff", status="hold" if reasons else "succeeded",
-                     provider="local", reason_code="partial_handoff" if reasons else "")
+                     provider="local", reason_code="partial_handoff" if reasons else
+                     "research_checkpoint" if not execution["is_final"] or mode == "checkpoint" else "")
     except Exception as exc:
         reasons.append("HANDOFF_EVENT_FAILED_" + type(exc).__name__)
     # Include the final handoff event in the user's collectable file, not just
@@ -1357,6 +1371,14 @@ def handoff(run_id, operation_id):
     result["partial_reasons"] = reasons
     if reasons:
         result["status"] = "PARTIAL_HANDOFF_" + reasons[0]
+    result["execution"] = execution
+    result["is_final"] = execution["is_final"] and mode != "checkpoint" and not reasons
+    result["continuation_required"] = not result["is_final"]
+    result["delivery_status"] = result["status"]
+    if not result["is_final"] and not reasons:
+        result["status"] = "CHECKPOINT_RESEARCH_NOT_FINISHED"
+    if mode == "final" and not result["is_final"]:
+        result["finalization_refused"] = "RESEARCH_OR_LOCAL_FINALIZATION_REMAINS"
     return result
 
 
@@ -1478,7 +1500,7 @@ def build_server():
     _use_installed_browser()
     _ensure_repair_entrypoints()
     from mcp.server import MCPServer
-    mcp = MCPServer("MarketOps Lite Research", version="0.5.10-rc2")
+    mcp = MCPServer("MarketOps Lite Research", version="0.5.10-rc3")
 
     def tool(fn):
         if fn.__name__ not in PUBLIC_TOOLS:
@@ -2004,12 +2026,14 @@ def build_server():
         return evidence_workbook(run_id, delivery_id)
 
     @tool
-    def marketops_handoff(run_id: str, operation_id: str) -> dict:
+    def marketops_handoff(run_id: str, operation_id: str, mode: str = "auto") -> dict:
         """Deliver one audited candidate XLSX/CSV snapshot and experience artifacts with partial failures visible.
 
-        The reply carries this Run's estimated spend per provider; report it to the user.
+        mode: auto, checkpoint or final. A final request cannot override pending
+        work: is_final=false and continuation_required=true require continuing
+        the same Run. The reply carries this Run's estimated spend per provider.
         """
-        result = handoff(run_id, operation_id)
+        result = handoff(run_id, operation_id, mode)
         try:
             import research_costs
             spend = research_costs.report(root(), run_id=run_id)
@@ -2061,7 +2085,7 @@ def build_server():
             raise ValueError("EXPERIENCE_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT")
         output.parent.mkdir(parents=True, exist_ok=True)
         return draft_experience(r, run_id=run_id, scope=scope,
-                                rule_version=rule_version, skill_version="0.5.10-rc2",
+                                rule_version=rule_version, skill_version="0.5.10-rc3",
                                 output=output)
 
     @tool

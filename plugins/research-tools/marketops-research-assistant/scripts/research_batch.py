@@ -9,8 +9,10 @@ context sees counts, routes and reasons, not pages.
 from __future__ import annotations
 
 import hashlib
+from contextlib import closing
 import time
 from concurrent.futures import ThreadPoolExecutor, wait
+from pathlib import Path
 from urllib.parse import urlsplit
 
 import research_pool as pool
@@ -42,10 +44,13 @@ def _record_dispositions(data_root, run_id: str, results: list[dict]) -> None:
     """
     items = []
     for result in results:
+        if result.get("reason") == "TIME_BUDGET_REACHED":
+            continue  # a time slice is pending work, not a terminal HOLD
         org_key = result["organization_key"]
         if not site_harvest._exists(data_root, run_id, "entity_key", org_key, kind="organization"):
             continue
-        record_id = "review-" + org_key + "-batch"
+        record_id = ("review-" + org_key + "-batch-" + str(result.get("lease_attempt", 0))
+                     + result.get("review_suffix", ""))
         if site_harvest._exists(data_root, run_id, "record_id", record_id):
             continue
         done = result["outcome"] == "done"
@@ -56,12 +61,68 @@ def _record_dispositions(data_root, run_id: str, results: list[dict]) -> None:
                                 "disposition": "RESEARCHED_CANDIDATE" if done else "HOLD",
                                 "reason": ("Own-site harvest recorded public routes; grade them."
                                            if done else "Own-site harvest: " + result["reason"])}})
+        with closing(site_harvest.store._connection(data_root)) as db:
+            prior = db.execute("SELECT record_id FROM records WHERE run_id=? AND entity_key=? "
+                               "AND kind='review' AND record_id<>? ORDER BY rowid DESC",
+                               (run_id, "review-" + org_key, record_id)).fetchall()
+        parent = next((row[0] for row in prior if row[0].startswith("review-" + org_key + "-batch")), None)
+        if parent:
+            items[-1]["facts"]["supersedes"] = parent
     for start in range(0, len(items), 20):
         site_harvest.store.put_candidates_batch(data_root, run_id, items[start:start + 20])
 
 
 def _organization_key(target: dict) -> str:
     return "org-" + target["target_key"].removeprefix("t-")
+
+
+def _settle_result(data_root, *, pool_id, worker_id, run_id, item):
+    target = item["target"]
+    attempt, key = target["attempts"], target["target_key"]
+    args = dict(pool_id=pool_id, worker_id=worker_id, target_key=key, lease_attempt=attempt)
+    token = pool.begin_batch_finalization(data_root, **args)
+    if not token:
+        return None
+    acknowledged = False
+    try:
+        current = pool.batch_target(data_root, pool_id=pool_id, target_key=key)
+        if not current or current["attempts"] != attempt or current["claimed_by"] != worker_id:
+            acknowledged = True  # a newer lease fenced off this old outcome
+            return None
+        # A new quoted route supersedes this worker's old no-route HOLD before
+        # rechecking evidence. It is still only a research candidate; every
+        # source/person/route gate runs below, and failures receive a new HOLD.
+        preliminary = {"organization_key": item["org_key"], "outcome": item["outcome"],
+                       "reason": item["reason"], "lease_attempt": attempt}
+        if item["outcome"] == "done":
+            _record_dispositions(data_root, run_id, [preliminary])
+        decisions = site_harvest.admission_for(data_root, run_id, item["record_ids"])
+        routes = sum(1 for d in decisions if d.get("admitted") and d.get("kind") == "contact_point")
+        outcome, reason = item["outcome"], item["reason"]
+        if outcome == "done" and not routes:
+            outcome, reason = "hold", "ROUTES_NOT_ADMITTED"
+        result = {"target_key": key, "outcome": outcome, "reason": reason,
+                  "run_id": run_id, "organization_key": item["org_key"], "routes": routes,
+                  "lease_attempt": attempt}
+        if item["outcome"] == "done" and outcome == "hold":
+            result["review_suffix"] = "-gate-hold"
+        if current["status"] == "claimed":
+            saved = pool.complete(data_root, pool_id=pool_id, worker_id=worker_id, results=[result])
+            if not saved["accepted"]:
+                return None
+        elif current["status"] not in pool.OUTCOMES or current["run_id"] != run_id:
+            acknowledged = True
+            return None
+        # Outcome is durable before review finalization. If this fails, the saved
+        # job is retried locally on the next batch, without repeating a fetch.
+        _record_dispositions(data_root, run_id, [result])
+        if reason == "TIME_BUDGET_REACHED":
+            result["requeued_after_time_budget"] = pool.reopen(
+                data_root, pool_id=pool_id, reason="TIME_BUDGET_REACHED")["reopened"]
+        acknowledged = True
+        return result
+    finally:
+        pool.end_batch_finalization(data_root, **args, token=token, complete=acknowledged)
 
 
 def harvest_batch(data_root, *, pool_id: str, worker_id: str, run_id: str, fetch,
@@ -77,11 +138,21 @@ def harvest_batch(data_root, *, pool_id: str, worker_id: str, run_id: str, fetch
     """
     if type(concurrency) is not int or not 1 <= concurrency <= MAX_CONCURRENCY:
         raise ValueError(f"BATCH_CONCURRENCY_INVALID: 1-{MAX_CONCURRENCY}")
-    leased = pool.claim(data_root, pool_id=pool_id, worker_id=worker_id, count=count,
-                        lease_minutes=lease_minutes)
+    data_root = Path(pool._root(data_root))
     deadline = time.monotonic() + deadline_seconds
+    recovered, recovery_errors = 0, []
+    for job in pool.ready_batch_results(data_root, pool_id=pool_id, worker_id="", run_id=run_id):
+        if time.monotonic() > deadline:
+            break
+        try:
+            recovered += int(_settle_result(data_root, pool_id=pool_id, worker_id=job["worker_id"],
+                                            run_id=run_id, item=job["result"]) is not None)
+        except Exception as exc:
+            recovery_errors.append(type(exc).__name__)
+    leased = pool.claim_batch(data_root, pool_id=pool_id, worker_id=worker_id, run_id=run_id,
+                              count=count, lease_minutes=lease_minutes)
 
-    def work(target: dict) -> dict | None:
+    def research(target: dict) -> dict | None:
         if time.monotonic() > deadline:
             return None  # not started: handed back below
         org_key = _organization_key(target)
@@ -106,7 +177,9 @@ def harvest_batch(data_root, *, pool_id: str, worker_id: str, run_id: str, fetch
             # find its real site (Serper) or record the HOLD.
             return {"target": target, "outcome": "hold", "org_key": org_key, "record_ids": [],
                     "routes": [], "reason": "WEBSITE_IS_SOCIAL_OR_DIRECTORY"}
-        op = "b-" + hashlib.sha256(f"{run_id}:{target['target_key']}:{target['attempts']}"
+        # Stable across bounded continuations: already-read pages replay and
+        # leave the next call's time budget for the remaining links.
+        op = "b-" + hashlib.sha256(f"{run_id}:{target['target_key']}:1"
                                    .encode()).hexdigest()[:24]
         try:
             result = site_harvest.harvest(
@@ -125,6 +198,24 @@ def harvest_batch(data_root, *, pool_id: str, worker_id: str, run_id: str, fetch
                 "pages": len(result["pages"]),
                 "obfuscated": result.get("obfuscated_emails_not_decoded", 0)}
 
+    def work(target):
+        try:
+            item = research(target)
+        except Exception as exc:
+            item = {"target": target, "outcome": "hold", "reason": "BATCH_WORKER_" + type(exc).__name__,
+                    "org_key": _organization_key(target), "record_ids": [], "routes": []}
+        if item is None:
+            return None
+        try:
+            owned = pool.save_batch_result(data_root, pool_id=pool_id, worker_id=worker_id, run_id=run_id,
+                target_key=target["target_key"], lease_attempt=target["attempts"], result=item)
+            if owned:
+                item["recorded_result"] = _settle_result(data_root, pool_id=pool_id, worker_id=worker_id,
+                                                        run_id=run_id, item=item)
+        except Exception as exc:
+            item["finalization_error"] = type(exc).__name__
+        return item
+
     executor = ThreadPoolExecutor(max_workers=concurrency)
     futures = {executor.submit(work, target): target for target in leased["targets"]}
     wait(futures, timeout=max(1.0, deadline - time.monotonic() + 5))
@@ -137,45 +228,43 @@ def harvest_batch(data_root, *, pool_id: str, worker_id: str, run_id: str, fetch
             outcomes.append(future.result())
         else:
             running += 1
-    # A site still loading keeps its lease; it finishes in the background and
-    # returns to the pool when the lease ends, without a duplicate record.
+    # Running jobs finalize themselves even after this bounded call returns.
+    # Durable ready results survive a failed finalization or process restart.
     released = pool.release(data_root, pool_id=pool_id, worker_id=worker_id,
-                            target_keys=unstarted)
+                            target_keys=unstarted,
+                            lease_attempts={t["target_key"]: t["attempts"] for t in leased["targets"]})
 
-    # One gate read for the whole batch instead of one per organisation.
-    decisions = {d["record_id"]: d for d in site_harvest.admission_for(
-        data_root, run_id, [rid for item in outcomes for rid in item["record_ids"]])}
     summary, results = [], []
     for item in outcomes:
-        routes = sum(1 for rid in item["record_ids"]
-                     if decisions.get(rid, {}).get("admitted")
-                     and decisions[rid]["kind"] == "contact_point")
-        outcome, reason = item["outcome"], item["reason"]
-        if outcome == "done" and routes == 0:
-            outcome, reason = "hold", "ROUTES_NOT_ADMITTED"
-        results.append({"target_key": item["target"]["target_key"], "outcome": outcome,
-                        "reason": reason, "run_id": run_id, "organization_key": item["org_key"],
-                        "routes": routes})
-        summary.append({"name": item["target"]["name"], "outcome": outcome,
+        result = item.get("recorded_result")
+        if not result:
+            continue
+        results.append(result)
+        summary.append({"name": item["target"]["name"], "outcome": result["outcome"],
                         "routes": [_route_line(r) for r in item["routes"]][:6],
-                        "reason": reason or None})
-    _record_dispositions(data_root, run_id, results)
-    recorded = pool.complete(data_root, pool_id=pool_id, worker_id=worker_id,
-                             results=results) if results else {"accepted": 0, "refused": []}
+                        "reason": result["reason"] or None})
     # A site cut off by the time budget goes back to the pool for another
     # window (at most three attempts in all), instead of ending as a HOLD.
-    requeued = pool.reopen(data_root, pool_id=pool_id,
-                           reason="TIME_BUDGET_REACHED")["reopened"] if results else 0
+    requeued = sum(r.get("requeued_after_time_budget", 0) for r in results)
     done = sum(1 for r in results if r["outcome"] == "done")
     reasons: dict[str, int] = {}
     for r in results:
         if r["reason"]:
             reasons[r["reason"]] = reasons.get(r["reason"], 0) + 1
+    state = pool.status(data_root, pool_id=pool_id)
+    actionable = state["by_status"]["pending"] or state["expired_leases"]
+    action = ("FINALIZE_SAVED_RESULTS" if state["results_awaiting_finalization"] else
+              "CLAIM_NEXT_BATCH" if actionable else
+              "WAIT_FOR_ACTIVE_WORKERS" if state["by_status"]["claimed"] else
+              "POOL_DRAINED_REVIEW_GOAL_AND_COVERAGE")
     return {"pool_id": pool_id, "worker_id": worker_id, "run_id": run_id,
             "claimed": leased["claimed"], "done": done, "hold": len(results) - done,
             "routes": sum(r["routes"] for r in results), "hold_reasons": reasons,
-            "recorded": recorded["accepted"], "refused": recorded["refused"],
+            "recorded": len(results), "refused": [], "recovered_saved_results": recovered,
+            "finalization_errors": recovery_errors + [x["finalization_error"] for x in outcomes if x.get("finalization_error")],
             "targets": summary, "returned_unstarted": released,
             "still_loading": running, "requeued_after_time_budget": requeued,
-            "next_action": ("CLAIM_NEXT_BATCH" if leased["claimed"] else
-                            "POOL_EMPTY_OR_ALL_LEASED: check marketops_pool_status")}
+            "resumed_owned": leased["resumed_owned"], "queue": state["by_status"],
+            "continuation_required": state["continuation_required"],
+            "queue_complete": state["queue_complete"], "next_action": action,
+            "research_complete": False, "note": "A drained batch is not completed market research; check marketops_next."}

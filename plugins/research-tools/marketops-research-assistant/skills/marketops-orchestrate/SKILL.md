@@ -36,8 +36,18 @@ brief (`roles_wanted` set). Repeat without asking: `marketops_harvest_batch(pool
 run_id, count=20, roles_wanted=<the brief's roles>, country=<e.g. "be">, language=<e.g. "nl">)` →
 read the summary → for each organisation with routes, write its role records from each route's
 context and Jev tag, then a `target_disposition` review (`RESEARCHED_CANDIDATE`, or `HOLD` with the
-reason) → next batch. Stop when it returns `POOL_EMPTY_OR_ALL_LEASED` or the budget nears the cap.
-A crashed window's targets return to the pool when its lease expires.
+reason) → next batch. Batch harvesting already claims work; do not manually claim
+before it. If manual claims already exist, the batch resumes this worker's leases.
+`WAIT_FOR_ACTIVE_WORKERS` means poll progress, not finish. `FINALIZE_SAVED_RESULTS`
+means call the batch again to settle saved results without another fetch.
+`POOL_DRAINED_REVIEW_GOAL_AND_COVERAGE` only closes this pool tranche: call
+`marketops_next` and complete contacts or expand the source pool when the goal is
+still unmet and budget remains. Never treat all-leased as all-done.
+
+Calls return within the host's time limit. Still-running targets finalize their
+outcomes in the background; failed finalization is durable and can be recovered
+by another worker on the same Run. Repeated calls do not start the same live job
+again. A crashed window's unfinished execution can be reclaimed after lease expiry.
 
 If many targets are HOLD for a cause that has since been fixed (or a better method is found),
 `marketops_pool_reopen(pool_id, reason=<the HOLD reason>)` puts them back; workers continue.

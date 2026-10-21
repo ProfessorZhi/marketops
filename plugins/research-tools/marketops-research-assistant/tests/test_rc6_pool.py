@@ -8,6 +8,7 @@ harvest records each outcome back into the pool.
 from __future__ import annotations
 
 import multiprocessing
+from contextlib import closing
 import sys
 import tempfile
 import unittest
@@ -74,8 +75,9 @@ class PoolTests(unittest.TestCase):
     def test_expired_lease_is_reclaimable_and_stale_completion_refused(self):
         self.load(HALLS[:2])
         first = pool.claim(self.root, pool_id="uk", worker_id="crashed", count=2, lease_minutes=1)
-        with pool._db(self.root) as db:
+        with closing(pool._db(self.root)) as db:
             db.execute("UPDATE pool_targets SET lease_until='2000-01-01T00:00:00+00:00'")
+            db.commit()
         second = pool.claim(self.root, pool_id="uk", worker_id="rescuer", count=2)
         self.assertEqual(2, second["claimed"])
         key = first["targets"][0]["target_key"]
@@ -140,7 +142,8 @@ class BatchHarvestTests(unittest.TestCase):
         again = batch.harvest_batch(self.root, pool_id="uk", worker_id="w1", run_id="run-w",
                                     fetch=self.fetch, count=10)
         self.assertEqual(0, again["claimed"])
-        self.assertTrue(again["next_action"].startswith("POOL_EMPTY"))
+        self.assertEqual("POOL_DRAINED_REVIEW_GOAL_AND_COVERAGE", again["next_action"])
+        self.assertFalse(again["research_complete"])
 
     def test_each_saved_organisation_gets_a_disposition_in_the_run(self):
         import research_lite_store as store
