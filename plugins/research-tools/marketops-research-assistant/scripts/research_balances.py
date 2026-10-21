@@ -115,6 +115,7 @@ def read_all(root: Path) -> dict:
         reading["observed_at"] = _now()
         if reading["status"].startswith("READ") and reading["status"] != "READ_FAILED":
             _save(root, provider, reading)
+            _refresh_health(root, provider, reading)
         out[provider] = reading
     stored = readings(root)
     for provider in MANUAL:
@@ -136,4 +137,35 @@ def record_manual(root: Path, *, provider: str, left: float, unit: str, note: st
     reading = {"status": "MANUAL", "unit": unit, "left": float(left), "observed_at": _now(),
                "note": str(note)[:120], "evidence": "OPERATOR_READ_FROM_CONSOLE"}
     _save(root, provider, reading)
+    _refresh_health(root, provider, reading)
     return {"saved": provider, "reading": reading}
+
+
+def _refresh_health(root: Path, provider: str, reading: dict) -> None:
+    """A balance above zero lifts an out-of-credit mark; zero sets one."""
+    import research_provider_health as health
+    try:
+        left = float(reading.get("left"))
+    except (TypeError, ValueError):
+        return
+    if left > 0:
+        health.clear(root, provider)
+    else:
+        health.record(root, provider, "QUOTA_EXHAUSTED", detail="account reading shows 0 left")
+
+
+def warnings(root: Path) -> list[str]:
+    """Plain-language warnings for balances that are low or gone."""
+    out = []
+    for provider, reading in readings(root).items():
+        left, unit = reading.get("left"), reading.get("unit")
+        try:
+            left = float(left)
+        except (TypeError, ValueError):
+            continue
+        per_month = reading.get("searches_per_month")
+        low = (left <= 0 or (per_month and left <= 0.2 * float(per_month))
+               or (unit == "USD" and left < 1) or (unit == "credit" and left < 200))
+        if low:
+            out.append(f"{provider}: {left:g} {unit} left (read {str(reading.get('observed_at'))[:16]})")
+    return out

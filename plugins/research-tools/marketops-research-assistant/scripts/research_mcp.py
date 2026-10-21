@@ -183,8 +183,19 @@ def provider_readiness() -> dict:
              "NOT_ENABLED_FOR_PROJECT": "rerun the local setup and answer y to enable research",
              "CONNECTION_NOT_CHECKED": "rerun the local setup; check the key and the account",
              "NOT_INSTALLED": "rerun the installer; it installs Crawl4AI and Chromium"}
+    import research_balances
+    import research_provider_health as health
+    for provider, entry in health.status(data_root).items() if data_root is not None else ():
+        if provider in out and out[provider] == "READY":
+            out[provider] = f"{entry['state']}_UNTIL_{entry['until'][:10]}"
+    fixes.update({"QUOTA_EXHAUSTED": "top up the account (or wait for the monthly reset), then "
+                                     "marketops_costs(action='balances') to clear it",
+                  "RATE_LIMITED": "wait a minute; other providers carry on meanwhile"})
+    low = research_balances.warnings(data_root) if data_root is not None else []
     return {"providers": out,
-            "how_to_fix": {p: fixes[s] for p, s in out.items() if s in fixes},
+            "low_balance_warnings": low,
+            "how_to_fix": {p: fixes[s.split("_UNTIL_")[0]] for p, s in out.items()
+                           if s.split("_UNTIL_")[0] in fixes},
             "note": "READY is local readiness, not a check of the account's remaining credit."}
 
 
@@ -768,13 +779,27 @@ def managed_call(capability_id, params, run_id, operation_id, account_ref="",
                              "web" if capability_id == "serper.search"
                              else _catalog.DEFAULT_ENGINE)
     fingerprint = results.identity(capability_id, arguments)
+    # A provider that said it is out of credit (or to slow down) is answered here,
+    # in a form the fallback chain skips, instead of being asked again.
+    import research_provider_health as health
+    known = health.blocked(r, entry.provider)
+    if known:
+        return health.refusal(entry.provider, capability_id, known)
     # IDs are run-scoped at the MCP boundary, ledger-scoped internally.
     ledger_operation = "op-" + hashlib.sha256((run_id + ":" + operation_id).encode()).hexdigest()[:40]
     guarded = research_wiring.managed_invoke(
         capability_id=capability_id, params=arguments, run_id=run_id,
         operation_id=ledger_operation, account_ref=entry.provider,
         intent_fingerprint=fingerprint, root=r, grant_ref=grant_ref or None)
-    return results.persist(r, run_id, operation_id, guarded, params=arguments)
+    answer = results.persist(r, run_id, operation_id, guarded, params=arguments)
+    state = health.classify(answer)
+    if state:
+        health.record(r, entry.provider, state,
+                      detail=str((answer.get("payload") or {}).get("detail") or "")[:120])
+        answer["provider_health"] = {"provider": entry.provider, "state": state,
+                                     "next": "the next provider in the chain takes over; "
+                                             "tell the user in the report"}
+    return answer
 
 
 def search(provider, query, country, language, run_id, operation_id, mode="web", limit=10):
@@ -841,6 +866,16 @@ def _search_all(query, country, language, run_id, operation_id, limit):
             return provider, search(provider, query, country, language, run_id,
                                     f"{operation_id}-{provider}", limit=limit)
         except ValueError as exc:
+            import research_provider_health as health
+            if provider == "serper" and health.blocked(root(), "serper"):
+                # Serper is out of credit: SerpApi answers the same Google query.
+                try:
+                    return provider, {**search("serpapi", query, country, language, run_id,
+                                               f"{operation_id}-serpapi", limit=limit),
+                                      "substituted_by": "serpapi"}
+                except ValueError as again:
+                    return provider, {"error": str(again).split(":", 1)[0],
+                                      "substitute_failed": "serpapi"}
             return provider, {"error": str(exc).split(":", 1)[0]}
     with ThreadPoolExecutor(max_workers=2) as pool:
         answers = dict(pool.map(one, ("serper", "tinyfish")))
@@ -853,10 +888,18 @@ def _search_all(query, country, language, run_id, operation_id, limit):
                 merged.append({"title": hit.get("title"), "url": url,
                                "snippet": hit.get("snippet") or hit.get("description"),
                                "found_by": provider})
-    return {"status": "OK", "query": query, "results": merged,
-            "by_provider": {p: (len(_hits(a)) if "error" not in a else a["error"])
-                            for p, a in answers.items()},
-            "artifact_ids": [x for a in answers.values() for x in a.get("artifact_ids") or []]}
+    import research_provider_health as health
+    out = {"status": "OK", "query": query, "results": merged,
+           "by_provider": {p: (len(_hits(a)) if "error" not in a else a["error"])
+                           for p, a in answers.items()},
+           "artifact_ids": [x for a in answers.values() for x in a.get("artifact_ids") or []]}
+    substituted = {p: a["substituted_by"] for p, a in answers.items() if a.get("substituted_by")}
+    if substituted:
+        out["substituted"] = substituted
+    exhausted = health.status(root())
+    if exhausted:
+        out["providers_out"] = {p: e["state"] for p, e in exhausted.items()}
+    return out
 
 
 def _hits(answer):
