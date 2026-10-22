@@ -1,0 +1,136 @@
+{
+  "schema": "marketops.continuation-audit.v1",
+  "experiment": "2026-10-22-paris-continuation",
+  "plugin_version": "0.5.11-rc1",
+  "plugin_source_revision": "05c6b51702ed8a7e55c88859b78a8975963db81b",
+  "session": {
+    "id": "01a15fcb-dd82-71b1-9132-64a7400c0fb8",
+    "title": "调研巴黎室内体育场馆联系人",
+    "design": "retrospective_warm_resume_not_a_controlled_ab_test",
+    "research_goal": "Paris-region indoor venue inventory and source-backed named decision roles with personal work emails; generic inboxes excluded",
+    "original_run_reused": true,
+    "turn_duration_sum_ms": 2274802,
+    "wall_clock_span_seconds": 2931,
+    "reported_final_candidates": {
+      "indoor_venue_candidates": 48,
+      "named_person_email_candidates": 3,
+      "independent_reaudit_performed": false
+    }
+  },
+  "post_stop_readonly_snapshot": {
+    "capture_interval_utc": [
+      "2026-10-22T05:43:00Z",
+      "2026-10-22T05:45:00Z"
+    ],
+    "execution": {
+      "state": "CHECKPOINT_CONTINUE_RESEARCH",
+      "is_final": false,
+      "continuation_required": true,
+      "next_action": "CONTINUE_OR_RESUME_TARGET_POOL",
+      "remaining_requests": null,
+      "pending_pool_targets": 70,
+      "running_batch_jobs": 0,
+      "saved_results_to_finalize": 0,
+      "sources_reconciled": true,
+      "goal_satisfied": false,
+      "coverage_scope": "known_targets_not_an_exhaustive_market_claim",
+      "pools": [
+        {
+          "pool_id": "paris-idf-indoor-2026",
+          "queue": {
+            "pending": 70,
+            "claimed": 0,
+            "done": 5,
+            "duplicate": 0,
+            "excluded": 0,
+            "hold": 54
+          },
+          "queue_complete": false
+        }
+      ]
+    },
+    "goal_satisfied": false,
+    "organization_targets": 23,
+    "organizations_with_missing_roles": 23,
+    "organization_dispositions": {
+      "HOLD": 22
+    },
+    "organization_pending": 1,
+    "record_counts": {
+      "contact_point": 16,
+      "observation": 51,
+      "organization": 23,
+      "person": 8,
+      "relationship": 8,
+      "review": 41,
+      "role": 11,
+      "source": 1562,
+      "venue": 203
+    },
+    "pool": {
+      "total": 129,
+      "by_status": {
+        "pending": 70,
+        "claimed": 0,
+        "done": 5,
+        "duplicate": 0,
+        "excluded": 0,
+        "hold": 54
+      },
+      "in_flight": 0,
+      "results_awaiting_finalization": 0,
+      "queue_complete": false,
+      "continuation_required": true,
+      "targets_with_routes": 5,
+      "routes": 7,
+      "hit_rate": 0.085,
+      "top_hold_reasons": [
+        {
+          "reason": "NAME_NOT_FOUND_ON_SITE",
+          "count": 25
+        },
+        {
+          "reason": "SITE_UNREACHABLE",
+          "count": 14
+        },
+        {
+          "reason": "NO_PUBLIC_ROUTE_ON_SITE",
+          "count": 13
+        },
+        {
+          "reason": "ROUTES_NOT_ADMITTED",
+          "count": 1
+        },
+        {
+          "reason": "NO_OFFICIAL_SITE_FOUND",
+          "count": 1
+        }
+      ]
+    },
+    "budget": {
+      "mode": "MONEY",
+      "request_limit_active": false,
+      "free_crawl_cost_usd": "0",
+      "total_budget_usd": "1.99827",
+      "remaining_usd": "1.925672",
+      "fraction": "0.30",
+      "invoice_verified": false,
+      "note": "Frozen owner-approved envelopes, including held/unknown exposure and Serper credit value; not vendor invoices."
+    }
+  },
+  "conclusion": {
+    "premature_session_stop": true,
+    "budget_exhausted": false,
+    "queue_drained": false,
+    "background_batch_active": false,
+    "method_switch_not_executed": true,
+    "host_restart_sufficient": false
+  },
+  "privacy": {
+    "raw_transcript_included": false,
+    "provider_credentials_included": false,
+    "contact_rows_included": false,
+    "raw_database_included": false,
+    "tool_arguments_included": "bounded batch sizes, preview flags, handoff modes and cost actions only"
+  }
+}

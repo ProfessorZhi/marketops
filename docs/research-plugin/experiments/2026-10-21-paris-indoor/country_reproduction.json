@@ -1,0 +1,22 @@
+{
+  "network_calls": 0,
+  "credential_access": false,
+  "source_module_sha256": "6359cf8811fe1edda4ef372bafb47674f5ba4ccfd8c185226b169f806bcc50ee",
+  "results": [
+    {
+      "country": "France",
+      "status": "BLOCKED",
+      "reason": "IDENTITY_VALUE_INVALID: country"
+    },
+    {
+      "country": "fr",
+      "status": "OK",
+      "canonical_country": "FR"
+    },
+    {
+      "country": "FR",
+      "status": "OK",
+      "canonical_country": "FR"
+    }
+  ]
+}

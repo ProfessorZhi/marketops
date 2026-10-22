@@ -1,0 +1,243 @@
+{
+  "schema": "marketops.pilot-comparison.v1",
+  "experiment": "2026-10-21-paris-indoor",
+  "design": "retrospective_observational_one_session_per_condition",
+  "timezone": "Asia/Shanghai",
+  "plugin_version": "0.5.9-rc3",
+  "source_revision": "eba4d3541fdbdd7bfbba00c97fb9c89676641f58",
+  "source_sessions": {
+    "A": {
+      "id": "01a15ea2-7751-7da0-b638-d3847e0d9403",
+      "title": "查找巴黎室内场馆及决策人邮箱"
+    },
+    "B": {
+      "id": "01a15e01-9297-7682-8e41-9944868f6720",
+      "title": "检查插件并评估巴黎场馆调研"
+    }
+  },
+  "A": {
+    "condition": "MarketOps prohibited",
+    "started_at": "2026-10-21T21:24:31+08:00",
+    "completed_at": "2026-10-21T21:28:41+08:00",
+    "duration_ms": 250685,
+    "duration_minutes": 4.178083,
+    "shortlisted_large_venues": 10,
+    "reported_individual_email_candidates": 3,
+    "workbook_delivered": false,
+    "complete_inventory_delivered": false,
+    "web_action_count": 17,
+    "web_action_types": {
+      "search": 13,
+      "other": 3,
+      "openPage": 1
+    },
+    "search_queries": 45,
+    "self_reported_search_count": 9,
+    "command_count": 8,
+    "command_failures": 1,
+    "marketops_mcp_calls": 0,
+    "actual_usd": null,
+    "model_tokens": null,
+    "buyer_roi_verified": false,
+    "email_deliverability_verified": false
+  },
+  "B": {
+    "condition": "MarketOps required",
+    "started_at": "2026-10-21T18:49:25+08:00",
+    "completed_at": "2026-10-21T19:08:10+08:00",
+    "duration_ms": 1125083,
+    "duration_minutes": 18.751383,
+    "prior_feasibility_duration_ms": 42489,
+    "research_mcp_calls": 163,
+    "all_session_mcp_calls": 165,
+    "research_mcp_calls_by_tool": {
+      "marketops_costs": 4,
+      "marketops_runs": 1,
+      "marketops_start": 2,
+      "marketops_search": 36,
+      "marketops_note": 6,
+      "marketops_research_step": 7,
+      "marketops_material_excerpt": 7,
+      "marketops_serpapi_mcp_search": 8,
+      "marketops_status": 10,
+      "marketops_pool_import": 8,
+      "marketops_harvest_batch": 3,
+      "marketops_pool_status": 4,
+      "marketops_next": 7,
+      "marketops_site_harvest": 4,
+      "marketops_pool_claim": 12,
+      "marketops_propose_batch": 24,
+      "marketops_pool_complete": 8,
+      "marketops_jev_choice": 1,
+      "marketops_evidence_audit": 3,
+      "marketops_suppression": 2,
+      "marketops_handoff": 1,
+      "marketops_feedback_pack": 2,
+      "marketops_experience_feedback": 3
+    },
+    "opaque_tool_errors_in_transcript": 8,
+    "map_results_listed": 146,
+    "pool_targets_imported": 143,
+    "map_duplicates": 3,
+    "pool_state_after_run": {
+      "done": 1,
+      "hold": 142
+    },
+    "pool_last_updated": "2026-10-21T11:06:03.927171+00:00",
+    "pool_to_organization_intersection": 130,
+    "pool_keys_without_organization_record": 13,
+    "organization_keys_not_in_pool": 6,
+    "audit_records_by_type": {
+      "observation": 12,
+      "source": 529,
+      "organization": 136,
+      "contact_point": 7,
+      "review": 141,
+      "role": 7,
+      "person": 1
+    },
+    "audit_record_count": 833,
+    "active_record_count": 824,
+    "saved_artifacts": 258,
+    "csv_data_rows": {
+      "人员岗位": 0,
+      "候选数据审计": 833,
+      "场地与资产": 0,
+      "客户总表": 1,
+      "排除与待确认": 282,
+      "本轮说明": 36,
+      "来源与查询": 529,
+      "联系人路线": 1,
+      "证据索引": 258
+    },
+    "xlsx_data_rows": {
+      "客户总表": 1,
+      "联系人路线": 1,
+      "排除与待确认": 282,
+      "证据索引": 258,
+      "本轮说明": 36,
+      "场地与资产": 0,
+      "人员岗位": 0,
+      "来源与查询": 529,
+      "候选数据审计": 833
+    },
+    "export_hashes_verified": 18,
+    "goal_status": "STOPPED_WITH_GAPS",
+    "goal_satisfied": false,
+    "coverage_complete": false,
+    "organization_targets": 136,
+    "dispositions": {
+      "HOLD": 135,
+      "RESEARCHED_CANDIDATE": 1
+    },
+    "admitted_records": 2,
+    "rejected_records": 145,
+    "admitted_by_kind": {
+      "contact_point": 1,
+      "organization": 1
+    },
+    "rejected_by_kind": {
+      "contact_point": 4,
+      "organization": 135,
+      "person": 1,
+      "role": 5
+    },
+    "admission_reason_counts": {
+      "CLAIMS_INVALID": 126,
+      "IDENTITY_VALUE_NOT_IN_EXCERPT": 126,
+      "MISSING_REQUIRED_IDENTITY": 126,
+      "NO_EXCERPT": 126,
+      "NO_SOURCE": 126,
+      "ORGANIZATION_NOT_ADMITTED": 8,
+      "ORGANIZATION_PROVENANCE_MISMATCH": 2,
+      "TARGET_DISPOSITION_HOLD": 135
+    },
+    "evidence_audit_status": "EVIDENCE_GAPS",
+    "evidence_audit_gap_counts": {
+      "DERIVED_EXCERPT_ONLY": 2,
+      "EMAIL_NOT_IN_PRIMARY_MATERIAL": 2,
+      "EXCERPT_NOT_FOUND": 1,
+      "MISSING_REQUIRED_IDENTITY": 126,
+      "NO_EXCERPT": 126,
+      "NO_SOURCE": 126
+    },
+    "export_status": "PARTIAL_CANDIDATE_ONLY_NOT_FORMAL_CONTACTS",
+    "delivery_completeness": "COMPLETE",
+    "evidence_envelope_export_gate": "BLOCKED_LEDGER_NOT_WIRED",
+    "business_verification": "NOT_PERFORMED",
+    "evidence_ready_for_business_use": false,
+    "exported_contact_functions": {
+      "UNKNOWN": 1
+    },
+    "exported_contact_grades": {
+      "RULES_UNKNOWN": 1
+    },
+    "send_authorized": false,
+    "serper_identity_failures": 36,
+    "run_ledger_groups": [
+      {
+        "provider": "crawl4ai",
+        "capability": "render",
+        "charge_state": "NO_CHARGE_PROVEN",
+        "execution_outcome": "",
+        "operations": 95,
+        "actual_micros": 0
+      },
+      {
+        "provider": "serpapi",
+        "capability": "search",
+        "charge_state": "UNKNOWN",
+        "execution_outcome": "OK",
+        "operations": 8,
+        "actual_micros": null
+      },
+      {
+        "provider": "tinyfish",
+        "capability": "fetch",
+        "charge_state": "UNKNOWN",
+        "execution_outcome": "OK",
+        "operations": 97,
+        "actual_micros": null
+      },
+      {
+        "provider": "tinyfish",
+        "capability": "search",
+        "charge_state": "UNKNOWN",
+        "execution_outcome": "OK",
+        "operations": 39,
+        "actual_micros": null
+      },
+      {
+        "provider": "typesafe_jev",
+        "capability": "judge",
+        "charge_state": "UNKNOWN",
+        "execution_outcome": "OK",
+        "operations": 11,
+        "actual_micros": null
+      }
+    ],
+    "run_ledger_operations": 250,
+    "run_charge_unknown_operations": 155,
+    "run_rate_card_estimated_usd": "0.0014",
+    "actual_usd": null,
+    "model_tokens": null,
+    "last_recorded_budget": {
+      "search_remaining": 41,
+      "provider_remaining": 41,
+      "unknown_held": 0,
+      "unbilled_successes": 159,
+      "source": "RUNTIME_CONFIG"
+    },
+    "buyer_roi_verified": false,
+    "email_deliverability_verified": false
+  },
+  "limitations": [
+    "one session per condition",
+    "different tool access and stopping behavior",
+    "different contact evidence standards",
+    "unknown model/token bill",
+    "no known complete indoor-venue denominator",
+    "product and target buyer unspecified",
+    "no new venue research or provider calls made during this audit"
+  ]
+}

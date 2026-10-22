@@ -1,0 +1,1921 @@
+{
+  "schema_version": 1,
+  "captured_turns": [
+    {
+      "turn": "turn_1",
+      "status": "completed",
+      "start_utc": "2026-10-22T04:52:09.000Z",
+      "end_utc": "2026-10-22T05:20:06.000Z",
+      "duration_ms": 1677407,
+      "calls": [
+        {
+          "sequence": 1,
+          "tool": "marketops_setup_status",
+          "host_status": "completed",
+          "duration_ms": 218
+        },
+        {
+          "sequence": 2,
+          "tool": "marketops_update_check",
+          "host_status": "completed",
+          "duration_ms": 1447
+        },
+        {
+          "sequence": 3,
+          "tool": "marketops_costs",
+          "host_status": "completed",
+          "duration_ms": 20484,
+          "action": "balances"
+        },
+        {
+          "sequence": 4,
+          "tool": "marketops_suppression",
+          "host_status": "completed",
+          "duration_ms": 13
+        },
+        {
+          "sequence": 5,
+          "tool": "marketops_runs",
+          "host_status": "completed",
+          "duration_ms": 13
+        },
+        {
+          "sequence": 6,
+          "tool": "marketops_start",
+          "host_status": "failed",
+          "duration_ms": 7
+        },
+        {
+          "sequence": 7,
+          "tool": "marketops_start",
+          "host_status": "failed",
+          "duration_ms": 12
+        },
+        {
+          "sequence": 8,
+          "tool": "marketops_next",
+          "host_status": "completed",
+          "duration_ms": 407
+        },
+        {
+          "sequence": 9,
+          "tool": "marketops_status",
+          "host_status": "failed",
+          "duration_ms": 6
+        },
+        {
+          "sequence": 10,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 11289
+        },
+        {
+          "sequence": 11,
+          "tool": "marketops_status",
+          "host_status": "failed",
+          "duration_ms": 6
+        },
+        {
+          "sequence": 12,
+          "tool": "marketops_status",
+          "host_status": "completed",
+          "duration_ms": 9
+        },
+        {
+          "sequence": 13,
+          "tool": "marketops_status",
+          "host_status": "completed",
+          "duration_ms": 9
+        },
+        {
+          "sequence": 14,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 17
+        },
+        {
+          "sequence": 15,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 2501
+        },
+        {
+          "sequence": 16,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 11401
+        },
+        {
+          "sequence": 17,
+          "tool": "marketops_note",
+          "host_status": "failed",
+          "duration_ms": 7
+        },
+        {
+          "sequence": 18,
+          "tool": "marketops_note",
+          "host_status": "failed",
+          "duration_ms": 9
+        },
+        {
+          "sequence": 19,
+          "tool": "marketops_note",
+          "host_status": "completed",
+          "duration_ms": 49
+        },
+        {
+          "sequence": 20,
+          "tool": "marketops_site_harvest",
+          "host_status": "completed",
+          "duration_ms": 27072
+        },
+        {
+          "sequence": 21,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 13622
+        },
+        {
+          "sequence": 22,
+          "tool": "marketops_note",
+          "host_status": "completed",
+          "duration_ms": 45
+        },
+        {
+          "sequence": 23,
+          "tool": "marketops_status",
+          "host_status": "completed",
+          "duration_ms": 9
+        },
+        {
+          "sequence": 24,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 3090
+        },
+        {
+          "sequence": 25,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 2559
+        },
+        {
+          "sequence": 26,
+          "tool": "marketops_status",
+          "host_status": "completed",
+          "duration_ms": 38
+        },
+        {
+          "sequence": 27,
+          "tool": "marketops_status",
+          "host_status": "completed",
+          "duration_ms": 8
+        },
+        {
+          "sequence": 28,
+          "tool": "marketops_status",
+          "host_status": "completed",
+          "duration_ms": 8
+        },
+        {
+          "sequence": 29,
+          "tool": "marketops_pool_status",
+          "host_status": "completed",
+          "duration_ms": 8
+        },
+        {
+          "sequence": 30,
+          "tool": "marketops_status",
+          "host_status": "failed",
+          "duration_ms": 4
+        },
+        {
+          "sequence": 31,
+          "tool": "marketops_status",
+          "host_status": "completed",
+          "duration_ms": 8
+        },
+        {
+          "sequence": 32,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 2473
+        },
+        {
+          "sequence": 33,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 103
+        },
+        {
+          "sequence": 34,
+          "tool": "marketops_next",
+          "host_status": "completed",
+          "duration_ms": 197
+        },
+        {
+          "sequence": 35,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 2505
+        },
+        {
+          "sequence": 36,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 4042
+        },
+        {
+          "sequence": 37,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 3504
+        },
+        {
+          "sequence": 38,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 2966
+        },
+        {
+          "sequence": 39,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 10935
+        },
+        {
+          "sequence": 40,
+          "tool": "marketops_note",
+          "host_status": "completed",
+          "duration_ms": 44
+        },
+        {
+          "sequence": 41,
+          "tool": "marketops_status",
+          "host_status": "completed",
+          "duration_ms": 55
+        },
+        {
+          "sequence": 42,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 9
+        },
+        {
+          "sequence": 43,
+          "tool": "marketops_propose_batch",
+          "host_status": "failed",
+          "duration_ms": 10
+        },
+        {
+          "sequence": 44,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 41
+        },
+        {
+          "sequence": 45,
+          "tool": "marketops_evidence_audit",
+          "host_status": "completed",
+          "duration_ms": 856
+        },
+        {
+          "sequence": 46,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 20
+        },
+        {
+          "sequence": 47,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 8
+        },
+        {
+          "sequence": 48,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 20,
+          "preview": true,
+          "limit": 100
+        },
+        {
+          "sequence": 49,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 9
+        },
+        {
+          "sequence": 50,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 12212
+        },
+        {
+          "sequence": 51,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 9,
+          "preview": true,
+          "limit": 4
+        },
+        {
+          "sequence": 52,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 8
+        },
+        {
+          "sequence": 53,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 37
+        },
+        {
+          "sequence": 54,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 17
+        },
+        {
+          "sequence": 55,
+          "tool": "marketops_material_excerpt",
+          "host_status": "failed",
+          "duration_ms": 15
+        },
+        {
+          "sequence": 56,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 14
+        },
+        {
+          "sequence": 57,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 83
+        },
+        {
+          "sequence": 58,
+          "tool": "marketops_evidence_audit",
+          "host_status": "completed",
+          "duration_ms": 592
+        },
+        {
+          "sequence": 59,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 45
+        },
+        {
+          "sequence": 60,
+          "tool": "marketops_evidence_audit",
+          "host_status": "completed",
+          "duration_ms": 657
+        },
+        {
+          "sequence": 61,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 33
+        },
+        {
+          "sequence": 62,
+          "tool": "marketops_start",
+          "host_status": "completed",
+          "duration_ms": 136
+        },
+        {
+          "sequence": 63,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 9
+        },
+        {
+          "sequence": 64,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 10
+        },
+        {
+          "sequence": 65,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 7
+        },
+        {
+          "sequence": 66,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 10
+        },
+        {
+          "sequence": 67,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 43
+        },
+        {
+          "sequence": 68,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 8
+        },
+        {
+          "sequence": 69,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 9
+        },
+        {
+          "sequence": 70,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 10
+        },
+        {
+          "sequence": 71,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 13008
+        },
+        {
+          "sequence": 72,
+          "tool": "marketops_note",
+          "host_status": "completed",
+          "duration_ms": 57
+        },
+        {
+          "sequence": 73,
+          "tool": "marketops_crawl4ai_check",
+          "host_status": "completed",
+          "duration_ms": 6442
+        },
+        {
+          "sequence": 74,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 4645
+        },
+        {
+          "sequence": 75,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 7,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 76,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 9,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 77,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 12,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 78,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 12,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 79,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 10,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 80,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 11,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 81,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 43
+        },
+        {
+          "sequence": 82,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 8
+        },
+        {
+          "sequence": 83,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 8
+        },
+        {
+          "sequence": 84,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 32
+        },
+        {
+          "sequence": 85,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 49
+        },
+        {
+          "sequence": 86,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 30
+        },
+        {
+          "sequence": 87,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 10302
+        },
+        {
+          "sequence": 88,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 5301
+        },
+        {
+          "sequence": 89,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 5168
+        },
+        {
+          "sequence": 90,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 4613
+        },
+        {
+          "sequence": 91,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 5583
+        },
+        {
+          "sequence": 92,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 4511
+        },
+        {
+          "sequence": 93,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 10,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 94,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 9,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 95,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 9,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 96,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 11,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 97,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 8,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 98,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 7,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 99,
+          "tool": "marketops_pool_import",
+          "host_status": "failed",
+          "duration_ms": 21,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 100,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 9,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 101,
+          "tool": "marketops_pool_import",
+          "host_status": "failed",
+          "duration_ms": 10,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 102,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 9,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 103,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 8,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 104,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 11,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 105,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 8,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 106,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 8,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 107,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 8,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 108,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 10,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 109,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 9,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 110,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 8,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 111,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 9,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 112,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 8,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 113,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 9,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 114,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 10,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 115,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 9,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 116,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 10,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 117,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 7,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 118,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 8,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 119,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 8,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 120,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 9,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 121,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 8,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 122,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 8,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 123,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 10,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 124,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 9,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 125,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 10,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 126,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 9,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 127,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 9,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 128,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 10,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 129,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 4913
+        },
+        {
+          "sequence": 130,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 8,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 131,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 7,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 132,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 10,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 133,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 7,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 134,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 7,
+          "preview": true,
+          "limit": 10
+        },
+        {
+          "sequence": 135,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 183
+        },
+        {
+          "sequence": 136,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 27
+        },
+        {
+          "sequence": 137,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 8
+        },
+        {
+          "sequence": 138,
+          "tool": "marketops_propose_batch",
+          "host_status": "failed",
+          "duration_ms": 11
+        },
+        {
+          "sequence": 139,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 25
+        },
+        {
+          "sequence": 140,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 33
+        },
+        {
+          "sequence": 141,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 113
+        },
+        {
+          "sequence": 142,
+          "tool": "marketops_propose_batch",
+          "host_status": "failed",
+          "duration_ms": 11
+        },
+        {
+          "sequence": 143,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 80
+        },
+        {
+          "sequence": 144,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 28
+        },
+        {
+          "sequence": 145,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 34
+        },
+        {
+          "sequence": 146,
+          "tool": "marketops_note",
+          "host_status": "completed",
+          "duration_ms": 43
+        },
+        {
+          "sequence": 147,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 2962
+        },
+        {
+          "sequence": 148,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 2891
+        },
+        {
+          "sequence": 149,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 60
+        },
+        {
+          "sequence": 150,
+          "tool": "marketops_next",
+          "host_status": "completed",
+          "duration_ms": 191
+        },
+        {
+          "sequence": 151,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 2397
+        },
+        {
+          "sequence": 152,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 2543
+        },
+        {
+          "sequence": 153,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 2400
+        },
+        {
+          "sequence": 154,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 1875
+        },
+        {
+          "sequence": 155,
+          "tool": "marketops_experience_feedback",
+          "host_status": "completed",
+          "duration_ms": 54
+        },
+        {
+          "sequence": 156,
+          "tool": "marketops_evidence_audit",
+          "host_status": "completed",
+          "duration_ms": 731
+        },
+        {
+          "sequence": 157,
+          "tool": "marketops_handoff",
+          "host_status": "completed",
+          "duration_ms": 2131,
+          "mode": "auto"
+        },
+        {
+          "sequence": 158,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 76
+        },
+        {
+          "sequence": 159,
+          "tool": "marketops_status",
+          "host_status": "completed",
+          "duration_ms": 12
+        },
+        {
+          "sequence": 160,
+          "tool": "marketops_status",
+          "host_status": "completed",
+          "duration_ms": 10
+        },
+        {
+          "sequence": 161,
+          "tool": "marketops_handoff",
+          "host_status": "completed",
+          "duration_ms": 1361,
+          "mode": "auto"
+        },
+        {
+          "sequence": 162,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 1884
+        },
+        {
+          "sequence": 163,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 2596
+        },
+        {
+          "sequence": 164,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 2395
+        },
+        {
+          "sequence": 165,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 5753
+        },
+        {
+          "sequence": 166,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 11
+        },
+        {
+          "sequence": 167,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 38
+        },
+        {
+          "sequence": 168,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 2435
+        },
+        {
+          "sequence": 169,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 14780
+        },
+        {
+          "sequence": 170,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 10
+        },
+        {
+          "sequence": 171,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 40
+        },
+        {
+          "sequence": 172,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 2879
+        },
+        {
+          "sequence": 173,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 2874
+        },
+        {
+          "sequence": 174,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 3510
+        },
+        {
+          "sequence": 175,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 5159
+        },
+        {
+          "sequence": 176,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 11
+        },
+        {
+          "sequence": 177,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 15
+        },
+        {
+          "sequence": 178,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 2600
+        },
+        {
+          "sequence": 179,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 5635
+        },
+        {
+          "sequence": 180,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 12
+        },
+        {
+          "sequence": 181,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 2959
+        },
+        {
+          "sequence": 182,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 3804
+        },
+        {
+          "sequence": 183,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 5183
+        },
+        {
+          "sequence": 184,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 13
+        },
+        {
+          "sequence": 185,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 13
+        },
+        {
+          "sequence": 186,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 53
+        },
+        {
+          "sequence": 187,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 2493
+        },
+        {
+          "sequence": 188,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 3917
+        },
+        {
+          "sequence": 189,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 10
+        },
+        {
+          "sequence": 190,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 43
+        },
+        {
+          "sequence": 191,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 2543
+        },
+        {
+          "sequence": 192,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 3747
+        },
+        {
+          "sequence": 193,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 9
+        },
+        {
+          "sequence": 194,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 34
+        },
+        {
+          "sequence": 195,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 2460
+        },
+        {
+          "sequence": 196,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 5515
+        },
+        {
+          "sequence": 197,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 14
+        },
+        {
+          "sequence": 198,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 48
+        },
+        {
+          "sequence": 199,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 25
+        },
+        {
+          "sequence": 200,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 2483
+        },
+        {
+          "sequence": 201,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 9
+        },
+        {
+          "sequence": 202,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 5164
+        },
+        {
+          "sequence": 203,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 10
+        },
+        {
+          "sequence": 204,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 10
+        },
+        {
+          "sequence": 205,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 10
+        },
+        {
+          "sequence": 206,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 3914
+        },
+        {
+          "sequence": 207,
+          "tool": "marketops_next",
+          "host_status": "completed",
+          "duration_ms": 277
+        },
+        {
+          "sequence": 208,
+          "tool": "marketops_status",
+          "host_status": "completed",
+          "duration_ms": 10
+        },
+        {
+          "sequence": 209,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 1930
+        },
+        {
+          "sequence": 210,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 3085
+        },
+        {
+          "sequence": 211,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 2499
+        },
+        {
+          "sequence": 212,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 1893
+        },
+        {
+          "sequence": 213,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 2978
+        },
+        {
+          "sequence": 214,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 2387
+        },
+        {
+          "sequence": 215,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 1932
+        },
+        {
+          "sequence": 216,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 3012
+        },
+        {
+          "sequence": 217,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 2929
+        },
+        {
+          "sequence": 218,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 2396
+        },
+        {
+          "sequence": 219,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 6289
+        },
+        {
+          "sequence": 220,
+          "tool": "marketops_note",
+          "host_status": "completed",
+          "duration_ms": 39
+        },
+        {
+          "sequence": 221,
+          "tool": "marketops_evidence_audit",
+          "host_status": "completed",
+          "duration_ms": 790
+        },
+        {
+          "sequence": 222,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 33
+        },
+        {
+          "sequence": 223,
+          "tool": "marketops_next",
+          "host_status": "completed",
+          "duration_ms": 171
+        },
+        {
+          "sequence": 224,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 4408
+        },
+        {
+          "sequence": 225,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 9
+        },
+        {
+          "sequence": 226,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 9
+        },
+        {
+          "sequence": 227,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 11
+        },
+        {
+          "sequence": 228,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 32
+        },
+        {
+          "sequence": 229,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 29
+        },
+        {
+          "sequence": 230,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 10
+        },
+        {
+          "sequence": 231,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 37
+        },
+        {
+          "sequence": 232,
+          "tool": "marketops_next",
+          "host_status": "completed",
+          "duration_ms": 153
+        },
+        {
+          "sequence": 233,
+          "tool": "marketops_handoff",
+          "host_status": "completed",
+          "duration_ms": 1340,
+          "mode": "auto"
+        },
+        {
+          "sequence": 234,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 3698
+        },
+        {
+          "sequence": 235,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 8,
+          "preview": true,
+          "limit": 50
+        },
+        {
+          "sequence": 236,
+          "tool": "marketops_handoff",
+          "host_status": "completed",
+          "duration_ms": 1351,
+          "mode": "auto"
+        },
+        {
+          "sequence": 237,
+          "tool": "marketops_costs",
+          "host_status": "completed",
+          "duration_ms": 4945,
+          "action": "balances"
+        },
+        {
+          "sequence": 238,
+          "tool": "marketops_feedback_pack",
+          "host_status": "completed",
+          "duration_ms": 82
+        },
+        {
+          "sequence": 239,
+          "tool": "marketops_pool_import",
+          "host_status": "failed",
+          "duration_ms": 24,
+          "preview": false,
+          "limit": 50
+        },
+        {
+          "sequence": 240,
+          "tool": "marketops_note",
+          "host_status": "completed",
+          "duration_ms": 63
+        },
+        {
+          "sequence": 241,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 8,
+          "preview": true,
+          "limit": 50
+        },
+        {
+          "sequence": 242,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 55,
+          "preview": false,
+          "limit": 50
+        },
+        {
+          "sequence": 243,
+          "tool": "marketops_pool_import",
+          "host_status": "failed",
+          "duration_ms": 22,
+          "preview": false,
+          "limit": 50
+        },
+        {
+          "sequence": 244,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 29
+        },
+        {
+          "sequence": 245,
+          "tool": "marketops_propose_batch",
+          "host_status": "completed",
+          "duration_ms": 39
+        },
+        {
+          "sequence": 246,
+          "tool": "marketops_pool_status",
+          "host_status": "completed",
+          "duration_ms": 8
+        },
+        {
+          "sequence": 247,
+          "tool": "marketops_pool_claim",
+          "host_status": "completed",
+          "duration_ms": 67
+        },
+        {
+          "sequence": 248,
+          "tool": "marketops_harvest_batch",
+          "host_status": "completed",
+          "duration_ms": 14362,
+          "batch_count": 1,
+          "concurrency": 1,
+          "max_pages": 4
+        },
+        {
+          "sequence": 249,
+          "tool": "marketops_next",
+          "host_status": "completed",
+          "duration_ms": 295
+        },
+        {
+          "sequence": 250,
+          "tool": "marketops_handoff",
+          "host_status": "completed",
+          "duration_ms": 1353,
+          "mode": "auto"
+        },
+        {
+          "sequence": 251,
+          "tool": "marketops_feedback_pack",
+          "host_status": "completed",
+          "duration_ms": 79
+        },
+        {
+          "sequence": 252,
+          "tool": "marketops_handoff",
+          "host_status": "completed",
+          "duration_ms": 1358,
+          "mode": "auto"
+        },
+        {
+          "sequence": 253,
+          "tool": "marketops_feedback_pack",
+          "host_status": "completed",
+          "duration_ms": 82
+        },
+        {
+          "sequence": 254,
+          "tool": "marketops_costs",
+          "host_status": "completed",
+          "duration_ms": 8,
+          "action": "budget"
+        }
+      ]
+    },
+    {
+      "turn": "turn_2",
+      "status": "completed",
+      "start_utc": "2026-10-22T05:31:03.000Z",
+      "end_utc": "2026-10-22T05:41:00.000Z",
+      "duration_ms": 597395,
+      "calls": [
+        {
+          "sequence": 1,
+          "tool": "marketops_next",
+          "host_status": "completed",
+          "duration_ms": 252
+        },
+        {
+          "sequence": 2,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 4581
+        },
+        {
+          "sequence": 3,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 9
+        },
+        {
+          "sequence": 4,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 8
+        },
+        {
+          "sequence": 5,
+          "tool": "marketops_search",
+          "host_status": "completed",
+          "duration_ms": 2454
+        },
+        {
+          "sequence": 6,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 5707
+        },
+        {
+          "sequence": 7,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 12779
+        },
+        {
+          "sequence": 8,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 60,
+          "preview": true,
+          "limit": 50
+        },
+        {
+          "sequence": 9,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 14367
+        },
+        {
+          "sequence": 10,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 8,
+          "preview": true,
+          "limit": 100
+        },
+        {
+          "sequence": 11,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 7
+        },
+        {
+          "sequence": 12,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 4904
+        },
+        {
+          "sequence": 13,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 7,
+          "preview": true,
+          "limit": 100
+        },
+        {
+          "sequence": 14,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 10
+        },
+        {
+          "sequence": 15,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 9
+        },
+        {
+          "sequence": 16,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 4048
+        },
+        {
+          "sequence": 17,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 8,
+          "preview": true,
+          "limit": 100
+        },
+        {
+          "sequence": 18,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 8,
+          "preview": true,
+          "limit": 100
+        },
+        {
+          "sequence": 19,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 302,
+          "preview": false,
+          "limit": 100
+        },
+        {
+          "sequence": 20,
+          "tool": "marketops_harvest_batch",
+          "host_status": "completed",
+          "duration_ms": 45149,
+          "batch_count": 10,
+          "concurrency": 5,
+          "max_pages": 4
+        },
+        {
+          "sequence": 21,
+          "tool": "marketops_pool_status",
+          "host_status": "completed",
+          "duration_ms": 15
+        },
+        {
+          "sequence": 22,
+          "tool": "marketops_next",
+          "host_status": "completed",
+          "duration_ms": 342
+        },
+        {
+          "sequence": 23,
+          "tool": "marketops_pool_status",
+          "host_status": "completed",
+          "duration_ms": 11
+        },
+        {
+          "sequence": 24,
+          "tool": "marketops_harvest_batch",
+          "host_status": "completed",
+          "duration_ms": 45209,
+          "batch_count": 20,
+          "concurrency": 5,
+          "max_pages": 4
+        },
+        {
+          "sequence": 25,
+          "tool": "marketops_pool_status",
+          "host_status": "completed",
+          "duration_ms": 9
+        },
+        {
+          "sequence": 26,
+          "tool": "marketops_harvest_batch",
+          "host_status": "completed",
+          "duration_ms": 45446,
+          "batch_count": 10,
+          "concurrency": 5,
+          "max_pages": 4
+        },
+        {
+          "sequence": 27,
+          "tool": "marketops_pool_status",
+          "host_status": "completed",
+          "duration_ms": 10
+        },
+        {
+          "sequence": 28,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 45,
+          "preview": false,
+          "limit": 100
+        },
+        {
+          "sequence": 29,
+          "tool": "marketops_research_step",
+          "host_status": "completed",
+          "duration_ms": 4547
+        },
+        {
+          "sequence": 30,
+          "tool": "marketops_pool_import",
+          "host_status": "completed",
+          "duration_ms": 10,
+          "preview": true,
+          "limit": 100
+        },
+        {
+          "sequence": 31,
+          "tool": "marketops_pool_import",
+          "host_status": "failed",
+          "duration_ms": 26,
+          "preview": true,
+          "limit": 100
+        },
+        {
+          "sequence": 32,
+          "tool": "marketops_material_excerpt",
+          "host_status": "completed",
+          "duration_ms": 8
+        },
+        {
+          "sequence": 33,
+          "tool": "marketops_harvest_batch",
+          "host_status": "completed",
+          "duration_ms": 32738,
+          "batch_count": 4,
+          "concurrency": 4,
+          "max_pages": 4
+        },
+        {
+          "sequence": 34,
+          "tool": "marketops_note",
+          "host_status": "completed",
+          "duration_ms": 55
+        },
+        {
+          "sequence": 35,
+          "tool": "marketops_handoff",
+          "host_status": "completed",
+          "duration_ms": 2648,
+          "mode": "auto"
+        },
+        {
+          "sequence": 36,
+          "tool": "marketops_feedback_pack",
+          "host_status": "completed",
+          "duration_ms": 86
+        },
+        {
+          "sequence": 37,
+          "tool": "marketops_costs",
+          "host_status": "completed",
+          "duration_ms": 4505,
+          "action": "balances"
+        }
+      ]
+    }
+  ]
+}
