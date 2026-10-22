@@ -52,9 +52,27 @@ def assess(root, run_id, *, goal, budget=None):
         state, action, final = "FINAL_KNOWN_TARGETS_RESEARCHED", "REPORT_CANDIDATES_AND_COVERAGE_LIMITS", True
     else:
         state, action, final = "CHECKPOINT_CONTINUE_RESEARCH", "FOLLOW_MARKETOPS_NEXT_OR_CHANGE_SOURCE_METHOD", False
-    return {"state": state, "is_final": final, "continuation_required": not final,
+    import research_methods
+    methods = research_methods.status(base, run_id)
+    ladder = methods["contacts"]
+    if state == "CHECKPOINT_CONTINUE_RESEARCH" and not pending and ladder["all_exhausted"]:
+        # Every method on the ladder was tried and said exhausted: a real stop.
+        state, action, final = "FINAL_METHODS_EXHAUSTED", "REPORT_PARTIAL_GOAL_AND_METHODS_TRIED", True
+    out = {"state": state, "is_final": final, "continuation_required": not final,
             "next_action": action, "remaining_requests": remaining,
             "pending_pool_targets": pending, "running_batch_jobs": running,
             "saved_results_to_finalize": saved, "sources_reconciled": reconciled,
             "goal_satisfied": reached, "coverage_scope": "known_targets_not_an_exhaustive_market_claim",
-            "pools": [{"pool_id": p["pool_id"], "queue": p["by_status"], "queue_complete": p["queue_complete"]} for p in pools]}
+            "pools": [{"pool_id": p["pool_id"], "queue": p["by_status"], "queue_complete": p["queue_complete"]} for p in pools],
+            "methods": methods,
+            "next_method": None if final else ladder["next_method"],
+            "next_method_how": "" if final else ladder["next_method_how"]}
+    if not final:
+        out["turn_rule"] = (
+            "Research is not finished. Do not end your turn or write a final answer: do "
+            "next_action now. A method that finds little is recorded with marketops_method("
+            "outcome='exhausted') and the next method is used on the remaining targets; "
+            "stopping one method never ends the research. Stop only when the budget is "
+            "spent, the goal is met, every method is exhausted, or a decision only the user "
+            "can make is needed (then ask that one question).")
+    return out

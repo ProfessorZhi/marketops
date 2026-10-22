@@ -72,6 +72,12 @@ def compact_next(result: dict) -> dict:
         }
     if "candidate_write_contract" in result:
         view["write_help"] = "marketops-accounts skill: claims, joins and examples"
+    execution = result.get("execution")
+    if isinstance(execution, dict) and isinstance(execution.get("methods"), dict):
+        view["execution"] = {**execution, "methods": {
+            ladder: {"next_method": info.get("next_method"),
+                     "tried": {t["method"]: t["outcome"] for t in info.get("tried", [])}}
+            for ladder, info in execution["methods"].items()}}
     return view
 
 
@@ -1465,7 +1471,7 @@ PUBLIC_TOOLS = frozenset({
     "marketops_pool_status", "marketops_harvest_batch", "marketops_lessons_report",
     "marketops_jev_triage", "marketops_suppression", "marketops_feedback_pack",
     "marketops_pool_reopen", "marketops_costs", "marketops_update_check",
-    "marketops_crawl4ai_check",
+    "marketops_crawl4ai_check", "marketops_method",
 })
 
 
@@ -1498,6 +1504,13 @@ def build_server():
     # Direct by default; only an explicitly configured proxy changes that.
     research_config.load_upstream_proxy_into_environment()
     _use_installed_browser()
+    try:
+        # A launch mode chosen on this computer (installer, check or repair) applies
+        # to every crawl, Crawl4AI included.
+        import research_browser_launch
+        research_browser_launch.install_launch_default()
+    except Exception:  # noqa: BLE001 - the default launch still runs
+        pass
     _ensure_repair_entrypoints()
     from mcp.server import MCPServer
     mcp = MCPServer("MarketOps Lite Research", version="0.5.10-rc4")
@@ -1874,6 +1887,22 @@ def build_server():
         return update_check(include_prerelease)
 
     @tool
+    def marketops_method(run_id: str, method: str = "", outcome: str = "", note: str = "") -> dict:
+        """Which research methods this Run has tried, and the next one to use.
+
+        Without method: the status of both ladders (contacts, inventory). With
+        method and outcome (started, productive, exhausted, not_applicable): record
+        it. When a method finds little, record it exhausted and go straight on with
+        next_method on the remaining targets; stopping a method never ends the
+        research. note: one line on why (counts, not URLs or emails).
+        """
+        import research_methods
+        store.list_run(root(), run_id, limit=1)
+        if not method:
+            return research_methods.status(root(), run_id)
+        return research_methods.record(root(), run_id, method, outcome, note)
+
+    @tool
     def marketops_crawl4ai_check(run_id: str = "", repair: bool = False) -> dict:
         """Is Crawl4AI, the free local page reader, really working on this computer?
 
@@ -2034,6 +2063,14 @@ def build_server():
         the same Run. The reply carries this Run's estimated spend per provider.
         """
         result = handoff(run_id, operation_id, mode)
+        execution = result.get("execution") or {}
+        if result.get("continuation_required") and execution.get("turn_rule"):
+            # The Paris continuation ended right after a checkpoint handoff with
+            # 70 targets pending: the file is saved, the research goes on.
+            result["do_not_stop"] = {"turn_rule": execution["turn_rule"],
+                                     "next_action": execution.get("next_action"),
+                                     "next_method": execution.get("next_method"),
+                                     "next_method_how": execution.get("next_method_how")}
         try:
             import research_costs
             spend = research_costs.report(root(), run_id=run_id)

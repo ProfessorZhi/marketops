@@ -21,6 +21,7 @@ import re
 import shutil
 import subprocess
 import sys
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -51,8 +52,15 @@ def installed_version(root: Path) -> str:
 def _get(url: str, timeout: int = 60) -> bytes:
     request = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json",
                                                    "User-Agent": "marketops-updater"})
-    with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 - https only
-        return response.read()
+    # The machine's proxy first (some offices need it), then direct: a stale
+    # proxy left by a VPN or IDE must not make updating impossible.
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 - https only
+            return response.read()
+    except (urllib.error.URLError, OSError):
+        direct = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with direct.open(request, timeout=timeout) as response:
+            return response.read()
 
 
 def latest_release(repo: str, prerelease: bool, get=None) -> dict | None:

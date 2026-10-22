@@ -39,6 +39,10 @@ code. Two failed tries on one target means HOLD and the next target.
 - Every claim: `claims:[{field, artifact_id, quote}]`, quote 12–600 characters copied from that
   saved page, the artifact also listed in `artifact_ids`. Organisation and venue need
   `field:'identity'`; relationships need `field:'relationship'`; exclusions `field:'exclusion'`.
+- No contact on the venue's own site is not the end of a target. The operator (municipality
+  sports department, school, club, management company) usually lists the staff. Import the
+  operator, bind the venue with an `operates` relationship quoting the page that says so, and
+  research the operator (method `OPERATOR` in `marketops_method`).
 - A contact binds to its organisation when the quote names the organisation, or it comes from the
   organisation's own site (where it has an identity quote and no other organisation does), or a
   relationship record names both. Directory pages never bind a contact.

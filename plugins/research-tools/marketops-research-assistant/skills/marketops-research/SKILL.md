@@ -74,6 +74,25 @@ deliver an evidence-backed workbook. Effect first, cost second.
 A pool of 300 names with no contacts does not meet a contacts goal. The Paris run did
 exactly that: 0 venues and 0 people delivered.
 
+**When a method finds little, switch methods; never stop.** Contacts are found by a ladder of
+methods, and `marketops_method(run_id)` says which one is next:
+1. Own site.
+2. Operator: the municipality, school, club or company that runs the venue.
+3. Role searches.
+4. Official directories.
+5. Documents such as minutes, tenders and organisation charts.
+6. TinyFish agent, only if allowed.
+
+After a method has been tried on about 20–30 targets with little result:
+1. Record it: `marketops_method(run_id, method, outcome='exhausted', note='<counts>')`.
+2. Apply `next_method` to the remaining targets right away, in the same turn.
+
+The Paris continuation stopped with 70 targets pending and $1.93 left because the own-site
+method found nothing. That was the wrong move: "no email on the venue's site" does not mean the
+contact does not exist. Public venues are usually run by an operator whose staff are listed
+elsewhere. Keep the inventory going (paging the official list) while contacts are researched;
+one does not stop the other.
+
 An operator shortlist is also not a venue inventory. For a region-wide venue task,
 build the facility list from the scoped official sources, retain venue addresses,
 and map venues to operators; a chain with many sites is not one venue. Researching
@@ -95,7 +114,19 @@ WorkBuddy) run the same account procedure from `marketops-accounts` one organisa
 
 ## 3. When to stop and ask
 
-Only: the budget cap is about to be reached; a paid tier (TinyFish Agent) is needed but not
+**Do not end your turn while `execution.continuation_required=true`.** A saved workbook or a
+checkpoint handoff is not the end. If a reply carries `do_not_stop` or `execution.turn_rule`,
+carry out its `next_action` and `next_method` straight away, without an interim summary.
+
+The research ends only when one of these holds:
+- the budget is spent;
+- the goal is met;
+- `execution.state` is `FINAL_METHODS_EXHAUSTED` (every method recorded as exhausted);
+- one of the reasons below for asking the user.
+
+When it does end, say which of these it was.
+
+Ask the user only when: the budget cap is about to be reached; a paid tier (TinyFish Agent) is needed but not
 authorised; the same rule conflict keeps recurring (many `RULES_UNKNOWN`); a credential or
 configuration is missing; Crawl4AI stopped working (`crawl4ai_down`) and the user has not yet
 agreed to TinyFish-only reading. Everything else: pick another authorised source or record HOLD with the

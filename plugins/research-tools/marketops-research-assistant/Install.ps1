@@ -58,24 +58,58 @@ function Find-MarketOpsPython {
     return $null
 }
 
+# Download one file: the machine's proxy first, then direct. A stale proxy left
+# by a VPN or IDE (HTTP 502) must not block an install that can reach the site.
+function Get-MarketOpsDownload([string]$Url, [string]$OutFile) {
+    foreach ($direct in @($false, $true)) {
+        try {
+            $client = New-Object System.Net.WebClient
+            if ($direct) { $client.Proxy = $null }
+            $client.DownloadFile($Url, $OutFile)
+            return $true
+        } catch { }
+    }
+    return $false
+}
+
+# python.org's signed installer, per user, without touching PATH or the system.
+function Install-MarketOpsPythonFromPythonOrg {
+    $url = 'https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe'
+    $installer = Join-Path $env:TEMP 'marketops-python-3.12.10-amd64.exe'
+    if (-not (Get-MarketOpsDownload $url $installer)) { return $false }
+    $signature = Get-AuthenticodeSignature -FilePath $installer
+    if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch 'Python Software Foundation') {
+        Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
+        return $false
+    }
+    $process = Start-Process -FilePath $installer -Wait -PassThru -ArgumentList @(
+        '/quiet', 'InstallAllUsers=0', 'PrependPath=0', 'Include_launcher=0', 'Include_test=0', 'Shortcuts=0')
+    Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
+    return ($process.ExitCode -eq 0)
+}
+
 Write-Host 'MarketOps: prepare Python 3.12, provider SDKs and Chromium. No provider credits are purchased.'
 $pythonExe = Find-MarketOpsPython
 if (-not $pythonExe) {
-    if (-not (Get-Command winget.exe -ErrorAction SilentlyContinue)) {
-        Stop-MarketOpsInstall 'PYTHON_312_64BIT_REQUIRED' 'Install 64-bit Python 3.12 from https://www.python.org/downloads/windows/ then run Install.cmd again.'
-    }
     $consent = [bool]$InstallPython
     if (-not $consent -and $script:Interactive) {
-        $answer = Read-Host 'Python 3.12 x64 was not found. Install it now with Windows Package Manager (winget)? [y/N]'
+        $answer = Read-Host 'Python 3.12 x64 was not found. Install it now for this Windows user (winget, or the signed installer from python.org)? [y/N]'
         if ($answer -match '^(?i:y|yes)$') { $consent = $true }
     }
     if (-not $consent) {
         Stop-MarketOpsInstall 'PYTHON_312_64BIT_REQUIRED' 'Install 64-bit Python 3.12 from https://www.python.org/downloads/windows/ (or rerun Install.cmd with -InstallPython), then run Install.cmd again.'
     }
-    if ($consent) {
+    $installed = $false
+    if (Get-Command winget.exe -ErrorAction SilentlyContinue) {
+        $ErrorActionPreference = 'Continue'
         & winget.exe install --exact --id Python.Python.3.12 --source winget --scope user --silent --accept-source-agreements --accept-package-agreements 2>&1 | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            Stop-MarketOpsInstall 'INSTALL_STEP_FAILED' 'Python installation did not complete. Install Python 3.12 x64 from python.org, then run Install.cmd again.'
+        $installed = ($LASTEXITCODE -eq 0)
+        $ErrorActionPreference = 'Stop'
+    }
+    if (-not $installed -or -not (Find-MarketOpsPython)) {
+        Write-Host 'winget is unavailable or failed; downloading the signed Python 3.12 installer from python.org.'
+        if (-not (Install-MarketOpsPythonFromPythonOrg)) {
+            Stop-MarketOpsInstall 'PYTHON_312_64BIT_REQUIRED' 'Python could not be installed automatically. Install 64-bit Python 3.12 from https://www.python.org/downloads/windows/, then run Install.cmd again.'
         }
     }
     $pythonExe = Find-MarketOpsPython
@@ -123,15 +157,23 @@ if ($register) {
     Write-Host "NOTICE: global Codex registration skipped. To add it later, run: codex plugin marketplace add `"$Destination`""
 }
 
-$installOutput = & $pythonExe @installArgs 2>&1
+# Windows PowerShell turns a native program's stderr into errors; with 'Stop'
+# the first warning from pip would end the install. Collect it instead.
+Write-Host 'Installing packages and the browser; this takes several minutes.'
+$ErrorActionPreference = 'Continue'
+$installOutput = & $pythonExe @installArgs 2>&1 | ForEach-Object { [string]$_ }
 $installExit = $LASTEXITCODE
+$ErrorActionPreference = 'Stop'
+$logFile = Join-Path $env:TEMP ('MarketOps-install-{0}.log' -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
+$installOutput | Set-Content -LiteralPath $logFile -Encoding UTF8
 if ($installExit -ne 0) {
-    $blocked = @($installOutput | ForEach-Object { [string]$_ } | Where-Object { $_ -match '^INSTALL_BLOCKED: [A-Z][A-Z0-9_]{2,80}: ' })
+    $blocked = @($installOutput | Where-Object { $_ -match '^INSTALL_BLOCKED: [A-Z][A-Z0-9_]{2,80}: ' })
     if ($blocked.Count -gt 0) {
         [Console]::Error.WriteLine($blocked[-1])
     } else {
         [Console]::Error.WriteLine('INSTALL_BLOCKED: INSTALL_STEP_FAILED: Re-run Install.cmd: it resumes the same destination. If it stops again, open INSTALL_STATE.json beside the destination.')
     }
+    [Console]::Error.WriteLine("Full installer output: $logFile")
     exit 2
 }
 $installOutput | ForEach-Object { Write-Output $_ }
