@@ -1050,10 +1050,14 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
         claim = next((c for c in fact.get("claims") or () if isinstance(c, dict)), {})
         asset = assets.get(str(claim.get("artifact_id", ""))) or {}
         org_key = _field_text(fact, "organization_id")
+        listed = "LISTED_ON_ANOTHER_ORGANISATIONS_PAGE" in verdict["reasons"]
         pack_rows.append((
-            verdict["grade"], org_key or "UNKNOWN", org_names.get(org_key, "UNKNOWN"),
+            verdict["grade"], "UNKNOWN" if listed else (org_key or "UNKNOWN"),
+            ("UNKNOWN (listed by " + org_names.get(org_key, "UNKNOWN") + ")") if listed
+            else org_names.get(org_key, "UNKNOWN"),
             _plain(verdict.get("person_name") or fact.get("person_name") or ""),
-            _plain(fact.get("role_title") or fact.get("role_function") or fact.get("department") or ""),
+            _plain(fact.get("role_title") or fact.get("role_function") or fact.get("department")
+                   or verdict.get("role_title") or ""),
             verdict.get("role_class") or "", str(fact.get("value", "")).strip(),
             "; ".join(verdict["reasons"]), asset.get("url", ""), _plain(claim.get("quote", ""))[:600],
             asset.get("sha256", ""), candidate["record_id"]))

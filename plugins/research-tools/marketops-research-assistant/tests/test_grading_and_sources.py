@@ -163,6 +163,19 @@ class Grades(unittest.TestCase):
         self.assertEqual("C", g["c6"]["grade"])           # the club's inbox, role far away
         self.assertEqual("B", g["c7"]["grade"])           # a role mailbox
 
+    def test_a_directory_page_does_not_credit_the_site_owner(self):
+        town = rec("organization", "org-1", {"name": "Ville X", "website": "https://www.ville-x.fr"})
+        listed = [contact(f"c{i}", f"president{i}@club{i}.fr",
+                          f"Club {i} : présidente president{i}@club{i}.fr", artifact="art-annuaire")
+                  for i in range(3)]
+        own = contact("c9", "j.martin@ville-x.fr", "Jean Martin, directeur des sports j.martin@ville-x.fr",
+                      artifact="art-annuaire")
+        g = self.grade([town, *listed, own])
+        self.assertIn("LISTED_ON_ANOTHER_ORGANISATIONS_PAGE", g["c0"]["reasons"])
+        self.assertEqual("", g["c0"]["organization_id"])
+        self.assertNotIn("LISTED_ON_ANOTHER_ORGANISATIONS_PAGE", g["c9"]["reasons"])
+        self.assertEqual("org-1", g["c9"]["organization_id"])
+
     def test_role_from_another_page_is_only_c(self):
         g = self.grade([
             person("p1", "Marie Durand", "Directrice des sports",

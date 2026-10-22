@@ -43,6 +43,27 @@ def _name_tokens(name: str) -> list[str]:
     return [t for t in scene.fold(name).split() if len(t) >= 3]
 
 
+#: Addresses at this many other domains on one page make it a directory of others.
+DIRECTORY_DOMAINS = 3
+
+_FREE_MAIL = frozenset({"gmail.com", "orange.fr", "free.fr", "wanadoo.fr", "sfr.fr", "yahoo.fr",
+                        "yahoo.com", "hotmail.com", "hotmail.fr", "outlook.com", "outlook.fr",
+                        "laposte.net", "neuf.fr", "live.fr", "icloud.com", "aol.com", "bbox.fr",
+                        "numericable.fr", "btinternet.com", "gmx.de", "web.de", "t-online.de"})
+
+
+def _registrable(host: str) -> str:
+    """example.fr for www.sport.example.fr; a free-mail domain stays itself."""
+    from urllib.parse import urlsplit
+    host = (urlsplit(host).hostname if "://" in host else host).casefold().strip(".") if host else ""
+    if host in _FREE_MAIL:
+        return host
+    parts = host.split(".")
+    if len(parts) >= 3 and parts[-2] in {"co", "com", "org", "gov", "ac", "net"}:
+        return ".".join(parts[-3:])
+    return ".".join(parts[-2:])
+
+
 def _personal_address(email: str, name: str) -> bool:
     """Whether the address is this person's own (prenom.nom@, pnom@, nom@), not a team's.
 
@@ -137,6 +158,20 @@ def grade_routes(records: list[dict], brief: dict | None) -> tuple[dict, dict]:
         if person_id or name:
             names_by_email[value].add(person_id or scene.fold(name))
 
+    # A page that prints addresses at many other domains (a town's list of clubs, a
+    # federation directory) lists other organisations' people: they are real
+    # contacts, but not the site owner's.
+    org_sites = {r["entity_key"]: _registrable(_text(r.get("data") or {}, "website"))
+                 for r in by_kind["organization"]}
+    foreign_by_page = defaultdict(set)
+    for contact in contacts:
+        data = contact.get("data") or {}
+        domain = _registrable(str(data.get("value", "")).rsplit("@", 1)[-1])
+        own = org_sites.get(_text(data, "organization_id"), "")
+        if own and domain != own:
+            for artifact in contact.get("artifact_ids") or ():
+                foreign_by_page[artifact].add(domain)
+
     out = {}
     for contact in contacts:
         data = contact.get("data") or {}
@@ -154,7 +189,13 @@ def grade_routes(records: list[dict], brief: dict | None) -> tuple[dict, dict]:
         key = person_id or (f"{org}:{scene.fold(name)}" if name else value.casefold())
         result = {"grade": "", "reasons": ["NAME_FROM_EMAIL_QUOTE"] if named_from_quote else [],
                   "person_key": key, "organization_id": org, "role_class": "",
-                  "person_name": name}
+                  "person_name": name, "role_title": title}
+        own = org_sites.get(org, "")
+        domain = _registrable(value.rsplit("@", 1)[-1])
+        if own and domain != own and any(len(foreign_by_page[a]) >= DIRECTORY_DOMAINS
+                                         for a in contact.get("artifact_ids") or ()):
+            result["reasons"].append("LISTED_ON_ANOTHER_ORGANISATIONS_PAGE")
+            result["organization_id"] = ""
         out[contact["record_id"]] = result
         if not rules["roles"]:
             result["grade"], result["reasons"] = "RULES_UNKNOWN", ["NO_SCENE_RULES"]
@@ -184,6 +225,7 @@ def grade_routes(records: list[dict], brief: dict | None) -> tuple[dict, dict]:
                 if cls:
                     result["reasons"].append("ROLE_FROM_MAILBOX_NAME")
         result["role_class"] = cls
+        result["role_title"] = result["role_title"] or title_words
         if cls == "excluded":
             result["grade"], result["reasons"] = "X", ["ROLE_EXCLUDED"]
             continue
