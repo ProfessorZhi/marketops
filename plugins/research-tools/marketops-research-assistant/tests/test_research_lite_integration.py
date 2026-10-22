@@ -195,7 +195,8 @@ class LiteTests(unittest.TestCase):
             mcp.propose("run-001", "venue-001", "entities", "venue",
                         "asset-001", {"name": "Synthetic Ground"}, ["artifact-handoff"])
             result = mcp.handoff("run-001", "handoff-001")
-            self.assertEqual("CANDIDATE_HANDOFF_NOT_BUSINESS_VERIFIED", result["status"])
+            self.assertEqual("CHECKPOINT_RESEARCH_NOT_FINISHED", result["status"])
+            self.assertFalse(result["is_final"])
             self.assertTrue(Path(result["workbook_xlsx"]).is_file())
             # the legacy field now names this workbook's audit CSV, not a second CSV
             self.assertEqual("候选数据审计.csv", Path(result["candidate_csv"]).name)

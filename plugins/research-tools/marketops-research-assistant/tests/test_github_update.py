@@ -204,7 +204,7 @@ class Layout(unittest.TestCase):
     def test_update_entrypoints_are_written(self):
         with tempfile.TemporaryDirectory() as tmp:
             files = layout.write_update_entrypoints(Path(tmp), client="all", register_codex=True)
-            self.assertEqual(3, len(files))
+            self.assertEqual(5, len(files))
             settings = json.loads((Path(tmp) / "update-settings.json").read_text())
             self.assertEqual("ProfessorZhi/marketops", settings["repository"])
 

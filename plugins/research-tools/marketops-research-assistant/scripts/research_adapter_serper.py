@@ -420,7 +420,7 @@ class SerperAdapter:
         self._guard = guard if guard is not None else search_canonical.DispatchGuard()
         # Built even when a transport is injected: an unredirected opener is the
         # only client this adapter may use, and the test asserts it is installed.
-        self._opener = urllib.request.build_opener(NoRedirect())
+        self._opener = urllib.request.build_opener(NoRedirect(), urllib.request.ProxyHandler({}))
 
     # -- §6 Protocol -------------------------------------------------------
     def capabilities(self) -> tuple[str, ...]:

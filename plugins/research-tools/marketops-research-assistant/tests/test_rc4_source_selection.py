@@ -21,7 +21,8 @@ import research_workflow as workflow  # noqa: E402
 
 BRIEF = {"target_kind": "venue", "goal": "pool", "require_named_person": False}
 ORG_BRIEF = {"target_kind": "organization", "goal": "contacts",
-             "require_named_person": False}
+             "require_named_person": False,
+             "evidence_requirements": {"organization": ["identity", "hourly_rate", "phone"]}}
 
 
 def row(record_id, kind, entity_key, data, artifacts=()):

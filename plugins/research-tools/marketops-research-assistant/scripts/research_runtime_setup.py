@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """Local product admission: tested build, finite consent and observed MCP schemas.
 
-REQUEST_COUNT bounds operations; it does not invent dollar prices, account
+Legacy REQUEST_COUNT bounds operations; it does not invent dollar prices, account
 balances or a wallet floor. A USD ceiling is optional and explicit: it carries
 an amount the operator stated, and the ledger refuses any call whose dollar cost
 cannot be proved from a reviewed rate. Without one the mode is request-count,
 and status says so rather than claiming dollar protection. This file is
 deliberately not an MCP consent tool. Legacy campaign evidence remains supported
 by research_s0_preflight_gate.
+
+Owner-approved MONEY mode instead uses balance-derived monetary/credit
+envelopes. Free reads remain metered without a cumulative request ceiling.
 """
 from __future__ import annotations
 
@@ -99,10 +102,14 @@ def _usd_limit(name, value):
 def cap_plan(settings):
     """The effective call and dollar ceilings of one consent record.
 
-    Call ceilings are always finite: ``run_max_calls <= project_max_calls <=
+    Legacy call ceilings are finite: ``run_max_calls <= project_max_calls <=
     max_calls``. The independent keys are optional, so a record written before
     they existed keeps its old meaning (both equal ``max_calls``) instead of
     inheriting a limit nobody stated.
+
+    In MONEY mode the effective call ceilings are None, while the historical
+    stored values remain intact. The monetary envelopes replace their spending
+    authority; request counts remain audit metrics.
 
     Dollar ceilings are optional and ``None`` means **not configured**, which is
     the non-dollar mode. They are not defaulted from the call ceiling: a request
@@ -125,13 +132,13 @@ def cap_plan(settings):
         raise ValueError("CAPS_INCOHERENT: a run USD cap cannot exceed the project cap")
     return {
         "max_calls": max_calls,
-        "project_max_calls": project_calls,
-        "run_max_calls": run_calls,
+        "project_max_calls": None if settings.get("spending", {}).get("mode") == "MONEY" else project_calls,
+        "run_max_calls": None if settings.get("spending", {}).get("mode") == "MONEY" else run_calls,
         "project_max_usd_micros": project_usd,
         "run_max_usd_micros": run_usd,
         # Derived from the amounts actually present, never trusted from the file:
         # an old record that says "USD mode" but carries no amount is a count mode.
-        "budget_mode": ("REQUEST_COUNT_AND_USD_CAP"
+        "budget_mode": ("MONEY" if settings.get("spending", {}).get("mode") == "MONEY" else "REQUEST_COUNT_AND_USD_CAP"
                         if project_usd is not None or run_usd is not None
                         else "REQUEST_COUNT"),
     }
@@ -171,6 +178,9 @@ def state_ledger_caps(root, run_id, *, project=None, ledger=None):
 
     def state(kind, key, calls, usd_micros):
         money, usd_enforced, seconds = _existing_cap(ledger, kind, key)
+        if plan["budget_mode"] == "MONEY":
+            envelope = settings["spending"]
+            money, usd_enforced = envelope["ledger_money_baseline"] + envelope["total_budget_micros"], True
         if usd_micros is not None:
             money, usd_enforced = usd_micros, True
         ledger.set_cap(kind, key, ceiling_calls=calls, ceiling_micros=money,
@@ -284,6 +294,9 @@ def configure(root, *, providers, domains, max_calls, task, confirm=False, amend
                 "network_enabled": True, "paid_agent_enabled": False,
                 "public_web_fetch": (old.get("public_web_fetch") is True
                                      if public_web_fetch is None else public_web_fetch is True)}
+    if old.get("spending", {}).get("mode") == "MONEY":
+        proposed["spending"] = old["spending"]
+        proposed["budget_mode"] = "MONEY"
     # Persist the independent call bounds only when the user stated them (or a
     # previous consent did). A record that never had them keeps following
     # max_calls, which is the old and still coherent meaning of the total cap.
@@ -623,7 +636,7 @@ def admission(root, capability_id):
     if not _credential_present(entry.provider) and not research_accounts.has_local_key(root, entry.provider):
         return denied("CAPABILITY_NOT_AVAILABLE", "PROVIDER_CREDENTIAL_MISSING")
     account = _read(_path(root, entry.provider + "-account.json"))
-    if account and not account_observation_fresh(account):
+    if account and plan["budget_mode"] != "MONEY" and not account_observation_fresh(account):
         return denied("WALLET_PRECONDITION_FAILED", "ACCOUNT_OBSERVATION_STALE: confirm a new observation with observe-account --refresh")
     if entry.provider in ENDPOINTS:
         from research_s0_preflight_gate import validate_snapshot_entry, _parse_iso
@@ -639,12 +652,12 @@ def admission(root, capability_id):
             return denied("CAPABILITY_SCHEMA_DRIFT", "run local bootstrap; schema absent, stale or incompatible")
     if entry.provider == "crawl4ai" and importlib.util.find_spec("crawl4ai") is None:
         return denied("CRAWL4AI_LOCAL_NOT_INSTALLED", "install local crawl runtime")
-    usd_configured = (plan["project_max_usd_micros"] is not None
+    usd_configured = (plan["budget_mode"] == "MONEY" or plan["project_max_usd_micros"] is not None
                       or plan["run_max_usd_micros"] is not None)
     enforced = bool(usd_configured
-                    and _pricing_status()["source"] == "OPERATOR_CATALOG")
+                    and _pricing_status(root)["source"] in {"OPERATOR_CATALOG", "MONEY_ENVELOPE_CATALOG"})
     return {"allowed": True, "reason_code": "",
-            "detail": "REQUEST_COUNT_AND_USD_CAP" if enforced else "REQUEST_COUNT_ONLY",
+            "detail": "BALANCE_RESERVED_MONEY_BUDGET" if plan["budget_mode"] == "MONEY" else "REQUEST_COUNT_AND_USD_CAP" if enforced else "REQUEST_COUNT_ONLY",
             "provider": entry.provider, "balance": None,
             "budget_mode": plan["budget_mode"],
             "project_max_calls": plan["project_max_calls"],
@@ -657,13 +670,16 @@ def admission(root, capability_id):
                                          if usd_configured else "NOT_CONFIGURED")}
 
 
-def _pricing_status():
+def _pricing_status(root=None):
     """What the ledger would price this data root with, without opening it."""
     try:
         import research_usage_ledger as usage
         configured = usage.configured_pricing()
         if len(configured):
             return {"source": "OPERATOR_CATALOG", "entries": len(configured)}
+        import research_spending
+        if research_spending.policy(_root(root)):
+            return {"source": "MONEY_ENVELOPE_CATALOG", "entries": len(research_spending.pricing_entries())}
         return {"source": "DOCUMENTED_CREDIT_BASELINE", "entries": 0}
     except Exception:
         # A catalog that exists but cannot be read is not a catalog. Saying so
@@ -674,7 +690,7 @@ def _pricing_status():
 def status(root=None):
     settings = config(root)
     observations = {p: _read(_path(root, p + "-account.json")) for p in PROVIDERS}
-    pricing = _pricing_status()
+    pricing = _pricing_status(root)
     caps_error = ""
     try:
         plan = cap_plan(settings) if settings else None
@@ -683,10 +699,10 @@ def status(root=None):
         caps_error = str(exc).split(":", 1)[0]
     usd_caps = {"project_max_usd_micros": (plan or {}).get("project_max_usd_micros"),
                 "run_max_usd_micros": (plan or {}).get("run_max_usd_micros")}
-    usd_configured = (usd_caps["project_max_usd_micros"] is not None
+    usd_configured = ((plan or {}).get("budget_mode") == "MONEY" or usd_caps["project_max_usd_micros"] is not None
                       or usd_caps["run_max_usd_micros"] is not None)
     dollar_limit_enforced = bool(usd_configured
-                                 and pricing["source"] == "OPERATOR_CATALOG")
+                                 and pricing["source"] in {"OPERATOR_CATALOG", "MONEY_ENVELOPE_CATALOG"})
     if dollar_limit_enforced:
         enforcement = "ENFORCED"
     elif usd_configured:
@@ -695,7 +711,7 @@ def status(root=None):
         enforcement = "NOT_CONFIGURED"
     return {"schema": "marketops.runtime-status.v1", "configured": bool(settings),
             "budget_mode": (plan or {}).get("budget_mode", settings.get("budget_mode")),
-            "max_calls": settings.get("max_calls"),
+            "max_calls": None if (plan or {}).get("budget_mode") == "MONEY" else settings.get("max_calls"),
             "project_max_calls": (plan or {}).get("project_max_calls",
                                                   settings.get("max_calls")),
             "run_max_calls": (plan or {}).get("run_max_calls",
@@ -708,10 +724,10 @@ def status(root=None):
             "dollar_limit_enforced": dollar_limit_enforced,
             "dollar_limit_enforcement": enforcement,
             "provider_limits": settings.get("provider_limits", {}),
-            "wallet_floor_enforced": bool(any(observations.values())),
+            "wallet_floor_enforced": bool(any(observations.values())) or (plan or {}).get("budget_mode") == "MONEY",
             "qa": verify_build_receipt(), "providers": {
                 p: {"selected": p in settings.get("providers", ()),
-                    "max_calls": settings.get("provider_limits", {}).get(p, settings.get("max_calls"))
+                    "max_calls": None if (plan or {}).get("budget_mode") == "MONEY" else settings.get("provider_limits", {}).get(p, settings.get("max_calls"))
                         if p in settings.get("providers", ()) else None,
                     "credential_present": _credential_present(p), "balance": None,
                     "balance_status": "BASELINE_OBSERVED_CURRENT_UNKNOWN" if observations[p] else "UNKNOWN",
@@ -812,6 +828,10 @@ unknown USD conversion or mismatched meters.
 
 
 def ledger_for(root, provider, *, account_ref=None):
+    import research_spending
+    if research_spending.policy(root):
+        import research_usage_ledger as usage
+        return usage.for_root(root)
     import research_usage_ledger as usage
     if account_ref and account_ref != provider:
         # Named wallets are advisory balances; they never inherit another
@@ -853,7 +873,7 @@ def _usd_text_to_micros(text):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("configure", "status", "bootstrap", "verify-build", "observe-account"))
+    parser.add_argument("command", choices=("configure", "configure-money", "status", "bootstrap", "verify-build", "observe-account"))
     parser.add_argument("--data-root")
     parser.add_argument("--provider", action="append", choices=(*PROVIDERS, "jev"))
     parser.add_argument("--domains", default="")
@@ -868,6 +888,11 @@ def main(argv=None):
                         help="optional cumulative project USD ceiling (decimal); requires a reviewed pricing catalog")
     parser.add_argument("--provider-limit", action="append", metavar="PROVIDER=N",
                         help="cumulative supplier limit (repeatable); omitted providers inherit max-calls")
+    parser.add_argument("--spend-fraction", default="0.30", help="maximum fraction of each observed balance to allocate")
+    parser.add_argument("--total-usd", help="optional lower total amount for the monetary envelope")
+    parser.add_argument("--provider-usd", action="append", metavar="PROVIDER=USD",
+                        help="optional lower provider amount; never overrides the balance reserve")
+    parser.add_argument("--renew-budget", action="store_true", help="explicitly create a new envelope; never used merely to resume")
     parser.add_argument("--public-web", action="store_true", default=None,
                         help="allow fetching any public site the research discovers "
                              "(private networks, IP literals and non-443 ports stay refused)")
@@ -907,6 +932,17 @@ def main(argv=None):
                 run_max_usd_micros=_usd_text_to_micros(args.run_usd),
                 project_max_usd_micros=_usd_text_to_micros(args.project_usd),
                 public_web_fetch=args.public_web)
+        elif args.command == "configure-money":
+            import research_spending
+            amounts = {}
+            for item in args.provider_usd or []:
+                provider, separator, amount = item.partition("=")
+                if not separator or provider in amounts:
+                    raise ValueError("MONEY_PROVIDER_INVALID")
+                amounts[provider] = amount
+            result = research_spending.configure(_root(args.data_root), confirm=args.confirm,
+                fraction=args.spend_fraction, total_usd=args.total_usd, provider_usd=amounts,
+                renew=args.renew_budget)
         elif args.command == "observe-account":
             if len(args.provider or []) != 1:
                 raise ValueError("ONE_PROVIDER_REQUIRED")

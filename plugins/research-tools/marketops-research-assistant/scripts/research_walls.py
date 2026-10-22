@@ -29,6 +29,10 @@ __all__ = ["record_chain", "preferred_route", "report", "host_of"]
 LOCAL_RUNG = "crawl4ai.fetch_page"
 CLOUD_RUNG = "tinyfish.fetch_content"
 RUNTIME_CODES = frozenset({"LOCAL_CRAWL_NOT_SAFE_TO_RUN", "LOCAL_BROWSER_NOT_INSTALLED",
+                           "LOCAL_CRAWL_RUNTIME_FAILED", "LOCAL_CRAWL_FAILED",
+                           "LOCAL_DEPENDENCY_NOT_INSTALLED", "CRAWL4AI_LOCAL_NOT_INSTALLED",
+                           "CRAWL_CACHE_RESTART_REQUIRED", "CRAWL_CACHE_OVERRIDE_MUST_BE_ABSOLUTE",
+                           "CRAWL_CACHE_PATH_ESCAPE", "CRAWL_CACHE_MUST_BE_OUTSIDE_SOURCE",
                            "CAPABILITY_NOT_AVAILABLE", "CRAWL_CACHE_CONFIGURATION_REFUSED",
                            "EGRESS_REFUSED", "RESEARCH_NETWORK_DISABLED"})
 
@@ -87,9 +91,16 @@ def preferred_route(root, url: str, route: tuple[str, ...]) -> tuple[str, ...]:
     host = host_of(url)
     if not host or LOCAL_RUNG not in route or CLOUD_RUNG not in route:
         return route
-    if urlsplit(url).path.casefold().endswith(".pdf"):
+    parts = urlsplit(url)
+    path = parts.path.casefold()
+    if path.endswith(".pdf"):
         # The local browser renders pages; TinyFish fetch returns a PDF's text.
         return tuple(c for c in route if c != LOCAL_RUNG)
+    if is_data_url(url):
+        # A data endpoint (JSON/CSV/API) must come back as the raw response for the
+        # bulk importer; the cloud fetch returns page text and refuses JSON. A page on
+        # the same host that needed the cloud says nothing about its API.
+        return route
     try:
         with closing(_db(_root(root))) as db:
             local_ok = db.execute(
@@ -105,8 +116,54 @@ def preferred_route(root, url: str, route: tuple[str, ...]) -> tuple[str, ...]:
     except Exception:  # noqa: BLE001
         return route
     if rescued and not local_ok:
-        return tuple(c for c in route if c != LOCAL_RUNG)
+        # Try the cloud first on this host, but keep the local reader as the last
+        # rung: a different page there may still need it.
+        return tuple(c for c in route if c != LOCAL_RUNG) + (LOCAL_RUNG,)
     return route
+
+
+def is_data_url(url: str) -> bool:
+    """A machine-readable endpoint rather than a page: API paths, data files, formats."""
+    parts = urlsplit(url)
+    path = parts.path.casefold()
+    query = parts.query.casefold()
+    return (any(seg in path for seg in ("/api/", "/exports/", "/download/", "/datastore/"))
+            or path.endswith((".json", ".csv", ".geojson", ".xml", ".ndjson"))
+            or any(f"{key}=json" in query or f"{key}=csv" in query
+                   for key in ("format", "f", "output", "outputformat")))
+
+
+def summary(root, *, limit: int = 15) -> dict:
+    """Where research hit walls, in aggregate: by code, by reader, by website."""
+    base = _root(root)
+    path = base / "state" / "research-walls.sqlite3"
+    if not path.is_file():
+        return {"attempts": 0, "failures": 0, "by_code": [], "by_reader": [], "by_host": []}
+    with closing(_db(base)) as db:
+        events = db.execute("SELECT host,capability,status,code,chain_outcome,rescued_by "
+                            "FROM wall_events").fetchall()
+    failures = [e for e in events if e[2] not in ("OK", "SKIPPED")]
+    readers = defaultdict(lambda: [0, 0, Counter()])
+    hosts = defaultdict(lambda: [0, Counter(), Counter()])
+    for host, capability, _status, code, outcome, rescued_by in failures:
+        readers[capability][0] += 1
+        if outcome == "SUCCESS" and rescued_by and rescued_by != capability:
+            readers[capability][1] += 1
+            readers[capability][2][rescued_by] += 1
+        if host and host != "search":
+            hosts[host][0] += 1
+            hosts[host][1][code or "UNCLASSIFIED"] += 1
+            if outcome == "SUCCESS" and rescued_by:
+                hosts[host][2][rescued_by] += 1
+    return {
+        "attempts": len([e for e in events if e[2] != "SKIPPED"]), "failures": len(failures),
+        "by_code": Counter(e[3] or "UNCLASSIFIED" for e in failures).most_common(limit),
+        "by_reader": [(c, f, s, ", ".join(r for r, _ in by.most_common(2)))
+                      for c, (f, s, by) in sorted(readers.items(), key=lambda kv: -kv[1][0])],
+        "by_host": [(h, n, ", ".join(f"{c}×{k}" for c, k in codes.most_common(2)),
+                     ", ".join(r for r, _ in rescued.most_common(1)))
+                    for h, (n, codes, rescued) in sorted(hosts.items(), key=lambda kv: -kv[1][0])[:limit]],
+    }
 
 
 def report(root, *, out_dir: Path | None = None, pool_id: str = "") -> dict:

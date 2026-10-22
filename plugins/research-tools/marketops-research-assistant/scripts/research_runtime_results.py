@@ -16,9 +16,10 @@ def known_provider_reason_codes():
     import research_adapter_serpapi as serpapi
     import research_adapter_tinyfish as tinyfish
     import research_adapter_jev as jev
+    from research_runtime_transport import CRAWL_CACHE_REASONS
     return (set(REASON_CODES) | set(crawl.ALL_REASON_CODES) | set(serper.ADAPTER_LOCAL_REASONS)
             | set(serpapi.ADAPTER_LOCAL_REASONS) | set(tinyfish._KNOWN_BRIDGE_CODES)
-            | set(jev.JEV_REASON_CODES) | (set(jev.NOTES) & {
+            | set(jev.JEV_REASON_CODES) | set(CRAWL_CACHE_REASONS) | (set(jev.NOTES) & {
                 "UPSTREAM_QUOTA_OR_PAYMENT", "UPSTREAM_RATE_LIMITED"})
             | {"PROVIDER_HTML_URL_INVALID", "PROVIDER_HTML_INVALID_CONTENT",
                 "PROVIDER_HTML_REQUEST_URLS_INVALID", "PROVIDER_HTML_REQUEST_URLS_DUPLICATE",

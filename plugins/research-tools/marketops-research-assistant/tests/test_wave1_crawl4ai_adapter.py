@@ -959,7 +959,7 @@ class ArtifactAttributionTests(unittest.TestCase):
                 url="https://a.example.org/page"), artifact_root=tmp)
             self.assertTrue(outcome.payload["artifact_persisted"])
             path = outcome.artifacts[0].ref
-            self.assertTrue(path.startswith(tmp))
+            self.assertTrue(Path(path).resolve().is_relative_to(Path(tmp).resolve()))
             with open(path, "rb") as handle:
                 self.assertEqual(b"%PDF-1.4 payload", handle.read())
             # 文件名只由 hash 与 kind 决定，不掺调用方给的字符串。

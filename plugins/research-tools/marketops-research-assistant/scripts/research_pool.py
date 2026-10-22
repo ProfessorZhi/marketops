@@ -24,6 +24,7 @@ import hashlib
 import json
 import re
 import sqlite3
+import uuid
 from contextlib import closing
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -84,6 +85,12 @@ def _db(root: Path) -> sqlite3.Connection:
             PRIMARY KEY (pool_id, target_key));
         CREATE INDEX IF NOT EXISTS pool_targets_status
             ON pool_targets(pool_id, status, priority DESC);
+        CREATE TABLE IF NOT EXISTS pool_batch_jobs (
+            pool_id TEXT NOT NULL, target_key TEXT NOT NULL, worker_id TEXT NOT NULL,
+            run_id TEXT NOT NULL, lease_attempt INTEGER NOT NULL,
+            result_json TEXT, updated_at TEXT NOT NULL,
+            finalizer TEXT NOT NULL DEFAULT '', finalize_until TEXT NOT NULL DEFAULT '',
+            PRIMARY KEY(pool_id,target_key));
     """)
     return db
 
@@ -115,16 +122,18 @@ def target_key(name: str, address: str = "", website: str = "") -> str:
 
 def import_targets(root, *, pool_id: str, source_id: str, source_url: str, provider: str,
                    listed_count: int | None, targets: list[dict], objective: str = "",
-                   scene: str = "") -> dict:
+                   scene: str = "", excluded_count: int = 0) -> dict:
     """Add one source's targets; report listed vs imported/duplicates/rejected."""
     _id(pool_id, "pool_id"); _id(source_id, "source_id")
-    if not isinstance(targets, list) or not 1 <= len(targets) <= MAX_IMPORT:
+    if type(excluded_count) is not int or excluded_count < 0 or excluded_count > MAX_IMPORT:
+        raise ValueError("POOL_EXCLUDED_COUNT_INVALID")
+    if not isinstance(targets, list) or not 0 <= len(targets) <= MAX_IMPORT or (not targets and not excluded_count):
         raise ValueError(f"POOL_TARGETS_INVALID: 1-{MAX_IMPORT} targets per import")
     if listed_count is not None and (type(listed_count) is not int or listed_count < 0):
         raise ValueError("POOL_LISTED_COUNT_INVALID: the number of entities the source listed")
     base = _root(root)
     imported = duplicates = 0
-    rejected: list[dict] = []
+    rejected: list[dict] = [{"reason": "EXPLICIT_SOURCE_FILTER"} for _ in range(excluded_count)]
     with closing(_db(base)) as db:
         db.execute("BEGIN IMMEDIATE")
         db.execute("INSERT OR IGNORE INTO pools VALUES(?,?,?,?)",
@@ -177,11 +186,14 @@ def _row(row) -> dict:
     keys = ("target_key", "name", "kind", "website", "address", "source_id", "priority",
             "status", "claimed_by", "lease_until", "attempts", "run_id", "organization_key",
             "reason", "routes")
-    return dict(zip(keys, row))
+    result = dict(zip(keys, row))
+    if len(row) > len(keys):
+        result["source_context"] = json.loads(row[len(keys)])
+    return result
 
 
 _COLUMNS = ("target_key,name,kind,website,address,source_id,priority,status,claimed_by,"
-            "lease_until,attempts,run_id,organization_key,reason,routes")
+            "lease_until,attempts,run_id,organization_key,reason,routes,extra_json")
 
 
 def claim(root, *, pool_id: str, worker_id: str, count: int = 20,
@@ -197,21 +209,24 @@ def claim(root, *, pool_id: str, worker_id: str, count: int = 20,
     with closing(_db(_root(root))) as db:
         db.execute("BEGIN IMMEDIATE")
         rows = db.execute(
-            f"SELECT {_COLUMNS} FROM pool_targets WHERE pool_id=? AND "
+            f"SELECT {_COLUMNS} FROM pool_targets t WHERE pool_id=? AND "
             "(status='pending' OR (status='claimed' AND lease_until<?)) "
+            "AND NOT EXISTS (SELECT 1 FROM pool_batch_jobs j WHERE j.pool_id=t.pool_id "
+            "AND j.target_key=t.target_key AND j.lease_attempt=t.attempts AND j.result_json IS NOT NULL) "
             "ORDER BY priority DESC, rowid LIMIT ?", (pool_id, _stamp(now), count)).fetchall()
         for row in rows:
             db.execute("UPDATE pool_targets SET status='claimed', claimed_by=?, lease_until=?, "
                        "attempts=attempts+1, updated_at=? WHERE pool_id=? AND target_key=?",
                        (worker_id, until, _stamp(now), pool_id, row[0]))
         db.commit()
-    targets = [{**_row(r), "status": "claimed", "claimed_by": worker_id, "lease_until": until}
+    targets = [{**_row(r), "status": "claimed", "claimed_by": worker_id, "lease_until": until,
+                "attempts": _row(r)["attempts"] + 1}
                for r in rows]
     return {"pool_id": pool_id, "worker_id": worker_id, "lease_until": until,
             "claimed": len(targets), "targets": targets}
 
 
-def release(root, *, pool_id: str, worker_id: str, target_keys: list[str]) -> int:
+def release(root, *, pool_id: str, worker_id: str, target_keys: list[str], lease_attempts=None) -> int:
     """Hand targets this worker never started back to the pool, uncounted."""
     _id(pool_id, "pool_id"); _id(worker_id, "worker_id")
     if not target_keys:
@@ -220,12 +235,105 @@ def release(root, *, pool_id: str, worker_id: str, target_keys: list[str]) -> in
         db.execute("BEGIN IMMEDIATE")
         released = 0
         for key in target_keys:
+            attempt = lease_attempts.get(key) if lease_attempts is not None else None
+            db.execute("DELETE FROM pool_batch_jobs WHERE pool_id=? AND target_key=? AND worker_id=? "
+                       "AND (? IS NULL OR lease_attempt=?)", (pool_id, key, worker_id, attempt, attempt))
             released += db.execute(
                 "UPDATE pool_targets SET status='pending', claimed_by='', lease_until='', "
                 "attempts=MAX(attempts-1,0), updated_at=? WHERE pool_id=? AND target_key=? AND "
-                "status='claimed' AND claimed_by=?", (_stamp(), pool_id, key, worker_id)).rowcount
+                "status='claimed' AND claimed_by=? AND (? IS NULL OR attempts=?)",
+                (_stamp(), pool_id, key, worker_id, attempt, attempt)).rowcount
         db.commit()
     return released
+
+
+def claim_batch(root, *, pool_id: str, worker_id: str, run_id: str,
+                count: int = 20, lease_minutes: int = 10) -> dict:
+    """Resume manual leases, but never dispatch a second live job for a target."""
+    for value, name in ((pool_id, "pool_id"), (worker_id, "worker_id"), (run_id, "run_id")):
+        _id(value, name)
+    if type(count) is not int or not 1 <= count <= MAX_CLAIM:
+        raise ValueError("POOL_CLAIM_COUNT_INVALID")
+    if type(lease_minutes) is not int or not 1 <= lease_minutes <= 1440:
+        raise ValueError("POOL_LEASE_INVALID")
+    now, until = _stamp(), _stamp(_now() + timedelta(minutes=lease_minutes))
+    with closing(_db(_root(root))) as db:
+        db.execute("BEGIN IMMEDIATE")
+        rows = db.execute(
+            f"SELECT {_COLUMNS} FROM pool_targets t WHERE pool_id=? AND "
+            "(status='pending' OR (status='claimed' AND lease_until<?) OR "
+            "(status='claimed' AND claimed_by=? AND NOT EXISTS (SELECT 1 FROM pool_batch_jobs j "
+            "WHERE j.pool_id=t.pool_id AND j.target_key=t.target_key AND j.lease_attempt=t.attempts))) "
+            "AND NOT EXISTS (SELECT 1 FROM pool_batch_jobs j WHERE j.pool_id=t.pool_id "
+            "AND j.target_key=t.target_key AND j.lease_attempt=t.attempts AND j.result_json IS NOT NULL) "
+            "ORDER BY CASE WHEN claimed_by=? AND status='claimed' THEN 0 ELSE 1 END, priority DESC, rowid LIMIT ?",
+            (pool_id, now, worker_id, worker_id, count)).fetchall()
+        targets, resumed = [], 0
+        for row in rows:
+            target = _row(row)
+            owned = target["status"] == "claimed" and target["claimed_by"] == worker_id and target["lease_until"] >= now
+            attempt = target["attempts"] + (0 if owned else 1)
+            resumed += int(owned)
+            db.execute("UPDATE pool_targets SET status='claimed',claimed_by=?,lease_until=?,attempts=?,run_id=?,updated_at=? "
+                       "WHERE pool_id=? AND target_key=?", (worker_id, until, attempt, run_id, now, pool_id, target["target_key"]))
+            db.execute("INSERT OR REPLACE INTO pool_batch_jobs(pool_id,target_key,worker_id,run_id,lease_attempt,result_json,updated_at) "
+                       "VALUES(?,?,?,?,?,NULL,?)",
+                       (pool_id, target["target_key"], worker_id, run_id, attempt, now))
+            targets.append({**target, "status": "claimed", "claimed_by": worker_id,
+                            "lease_until": until, "attempts": attempt, "run_id": run_id})
+        db.commit()
+    return {"pool_id": pool_id, "worker_id": worker_id, "claimed": len(targets),
+            "resumed_owned": resumed, "targets": targets}
+
+
+def save_batch_result(root, *, pool_id, worker_id, run_id, target_key, lease_attempt, result):
+    """Write before finalization, so recovery needs no repeat provider calls."""
+    body = json.dumps(result, ensure_ascii=False)
+    if len(body.encode("utf-8")) > 4_000_000:
+        raise ValueError("POOL_BATCH_RESULT_TOO_LARGE")
+    with closing(_db(_root(root))) as db:
+        changed = db.execute("UPDATE pool_batch_jobs SET result_json=?,updated_at=? WHERE pool_id=? AND target_key=? "
+            "AND worker_id=? AND run_id=? AND lease_attempt=?", (body, _stamp(), pool_id, target_key,
+                                                               worker_id, run_id, lease_attempt)).rowcount
+        db.commit()
+    return bool(changed)
+
+
+def ready_batch_results(root, *, pool_id, worker_id, run_id):
+    with closing(_db(_root(root))) as db:
+        rows = db.execute("SELECT target_key,lease_attempt,result_json,worker_id,run_id FROM pool_batch_jobs "
+                          "WHERE pool_id=? AND (?='' OR worker_id=?) AND (?='' OR run_id=?) AND result_json IS NOT NULL",
+                          (pool_id, worker_id, worker_id, run_id, run_id)).fetchall()
+    return [{"target_key": key, "lease_attempt": attempt, "result": json.loads(body), "worker_id": owner, "run_id": original_run}
+            for key, attempt, body, owner, original_run in rows]
+
+
+def batch_target(root, *, pool_id, target_key):
+    with closing(_db(_root(root))) as db:
+        row = db.execute(f"SELECT {_COLUMNS} FROM pool_targets WHERE pool_id=? AND target_key=?",
+                         (pool_id, target_key)).fetchone()
+    return _row(row) if row else None
+
+
+def begin_batch_finalization(root, *, pool_id, worker_id, target_key, lease_attempt):
+    token = uuid.uuid4().hex
+    now, until = _stamp(), _stamp(_now() + timedelta(seconds=60))
+    with closing(_db(_root(root))) as db:
+        changed = db.execute("UPDATE pool_batch_jobs SET finalizer=?,finalize_until=? WHERE pool_id=? AND target_key=? "
+                             "AND worker_id=? AND lease_attempt=? AND result_json IS NOT NULL "
+                             "AND (finalizer='' OR finalize_until<?)",
+                             (token, until, pool_id, target_key, worker_id, lease_attempt, now)).rowcount
+        db.commit()
+    return token if changed else ""
+
+
+def end_batch_finalization(root, *, pool_id, worker_id, target_key, lease_attempt, token, complete=False):
+    with closing(_db(_root(root))) as db:
+        where = " WHERE pool_id=? AND target_key=? AND worker_id=? AND lease_attempt=? AND finalizer=?"
+        args = (pool_id, target_key, worker_id, lease_attempt, token)
+        db.execute(("DELETE FROM pool_batch_jobs" if complete else
+                    "UPDATE pool_batch_jobs SET finalizer='',finalize_until='' ") + where, args)
+        db.commit()
 
 
 def reopen(root, *, pool_id: str, reason: str, max_attempts: int = 3) -> dict:
@@ -284,18 +392,51 @@ def complete(root, *, pool_id: str, worker_id: str, results: list[dict]) -> dict
             if outcome != "done" and not str(item.get("reason") or "").strip():
                 refused.append({"target_key": key, "reason": "REASON_REQUIRED_FOR_" + outcome.upper()})
                 continue
+            attempt = item.get("lease_attempt")
+            if attempt is None and db.execute("SELECT 1 FROM pool_batch_jobs WHERE pool_id=? AND target_key=?",
+                                              (pool_id, key)).fetchone():
+                refused.append({"target_key": key, "reason": "BATCH_JOB_OWNS_THIS_LEASE"})
+                continue
             cursor = db.execute(
                 "UPDATE pool_targets SET status=?, reason=?, run_id=?, organization_key=?, "
                 "routes=?, lease_until='', updated_at=? WHERE pool_id=? AND target_key=? AND "
-                "status='claimed' AND claimed_by=?",
+                "status='claimed' AND claimed_by=? AND (? IS NULL OR attempts=?)",
                 (outcome, str(item.get("reason") or "")[:500], str(item.get("run_id") or ""),
                  str(item.get("organization_key") or ""), int(item.get("routes") or 0),
-                 _stamp(), pool_id, key, worker_id))
+                 _stamp(), pool_id, key, worker_id, attempt, attempt))
             (accepted if cursor.rowcount else refused).append(
-                {"target_key": key} if cursor.rowcount else
+                {"target_key": key, "outcome": outcome, "reason": str(item.get("reason") or ""),
+                 "run_id": str(item.get("run_id") or ""), "attempt": attempt}
+                if cursor.rowcount else
                 {"target_key": key, "reason": "NOT_HELD_BY_THIS_WORKER"})
         db.commit()
+    _journal_walls(root, pool_id, accepted)
     return {"accepted": len(accepted), "refused": refused}
+
+
+def _journal_walls(root, pool_id: str, accepted: list[dict]) -> None:
+    """Every target that ended HOLD is a wall: record it in the experience journal.
+
+    Site-level outcomes (name not on the site, site unreachable, no public route)
+    were only in the pool table, so the experience file never showed where whole
+    target lists stalled.
+    """
+    import hashlib
+    try:
+        from research_event_journal import append_event
+    except ImportError:
+        return
+    for item in accepted:
+        if item.get("outcome") != "hold" or not item.get("run_id"):
+            continue
+        code = (re.match(r"[A-Z][A-Z0-9_]{2,80}", item["reason"]) or [None])[0] or "POOL_TARGET_HOLD"
+        op = "pool-hold-" + hashlib.sha256(f"{pool_id}:{item['target_key']}:{item.get('attempt')}"
+                                           .encode()).hexdigest()[:24]
+        try:
+            append_event(root, run_id=item["run_id"], operation_id=op, stage="acquisition",
+                         kind="source", status="hold", provider="local", reason_code=code)
+        except Exception:  # noqa: BLE001 - the journal never blocks the pool
+            pass
 
 
 def list_targets(root, *, pool_id: str, status: str = "", limit: int = 100,
@@ -312,11 +453,13 @@ def list_targets(root, *, pool_id: str, status: str = "", limit: int = 100,
             "next_after_rowid": rows[-1][0] if rows else None}
 
 
-def status(root, *, pool_id: str) -> dict:
+def status(root, *, pool_id: str, read_only: bool = False) -> dict:
     """Progress every window reads from the same rows: counts, sources, workers."""
     _id(pool_id, "pool_id")
     now = _stamp()
-    with closing(_db(_root(root))) as db:
+    path = Path(_root(root)) / "state/research-pool.sqlite3"
+    connection = sqlite3.connect(path.as_uri() + "?mode=ro", uri=True) if read_only else _db(_root(root))
+    with closing(connection) as db:
         pool = db.execute("SELECT objective, scene FROM pools WHERE pool_id=?",
                           (pool_id,)).fetchone()
         if pool is None:
@@ -336,12 +479,20 @@ def status(root, *, pool_id: str) -> dict:
         holds = db.execute("SELECT reason, COUNT(*) FROM pool_targets WHERE pool_id=? AND "
                            "status IN ('hold','excluded') GROUP BY reason ORDER BY 2 DESC LIMIT 8",
                            (pool_id,)).fetchall()
+        jobs = db.execute("SELECT COUNT(CASE WHEN j.result_json IS NULL AND t.status='claimed' AND t.lease_until>=? THEN 1 END), "
+                          "COUNT(CASE WHEN j.result_json IS NOT NULL THEN 1 END) FROM pool_batch_jobs j "
+                          "JOIN pool_targets t ON t.pool_id=j.pool_id AND t.target_key=j.target_key "
+                          "AND t.attempts=j.lease_attempt WHERE j.pool_id=?", (now, pool_id)).fetchone() if db.execute(
+                              "SELECT 1 FROM sqlite_master WHERE name='pool_batch_jobs'").fetchone() else (0, 0)
     total = sum(counts.values())
     finished = sum(counts.get(s, 0) for s in OUTCOMES)
     return {
         "pool_id": pool_id, "objective": pool[0], "scene": pool[1], "total": total,
         "by_status": {s: counts.get(s, 0) for s in ("pending", "claimed", *sorted(OUTCOMES))},
         "expired_leases": expired, "progress": round(finished / total, 3) if total else 0.0,
+        "in_flight": jobs[0], "results_awaiting_finalization": jobs[1],
+        "queue_complete": bool(total) and not counts.get("pending", 0) and not counts.get("claimed", 0) and not any(jobs),
+        "continuation_required": bool(counts.get("pending", 0) or counts.get("claimed", 0) or any(jobs)),
         "targets_with_routes": routes[1], "routes": routes[0],
         # Share of researched targets that yielded at least one admitted route
         # (Member A's account rate); excluded/duplicate targets are not attempts.

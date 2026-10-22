@@ -1,0 +1,21 @@
+{
+  "schema": "marketops.continuation-audit-validation.v1",
+  "checks": {
+    "json_parse": true,
+    "291_calls_reconciled": true,
+    "host_duration_reconciled": true,
+    "queue_count_reconciled": true,
+    "ledger_event_counts_reconciled": true,
+    "bounded_trace_fields_only": true,
+    "collector_python_syntax": true,
+    "targeted_secret_and_contact_scan": "PASS"
+  },
+  "scope": "Only the new experiment and the historical report navigation. No new research or provider calls.",
+  "content_sha256": {
+    "collect_evidence.py": "e77c9b1979bf9c4c4de65df4aa691500e7ce386247d303b60589b86cbaac974c",
+    "ledger_summary.json": "20922f6778582ed4f2bc9a1090bd84497a9baf40b2d179c9b34b29489be5082e",
+    "metrics.json": "068b310364be9a8589565d882bd15140f6e91b4c6d7324843173c11dcc41a189",
+    "README.md": "7768f2a982646ac7dba6f87904b37c5ffe6f054de0256ccfd8e014295a9cf610",
+    "tool_trace.json": "f72aacfce749747fe96817d22c04a0862d69046e30feff27e18d3eb8ec28e93f"
+  }
+}

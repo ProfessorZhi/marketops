@@ -8,6 +8,32 @@ description: Single entry for a MarketOps research task (venues, organisations, 
 Goal: the user does as little as possible; you run the whole task in long autonomous stretches and
 deliver an evidence-backed workbook. Effect first, cost second.
 
+Read [long research and monetary envelopes](../../references/LONG_RESEARCH_AND_BUDGETS.md).
+In MONEY mode, request/page counters are telemetry, not a spending ceiling.
+Read `marketops_costs(action='budget')`; do not interpret a null request limit as
+zero. Free local Crawl4AI remains available when a paid supplier envelope closes.
+Never renew or widen an envelope just to continue. Legacy REQUEST_COUNT mode
+keeps its explicitly approved cap until local setup changes the policy.
+
+For long regional discovery, save each upstream JSON page once and use the
+artifact mode of `marketops_pool_import` to preview/filter/import it locally.
+Never refetch one record per request merely to get around the excerpt window.
+Prefer a portal's export endpoint (one call per department, up to 50,000 rows) over
+100-row record pages; see `marketops-discovery`.
+Follow both local `next_offset` and upstream pagination until reconciled.
+
+For named contacts, ask for desired decision roles rather than an invented
+headcount. Put the wanted subset of `management`, `operations`,
+`commercial_events` in `brief.role_groups_wanted`. Use
+`marketops_next.contact_coverage` to research missing roles from alternative
+public sources; a generic inbox or the first named person does not close the
+task. Reuse people across venues only through sourced operator relationships.
+Pilot batch sizes are method tests, never total target quotas.
+
+Retain `usage_checkpoint.since` returned by `marketops_start` for this session.
+Pass it to `marketops_handoff(since=...)`; report `session_cost` separately from
+the explicitly cumulative `run_cost`. A new context window keeps that checkpoint.
+
 ## Hard rules (read first)
 
 1. **Only the `marketops_*` tools.** Do not use Bash, Read, Grep or Python on the plugin's code,
@@ -21,20 +47,32 @@ deliver an evidence-backed workbook. Effect first, cost second.
    instead of asking whether to continue. If you see two ways forward, do the one with the better
    expected yield now and name the other in the report; never end a turn with "which do you want?"
    while budget remains. A blocked site is not a question for the user: use another source. Stop
-   only when the targets are covered, the budget cap is near, or about 10 turns remain; then
-   `marketops_handoff` and a short report, even when partial.
+   only when the agreed target work is covered, the authorized budget is exhausted,
+   the user asks to stop, or a verified blocker prevents further authorized work.
+   A turn/context warning or a 40-second tool slice is not a completed task: save
+   a checkpoint and retain the same Run/queue for continuation.
 
 ## 1. Start (ask once)
 
 - First use only: `marketops_setup_status`; if not configured, follow `marketops-setup`.
+- Inspect its `provider_readiness.shared_request_budget` before new network work.
+  Vendor credits do not override an exhausted local request limit; report that limit
+  before claiming the task can run, and never reset the ledger or increase the cap yourself.
 - `marketops_update_check()`: if a newer release exists, tell the user in one line (it says how
   to update: Update.cmd, then restart the agent) and carry on with the task.
 - `marketops_runs(limit=10)`: resume an existing Run for the same task instead of starting over.
+- `marketops_next(run_id)` includes `execution`. Follow its `next_action`; do not
+  give a final research answer while `execution.continuation_required=true` and
+  authorized work can still proceed. A saved workbook can be a checkpoint.
 - Load `marketops-providers` (which provider for which job, cheapest first, what to do when one
   runs out) and call `marketops_costs(action='balances')`; tell the user in one line what each
   account has left, distinguishing reported snapshots, local estimates and UNKNOWN. For missing
   Serper/Jev readings, follow the persistent once-only question in `marketops-providers`; do not
   ask again just because this is a new conversation or Run.
+- Crawl4AI must be working: check `provider_readiness.providers.crawl4ai` in
+  `marketops_setup_status`. If it is not `READY`, follow "Before the first page read" in
+  `marketops-providers`. Put the repair offer, or the question about going on with TinyFish
+  only, into the same single message as the questions below.
 - Ask **once**, in one message, only for what is missing: scope (area, entity type, roles wanted),
   what the user sells and who buys it (customer vs competitor), delivery format, budget cap, and
   whether TinyFish's paid browser agent may be used for hard pages (default no; see
@@ -55,6 +93,60 @@ deliver an evidence-backed workbook. Effect first, cost second.
 | Evidence | every value has a literal quote from a saved page; the tools enforce this | `marketops_propose_batch`, `marketops_evidence_audit` |
 | Delivery | reconcile counts, verify a sample, hand off once; report spend per provider from `run_cost` | `marketops_handoff`; see `marketops-delivery` |
 
+**Contacts goal: go deep before going wide.** When the user wants contacts (`goal:'contacts'`):
+1. Shortlist 20–30 of the most likely targets from the pool: own site known, the right type, and
+   in scope.
+2. Run accounts on those to delivery, so the user gets usable people and emails early.
+3. Only then widen the pool.
+
+A pool of 300 names with no contacts does not meet a contacts goal. The Paris run did
+exactly that: 0 venues and 0 people delivered.
+
+**A venue inventory gets its contacts through its operators.** Do not pick 20 well-known
+brands and call that the contact search. The Paris run did that: 4,737 venues stayed
+untouched and only 1 email was found.
+
+Steps:
+1. `marketops_venue_groups(run_id, by='operator')`, or `by='city'` with the source's
+   municipal operator types for public venues.
+2. `import_to_pool=<contacts pool>` puts the largest uncovered groups in the pool.
+3. Harvest them with `marketops_harvest_batch`.
+
+Where the named staff are:
+- A commune's sports department (direction des sports / service des sports) usually lists
+  its director and team on the town site, with work emails.
+- Companies list theirs in legal notices, press pages and annual reports.
+
+`execution.venue_operator_groups` shows how many groups are still uncovered. While any
+are, the research is not finished. `OPERATOR` cannot be marked `not_applicable` when the
+Run holds venues.
+
+**When a method finds little, switch methods; never stop.** Contacts are found by a ladder of
+methods, and `marketops_method(run_id)` says which one is next:
+1. Own site.
+2. Operator: the municipality, school, club or company that runs the venue.
+3. Role searches.
+4. Official directories.
+5. Documents such as minutes, tenders and organisation charts.
+6. TinyFish agent, only if allowed.
+
+After a method has been tried on about 20–30 targets with little result (the plugin only accepts
+`exhausted` after 20 finished targets or 15 provider calls since the method started, or once
+every queued target is finished; otherwise it answers `METHOD_NOT_TRIED_ENOUGH`):
+1. Record it: `marketops_method(run_id, method, outcome='exhausted', note='<counts>')`.
+2. Apply `next_method` to the remaining targets right away, in the same turn.
+
+The Paris continuation stopped with 70 targets pending and $1.93 left because the own-site
+method found nothing. That was the wrong move: "no email on the venue's site" does not mean the
+contact does not exist. Public venues are usually run by an operator whose staff are listed
+elsewhere. Keep the inventory going (paging the official list) while contacts are researched;
+one does not stop the other.
+
+An operator shortlist is also not a venue inventory. For a region-wide venue task,
+build the facility list from the scoped official sources, retain venue addresses,
+and map venues to operators; a chain with many sites is not one venue. Researching
+the first 20–30 operators is a first tranche, not permission to end the whole task.
+
 Load `marketops-discovery`, `marketops-accounts`, `marketops-providers` or `marketops-delivery`
 only when you reach that stage. Past runs' pitfalls, by stage: [lessons](../../references/MEMBER_A_LESSONS.md). Use `marketops_next(run_id)` to see gaps and the suggested next action.
 
@@ -71,10 +163,28 @@ WorkBuddy) run the same account procedure from `marketops-accounts` one organisa
 
 ## 3. When to stop and ask
 
-Only: the budget cap is about to be reached; a paid tier (TinyFish Agent) is needed but not
+**Do not end your turn while `execution.continuation_required=true`.** A saved workbook or a
+checkpoint handoff is not the end. If a reply carries `do_not_stop` or `execution.turn_rule`,
+carry out its `next_action` and `next_method` straight away, without an interim summary.
+
+The research ends only when one of these holds:
+- the budget is spent;
+- the goal is met;
+- `execution.state` is `FINAL_METHODS_EXHAUSTED` (every method recorded as exhausted);
+- one of the reasons below for asking the user.
+
+When it does end, say which of these it was.
+
+Ask the user only when: the budget cap is about to be reached; a paid tier (TinyFish Agent) is needed but not
 authorised; the same rule conflict keeps recurring (many `RULES_UNKNOWN`); a credential or
-configuration is missing. Everything else: pick another authorised source or record HOLD with the
+configuration is missing; Crawl4AI stopped working (`crawl4ai_down`) and the user has not yet
+agreed to TinyFish-only reading. Everything else: pick another authorised source or record HOLD with the
 reason, and continue with the next target. Report all of it at the end.
+
+`PAGE_FAILURE_ONLY` and successful per-page fallback do not trigger a new permission
+question. Pause for a local outage only when `crawl4ai_down` is present or the step's
+`local_reader_health.tinyfish_only_approval_required` is true. If uncertain, run the
+self-check before telling the user that the computer's reader is broken.
 
 ## 4. Non-negotiables
 

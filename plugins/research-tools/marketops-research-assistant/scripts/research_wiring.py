@@ -524,7 +524,14 @@ class _GatewayAfterTheGate:
                                              project=project, ledger=self._built.ledger)
             import research_capability_registry
             provider = research_capability_registry.DEFAULT_REGISTRY.get(kwargs["capability_id"]).provider
-            provider_ceiling = settings.get("provider_limits", {}).get(provider, plan["max_calls"])
+            # The supplier's limit is stated per provider; a per-account entry is
+            # the narrower override for a named wallet. Falling through to
+            # max_calls silently widens an operator's stated provider limit.
+            provider_limits = settings.get("provider_limits", {})
+            provider_ceiling = provider_limits.get(
+                provider, provider_limits.get(kwargs["account_ref"], plan["max_calls"]))
+            if plan["budget_mode"] == "MONEY":
+                provider_ceiling = None
             # The supplier's cumulative cap must survive switching billing accounts.
             aggregate_key = f"{project}/{provider}/*"
             if not self._built.ledger.usage("provider_account", aggregate_key, window="total"):
@@ -540,6 +547,12 @@ class _GatewayAfterTheGate:
                      provider_ceiling),
                     ("provider_account", aggregate_key, provider_ceiling),
                     ("operation", f"{project}/*", 1)):
+                if plan["budget_mode"] == "MONEY" and kind == "provider_account":
+                    envelope = settings["spending"]
+                    self._built.ledger.set_cap(kind, key, ceiling_calls=None,
+                        ceiling_micros=envelope["ledger_money_baseline"] + envelope["total_budget_micros"],
+                        usd_enforced=True, source="LOCAL_MONETARY_ENVELOPE")
+                    continue
                 runtime.set_call_cap_preserving_money(
                     self._built.ledger, kind, key, ceiling_calls=limit,
                     source="LOCAL_REQUEST_COUNT_CONSENT")

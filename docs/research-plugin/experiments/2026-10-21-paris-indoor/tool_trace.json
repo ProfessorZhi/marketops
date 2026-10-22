@@ -1,0 +1,1358 @@
+[
+  {
+    "sequence": 1,
+    "transcript_line": 13,
+    "tool": "marketops_setup_status",
+    "transport_status": "completed",
+    "duration_ms": 5950,
+    "response_status": "CONFIGURED"
+  },
+  {
+    "sequence": 2,
+    "transcript_line": 125,
+    "tool": "marketops_update_check",
+    "transport_status": "completed",
+    "duration_ms": 3731,
+    "response_status": "UP_TO_DATE"
+  },
+  {
+    "sequence": 3,
+    "transcript_line": 173,
+    "tool": "marketops_costs",
+    "transport_status": "completed",
+    "duration_ms": 5493,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 4,
+    "transcript_line": 270,
+    "tool": "marketops_runs",
+    "transport_status": "completed",
+    "duration_ms": 8,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 5,
+    "transcript_line": 306,
+    "tool": "marketops_start",
+    "transport_status": "failed",
+    "duration_ms": 171,
+    "response_status": "ERROR_NO_STRUCTURED_RESPONSE"
+  },
+  {
+    "sequence": 6,
+    "transcript_line": 345,
+    "tool": "marketops_start",
+    "transport_status": "completed",
+    "duration_ms": 132,
+    "response_status": "RUN_CREATED"
+  },
+  {
+    "sequence": 7,
+    "transcript_line": 453,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 5579,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 8,
+    "transcript_line": 552,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 5338,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 9,
+    "transcript_line": 653,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 6782,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 10,
+    "transcript_line": 746,
+    "tool": "marketops_note",
+    "transport_status": "completed",
+    "duration_ms": 87,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 11,
+    "transcript_line": 786,
+    "tool": "marketops_research_step",
+    "transport_status": "completed",
+    "duration_ms": 536,
+    "response_status": "HOLD"
+  },
+  {
+    "sequence": 12,
+    "transcript_line": 869,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 6386,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 13,
+    "transcript_line": 968,
+    "tool": "marketops_note",
+    "transport_status": "completed",
+    "duration_ms": 22,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 14,
+    "transcript_line": 1008,
+    "tool": "marketops_research_step",
+    "transport_status": "completed",
+    "duration_ms": 9839,
+    "response_status": "SUCCESS_CANDIDATE"
+  },
+  {
+    "sequence": 15,
+    "transcript_line": 1118,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 5434,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 16,
+    "transcript_line": 1181,
+    "tool": "marketops_material_excerpt",
+    "transport_status": "completed",
+    "duration_ms": 13,
+    "response_status": "SAVED_MATERIAL_EXCERPTS_NOT_FACT_VERIFIED"
+  },
+  {
+    "sequence": 17,
+    "transcript_line": 1238,
+    "tool": "marketops_research_step",
+    "transport_status": "completed",
+    "duration_ms": 5863,
+    "response_status": "HOLD"
+  },
+  {
+    "sequence": 18,
+    "transcript_line": 1348,
+    "tool": "marketops_note",
+    "transport_status": "completed",
+    "duration_ms": 34,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 19,
+    "transcript_line": 1388,
+    "tool": "marketops_serpapi_mcp_search",
+    "transport_status": "completed",
+    "duration_ms": 6636,
+    "response_status": "SAVED_MATERIAL_NOT_VERIFIED"
+  },
+  {
+    "sequence": 20,
+    "transcript_line": 1727,
+    "tool": "marketops_serpapi_mcp_search",
+    "transport_status": "completed",
+    "duration_ms": 4959,
+    "response_status": "SAVED_MATERIAL_NOT_VERIFIED"
+  },
+  {
+    "sequence": 21,
+    "transcript_line": 2066,
+    "tool": "marketops_serpapi_mcp_search",
+    "transport_status": "completed",
+    "duration_ms": 4780,
+    "response_status": "SAVED_MATERIAL_NOT_VERIFIED"
+  },
+  {
+    "sequence": 22,
+    "transcript_line": 2405,
+    "tool": "marketops_serpapi_mcp_search",
+    "transport_status": "completed",
+    "duration_ms": 4538,
+    "response_status": "SAVED_MATERIAL_NOT_VERIFIED"
+  },
+  {
+    "sequence": 23,
+    "transcript_line": 2744,
+    "tool": "marketops_serpapi_mcp_search",
+    "transport_status": "completed",
+    "duration_ms": 4806,
+    "response_status": "SAVED_MATERIAL_NOT_VERIFIED"
+  },
+  {
+    "sequence": 24,
+    "transcript_line": 2995,
+    "tool": "marketops_serpapi_mcp_search",
+    "transport_status": "completed",
+    "duration_ms": 8439,
+    "response_status": "SAVED_MATERIAL_NOT_VERIFIED"
+  },
+  {
+    "sequence": 25,
+    "transcript_line": 3334,
+    "tool": "marketops_serpapi_mcp_search",
+    "transport_status": "completed",
+    "duration_ms": 4801,
+    "response_status": "SAVED_MATERIAL_NOT_VERIFIED"
+  },
+  {
+    "sequence": 26,
+    "transcript_line": 3673,
+    "tool": "marketops_serpapi_mcp_search",
+    "transport_status": "completed",
+    "duration_ms": 4955,
+    "response_status": "SAVED_MATERIAL_NOT_VERIFIED"
+  },
+  {
+    "sequence": 27,
+    "transcript_line": 4012,
+    "tool": "marketops_status",
+    "transport_status": "completed",
+    "duration_ms": 12,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 28,
+    "transcript_line": 7478,
+    "tool": "marketops_status",
+    "transport_status": "completed",
+    "duration_ms": 10,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 29,
+    "transcript_line": 10914,
+    "tool": "marketops_status",
+    "transport_status": "completed",
+    "duration_ms": 11,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 30,
+    "transcript_line": 14350,
+    "tool": "marketops_pool_import",
+    "transport_status": "completed",
+    "duration_ms": 60,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 31,
+    "transcript_line": 14480,
+    "tool": "marketops_pool_import",
+    "transport_status": "completed",
+    "duration_ms": 16,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 32,
+    "transcript_line": 14599,
+    "tool": "marketops_pool_import",
+    "transport_status": "completed",
+    "duration_ms": 17,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 33,
+    "transcript_line": 14720,
+    "tool": "marketops_pool_import",
+    "transport_status": "completed",
+    "duration_ms": 22,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 34,
+    "transcript_line": 14838,
+    "tool": "marketops_pool_import",
+    "transport_status": "completed",
+    "duration_ms": 22,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 35,
+    "transcript_line": 14958,
+    "tool": "marketops_pool_import",
+    "transport_status": "completed",
+    "duration_ms": 15,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 36,
+    "transcript_line": 15015,
+    "tool": "marketops_pool_import",
+    "transport_status": "completed",
+    "duration_ms": 16,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 37,
+    "transcript_line": 15138,
+    "tool": "marketops_pool_import",
+    "transport_status": "completed",
+    "duration_ms": 15,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 38,
+    "transcript_line": 15257,
+    "tool": "marketops_harvest_batch",
+    "transport_status": "completed",
+    "duration_ms": 45447,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 39,
+    "transcript_line": 15376,
+    "tool": "marketops_pool_status",
+    "transport_status": "completed",
+    "duration_ms": 10,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 40,
+    "transcript_line": 15495,
+    "tool": "marketops_costs",
+    "transport_status": "completed",
+    "duration_ms": 28,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 41,
+    "transcript_line": 15642,
+    "tool": "marketops_next",
+    "transport_status": "failed",
+    "duration_ms": 14,
+    "response_status": "ERROR_NO_STRUCTURED_RESPONSE"
+  },
+  {
+    "sequence": 42,
+    "transcript_line": 15662,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 4756,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 43,
+    "transcript_line": 15761,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 6355,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 44,
+    "transcript_line": 15860,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 5540,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 45,
+    "transcript_line": 15959,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 4789,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 46,
+    "transcript_line": 16058,
+    "tool": "marketops_site_harvest",
+    "transport_status": "completed",
+    "duration_ms": 14860,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 47,
+    "transcript_line": 16133,
+    "tool": "marketops_site_harvest",
+    "transport_status": "completed",
+    "duration_ms": 5719,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 48,
+    "transcript_line": 16179,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 4982,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 49,
+    "transcript_line": 16224,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 4497,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 50,
+    "transcript_line": 16262,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 4975,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 51,
+    "transcript_line": 16300,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 4336,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 52,
+    "transcript_line": 16338,
+    "tool": "marketops_material_excerpt",
+    "transport_status": "failed",
+    "duration_ms": 8,
+    "response_status": "ERROR_NO_STRUCTURED_RESPONSE"
+  },
+  {
+    "sequence": 53,
+    "transcript_line": 16360,
+    "tool": "marketops_material_excerpt",
+    "transport_status": "completed",
+    "duration_ms": 13,
+    "response_status": "SAVED_MATERIAL_EXCERPTS_NOT_FACT_VERIFIED"
+  },
+  {
+    "sequence": 54,
+    "transcript_line": 16415,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 4705,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 55,
+    "transcript_line": 16496,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 5414,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 56,
+    "transcript_line": 16595,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 5602,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 57,
+    "transcript_line": 16700,
+    "tool": "marketops_harvest_batch",
+    "transport_status": "completed",
+    "duration_ms": 46108,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 58,
+    "transcript_line": 16796,
+    "tool": "marketops_note",
+    "transport_status": "failed",
+    "duration_ms": 29,
+    "response_status": "ERROR_NO_STRUCTURED_RESPONSE"
+  },
+  {
+    "sequence": 59,
+    "transcript_line": 16816,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 6403,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 60,
+    "transcript_line": 16915,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 5810,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 61,
+    "transcript_line": 17008,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 5351,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 62,
+    "transcript_line": 17107,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 5323,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 63,
+    "transcript_line": 17206,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 4754,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 64,
+    "transcript_line": 17305,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 4938,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 65,
+    "transcript_line": 17398,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 5470,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 66,
+    "transcript_line": 17491,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 7529,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 67,
+    "transcript_line": 17584,
+    "tool": "marketops_note",
+    "transport_status": "completed",
+    "duration_ms": 46,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 68,
+    "transcript_line": 17624,
+    "tool": "marketops_research_step",
+    "transport_status": "completed",
+    "duration_ms": 6596,
+    "response_status": "SUCCESS_CANDIDATE"
+  },
+  {
+    "sequence": 69,
+    "transcript_line": 17714,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 6644,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 70,
+    "transcript_line": 17759,
+    "tool": "marketops_material_excerpt",
+    "transport_status": "completed",
+    "duration_ms": 34,
+    "response_status": "SAVED_MATERIAL_EXCERPTS_NOT_FACT_VERIFIED"
+  },
+  {
+    "sequence": 71,
+    "transcript_line": 17807,
+    "tool": "marketops_research_step",
+    "transport_status": "completed",
+    "duration_ms": 9691,
+    "response_status": "HOLD"
+  },
+  {
+    "sequence": 72,
+    "transcript_line": 17911,
+    "tool": "marketops_next",
+    "transport_status": "completed",
+    "duration_ms": 112,
+    "response_status": "MORE_RESEARCH_REQUIRED"
+  },
+  {
+    "sequence": 73,
+    "transcript_line": 18130,
+    "tool": "marketops_site_harvest",
+    "transport_status": "completed",
+    "duration_ms": 37439,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 74,
+    "transcript_line": 18206,
+    "tool": "marketops_site_harvest",
+    "transport_status": "completed",
+    "duration_ms": 32517,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 75,
+    "transcript_line": 18287,
+    "tool": "marketops_pool_claim",
+    "transport_status": "completed",
+    "duration_ms": 19,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 76,
+    "transcript_line": 18651,
+    "tool": "marketops_status",
+    "transport_status": "completed",
+    "duration_ms": 10,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 77,
+    "transcript_line": 18901,
+    "tool": "marketops_status",
+    "transport_status": "completed",
+    "duration_ms": 7,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 78,
+    "transcript_line": 19031,
+    "tool": "marketops_propose_batch",
+    "transport_status": "failed",
+    "duration_ms": 24,
+    "response_status": "ERROR_NO_STRUCTURED_RESPONSE"
+  },
+  {
+    "sequence": 79,
+    "transcript_line": 19185,
+    "tool": "marketops_status",
+    "transport_status": "completed",
+    "duration_ms": 8,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 80,
+    "transcript_line": 19275,
+    "tool": "marketops_propose_batch",
+    "transport_status": "completed",
+    "duration_ms": 33,
+    "response_status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED"
+  },
+  {
+    "sequence": 81,
+    "transcript_line": 19452,
+    "tool": "marketops_propose_batch",
+    "transport_status": "completed",
+    "duration_ms": 34,
+    "response_status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED"
+  },
+  {
+    "sequence": 82,
+    "transcript_line": 19541,
+    "tool": "marketops_propose_batch",
+    "transport_status": "completed",
+    "duration_ms": 32,
+    "response_status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED"
+  },
+  {
+    "sequence": 83,
+    "transcript_line": 19586,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 5897,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 84,
+    "transcript_line": 19661,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 9126,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 85,
+    "transcript_line": 19742,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 5251,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 86,
+    "transcript_line": 19829,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 8613,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 87,
+    "transcript_line": 19928,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 4940,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 88,
+    "transcript_line": 20027,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 5751,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 89,
+    "transcript_line": 20120,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 5363,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 90,
+    "transcript_line": 20195,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 5878,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 91,
+    "transcript_line": 20300,
+    "tool": "marketops_research_step",
+    "transport_status": "completed",
+    "duration_ms": 6007,
+    "response_status": "SUCCESS_CANDIDATE"
+  },
+  {
+    "sequence": 92,
+    "transcript_line": 20390,
+    "tool": "marketops_research_step",
+    "transport_status": "completed",
+    "duration_ms": 5874,
+    "response_status": "SUCCESS_CANDIDATE"
+  },
+  {
+    "sequence": 93,
+    "transcript_line": 20500,
+    "tool": "marketops_material_excerpt",
+    "transport_status": "completed",
+    "duration_ms": 11,
+    "response_status": "SAVED_MATERIAL_EXCERPTS_NOT_FACT_VERIFIED"
+  },
+  {
+    "sequence": 94,
+    "transcript_line": 20548,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 5783,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 95,
+    "transcript_line": 20593,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 7866,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 96,
+    "transcript_line": 20674,
+    "tool": "marketops_search",
+    "transport_status": "completed",
+    "duration_ms": 10314,
+    "response_status": "OK",
+    "serper_reason": "IDENTITY_VALUE_INVALID"
+  },
+  {
+    "sequence": 97,
+    "transcript_line": 20712,
+    "tool": "marketops_material_excerpt",
+    "transport_status": "completed",
+    "duration_ms": 10,
+    "response_status": "SAVED_MATERIAL_EXCERPTS_NOT_FACT_VERIFIED"
+  },
+  {
+    "sequence": 98,
+    "transcript_line": 20749,
+    "tool": "marketops_propose_batch",
+    "transport_status": "completed",
+    "duration_ms": 35,
+    "response_status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED"
+  },
+  {
+    "sequence": 99,
+    "transcript_line": 20822,
+    "tool": "marketops_propose_batch",
+    "transport_status": "completed",
+    "duration_ms": 29,
+    "response_status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED"
+  },
+  {
+    "sequence": 100,
+    "transcript_line": 20876,
+    "tool": "marketops_pool_claim",
+    "transport_status": "completed",
+    "duration_ms": 15,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 101,
+    "transcript_line": 21240,
+    "tool": "marketops_propose_batch",
+    "transport_status": "completed",
+    "duration_ms": 35,
+    "response_status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED"
+  },
+  {
+    "sequence": 102,
+    "transcript_line": 21533,
+    "tool": "marketops_propose_batch",
+    "transport_status": "completed",
+    "duration_ms": 35,
+    "response_status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED"
+  },
+  {
+    "sequence": 103,
+    "transcript_line": 21826,
+    "tool": "marketops_pool_complete",
+    "transport_status": "completed",
+    "duration_ms": 16,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 104,
+    "transcript_line": 22006,
+    "tool": "marketops_pool_claim",
+    "transport_status": "completed",
+    "duration_ms": 14,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 105,
+    "transcript_line": 22370,
+    "tool": "marketops_propose_batch",
+    "transport_status": "completed",
+    "duration_ms": 35,
+    "response_status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED"
+  },
+  {
+    "sequence": 106,
+    "transcript_line": 22663,
+    "tool": "marketops_propose_batch",
+    "transport_status": "completed",
+    "duration_ms": 35,
+    "response_status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED"
+  },
+  {
+    "sequence": 107,
+    "transcript_line": 22956,
+    "tool": "marketops_pool_complete",
+    "transport_status": "completed",
+    "duration_ms": 16,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 108,
+    "transcript_line": 23136,
+    "tool": "marketops_pool_claim",
+    "transport_status": "completed",
+    "duration_ms": 16,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 109,
+    "transcript_line": 23500,
+    "tool": "marketops_propose_batch",
+    "transport_status": "completed",
+    "duration_ms": 41,
+    "response_status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED"
+  },
+  {
+    "sequence": 110,
+    "transcript_line": 23793,
+    "tool": "marketops_propose_batch",
+    "transport_status": "completed",
+    "duration_ms": 38,
+    "response_status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED"
+  },
+  {
+    "sequence": 111,
+    "transcript_line": 24086,
+    "tool": "marketops_pool_complete",
+    "transport_status": "completed",
+    "duration_ms": 15,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 112,
+    "transcript_line": 24266,
+    "tool": "marketops_pool_claim",
+    "transport_status": "completed",
+    "duration_ms": 19,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 113,
+    "transcript_line": 24630,
+    "tool": "marketops_propose_batch",
+    "transport_status": "completed",
+    "duration_ms": 44,
+    "response_status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED"
+  },
+  {
+    "sequence": 114,
+    "transcript_line": 24923,
+    "tool": "marketops_propose_batch",
+    "transport_status": "completed",
+    "duration_ms": 41,
+    "response_status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED"
+  },
+  {
+    "sequence": 115,
+    "transcript_line": 25216,
+    "tool": "marketops_pool_complete",
+    "transport_status": "completed",
+    "duration_ms": 14,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 116,
+    "transcript_line": 25396,
+    "tool": "marketops_pool_claim",
+    "transport_status": "completed",
+    "duration_ms": 15,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 117,
+    "transcript_line": 25760,
+    "tool": "marketops_propose_batch",
+    "transport_status": "completed",
+    "duration_ms": 36,
+    "response_status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED"
+  },
+  {
+    "sequence": 118,
+    "transcript_line": 26053,
+    "tool": "marketops_propose_batch",
+    "transport_status": "completed",
+    "duration_ms": 39,
+    "response_status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED"
+  },
+  {
+    "sequence": 119,
+    "transcript_line": 26346,
+    "tool": "marketops_pool_complete",
+    "transport_status": "completed",
+    "duration_ms": 12,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 120,
+    "transcript_line": 26526,
+    "tool": "marketops_pool_claim",
+    "transport_status": "completed",
+    "duration_ms": 12,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 121,
+    "transcript_line": 26567,
+    "tool": "marketops_propose_batch",
+    "transport_status": "completed",
+    "duration_ms": 23,
+    "response_status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED"
+  },
+  {
+    "sequence": 122,
+    "transcript_line": 26617,
+    "tool": "marketops_pool_complete",
+    "transport_status": "completed",
+    "duration_ms": 15,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 123,
+    "transcript_line": 26645,
+    "tool": "marketops_pool_claim",
+    "transport_status": "completed",
+    "duration_ms": 7,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 124,
+    "transcript_line": 26668,
+    "tool": "marketops_pool_status",
+    "transport_status": "completed",
+    "duration_ms": 7,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 125,
+    "transcript_line": 26800,
+    "tool": "marketops_pool_claim",
+    "transport_status": "failed",
+    "duration_ms": 5,
+    "response_status": "ERROR_NO_STRUCTURED_RESPONSE"
+  },
+  {
+    "sequence": 126,
+    "transcript_line": 26815,
+    "tool": "marketops_pool_claim",
+    "transport_status": "failed",
+    "duration_ms": 5,
+    "response_status": "ERROR_NO_STRUCTURED_RESPONSE"
+  },
+  {
+    "sequence": 127,
+    "transcript_line": 26830,
+    "tool": "marketops_pool_claim",
+    "transport_status": "completed",
+    "duration_ms": 8,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 128,
+    "transcript_line": 26853,
+    "tool": "marketops_propose_batch",
+    "transport_status": "completed",
+    "duration_ms": 40,
+    "response_status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED"
+  },
+  {
+    "sequence": 129,
+    "transcript_line": 27146,
+    "tool": "marketops_propose_batch",
+    "transport_status": "completed",
+    "duration_ms": 38,
+    "response_status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED"
+  },
+  {
+    "sequence": 130,
+    "transcript_line": 27439,
+    "tool": "marketops_pool_complete",
+    "transport_status": "completed",
+    "duration_ms": 77,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 131,
+    "transcript_line": 27619,
+    "tool": "marketops_harvest_batch",
+    "transport_status": "completed",
+    "duration_ms": 1801,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 132,
+    "transcript_line": 27664,
+    "tool": "marketops_status",
+    "transport_status": "completed",
+    "duration_ms": 11,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 133,
+    "transcript_line": 29366,
+    "tool": "marketops_pool_status",
+    "transport_status": "completed",
+    "duration_ms": 11,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 134,
+    "transcript_line": 29501,
+    "tool": "marketops_next",
+    "transport_status": "completed",
+    "duration_ms": 1815,
+    "response_status": "STOPPED_WITH_GAPS"
+  },
+  {
+    "sequence": 135,
+    "transcript_line": 29649,
+    "tool": "marketops_jev_choice",
+    "transport_status": "failed",
+    "duration_ms": 3519,
+    "response_status": "ERROR_NO_STRUCTURED_RESPONSE"
+  },
+  {
+    "sequence": 136,
+    "transcript_line": 29671,
+    "tool": "marketops_propose_batch",
+    "transport_status": "completed",
+    "duration_ms": 29,
+    "response_status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED"
+  },
+  {
+    "sequence": 137,
+    "transcript_line": 29713,
+    "tool": "marketops_note",
+    "transport_status": "completed",
+    "duration_ms": 29,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 138,
+    "transcript_line": 29753,
+    "tool": "marketops_evidence_audit",
+    "transport_status": "completed",
+    "duration_ms": 386,
+    "response_status": "EVIDENCE_GAPS"
+  },
+  {
+    "sequence": 139,
+    "transcript_line": 29892,
+    "tool": "marketops_suppression",
+    "transport_status": "completed",
+    "duration_ms": 6,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 140,
+    "transcript_line": 29910,
+    "tool": "marketops_costs",
+    "transport_status": "completed",
+    "duration_ms": 17,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 141,
+    "transcript_line": 30057,
+    "tool": "marketops_costs",
+    "transport_status": "completed",
+    "duration_ms": 5294,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 142,
+    "transcript_line": 30162,
+    "tool": "marketops_material_excerpt",
+    "transport_status": "completed",
+    "duration_ms": 8,
+    "response_status": "SAVED_MATERIAL_EXCERPTS_NOT_FACT_VERIFIED"
+  },
+  {
+    "sequence": 143,
+    "transcript_line": 30210,
+    "tool": "marketops_propose_batch",
+    "transport_status": "completed",
+    "duration_ms": 28,
+    "response_status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED"
+  },
+  {
+    "sequence": 144,
+    "transcript_line": 30281,
+    "tool": "marketops_suppression",
+    "transport_status": "completed",
+    "duration_ms": 7,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 145,
+    "transcript_line": 30299,
+    "tool": "marketops_evidence_audit",
+    "transport_status": "completed",
+    "duration_ms": 230,
+    "response_status": "EVIDENCE_GAPS"
+  },
+  {
+    "sequence": 146,
+    "transcript_line": 30438,
+    "tool": "marketops_pool_status",
+    "transport_status": "completed",
+    "duration_ms": 8,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 147,
+    "transcript_line": 30571,
+    "tool": "marketops_pool_claim",
+    "transport_status": "completed",
+    "duration_ms": 15,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 148,
+    "transcript_line": 30680,
+    "tool": "marketops_propose_batch",
+    "transport_status": "completed",
+    "duration_ms": 36,
+    "response_status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED"
+  },
+  {
+    "sequence": 149,
+    "transcript_line": 30838,
+    "tool": "marketops_pool_complete",
+    "transport_status": "completed",
+    "duration_ms": 14,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 150,
+    "transcript_line": 30898,
+    "tool": "marketops_next",
+    "transport_status": "completed",
+    "duration_ms": 1912,
+    "response_status": "MORE_RESEARCH_REQUIRED"
+  },
+  {
+    "sequence": 151,
+    "transcript_line": 31063,
+    "tool": "marketops_status",
+    "transport_status": "completed",
+    "duration_ms": 7,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 152,
+    "transcript_line": 31226,
+    "tool": "marketops_status",
+    "transport_status": "completed",
+    "duration_ms": 7,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 153,
+    "transcript_line": 31430,
+    "tool": "marketops_status",
+    "transport_status": "completed",
+    "duration_ms": 11,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 154,
+    "transcript_line": 33583,
+    "tool": "marketops_propose_batch",
+    "transport_status": "completed",
+    "duration_ms": 28,
+    "response_status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED"
+  },
+  {
+    "sequence": 155,
+    "transcript_line": 33627,
+    "tool": "marketops_next",
+    "transport_status": "completed",
+    "duration_ms": 1798,
+    "response_status": "MORE_RESEARCH_REQUIRED"
+  },
+  {
+    "sequence": 156,
+    "transcript_line": 33791,
+    "tool": "marketops_propose_batch",
+    "transport_status": "completed",
+    "duration_ms": 28,
+    "response_status": "CANDIDATE_BATCH_STAGED_NOT_VERIFIED"
+  },
+  {
+    "sequence": 157,
+    "transcript_line": 33838,
+    "tool": "marketops_next",
+    "transport_status": "completed",
+    "duration_ms": 1898,
+    "response_status": "STOPPED_WITH_GAPS"
+  },
+  {
+    "sequence": 158,
+    "transcript_line": 33988,
+    "tool": "marketops_next",
+    "transport_status": "completed",
+    "duration_ms": 1808,
+    "response_status": "STOPPED_WITH_GAPS"
+  },
+  {
+    "sequence": 159,
+    "transcript_line": 34144,
+    "tool": "marketops_evidence_audit",
+    "transport_status": "completed",
+    "duration_ms": 231,
+    "response_status": "EVIDENCE_GAPS"
+  },
+  {
+    "sequence": 160,
+    "transcript_line": 34283,
+    "tool": "marketops_handoff",
+    "transport_status": "completed",
+    "duration_ms": 1078,
+    "response_status": "CANDIDATE_HANDOFF_NOT_BUSINESS_VERIFIED"
+  },
+  {
+    "sequence": 161,
+    "transcript_line": 34469,
+    "tool": "marketops_feedback_pack",
+    "transport_status": "completed",
+    "duration_ms": 51,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  },
+  {
+    "sequence": 162,
+    "transcript_line": 34497,
+    "tool": "marketops_experience_feedback",
+    "transport_status": "completed",
+    "duration_ms": 73,
+    "response_status": "RECORDED"
+  },
+  {
+    "sequence": 163,
+    "transcript_line": 34535,
+    "tool": "marketops_experience_feedback",
+    "transport_status": "completed",
+    "duration_ms": 61,
+    "response_status": "RECORDED"
+  },
+  {
+    "sequence": 164,
+    "transcript_line": 34573,
+    "tool": "marketops_experience_feedback",
+    "transport_status": "completed",
+    "duration_ms": 33,
+    "response_status": "RECORDED"
+  },
+  {
+    "sequence": 165,
+    "transcript_line": 34611,
+    "tool": "marketops_feedback_pack",
+    "transport_status": "completed",
+    "duration_ms": 59,
+    "response_status": "NO_TOP_LEVEL_STATUS"
+  }
+]

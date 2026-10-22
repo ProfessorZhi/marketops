@@ -60,6 +60,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import re
 import time
 import urllib.error
@@ -645,6 +646,39 @@ def _redirected_away(outcome: Mapping[str, Any], requested: str) -> str:
 ANTIBOT_ERROR_PREFIX = "Blocked by anti-bot protection"
 
 
+def runtime_failure_detail(exc: Exception) -> str:
+    """Keep a closed runtime diagnosis, never arbitrary exception text or URLs."""
+    text = str(exc).casefold()
+    kind = "SDK_EXCEPTION"
+    if "asyncio.run() cannot be called" in text or "event loop is already running" in text:
+        kind = "EVENT_LOOP_RUNNING"
+    elif "event loop is closed" in text:
+        kind = "EVENT_LOOP_CLOSED"
+    elif "database is locked" in text:
+        kind = "DATABASE_LOCKED"
+    elif isinstance(exc, UnicodeError):
+        kind = "ENCODING_ERROR"
+    elif isinstance(exc, TimeoutError):
+        kind = "RUNTIME_TIMEOUT"
+    elif isinstance(exc, OSError):
+        # Keep numeric OS diagnoses, never exception messages, URLs or paths.
+        kind = "OS_ERROR"
+        frames = []
+        tb = exc.__traceback__
+        while tb is not None:
+            frames.append(Path(tb.tb_frame.f_code.co_filename).name)
+            tb = tb.tb_next
+        if "async_logger.py" in frames and "console.py" in frames:
+            kind = "CONSOLE_WRITE_FAILED"
+        for label, value in (("ERRNO", exc.errno), ("WINERROR", getattr(exc, "winerror", None))):
+            if type(value) is int and 0 <= value <= 65535:
+                kind += f"_{label}_{value}"
+    name = type(exc).__name__
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,79}", name):
+        name = "Exception"
+    return name + ":" + kind
+
+
 def _sdk_failure_code(error_message: object) -> str:
     """``success=False`` 到底是哪一件事。**闭集的两格，不是字符串比较散落各处。**
 
@@ -999,6 +1033,9 @@ def _build_browser_config(module: Any, *, egress_kwargs: Mapping[str, object],
         )
     return module.BrowserConfig(
         headless=headless,
+        # MCP is a background transport, not a terminal. A progress write to a
+        # closed/invalid host stderr must never turn fetched HTML into failure.
+        verbose=False,
         user_agent=user_agent,
         proxy_config=dict(egress_kwargs.get("proxy_config") or {}),
         extra_args=hardened_browser_extra_args(egress_kwargs),
@@ -1017,6 +1054,8 @@ def _build_run_config(module: Any, *, page_timeout_ms: int,
     """
     kwargs: dict[str, object] = {
         "page_timeout": page_timeout_ms,
+        # arun overwrites the logger's verbosity from this separate config.
+        "verbose": False,
         "cache_mode": "BYPASS",
         "max_retries": 0,
     }
@@ -1943,6 +1982,28 @@ class Crawl4AIAdapter:
         )
 
     # -- 真库调用：**每一个出口都只有一次** --------------------------------
+    def _crawler_options(self, module: Any) -> dict[str, Any]:
+        extra = ({"base_directory": self._cache_base_directory}
+                 if self._cache_base_directory is not None else {})
+        factory = getattr(module, "AsyncLogger", None)
+        if callable(factory):
+            from rich.console import Console
+
+            class ProgressSink:
+                def write(self, text):
+                    return len(text)
+
+                def flush(self):
+                    pass
+
+            # The SDK can force warnings even with verbose=False. Keep its
+            # formatted file log, but give its console a private discard sink;
+            # never redirect process-global stdout/stderr in parallel workers.
+            base = self._cache_base_directory or os.environ.get("CRAWL4_AI_BASE_DIRECTORY") or str(Path.home())
+            extra["logger"] = factory(log_file=str(Path(base) / ".crawl4ai" / "crawler.log"),
+                                      verbose=False, console=Console(file=ProgressSink(), force_terminal=False))
+        return extra
+
     def _run_sdk_once(self, module: Any, *, url: str, egress_kwargs: Mapping[str, object],
                       page_timeout_ms: int) -> dict[str, Any]:
         """起一次浏览器、抓一页。**没有重试循环。**
@@ -1958,8 +2019,7 @@ class Crawl4AIAdapter:
         run_config = _build_run_config(module, page_timeout_ms=page_timeout_ms)
 
         async def run() -> dict[str, Any]:
-            extra = ({"base_directory": self._cache_base_directory}
-                     if self._cache_base_directory is not None else {})
+            extra = self._crawler_options(module)
             async with module.AsyncWebCrawler(config=browser_config, **extra) as crawler:
                 result = await crawler.arun(url=url, config=run_config)
                 return {
@@ -1981,7 +2041,7 @@ class Crawl4AIAdapter:
             if "executable doesn't exist" in message or "browser executable" in message:
                 raise _egress_error("LOCAL_BROWSER_NOT_INSTALLED") from None
             raise _egress_error("LOCAL_CRAWL_RUNTIME_FAILED",
-                                detail=type(exc).__name__) from None
+                                detail=runtime_failure_detail(exc)) from None
 
     def _run_sdk_artifact(self, module: Any, *, url: str, kind: str,
                           egress_kwargs: Mapping[str, object],
@@ -2021,8 +2081,7 @@ class Crawl4AIAdapter:
                                        artifact=kind)
 
         async def run() -> dict[str, Any]:
-            extra = ({"base_directory": self._cache_base_directory}
-                     if self._cache_base_directory is not None else {})
+            extra = self._crawler_options(module)
             async with module.AsyncWebCrawler(config=browser_config, **extra) as crawler:
                 result = await crawler.arun(url=url, config=run_config)
                 return {
@@ -2042,7 +2101,7 @@ class Crawl4AIAdapter:
             raise
         except Exception as exc:  # noqa: BLE001
             raise _egress_error("LOCAL_CRAWL_RUNTIME_FAILED",
-                                detail=type(exc).__name__) from None
+                                detail=runtime_failure_detail(exc)) from None
 
         raw = outcome.get("artifact")
         payload = _artifact_bytes(raw, kind)

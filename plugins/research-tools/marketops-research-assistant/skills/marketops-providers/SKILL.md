@@ -5,6 +5,15 @@ description: Router for the five research providers (Serper, SerpApi, Crawl4AI, 
 
 # Five providers: right job, cheapest first, never stuck
 
+For MONEY-mode deployments use `marketops_costs(action='budget')`. Each supplier
+has a balance reserve and an atomic monetary/credit envelope; free Crawl4AI and
+reviewed TinyFish search/fetch consume no money. A supplier ceiling switches
+methods/providers; it does not stop free research on the whole project. Do not
+renew an envelope on resume or silently raise it. `action='set_budget'` with
+`amount_usd` and optional `provider` can only narrow a previously approved
+envelope. Balances and usage timestamps matter; unknown/stale stays explicit.
+See [monetary budget details](../../references/LONG_RESEARCH_AND_BUDGETS.md).
+
 Every call goes through MarketOps tools: material is saved in the Run, counted in one shared ledger
 and deduplicated across windows. Each call takes `run_id` and a fresh `operation_id`.
 
@@ -96,3 +105,31 @@ anything a site forbids.
 
 Every wall is recorded automatically; `marketops_lessons_report` shows what keeps blocking you.
 Keys and accounts: [onboarding](../../references/PROVIDER_ONBOARDING.md).
+
+## Before the first page read: is Crawl4AI working?
+
+Crawl4AI is the reader every harvest depends on. Do not silently replace it with something else.
+
+- `marketops_setup_status` shows `provider_readiness.providers.crawl4ai`. Anything other than
+  `READY` means acting before the research starts.
+- `INSTALLED_NOT_CHECKED` or `BROWSER_READY_PAGE_UNCHECKED`: run `marketops_crawl4ai_check(run_id=<this run>)`. It starts the
+  browser once and reads one test page.
+- `RESTART_REQUIRED` / `CACHE_RESTART_REQUIRED`: restart the agent/MCP server. The SDK
+  was initialized before its managed cache; reinstalling Chromium does not fix that.
+- A browser-only `WORKING` result is not a page-read pass. Require
+  `page_read_verified=true`; `SKIPPED_POLICY` means the page was not tested.
+- `NOT_INSTALLED`, `NOT_WORKING` or `LOCAL_DOWN_...`: tell the user what the check found, then
+  offer the repair (`marketops_crawl4ai_check(repair=true)`, or Repair.cmd / repair.sh in the
+  MarketOps folder).
+- Go ahead with TinyFish fetch only if the user explicitly agrees. Write it in the report.
+- Any answer carrying `crawl4ai_down` mid-task means the same thing. Pause and ask the user;
+  do not carry on quietly.
+- A failed page is not a confirmed local outage. When a step reports
+  `local_reader_health.tinyfish_only_approval_required=false`, continue the admitted
+  per-page fallback; do not ask the user to approve it again. Domain memory starting
+  a host at TinyFish does not establish that Crawl4AI is broken on this computer.
+- For repeated `PAGE_FAILURE_ONLY`, run the Crawl4AI self-check before claiming a
+  computer-wide failure. Report the attempt's `local_runtime_diagnostic` when present.
+- Balance and admission are separate: inspect the shared request budget as well as
+  vendor credits. Do not describe a provider as unusable because the local request
+  ceiling was exhausted; report `BUDGET_PROJECT_CEILING` and the configured limit.

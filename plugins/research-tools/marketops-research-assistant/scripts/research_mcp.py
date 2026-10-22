@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import functools
+from datetime import datetime, timezone
 import hashlib
 import importlib.util
 import inspect
@@ -35,6 +36,14 @@ def next_step(run_id, limit=10, previous_snapshot_id="", after_attempt=False):
     result = workflow.next_step(root(), run_id, limit, previous_snapshot_id, after_attempt,
                                 budget=_source_selection_budget(run_id))
     result["experience"] = _experience_view(run_id, stage=result.get("stage", "intake"))
+    import research_contacts
+    contacts = research_contacts.coverage(root(), run_id, limit=limit)
+    result["contact_coverage"] = contacts
+    if contacts.get("organizations_with_missing_roles", 0):
+        result.update(goal_satisfied=False, status="MORE_RESEARCH_REQUIRED")
+    import research_execution
+    result["execution"] = research_execution.assess(root(), run_id, goal=result,
+                                                    budget=_source_selection_budget(run_id))
     return result
 
 
@@ -69,6 +78,12 @@ def compact_next(result: dict) -> dict:
         }
     if "candidate_write_contract" in result:
         view["write_help"] = "marketops-accounts skill: claims, joins and examples"
+    execution = result.get("execution")
+    if isinstance(execution, dict) and isinstance(execution.get("methods"), dict):
+        view["execution"] = {**execution, "methods": {
+            ladder: {"next_method": info.get("next_method"),
+                     "tried": {t["method"]: t["outcome"] for t in info.get("tried", [])}}
+            for ladder, info in execution["methods"].items()}}
     return view
 
 
@@ -150,7 +165,6 @@ def provider_readiness() -> dict:
     (SerpApi/TinyFish) the connection check passed at setup; Crawl4AI needs no
     key, only its local install. It is not a check of the account's credit.
     """
-    import research_egress
     import research_runtime_setup
     try:
         # An installing agent may have stored keys after this server started;
@@ -169,7 +183,27 @@ def provider_readiness() -> dict:
     import research_accounts
     for provider in ("serper", "serpapi", "tinyfish", "crawl4ai", "typesafe_jev"):
         if provider == "crawl4ai":
-            state = "READY" if research_egress.crawl4ai_ready() else "NOT_INSTALLED"
+            import research_crawl_doctor
+            checked = research_crawl_doctor.cached(data_root) if data_root is not None else None
+            # Importing the SDK here initializes its global database before the
+            # managed transport can select the customer's cache directory.
+            sdk_present = "crawl4ai" in sys.modules or importlib.util.find_spec("crawl4ai") is not None
+            cache_issue = ""
+            if sdk_present and data_root is not None:
+                from research_runtime_transport import validate_crawl_cache
+                try:
+                    validate_crawl_cache(data_root)
+                except ValueError as exc:
+                    cache_issue = str(exc).split(":", 1)[0]
+            if not sdk_present:
+                state = "NOT_INSTALLED"
+            elif cache_issue:
+                state = "RESTART_REQUIRED" if cache_issue == "CRAWL_CACHE_RESTART_REQUIRED" else "CACHE_CONFIGURATION_INVALID"
+            elif checked is None:
+                state = "INSTALLED_NOT_CHECKED"
+            else:
+                state = ("READY" if checked.get("page_read_verified") is True else
+                         "BROWSER_READY_PAGE_UNCHECKED") if checked["status"] == "WORKING" else "NOT_WORKING"
         elif (not configured(PROVIDER_KEYS[provider]) and not
               (data_root is not None and research_accounts.has_local_key(data_root, provider))):
             state = "KEY_MISSING"
@@ -184,7 +218,14 @@ def provider_readiness() -> dict:
     fixes = {"KEY_MISSING": "rerun the local setup command (START_HERE.md) and enter the key",
              "NOT_ENABLED_FOR_PROJECT": "rerun the local setup and answer y to enable research",
              "CONNECTION_NOT_CHECKED": "rerun the local setup; check the key and the account",
-             "NOT_INSTALLED": "rerun the installer; it installs Crawl4AI and Chromium"}
+             "NOT_INSTALLED": "marketops_crawl4ai_check(repair=True), or run Repair.cmd "
+                              "(Windows) / repair.sh in the MarketOps folder",
+             "INSTALLED_NOT_CHECKED": "marketops_crawl4ai_check() (starts the browser once)",
+             "BROWSER_READY_PAGE_UNCHECKED": "marketops_crawl4ai_check(run_id=<current run>) to verify managed page reading",
+             "RESTART_REQUIRED": "restart the agent/MCP server to select the managed Crawl4AI cache before SDK import",
+             "CACHE_CONFIGURATION_INVALID": "correct the local Crawl4AI cache setting and restart the agent",
+             "NOT_WORKING": "marketops_crawl4ai_check(repair=True), or run Repair.cmd / "
+                            "repair.sh in the MarketOps folder"}
     import research_balances
     import research_provider_health as health
     for provider, entry in health.status(data_root).items() if data_root is not None else ():
@@ -192,7 +233,9 @@ def provider_readiness() -> dict:
             out[provider] = f"{entry['state']}_UNTIL_{entry['until'][:10]}"
     fixes.update({"QUOTA_EXHAUSTED": "top up the account (or wait for the monthly reset), then "
                                      "marketops_costs(action='balances') to clear it",
-                  "RATE_LIMITED": "wait a minute; other providers carry on meanwhile"})
+                  "RATE_LIMITED": "wait a minute; other providers carry on meanwhile",
+                  "LOCAL_DOWN": "marketops_crawl4ai_check(repair=True), or run Repair.cmd / "
+                                "repair.sh in the MarketOps folder"})
     low = research_balances.warnings(data_root) if data_root is not None else []
     account_status = research_accounts.status(data_root) if data_root is not None else {"accounts": []}
     if (str(out.get("typesafe_jev", "")).startswith("QUOTA_EXHAUSTED")
@@ -200,12 +243,25 @@ def provider_readiness() -> dict:
                     and not health.blocked(data_root, a["account_ref"])
                     for a in account_status["accounts"])):
         out["typesafe_jev"] = "READY"
+    budget = None
+    if data_root is not None and settings.get("max_calls") is not None:
+        from research_runtime_status import usage
+        import research_runtime_setup as budget_runtime
+        budget = usage(data_root, budget_runtime.cap_plan(settings)["project_max_calls"])
+        if budget_runtime.cap_plan(settings)["budget_mode"] == "MONEY":
+            import research_spending
+            budget.update(metric="requests_observed_not_a_spending_limit", request_limit_active=False,
+                          monetary=research_spending.status(data_root))
     return {"providers": out,
             "accounts": account_status["accounts"],
             "low_balance_warnings": low,
+            "shared_request_budget": budget,
+            "request_budget_warning": "LOCAL_REQUEST_LIMIT_EXHAUSTED" if budget and budget.get("remaining") == 0
+                                      else "LOCAL_REQUEST_LIMIT_NEAR" if budget and type(budget.get("remaining")) is int
+                                      and budget["remaining"] <= 10 else "",
             "how_to_fix": {p: fixes[s.split("_UNTIL_")[0]] for p, s in out.items()
                            if s.split("_UNTIL_")[0] in fixes},
-            "note": "READY is local readiness, not a check of the account's remaining credit."}
+            "note": "READY is local readiness, not vendor credit or permission to exceed the shared request budget."}
 
 
 def setup_status():
@@ -298,6 +354,46 @@ def configured(name):
     return bool(value) and not value.startswith("$" + "{")
 
 
+def installed_browser_root() -> Path | None:
+    """The Chromium the installer put beside this copy (<install>/browsers), if any."""
+    folder = Path(__file__).resolve().parents[3] / "browsers"
+    try:
+        if folder.is_dir() and any(c.name.startswith(("chromium", "chromium_headless_shell"))
+                                   for c in folder.iterdir()):
+            return folder
+    except OSError:
+        return None
+    return None
+
+
+def _ensure_repair_entrypoints() -> None:
+    """An install from before Repair.cmd existed gets it from the first server start."""
+    try:
+        import release_layout
+        install = Path(__file__).resolve().parents[3]
+        app_root = release_layout.app_root_for(install) or (
+            install.parent if install.name == "current" else None)
+        if app_root is not None and not (Path(app_root) / "Repair.cmd").exists():
+            release_layout.write_repair_entrypoints(app_root)
+    except Exception:  # noqa: BLE001 - a read-only install still serves research
+        pass
+
+
+def _use_installed_browser() -> None:
+    """Find the plugin's own browser even when a host did not pass its path.
+
+    The installer downloads Chromium into <install>/browsers and writes the path
+    into each host's MCP config; a host that drops `env` left Crawl4AI looking in
+    the system default cache, finding nothing, and failing on every page.
+    """
+    current = os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "").strip()
+    if current and not current.startswith("$" + "{"):
+        return
+    folder = installed_browser_root()
+    if folder is not None:
+        os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(folder)
+
+
 def _local_browser_cache_hint() -> dict:
     """Cheap preflight HINT only; neither SDK presence nor cache proves launch."""
     explicit = os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "").strip()
@@ -387,8 +483,14 @@ def _source_selection_budget(run_id: str) -> dict:
         try:
             from research_runtime_status import usage as runtime_usage
             snapshot = runtime_usage(
-                data_root, settings.get("project_max_calls", settings["max_calls"]))
-            return {"search_remaining": snapshot["remaining"],
+                data_root, runtime_setup.cap_plan(settings)["project_max_calls"])
+            monetary = {}
+            if runtime_setup.cap_plan(settings)["budget_mode"] == "MONEY":
+                import research_spending
+                money = research_spending.status(data_root)
+                monetary = {"budget_mode": "MONEY", "request_limit_active": False,
+                            "remaining_usd": money["remaining_usd"], "free_page_reads_available": True}
+            return {**monetary, "search_remaining": snapshot["remaining"],
                     "provider_remaining": snapshot["remaining"],
                     "unknown_held": snapshot.get("ambiguous_outcome_operations",
                                                  snapshot["unknown_charge_operations"]),
@@ -566,7 +668,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         configured_root = None
     if configured_root is not None and runtime_setup.config(configured_root):
         from research_runtime_status import view
-        return {"product": "MarketOps Research MCP", "version": "0.5.9-rc3",
+        return {"product": "MarketOps Research MCP", "version": "0.5.11-rc3",
                 **view(configured_root, task_kind=task_kind),
                 "external_host": _external_inventory(host_observed_tools),
                 "embedded_official_mcp": provider_policy.embedded_official_mcp_capabilities(),
@@ -641,7 +743,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         if task_kind else None)
     return {
         "product": "MarketOps Lite Research MCP",
-        "version": "0.5.9-rc3",
+        "version": "0.5.11-rc3",
         "providers": {
             "serpapi": {"transport": "REST through local MCP", **search["serpapi"]},
             "serper": {"transport": "REST through local MCP", **search["serper"]},
@@ -741,6 +843,8 @@ def start(run_id, scope, objective, rule_version, brief=None):
     if brief_receipt is None and next_state.get("brief_record_id"):
         brief_receipt = {"status": "EXISTING_BRIEF", "record_id": next_state["brief_record_id"]}
     return {**result, "event": event,
+            "usage_checkpoint": {"since": datetime.now(timezone.utc).isoformat(),
+                                 "scope": "this conversation slice; retain across checkpoint continuation"},
             "brief": brief_receipt or {"status": "BRIEF_REQUIRED"},
             "next_status": next_state["status"],
             "next_skill": next_state["recommended_skill"],
@@ -816,6 +920,13 @@ def managed_call(capability_id, params, run_id, operation_id, account_ref="",
         raise ValueError("CAPABILITY_PARAM_NOT_ALLOWED: account alias is deployment-owned")
     if not isinstance(params, dict):
         raise ValueError("CAPABILITY_PARAM_NOT_ALLOWED")
+    if capability_id in {"serper.search", "serpapi.search"}:
+        import research_locale
+        params = {**params}
+        for key, convert in (("country", research_locale.country_code),
+                             ("language", research_locale.language_code)):
+            if key in params:
+                params[key] = convert(params[key])
     arguments = results.normalize_params(capability_id, params)
     if capability_id in {"serper.search", "serpapi.search"}:
         for key, value in {"country": "US", "language": "en", "limit": 10}.items():
@@ -871,6 +982,11 @@ def managed_call(capability_id, params, run_id, operation_id, account_ref="",
         intent_fingerprint=fingerprint, root=r, grant_ref=grant_ref or None)
     answer = results.persist(r, run_id, operation_id, guarded, params=arguments)
     answer["account_ref"] = selected_ref
+    if capability_id == "crawl4ai.fetch_page":
+        import research_crawl_doctor as doctor
+        if doctor.note_local_result(r, ok=answer.get("status") == "OK",
+                                    reason_code=str(answer.get("reason_code") or "")):
+            answer["crawl4ai_down"] = crawl4ai_down_notice(r)
     state = health.classify(answer)
     if state:
         health.record(r, entry.provider, state, account_ref=selected_ref,
@@ -883,6 +999,52 @@ def managed_call(capability_id, params, run_id, operation_id, account_ref="",
     if claimed:
         accounts.finish_intent(r, run_id, entry.provider, fingerprint, answer)
     return answer
+
+
+def crawl4ai_down_notice(data_root) -> dict:
+    """What the Agent tells the user when the local reader stops working."""
+    import research_crawl_doctor as doctor
+    last = (doctor.cached(data_root) or {})
+    if str(last.get("failed_step", "")).startswith("CACHE_"):
+        return {"status": "CRAWL4AI_NOT_WORKING_ON_THIS_COMPUTER", "failed_step": last["failed_step"],
+                "fix": last.get("fix", ""), "tell_the_user": last.get("fix", ""),
+                "repair": last.get("repair", "restart the agent/MCP server")}
+    return {"status": "CRAWL4AI_NOT_WORKING_ON_THIS_COMPUTER",
+            "failed_step": last.get("failed_step", ""), "fix": last.get("fix", ""),
+            "tell_the_user": ("Crawl4AI, the free local page reader, is not working on this "
+                              "computer. Offer the repair (marketops_crawl4ai_check with "
+                              "repair=true). Until it works, pages are read by TinyFish fetch "
+                              "only if the user agrees; say so in the report."),
+            "repair": last.get("repair", "marketops_crawl4ai_check(repair=True)")}
+
+
+def crawl4ai_check(run_id="", repair=False) -> dict:
+    """Run (or repair and rerun) the Crawl4AI self-check; a run_id adds a real page read."""
+    import research_crawl_doctor as doctor
+    # A repair/download can finish after this long-lived MCP process started.
+    _use_installed_browser()
+    data_root = root()
+    if repair:
+        outcome = doctor.repair(data_root)
+        if outcome["status"] != "REPAIRED" or not run_id:
+            return outcome
+    page_read = None
+    if run_id:
+        def page_read():
+            answer = managed_call("crawl4ai.fetch_page", {"url": "https://example.com/"},
+                                  run_id, "crawl4ai-self-check-" + os.urandom(4).hex())
+            if answer.get("status") == "OK":
+                return True, ""
+            reason = answer.get("primary_reason_code") or answer.get("reason_code")
+            if reason in doctor.RUNTIME_FAILURES or answer.get("reason_code") == "CAPABILITY_NOT_AVAILABLE":
+                detail = (answer.get("payload") or {}).get("detail", "")
+                safe_detail = (detail if isinstance(detail, str) and re.fullmatch(
+                    r"[A-Za-z][A-Za-z0-9_]{0,79}:[A-Z0-9_]{1,80}", detail) else "")
+                return False, reason + (":" + safe_detail if safe_detail else "")
+            return None  # the run's rules refused it: says nothing about the browser
+    result = doctor.check(data_root, page_read=page_read)
+    return {**result, "tell_the_user": "" if result["status"] == "WORKING"
+            else crawl4ai_down_notice(data_root)["tell_the_user"]}
 
 
 def search(provider, query, country, language, run_id, operation_id, mode="web", limit=10):
@@ -941,7 +1103,15 @@ def find_official_site(run_id, operation_id, target, country="us", language="en"
     return f"https://{parts.hostname}/"
 
 
-def _search_all(query, country, language, run_id, operation_id, limit):
+def _simple_site_query(query: str) -> str:
+    """site:X plus the first few plain words: what engines honour reliably."""
+    sites = re.findall(r"\bsite:\S+", query)
+    rest = re.sub(r"\bsite:\S+|\(|\)|\bOR\b|\bAND\b|\"", " ", query)
+    words = [w for w in rest.split() if not w.startswith("-") and ":" not in w][:4]
+    return " ".join(sites[:1] + words)
+
+
+def _search_all(query, country, language, run_id, operation_id, limit, _retried=False):
     """Serper and TinyFish search on the same query at once; results merged by URL."""
     from concurrent.futures import ThreadPoolExecutor
     def one(provider):
@@ -957,9 +1127,10 @@ def _search_all(query, country, language, run_id, operation_id, limit):
                                                f"{operation_id}-serpapi", limit=limit),
                                       "substituted_by": "serpapi"}
                 except ValueError as again:
-                    return provider, {"error": str(again).split(":", 1)[0],
+                    return provider, {"error": str(again)[:160],
                                       "substitute_failed": "serpapi"}
-            return provider, {"error": str(exc).split(":", 1)[0]}
+            # The whole message: "IDENTITY_VALUE_INVALID" alone hid which field was wrong.
+            return provider, {"error": str(exc)[:160]}
     with ThreadPoolExecutor(max_workers=2) as pool:
         answers = dict(pool.map(one, ("serper", "tinyfish")))
     merged, seen = [], set()
@@ -971,11 +1142,46 @@ def _search_all(query, country, language, run_id, operation_id, limit):
                 merged.append({"title": hit.get("title"), "url": url,
                                "snippet": hit.get("snippet") or hit.get("description"),
                                "found_by": answer.get("substituted_by", provider)})
+    # A site: query that comes back with other sites (the Paris run got Gmail,
+    # Outlook and US Senate pages for "site:urbansoccer.fr (... OR ...) email") is
+    # the engine ignoring the operator: those hits are noise, not leads.
+    sites = [m.casefold().removeprefix("www.") for m in re.findall(r"\bsite:([^\s)\"']+)", query)]
+    dropped = 0
+    if sites:
+        def on_site(url):
+            host = (urlsplit(url).hostname or "").casefold().removeprefix("www.")
+            return any(host == s.split("/")[0] or host.endswith("." + s.split("/")[0]) for s in sites)
+        kept = [hit for hit in merged if on_site(hit["url"])]
+        dropped, merged = len(merged) - len(kept), kept
     import research_provider_health as health
     out = {"status": "OK", "query": query, "results": merged,
            "by_provider": {p: (len(_hits(a)) if "error" not in a else a["error"])
                            for p, a in answers.items()},
            "artifact_ids": [x for a in answers.values() for x in a.get("artifact_ids") or []]}
+    if dropped or not merged:
+        # Search walls belong in the experience file as much as page walls do.
+        code = "SEARCH_SITE_OPERATOR_IGNORED" if dropped and not merged else (
+            "SEARCH_OFF_SITE_RESULTS" if dropped else "SEARCH_NO_RESULTS")
+        try:
+            append_event(root(), run_id=run_id, operation_id=f"{operation_id}-wall"[:96],
+                         stage="discovery", kind="source", status="hold",
+                         provider="search", reason_code=code)
+        except Exception:  # noqa: BLE001
+            pass
+    if dropped:
+        out["off_site_results_dropped"] = dropped
+        simple = _simple_site_query(query)
+        if not merged and not _retried and simple and simple != query:
+            # The engine ignored site: on a complex query: ask once more, simply.
+            again = _search_all(simple, country, language, run_id, f"{operation_id}-simple"[:90],
+                                limit, _retried=True)
+            again["original_query"] = query
+            again["simplified_query"] = simple
+            again["off_site_results_dropped"] = dropped + again.get("off_site_results_dropped", 0)
+            return again
+        if not merged:
+            out["query_hint"] = ("Every result was off the site, also for the simplified query. "
+                                 "Harvest the site directly with marketops_site_harvest.")
     substituted = {p: a["substituted_by"] for p, a in answers.items() if a.get("substituted_by")}
     if substituted:
         out["substituted"] = substituted
@@ -1160,7 +1366,7 @@ def evidence_workbook(run_id, delivery_id):
         r, run_id, delivery_id, ledger=ledger, project=project)
 
 
-def handoff(run_id, operation_id):
+def handoff(run_id, operation_id, mode="auto"):
     """One audited workbook snapshot plus experience artifacts and an honest receipt.
 
     Counts come from the workbook manifest, not a preceding status query. A child
@@ -1170,6 +1376,8 @@ def handoff(run_id, operation_id):
     r = root()
     store._id(run_id, "run_id")
     store._id(operation_id, "operation_id")
+    if mode not in {"auto", "checkpoint", "final"}:
+        raise ValueError("HANDOFF_MODE_INVALID: auto, checkpoint or final")
     # Run metadata is immutable; counts are not. Use this read only to validate
     # existence and obtain scope/policy for the experience draft.
     head = workflow.page(r, run_id, 1)
@@ -1229,7 +1437,7 @@ def handoff(run_id, operation_id):
     try:
         experience_result = draft_experience(
             r, run_id=run_id, scope=head["scope"],
-            rule_version=head["rule_version"], skill_version="0.5.9-rc3",
+            rule_version=head["rule_version"], skill_version="0.5.11-rc3",
             output=experience_path)
         result["experience_candidate"] = str(experience_path)
         result["experience_incidents"] = experience_result["incidents"]
@@ -1245,10 +1453,19 @@ def handoff(run_id, operation_id):
                                          "reason_type": type(exc).__name__}
         reasons.append("EXPERIENCE_FEEDBACK_SUMMARY_FAILED")
 
+    import research_execution
+    try:
+        execution = research_execution.assess(r, run_id, goal=workbook.get("goal_assessment") or {})
+    except Exception as exc:
+        reasons.append("EXECUTION_ASSESSMENT_FAILED_" + type(exc).__name__)
+        execution = {"state": "CHECKPOINT_EXECUTION_STATE_UNAVAILABLE", "is_final": False,
+                     "continuation_required": True, "next_action": "RESTORE_EXECUTION_STATE_BEFORE_FINALIZING",
+                     "reason_type": type(exc).__name__}
     try:
         append_event(r, run_id=run_id, operation_id=operation_id,
                      stage="handoff", kind="handoff", status="hold" if reasons else "succeeded",
-                     provider="local", reason_code="partial_handoff" if reasons else "")
+                     provider="local", reason_code="partial_handoff" if reasons else
+                     "research_checkpoint" if not execution["is_final"] or mode == "checkpoint" else "")
     except Exception as exc:
         reasons.append("HANDOFF_EVENT_FAILED_" + type(exc).__name__)
     # Include the final handoff event in the user's collectable file, not just
@@ -1273,6 +1490,14 @@ def handoff(run_id, operation_id):
     result["partial_reasons"] = reasons
     if reasons:
         result["status"] = "PARTIAL_HANDOFF_" + reasons[0]
+    result["execution"] = execution
+    result["is_final"] = execution["is_final"] and mode != "checkpoint" and not reasons
+    result["continuation_required"] = not result["is_final"]
+    result["delivery_status"] = result["status"]
+    if not result["is_final"] and not reasons:
+        result["status"] = "CHECKPOINT_RESEARCH_NOT_FINISHED"
+    if mode == "final" and not result["is_final"]:
+        result["finalization_refused"] = "RESEARCH_OR_LOCAL_FINALIZATION_REMAINS"
     return result
 
 
@@ -1311,6 +1536,42 @@ def _blocked_call_route(fn, args: tuple, kwargs: dict) -> dict | None:
         reservation="UNKNOWN_BLOCKED_BEFORE_OR_AFTER_PROVIDER_ATTEMPT")
 
 
+#: Which research stage a refused tool belongs to, for the experience journal.
+_TOOL_STAGES = {"marketops_search": "discovery", "marketops_serpapi_mcp_search": "discovery",
+                "marketops_research_step": "acquisition", "marketops_pool_import": "discovery",
+                "marketops_venue_groups": "discovery", "marketops_site_harvest": "acquisition",
+                "marketops_harvest_batch": "acquisition", "marketops_jev_choice": "qualification",
+                "marketops_jev_triage": "qualification", "marketops_propose_batch": "entities",
+                "marketops_evidence_audit": "review", "marketops_handoff": "handoff",
+                "marketops_material_excerpt": "acquisition"}
+
+
+def _journal_refusal(fn, args, kwargs, reason: str) -> None:
+    """A refused tool call is a wall too: record its code against the Run.
+
+    BULK_ROWS_INVALID, FALLBACK_TASK_COUNTRY_REQUIRED and the like reached the
+    agent and nowhere else, so the experience file could not show them.
+    """
+    try:
+        fields = inspect.signature(fn).bind_partial(*args, **kwargs).arguments
+        run_id = fields.get("run_id")
+        if not isinstance(run_id, str) or not run_id:
+            return
+        code = (re.match(r"[A-Z][A-Z0-9_]{2,80}", reason) or [None])[0] or "TOOL_REFUSED"
+        op = "refusal-" + hashlib.sha256(f"{fn.__name__}:{run_id}:{reason}:{datetime_now()}"
+                                         .encode()).hexdigest()[:24]
+        append_event(root(), run_id=run_id, operation_id=op,
+                     stage=_TOOL_STAGES.get(fn.__name__, "review"), kind="tool",
+                     status="blocked", provider="local", reason_code=code)
+    except Exception:  # noqa: BLE001 - recording a refusal never hides it
+        pass
+
+
+def datetime_now() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat()
+
+
 def _guarded(fn):
     """Return an anticipated domain refusal as a readable MCP tool failure.
 
@@ -1337,6 +1598,7 @@ def _guarded(fn):
             from mcp.server.mcpserver.exceptions import ToolError
             response = {"status": "BLOCKED", "tool": fn.__name__,
                         "reason": str(exc)}
+            _journal_refusal(fn, args, kwargs, str(exc))
             route = _blocked_call_route(fn, args, kwargs)
             if route is not None:
                 response["invocation"] = route
@@ -1359,6 +1621,7 @@ PUBLIC_TOOLS = frozenset({
     "marketops_pool_status", "marketops_harvest_batch", "marketops_lessons_report",
     "marketops_jev_triage", "marketops_suppression", "marketops_feedback_pack",
     "marketops_pool_reopen", "marketops_costs", "marketops_update_check", "marketops_accounts",
+    "marketops_crawl4ai_check", "marketops_method", "marketops_venue_groups",
 })
 
 
@@ -1390,8 +1653,17 @@ def build_server():
     load_into_environment()
     # Direct by default; only an explicitly configured proxy changes that.
     research_config.load_upstream_proxy_into_environment()
+    _use_installed_browser()
+    try:
+        # A launch mode chosen on this computer (installer, check or repair) applies
+        # to every crawl, Crawl4AI included.
+        import research_browser_launch
+        research_browser_launch.install_launch_default()
+    except Exception:  # noqa: BLE001 - the default launch still runs
+        pass
+    _ensure_repair_entrypoints()
     from mcp.server import MCPServer
-    mcp = MCPServer("MarketOps Lite Research", version="0.5.9-rc3")
+    mcp = MCPServer("MarketOps Lite Research", version="0.5.11-rc3")
 
     def tool(fn):
         if fn.__name__ not in PUBLIC_TOOLS:
@@ -1597,24 +1869,42 @@ def build_server():
                                 query: str = "", url: str = "", artifact_id: str = "",
                                 question: str = "", options: list[str] | None = None,
                                 country: str = "", language: str = "",
-                                limit: int = 5, max_attempts: int = 3) -> dict:
+                                limit: int = 5, max_attempts: int = 3,
+                                as_is: bool = False) -> dict:
         """Run one bounded research step with recorded, admitted fallback channels.
 
         task_kind: source_discovery, known_public_url, batch_public_pages (one
         URL per step), or semantic_choice. Unknown charges, timeouts, access
         restrictions and exhausted shared budgets stop the chain. Results are
         candidate materials; read the returned artifact IDs and verify claims.
+        A first-page open-data record URL (Opendatasoft, CKAN, Socrata) is read
+        as the portal's bulk export of the same filter; the reply says so in
+        bulk_export. as_is=true reads the URL exactly as given.
         """
         import research_fallback
         import research_runtime_setup
         data_root = root()
         _require_brief_for_network(data_root, run_id)
-        return research_fallback.research_step(
+        rewrite = None
+        if url and not as_is and task_kind in {"known_public_url", "batch_public_pages"}:
+            import research_portals
+            exported, portal = research_portals.bulk_url(url)
+            if portal:
+                rewrite = {"portal": portal, "requested_url": url, "read_url": exported,
+                           "note": "Read as one export instead of 100-row pages; import it with "
+                                   "marketops_pool_import in artifact mode. Over "
+                                   f"{research_portals.MAX_EXPORT_ROWS} rows: narrow the filter "
+                                   "(one region per call)."}
+                url = exported
+        result = research_fallback.research_step(
             data_root, run_id=run_id, operation_id=operation_id, task_kind=task_kind,
             managed_call=managed_call,
             admission=lambda capability: research_runtime_setup.admission(data_root, capability),
             query=query, url=url, artifact_id=artifact_id, question=question, options=options,
             country=country, language=language, limit=limit, max_attempts=max_attempts)
+        if rewrite and isinstance(result, dict):
+            result["bulk_export"] = rewrite
+        return result
 
     @tool
     def marketops_site_harvest(run_id: str, operation_id: str, organization_name: str,
@@ -1682,16 +1972,30 @@ def build_server():
         return fetch
 
     @tool
-    def marketops_pool_import(pool_id: str, source_id: str, source_url: str, provider: str,
-                              listed_count: int | None, targets: list[dict],
-                              objective: str = "", scene: str = "") -> dict:
+    def marketops_pool_import(pool_id: str, source_id: str, source_url: str = "", provider: str = "",
+                              listed_count: int | None = None, targets: list[dict] | None = None,
+                              objective: str = "", scene: str = "", run_id: str = "",
+                              artifact_id: str = "", mapping: dict | None = None,
+                              filters: dict | None = None, offset: int = 0,
+                              limit: int = 500, preview: bool = False) -> dict:
         """Add one source's targets to the shared pool every window works from.
 
         targets: [{name, website?, address?, kind?, priority?}]. listed_count is how
         many entities the source itself listed; the reply says whether imported +
         duplicates + rejected reconcile with it. Dedupe: name + postcode/region.
+        For saved JSON pass run_id/artifact_id and preview=true to inspect fields,
+        then mapping={name:source_field,indoor:source_field,...} and literal-value
+        filters={source_field:[allowed_values]}. Local pagination consumes no
+        provider requests; follow next_offset, then upstream_pagination_remaining.
         """
         import research_pool
+        if artifact_id:
+            if targets is not None:
+                raise ValueError("BULK_OR_EXPLICIT_TARGETS_NOT_BOTH")
+            import research_bulk
+            return research_bulk.import_saved(root(), run_id=run_id, artifact_id=artifact_id,
+                pool_id=pool_id, source_id=source_id, mapping=mapping, filters=filters,
+                offset=offset, limit=limit, preview=preview, objective=objective, scene=scene)
         return research_pool.import_targets(
             root(), pool_id=pool_id, source_id=source_id, source_url=source_url,
             provider=provider, listed_count=listed_count, targets=targets,
@@ -1725,7 +2029,8 @@ def build_server():
     @tool
     def marketops_costs(action: str = "report", run_id: str = "", provider: str = "",
                         capability: str = "", usd_per_unit: str = "", plan: str = "",
-                        left: float | None = None, unit: str = "", account_ref: str = "") -> dict:
+                        left: float | None = None, unit: str = "", account_ref: str = "",
+                        since: str = "", amount_usd: str = "") -> dict:
         """Money, not just call counts: spend per project/Run/provider and account balances.
 
         action="report": estimated spend (all Runs, or run_id), free allowances left.
@@ -1736,12 +2041,22 @@ def build_server():
         action="set_balance": what a provider console shows, e.g. provider="serper",
           left=2380, unit="credit".
         Estimates say so; a provider account reading is the authority.
+        since: the usage_checkpoint.since returned by marketops_start; omitting
+        it reports cumulative Run totals. action=budget reads money envelopes.
+        action=set_budget with amount_usd and optional provider narrows an
+        already approved envelope; it cannot grant additional spending.
         """
         import research_balances
         import research_costs
         data_root = root()
         if action == "report":
-            return research_costs.report(data_root, run_id=run_id or None)
+            return research_costs.report(data_root, run_id=run_id or None, since=since)
+        if action == "budget":
+            import research_spending
+            return research_spending.status(data_root)
+        if action == "set_budget":
+            import research_spending
+            return research_spending.tighten(data_root, amount_usd=amount_usd, provider=provider)
         if action == "balances":
             return research_costs.balances(data_root)
         if action == "set_rate":
@@ -1783,6 +2098,65 @@ def build_server():
         folder, then restart this agent. Never run the update yourself mid-task.
         """
         return update_check(include_prerelease)
+
+    @tool
+    def marketops_method(run_id: str, method: str = "", outcome: str = "", note: str = "") -> dict:
+        """Which research methods this Run has tried, and the next one to use.
+
+        Without method: the status of both ladders (contacts, inventory). With
+        method and outcome (started, productive, exhausted, not_applicable): record
+        it. When a method finds little, record it exhausted and go straight on with
+        next_method on the remaining targets; stopping a method never ends the
+        research. note: one line on why (counts, not URLs or emails).
+        """
+        import research_methods
+        store.list_run(root(), run_id, limit=1)
+        if not method:
+            return research_methods.status(root(), run_id)
+        if method == "OPERATOR" and outcome == "not_applicable":
+            import research_bulk
+            groups = research_bulk.venue_groups(root(), run_id=run_id, limit=1)
+            if groups["venues_total"]:
+                raise ValueError("METHOD_OPERATOR_REQUIRED_FOR_VENUES: this Run holds "
+                                 f"{groups['venues_total']} venues; group them by operator or "
+                                 "city with marketops_venue_groups and research the operators")
+        return research_methods.record(root(), run_id, method, outcome, note)
+
+    @tool
+    def marketops_venue_groups(run_id: str, by: str = "operator", operator_types: list[str] | None = None,
+                               limit: int = 50, import_to_pool: str = "",
+                               country_hint: str = "", name_template: str = "") -> dict:
+        """The Run's venues grouped by who runs them, largest groups first; no network.
+
+        A venue's decision-makers usually sit at its operator: the municipality's
+        sports department for public venues, the company or association otherwise.
+        Map operator/operator_type when importing the inventory (marketops_pool_import
+        mapping), then group here. by='operator' uses that field; by='city' groups
+        municipal venues by town (pass operator_types with the source's own value for
+        public/municipal management). name_template names each town's target in the
+        local language, e.g. "City of {group}". import_to_pool=<pool_id> adds the
+        largest uncovered groups as organisation targets; research them with
+        marketops_harvest_batch.
+        """
+        import research_bulk
+        store.list_run(root(), run_id, limit=1)
+        return research_bulk.venue_groups(root(), run_id=run_id, by=by,
+                                          operator_types=operator_types, limit=limit,
+                                          import_to_pool=import_to_pool,
+                                          country_hint=country_hint,
+                                          name_template=name_template)
+
+    @tool
+    def marketops_crawl4ai_check(run_id: str = "", repair: bool = False) -> dict:
+        """Is Crawl4AI, the free local page reader, really working on this computer?
+
+        Starts the browser once (and, with the current run_id, reads one test page).
+        Call at the start of a task when setup status shows crawl4ai as anything but
+        READY. If it is not working, tell the user and offer repair=True, which
+        reinstalls Crawl4AI and its browser into this install (a few minutes, about
+        200 MB). Never switch to TinyFish-only page reading without the user's yes.
+        """
+        return crawl4ai_check(run_id, repair)
 
     @tool
     def marketops_pool_reopen(pool_id: str, reason: str) -> dict:
@@ -1925,17 +2299,29 @@ def build_server():
         return evidence_workbook(run_id, delivery_id)
 
     @tool
-    def marketops_handoff(run_id: str, operation_id: str) -> dict:
+    def marketops_handoff(run_id: str, operation_id: str, mode: str = "auto", since: str = "") -> dict:
         """Deliver one audited candidate XLSX/CSV snapshot and experience artifacts with partial failures visible.
 
-        The reply carries this Run's estimated spend per provider; report it to the user.
+        mode: auto, checkpoint or final. A final request cannot override pending
+        work: is_final=false and continuation_required=true require continuing
+        the same Run. The reply carries this Run's estimated spend per provider.
         """
-        result = handoff(run_id, operation_id)
+        result = handoff(run_id, operation_id, mode)
+        execution = result.get("execution") or {}
+        if result.get("continuation_required") and execution.get("turn_rule"):
+            # The Paris continuation ended right after a checkpoint handoff with
+            # 70 targets pending: the file is saved, the research goes on.
+            result["do_not_stop"] = {"turn_rule": execution["turn_rule"],
+                                     "next_action": execution.get("next_action"),
+                                     "next_method": execution.get("next_method"),
+                                     "next_method_how": execution.get("next_method_how")}
         try:
             import research_costs
             spend = research_costs.report(root(), run_id=run_id)
             result["run_cost"] = {"total_estimated_usd": spend["total_estimated_usd"],
-                                  "by_provider": spend["by_provider"]}
+                                  "by_provider": spend["by_provider"], "measurement_scope": "RUN_CUMULATIVE"}
+            if since:
+                result["session_cost"] = research_costs.report(root(), run_id=run_id, since=since)
         except Exception as exc:  # noqa: BLE001 - delivery never fails for a cost summary
             result["run_cost"] = {"status": "UNAVAILABLE", "reason": type(exc).__name__}
         return result
@@ -1982,7 +2368,7 @@ def build_server():
             raise ValueError("EXPERIENCE_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT")
         output.parent.mkdir(parents=True, exist_ok=True)
         return draft_experience(r, run_id=run_id, scope=scope,
-                                rule_version=rule_version, skill_version="0.5.9-rc3",
+                                rule_version=rule_version, skill_version="0.5.11-rc3",
                                 output=output)
 
     @tool

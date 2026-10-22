@@ -1,0 +1,114 @@
+{
+  "sources": [
+    {
+      "source": "A pasted transcript",
+      "bytes": 9765,
+      "sha256": "b612458bcf57c2173ec1339f236f39a379554a74e40f32f7383a7b477a028e1c"
+    },
+    {
+      "source": "B pasted transcript",
+      "bytes": 1261944,
+      "sha256": "3aac8569ffb32047ee35d27bc4554aab4d486baf48872b1bf21fee11ec50b1e2"
+    },
+    {
+      "source": "B export manifest",
+      "bytes": 359624,
+      "sha256": "3d3612b6f67707d69c7858a2ad6140720b096465d334b8ec2746edefc5af0ae7"
+    },
+    {
+      "source": "B export/Research_Result.xlsx",
+      "bytes": 235267,
+      "sha256": "016cd56dd43a16fd3f67105a0463cb6a3c23fc8a3e4ccea8e127ac2dcc485f78"
+    },
+    {
+      "source": "B export/客户总表.csv",
+      "bytes": 315,
+      "sha256": "4e48fc3db257b9f9f0306af118afc3d58644931a53b1fb3f883a2835b1d6f242"
+    },
+    {
+      "source": "B export/联系人路线.csv",
+      "bytes": 383,
+      "sha256": "d8aec17d0ff9dbff0fbec992d28a3ab0f9a1cdef007eca6def6acc272a84b21b"
+    },
+    {
+      "source": "B export/排除与待确认.csv",
+      "bytes": 71659,
+      "sha256": "c8c400de1ee21b6c64c53f08abd29631c2e200881359945cc71b7d3efe261a44"
+    },
+    {
+      "source": "B export/证据索引.csv",
+      "bytes": 83615,
+      "sha256": "7cd28d32acd1be0dd849ed977796e15b40691fdc2a467266a98b0e5060f8da69"
+    },
+    {
+      "source": "B export/本轮说明.csv",
+      "bytes": 1962,
+      "sha256": "6b2c7052dcb60363832215591a1f49f133aabfc46d53dcc553ec5484e7295829"
+    },
+    {
+      "source": "B export/场地与资产.csv",
+      "bytes": 61,
+      "sha256": "a105f0b489a749cf80e66bf8b5851cdfe75fb8d8d9043435cff0516bbed557f7"
+    },
+    {
+      "source": "B export/人员岗位.csv",
+      "bytes": 84,
+      "sha256": "048722e440af90b6c31fa085f21ce606a6a81110b20732d04e37ffc3769bd21a"
+    },
+    {
+      "source": "B export/来源与查询.csv",
+      "bytes": 93947,
+      "sha256": "196216b7dd7af57665df799141ede4152b4dec83f2b39b6a201100fbdb4b4d9b"
+    },
+    {
+      "source": "B export/候选数据审计.csv",
+      "bytes": 423803,
+      "sha256": "18594d2f0a566c60f98b6d37eca895347575afc183a0a303fa4f7943c01c54c2"
+    },
+    {
+      "source": "B export/client-view/Client_View.xlsx",
+      "bytes": 7569,
+      "sha256": "30fe086d49a123219ce1c67a3d2c3e96d7faf8d91053a995ac4662b8bfaffd32"
+    },
+    {
+      "source": "B export/client-view/人员岗位.csv",
+      "bytes": 84,
+      "sha256": "048722e440af90b6c31fa085f21ce606a6a81110b20732d04e37ffc3769bd21a"
+    },
+    {
+      "source": "B export/client-view/场地与资产.csv",
+      "bytes": 61,
+      "sha256": "a105f0b489a749cf80e66bf8b5851cdfe75fb8d8d9043435cff0516bbed557f7"
+    },
+    {
+      "source": "B export/client-view/客户总表.csv",
+      "bytes": 315,
+      "sha256": "4e48fc3db257b9f9f0306af118afc3d58644931a53b1fb3f883a2835b1d6f242"
+    },
+    {
+      "source": "B export/client-view/客户视图说明.csv",
+      "bytes": 490,
+      "sha256": "272496cd361c58b0e181decb00e7132e27407c972c02b549f4ba9096a33ca338"
+    },
+    {
+      "source": "B export/client-view/来源索引.csv",
+      "bytes": 220,
+      "sha256": "e5f2235e34b4f881c636268895c3dc2048c6aa754ebee28ed9c69d824ae9f5a2"
+    },
+    {
+      "source": "B export/client-view/联系人路线.csv",
+      "bytes": 383,
+      "sha256": "d8aec17d0ff9dbff0fbec992d28a3ab0f9a1cdef007eca6def6acc272a84b21b"
+    },
+    {
+      "source": "B export/client-view/MANIFEST.json",
+      "bytes": 2471,
+      "sha256": "5c8448796ae0ff9b5b20340a7c8fd38450427753b767ca422eb130202f7dfc6d"
+    },
+    {
+      "source": "B feedback archive; retained locally",
+      "bytes": 5352,
+      "sha256": "b0f5ca77c361ec3d14591c37f7c3f0683eced84a250c224783dbd1ae3e559d32"
+    }
+  ]
+}

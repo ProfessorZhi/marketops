@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 
 __all__ = ["app_root_for", "current_link", "rebase_host_files", "switch_current",
-           "write_update_entrypoints", "installed_versions"]
+           "write_update_entrypoints", "write_repair_entrypoints", "installed_versions"]
 
 HOST_FILES = ("mcp.json", ".mcp.json")
 REPO = "ProfessorZhi/marketops"
@@ -177,4 +177,29 @@ def write_update_entrypoints(app_root: Path, *, client: str, register_codex: boo
         '"$root/current/plugins/marketops-research-assistant/scripts/update_marketops.py" '
         '--app-root "$root" "$@"\n', encoding="utf-8")
     update_sh.chmod(0o755)
-    return [str(root / "Update.cmd"), str(update_sh), str(root / "update-settings.json")]
+    return [str(root / "Update.cmd"), str(update_sh), str(root / "update-settings.json"),
+            *write_repair_entrypoints(root)]
+
+
+def write_repair_entrypoints(app_root: Path) -> list[str]:
+    """Repair.cmd / repair.sh: reinstall Crawl4AI and its browser into the current release.
+
+    Also written by the updater and by a starting server when missing, so an install
+    from before they existed gets them without reinstalling.
+    """
+    root = Path(app_root)
+    doctor = r"current\plugins\marketops-research-assistant\scripts\research_crawl_doctor.py"
+    (root / "Repair.cmd").write_text(
+        "@echo off\r\nsetlocal\r\n"
+        f'"%~dp0current\\.venv\\Scripts\\python.exe" "%~dp0{doctor}" repair\r\n'
+        "set \"MARKETOPS_REPAIR_EXIT=%ERRORLEVEL%\"\r\n"
+        "if not \"%MARKETOPS_NO_PAUSE%\"==\"1\" pause\r\nexit /b %MARKETOPS_REPAIR_EXIT%\r\n",
+        encoding="utf-8")
+    repair_sh = root / "repair.sh"
+    repair_sh.write_text(
+        "#!/bin/sh\nset -eu\nroot=$(CDPATH= cd -- \"$(dirname -- \"$0\")\" && pwd)\n"
+        'exec "$root/current/.venv/bin/python" '
+        '"$root/current/plugins/marketops-research-assistant/scripts/research_crawl_doctor.py" '
+        'repair\n', encoding="utf-8")
+    repair_sh.chmod(0o755)
+    return [str(root / "Repair.cmd"), str(repair_sh)]

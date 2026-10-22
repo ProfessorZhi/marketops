@@ -33,7 +33,9 @@ BRIEF = {"record_type": "research_brief", "target_kind": "venue", "goal": "pool"
 def isolated(tmp: str, *, configure: bool = True):
     """Own HOME/XDG; a configured pair of paths unless the case wants otherwise."""
     env = {k: v for k, v in os.environ.items() if not k.startswith("MARKETOPS_")}
-    env.update({"HOME": str(Path(tmp) / "home"), "XDG_CONFIG_HOME": str(Path(tmp) / "xdg")})
+    env.update({"HOME": str(Path(tmp) / "home"), "USERPROFILE": str(Path(tmp) / "home"),
+                "APPDATA": str(Path(tmp) / "appdata"), "XDG_CONFIG_HOME": str(Path(tmp) / "xdg"),
+                "MARKETOPS_RESEARCH_CONFIG": str(Path(tmp) / "config.json")})
     Path(env["HOME"]).mkdir(parents=True, exist_ok=True)
     with patch.dict(os.environ, env, clear=True):
         if configure:
@@ -285,6 +287,8 @@ class HandoffIsTheMainPathTests(unittest.TestCase):
             env = {"HOME": str(Path(tmp) / "home"), "XDG_CONFIG_HOME": str(Path(tmp) / "xdg"),
                    "PATH": os.environ.get("PATH", ""),
                    "MARKETOPS_RESEARCH_DATA_ROOT": str(data)}
+            env.update({"USERPROFILE": env["HOME"], "APPDATA": str(Path(tmp) / "appdata"),
+                        "MARKETOPS_RESEARCH_CONFIG": str(Path(tmp) / "config.json")})
             Path(env["HOME"]).mkdir(parents=True, exist_ok=True)
             with patch.dict(os.environ, env, clear=True):
                 seed(data, "run-a", venues=2)
@@ -320,7 +324,8 @@ class LargeRunTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp, isolated(tmp) as (data, exp):
             self._big(data, "run-a")
             result = mcp.handoff("run-a", "op-big")
-            self.assertEqual("CANDIDATE_HANDOFF_NOT_BUSINESS_VERIFIED", result["status"])
+            self.assertEqual("CHECKPOINT_RESEARCH_NOT_FINISHED", result["status"])
+            self.assertFalse(result["is_final"])
             self.assertGreater(result["records"], 500)
             xlsx = Path(result["workbook_xlsx"])
             self.assertTrue(xlsx.is_file())
@@ -417,6 +422,8 @@ class PlaceholderUnconfiguredTests(unittest.TestCase):
             env = {"HOME": str(Path(tmp) / "home"), "XDG_CONFIG_HOME": str(Path(tmp) / "xdg"),
                    "PATH": os.environ.get("PATH", ""),
                    "MARKETOPS_RESEARCH_DATA_ROOT": "${MARKETOPS_RESEARCH_DATA_ROOT}"}
+            env.update({"USERPROFILE": env["HOME"], "APPDATA": str(Path(tmp) / "appdata"),
+                        "MARKETOPS_RESEARCH_CONFIG": str(Path(tmp) / "config.json")})
             Path(env["HOME"]).mkdir(parents=True, exist_ok=True)
             with patch.dict(os.environ, env, clear=True):
                 status = mcp.setup_status()
@@ -431,6 +438,8 @@ class PlaceholderUnconfiguredTests(unittest.TestCase):
             env = {"HOME": str(Path(tmp) / "home"), "XDG_CONFIG_HOME": str(Path(tmp) / "xdg"),
                    "PATH": os.environ.get("PATH", ""),
                    "MARKETOPS_RESEARCH_DATA_ROOT": "   "}
+            env.update({"USERPROFILE": env["HOME"], "APPDATA": str(Path(tmp) / "appdata"),
+                        "MARKETOPS_RESEARCH_CONFIG": str(Path(tmp) / "config.json")})
             Path(env["HOME"]).mkdir(parents=True, exist_ok=True)
             with patch.dict(os.environ, env, clear=True):
                 with self.assertRaises(ValueError) as ctx:

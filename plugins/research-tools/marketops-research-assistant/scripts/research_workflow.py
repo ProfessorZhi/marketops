@@ -19,7 +19,8 @@ import research_lite_store as store
 import research_source_selection as source_selection
 from research_event_journal import append_event, append_note
 
-MAX_ROWS = 20_000
+MAX_ROWS = 200_000
+MAX_ADVISORY_SOURCES = 512
 DISPOSITIONS = frozenset({"RESEARCHED_CANDIDATE", "HOLD", "EXCLUDED", "DUPLICATE"})
 SKILLS = {
     "intake": "marketops-discovery", "discovery": "marketops-discovery",
@@ -176,6 +177,9 @@ def assess_records(run_id: str, records: list[dict], *, limit: int = 25) -> dict
         problems.append("goal=contacts requires target_kind=organization")
     if named and goal != "contacts":
         problems.append("require_named_person=true requires goal=contacts")
+    role_groups = brief.get("role_groups_wanted", [])
+    if not isinstance(role_groups, list) or any(g not in {"management", "operations", "commercial_events"} for g in role_groups):
+        problems.append("role_groups_wanted must contain management, operations or commercial_events")
     if minimum_unit is not None and minimum_unit != kind:
         problems.append("minimum_targets_unit must equal target_kind")
     if problems:
@@ -272,6 +276,16 @@ def assess_records(run_id: str, records: list[dict], *, limit: int = 25) -> dict
                     missing.append("person_linked_role_candidate_with_source")
                 if not (role_people & contact_people):
                     missing.append("same_person_linked_contact_candidate_with_source")
+                if role_groups:
+                    from research_contacts import ROLE_GROUPS
+                    import re
+                    covered = set()
+                    for role in roles:
+                        if role["data"].get("person_id") not in role_people & contact_people:
+                            continue
+                        title = str(role["data"].get("role_title") or role["data"].get("role_function") or "")
+                        covered.update(group for group in role_groups if re.search(ROLE_GROUPS[group], title, re.I))
+                    missing.extend("decision_role_group_" + group for group in sorted(set(role_groups) - covered))
             else:
                 if not roles:
                     missing.append("role_candidate_with_source")
@@ -374,10 +388,16 @@ def next_step(root: Path | str, run_id: str, limit: int = 25,
         _run(db, run_id)
         rows = db.execute(
             "SELECT record_id,stage,kind,status,entity_key,payload_json,artifact_ids_json "
-            "FROM records WHERE run_id=? ORDER BY record_id LIMIT ?", (run_id, MAX_ROWS + 1)
+            "FROM records WHERE run_id=? AND kind<>'source' ORDER BY record_id LIMIT ?", (run_id, MAX_ROWS + 1)
         ).fetchall()
+        rows += db.execute(
+            "SELECT record_id,stage,kind,status,entity_key,payload_json,artifact_ids_json "
+            "FROM records WHERE run_id=? AND kind='source' ORDER BY rowid DESC LIMIT ?",
+            (run_id, MAX_ADVISORY_SOURCES)).fetchall()
+        actual_counts = dict(db.execute("SELECT kind,COUNT(*) FROM records WHERE run_id=? GROUP BY kind", (run_id,)))
         link_rows = db.execute(
-            "SELECT record_id,field FROM evidence_links WHERE run_id=?", (run_id,)
+            "SELECT l.record_id,l.field FROM evidence_links l JOIN records r "
+            "ON r.run_id=l.run_id AND r.record_id=l.record_id WHERE l.run_id=? AND r.kind<>'source'", (run_id,)
         ).fetchall()
     records = [_decode(r) for r in rows]
     links_by_record: dict[str, set[str]] = defaultdict(set)
@@ -385,6 +405,8 @@ def next_step(root: Path | str, run_id: str, limit: int = 25,
         if isinstance(field, str):
             links_by_record[record_id].add(field)
     result = assess_records(run_id, records, limit=limit)
+    result.update(record_count=sum(actual_counts.values()), counts=actual_counts,
+                  advisory_source_window=min(actual_counts.get("source", 0), MAX_ADVISORY_SOURCES))
     if result.get("stage") in {"entities", "acquisition", "people", "review"}:
         result["candidate_write_contract"] = {
             "tool": "marketops_propose_batch",

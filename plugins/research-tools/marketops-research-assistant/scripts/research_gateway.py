@@ -289,7 +289,7 @@ class CapabilityGateway:
             _value(getattr(result, "actual_source", None)),
             getattr(result, "quota_units_used", None),
             getattr(result, "upstream_ref", None),
-            estimated_micros=_estimated_micros(reservation))
+            estimated_micros=_estimated_micros(reservation), payload=getattr(result, "payload", None))
         status = "OK" if outcome == "OK" else "FAILED"
         return GatewayOutcome(status=status, reason_code="", result=result,
                               caveats=tuple(caveats), **base)
@@ -463,7 +463,7 @@ class CapabilityGateway:
 
     def _settle_terminal(self, operation_id: str, outcome: str, actual_usd,
                          actual_source, quota_units, upstream_ref,
-                         estimated_micros: int = 0) -> list[str]:
+                         estimated_micros: int = 0, payload=None) -> list[str]:
         """Book the terminal state, or say which ledger verb refused and why.
 
         `BLOCKED` here means a refusal made *before* dispatch — the adapter
@@ -475,6 +475,15 @@ class CapabilityGateway:
             if outcome == "BLOCKED":
                 self.ledger.prove_no_charge(operation_id, reason="PRE_DISPATCH_REFUSAL")
                 return []
+            if actual_usd is None and hasattr(self.ledger, "get"):
+                import research_spending
+                row = self.ledger.get(operation_id)
+                if row is not None and getattr(row, "price_version", "") == "money-envelope-1" and row.provider == "typesafe_jev":
+                    derived = research_spending.derived_cost(row, payload)
+                    if derived is None:
+                        return self._hold_terminal(operation_id, "CHARGE_UNVERIFIED_AFTER_SUCCESS" if outcome == "OK"
+                                                   else "PROVIDER_ERROR_UNVERIFIED", outcome)
+                    actual_usd, actual_source = derived, "DERIVED"
             micros, source = _actuals(actual_usd, actual_source, estimated_micros,
                                      priced_at_zero=_priced_at_zero(operation_id, self.ledger))
             if micros is None:

@@ -5,6 +5,14 @@ description: Close a MarketOps Run - dispositions for every target, count reconc
 
 # Close, check, deliver
 
+Use the original session `usage_checkpoint.since` in
+`marketops_handoff(..., since=...)`. Report `session_cost` as this session and
+`run_cost` as Run cumulative. Never mix cumulative provider counts into a
+session-duration cost claim. In MONEY mode, free page counts do not imply
+budget exhaustion. A supplier's reserve closing still permits authorized free
+work, another supplier, and local processing of saved JSON. Check missing
+decision roles and source coverage before considering final delivery.
+
 The only way to produce the workbook is `marketops_handoff`. Never write XLSX/CSV yourself, never
 read the databases or plugin code; the handoff applies the evidence gate you would otherwise skip.
 
@@ -26,11 +34,25 @@ read the databases or plugin code; the handoff applies the evidence gate you wou
    find them before delivering.
 3. **Check.** `marketops_evidence_audit(run_id)`; on hosts with subagents, run `research-verifier`
    on a sample (all A/B rows if fewer than 20). Fix or HOLD what fails.
-4. **Hand off once.** `marketops_handoff(run_id, operation_id)` writes the nine-sheet XLSX, CSVs,
+4. **Checkpoint or finish.** `marketops_handoff(run_id, operation_id, mode='auto')` writes the nine-sheet XLSX, CSVs,
    manifest, client-view files (business rows only) and the experience draft. A `PARTIAL_HANDOFF_*`
-   status is reported as partial, never as clean. Do not start new discovery just to avoid a
-   partial result.
-5. **Report** in plain terms: targets covered; admitted routes by grade; generic inboxes counted
+   status is reported as partial, never as clean. Inspect `is_final` and `execution`:
+   `CHECKPOINT_RESEARCH_NOT_FINISHED` / `continuation_required=true` means save the
+   file, follow `execution.next_action`, and continue the same task. Pending or
+   leased targets, active jobs, and saved results awaiting finalization are not
+   completed research. `mode='final'` cannot override these checks; it returns a
+   checkpoint with `finalization_refused` instead. Use a fresh operation ID for a
+   later snapshot; preserve previous files.
+   A drained shortlist with an unmet contacts goal calls for another method or
+   more sources while budget remains. A final partial result is appropriate for
+   an exhausted authorized budget or a verified blocker/user-requested stop;
+   report that cause, the missing coverage, and the resumption point explicitly.
+5. **Report: lead with the goal.** The first line says whether the user's goal was met, against
+   the brief: for example "Goal: contacts for 30 venues. Met for 7, not met for 23". Use the
+   handoff's `goal_satisfied`, not `delivery_completeness`. COMPLETE only means the paperwork is
+   in order, so never write "complete" when the goal was not met. Also say whether Crawl4AI ran
+   the whole time, and whether pages were read by TinyFish only (which the user agreed to).
+   Then, in plain terms: targets covered; admitted routes by grade; generic inboxes counted
    separately; HOLD/EXCLUDED with reasons; sources blocked; what the user should review. Workbook
    rows are candidates for human review, not approved contacts, and row counts are not market
    coverage.

@@ -96,6 +96,9 @@ def _until(provider: str, state: str) -> str:
     now = _now()
     if state == "RATE_LIMITED":
         return (now + RATE_COOLDOWN).isoformat()
+    if state == "LOCAL_DOWN":
+        # The local crawler on this computer: retried after a repair or in 30 minutes.
+        return (now + timedelta(minutes=30)).isoformat()
     if provider == "serpapi":
         first = (now.replace(day=1) + timedelta(days=32)).replace(day=1, hour=0, minute=0,
                                                                   second=0, microsecond=0)
@@ -135,6 +138,15 @@ def _active(entry: dict) -> bool:
 
 def refusal(provider: str, capability_id: str, entry: dict) -> dict:
     """The local answer for a provider known to be out: the chain skips it."""
+    if entry["state"] == "LOCAL_DOWN":
+        detail = (f"CRAWL4AI_NOT_WORKING_ON_THIS_COMPUTER: {entry.get('detail', '')}; "
+                  "tell the user and offer the repair (marketops_crawl4ai_check); "
+                  "TinyFish fetch reads pages meanwhile")
+        return {"status": "BLOCKED", "reason_code": "CRAWL4AI_LOCAL_NOT_INSTALLED",
+                "primary_reason_code": "CRAWL4AI_LOCAL_NOT_INSTALLED",
+                "provider_reason_codes": ["CRAWL4AI_LOCAL_NOT_INSTALLED", "PROVIDER_LOCAL_DOWN"],
+                "provider": provider, "capability_id": capability_id, "gateway_invoked": False,
+                "actual_usd": 0, "payload": {"detail": detail}, "artifact_ids": []}
     detail = (f"PROVIDER_{entry['state']}: {provider} until {entry['until'][:16]}; "
               "the next provider in the chain is used")
     return {"status": "BLOCKED", "reason_code": "BUDGET_PROVIDER_CEILING",

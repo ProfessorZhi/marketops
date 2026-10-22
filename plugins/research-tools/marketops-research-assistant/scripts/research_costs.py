@@ -206,7 +206,7 @@ def _operation_rate(card, op):
     return card.get(key + "@" + getattr(op, "account_ref", op.provider), card.get(key, {}))
 
 
-def report(root: Path, *, run_id: str | None = None) -> dict:
+def report(root: Path, *, run_id: str | None = None, since: str = "") -> dict:
     """Spend per project, per Run and per provider, from the ledger and the rate card.
 
     Every amount is an estimate from the rate card unless a provider account
@@ -218,6 +218,14 @@ def report(root: Path, *, run_id: str | None = None) -> dict:
     project = usage_ledger.project_for_root(root)
     rows = ledger.operations(project=project) if run_id is None else \
         ledger.operations(project=project, run_id=run_id)
+    if since:
+        try:
+            start = datetime.fromisoformat(since.replace("Z", "+00:00"))
+            if start.tzinfo is None:
+                raise ValueError()
+        except (ValueError, TypeError):
+            raise ValueError("USAGE_SINCE_REQUIRES_TIMEZONE_TIMESTAMP") from None
+        rows = [r for r in rows if datetime.fromisoformat(r.created_at.replace("Z", "+00:00")) >= start]
     card = rate_card(root)
     month = datetime.now(timezone.utc).strftime("%Y-%m")
     by_provider: dict[str, dict] = defaultdict(lambda: {"calls": 0, "units": 0, "usd": Decimal(0),
@@ -228,7 +236,7 @@ def report(root: Path, *, run_id: str | None = None) -> dict:
                                                       "usd_unknown_calls": 0})
     allowance_used: dict[str, int] = defaultdict(int)
     for op in rows:
-        if not op.counts_against_caps:
+        if not op.counts_against_caps or op.charge_state == "NO_CHARGE_PROVEN":
             continue
         key = f"{op.provider}/{op.capability}"
         rate = _operation_rate(card, op)
@@ -253,6 +261,7 @@ def report(root: Path, *, run_id: str | None = None) -> dict:
     def money(bucket):
         out = {k: v for k, v in bucket.items() if k != "usd"}
         out["estimated_usd"] = f"{bucket['usd']:.4f}"
+        out["estimated_usd_precise"] = f"{bucket['usd']:.6f}" if not bucket["usd_unknown_calls"] else None
         if bucket["usd_unknown_calls"]:
             out["estimated_usd"] += f" + UNKNOWN ({bucket['usd_unknown_calls']} calls without a rate)"
         return out
@@ -266,8 +275,10 @@ def report(root: Path, *, run_id: str | None = None) -> dict:
                                "basis": "LOCAL_LEDGER_ESTIMATE"}
     total = sum((b["usd"] for b in by_provider.values()), Decimal(0))
     unknown = sum(b["usd_unknown_calls"] for b in by_provider.values())
-    return {"project": project, "run_id": run_id,
+    return {"project": project, "run_id": run_id, "since": since or None,
+            "measurement_scope": "SESSION_SINCE_CHECKPOINT" if since else "RUN_CUMULATIVE" if run_id else "PROJECT_CUMULATIVE",
             "total_estimated_usd": f"{total:.4f}" + (f" + UNKNOWN ({unknown} calls)" if unknown else ""),
+            "total_estimated_usd_precise": f"{total:.6f}" if not unknown else None,
             "by_provider": {p: money(b) for p, b in sorted(by_provider.items())},
             "by_account": {a: money(b) for a, b in sorted(by_account.items())},
             "by_run": {r: money(b) for r, b in sorted(by_run.items())} if run_id is None else None,
