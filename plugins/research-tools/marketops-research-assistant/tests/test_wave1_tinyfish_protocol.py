@@ -37,9 +37,11 @@ AUTHORIZATION = {"approved_by": "operator@example.test",
 class FakeHTTP:
     observations = []
 
-    def __init__(self, *, headers=None, auth=None, follow_redirects=None, timeout=None):
+    def __init__(self, *, headers=None, auth=None, follow_redirects=None, timeout=None,
+                 trust_env=True, proxy=None):
         FakeHTTP.observations.append({"headers": dict(headers or {}), "auth": auth,
-                                      "redirects": follow_redirects})
+                                      "redirects": follow_redirects, "trust_env": trust_env,
+                                      "proxy": proxy})
 
     async def __aenter__(self):
         return self
@@ -306,6 +308,17 @@ class SchemaDriftInsideTheSession(EmbeddedTinyFishSessionTests):
 class HostileProviderResponses(EmbeddedTinyFishSessionTests):
     def reply(self, factory):
         FakeSession.result = factory
+
+    def test_the_session_never_reads_the_machine_proxy(self):
+        self.reply(lambda n, a: types.SimpleNamespace(isError=False, structuredContent={"results": []}))
+        FakeHTTP.observations.clear()
+        with self.fake_sdk():
+            try:
+                tinyfish.call("search", {"query": "public venue list"})
+            except ValueError:
+                pass
+        self.assertTrue(FakeHTTP.observations)
+        self.assertTrue(all(o["trust_env"] is False for o in FakeHTTP.observations))
 
     def test_a_tool_level_error_is_not_a_successful_result(self):
         self.reply(lambda n, a: types.SimpleNamespace(isError=True, structuredContent={}))

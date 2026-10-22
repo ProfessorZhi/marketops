@@ -169,12 +169,20 @@ def _not_a_phone(text: str, start: int, value: str) -> bool:
     return bool(re.search(r"\.\d{5,}", value))
 
 
+#: Domains forms use to show the shape of an address ("Exemple : nom.prenom@exemple.com").
+_PLACEHOLDER_DOMAINS = re.compile(
+    r"@(?:[\w-]+\.)*(?:example|exemple|beispiel|ejemplo|esempio|voorbeeld|domain|domaine|"
+    r"votre-?domaine|yourdomain|mydomain|email|e-mail|mail|test|sample)\.[a-z]{2,6}$", re.IGNORECASE)
+
+
 def extract_routes(text: str) -> list[dict]:
     """Every literal email/phone in normalised text with a quote and its context."""
     found, routes = set(), []
     for channel, pattern in (("email", _EMAIL), ("phone", _PHONE)):
         for match in pattern.finditer(text):
             value = match.group(0).strip().rstrip(".")
+            if channel == "email" and _PLACEHOLDER_DOMAINS.search(value):
+                continue
             if channel == "phone" and (sum(ch.isdigit() for ch in value) < 10
                                        or _not_a_phone(text, match.start(), value)):
                 continue

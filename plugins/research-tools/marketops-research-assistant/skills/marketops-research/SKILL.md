@@ -172,6 +172,16 @@ rate. After 30 finished targets a source under 5% is parked (its pending targets
 `execution.source_advice`: a better list for the same target type is worth more than deeper
 research on a poor one (past work: 30% vs 3% from two lists of the same kind).
 
+Where named, role-bound emails come from (live Paris run, 215 targets, 1.4 A+B per 100):
+- chains and commercial venues (padel, climbing, five-a-side) print one inbox per site: C;
+- town and council sites print service inboxes (`sports@`); their staff are named in job
+  ads and news without an address: named leads, C routes;
+- club and association committee pages ("Bureau", "Comité directeur") print officers with
+  their own addresses: most of the A and B;
+- a town's list of clubs carries club officers, delivered as listed by the town.
+So when the goal is named people, add club and association targets early and let the gate
+judge each list. Bruce's UK work found 45% A+B accounts on organisations' own sites.
+
 **Parallel accounts.** If the host can start subagents (Claude Code: `account-researcher`), give
 each subagent 1–3 organisations with `run_id`, published name, `organization_key` and website, in
 batches of 5–10 subagents. You dispatch and merge; they harvest. Hosts without subagents (Codex,

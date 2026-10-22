@@ -96,6 +96,9 @@ class EmailExtraction(unittest.TestCase):
         values = [r["value"] for r in harvest.extract_routes(
             "Réservez une adresse ...@antony.fr pour votre blog. Contact : jean.dupont@ville.fr.")]
         self.assertEqual(["jean.dupont@ville.fr"], values)
+        values = [r["value"] for r in harvest.extract_routes(
+            "Courriel (obligatoire) Exemple : nom.prenom@exemple.com ou contact@club-sportif.fr ici")]
+        self.assertEqual(["contact@club-sportif.fr"], values)
 
 
 class TrackingParameters(unittest.TestCase):

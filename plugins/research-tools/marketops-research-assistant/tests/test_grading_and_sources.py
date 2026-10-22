@@ -290,7 +290,6 @@ class SourceGate(unittest.TestCase):
         self.assertEqual(10, after["good"]["pending"])
         self.assertEqual((0, 10), (after["poor"]["pending"], after["poor"]["parked"]))
         self.assertEqual(30, after["poor"]["finished"])  # parking is not work done
-        import research_event_journal as journal
         with sqlite3.connect(self.root / "state" / "research-events.sqlite3") as db:
             notes = db.execute("SELECT category, problem FROM research_notes").fetchall()
         self.assertIn(("source_low_yield", "Source poor gave 1 of 30 finished targets with an A or B route"),
