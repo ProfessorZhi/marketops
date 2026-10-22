@@ -581,7 +581,8 @@ def bootstrap(root, provider):
     settings = config(root)
     if provider not in settings.get("providers", ()) or not settings.get("network_enabled"):
         raise ValueError("RESEARCH_NETWORK_DISABLED")
-    if not _credential_present(provider):
+    import research_accounts
+    if not _credential_present(provider) and not research_accounts.has_local_key(root, provider):
         raise ValueError("CAPABILITY_NOT_AVAILABLE: credential missing")
     from research_runtime_transport import mcp_session, tools_payload
     from research_s0_preflight_gate import bootstrap_probe_schema, snapshot_digest
@@ -631,7 +632,8 @@ def admission(root, capability_id):
         plan = cap_plan(settings)
     except ValueError as exc:
         return denied("BUDGET_PROJECT_CEILING", str(exc).split(":", 1)[0])
-    if not _credential_present(entry.provider):
+    import research_accounts
+    if not _credential_present(entry.provider) and not research_accounts.has_local_key(root, entry.provider):
         return denied("CAPABILITY_NOT_AVAILABLE", "PROVIDER_CREDENTIAL_MISSING")
     account = _read(_path(root, entry.provider + "-account.json"))
     if account and plan["budget_mode"] != "MONEY" and not account_observation_fresh(account):
@@ -825,12 +827,16 @@ unknown USD conversion or mismatched meters.
             "trust": observation["trust"], "balance_verified_by_api": False}
 
 
-def ledger_for(root, provider):
+def ledger_for(root, provider, *, account_ref=None):
     import research_spending
     if research_spending.policy(root):
         import research_usage_ledger as usage
         return usage.for_root(root)
     import research_usage_ledger as usage
+    if account_ref and account_ref != provider:
+        # Named wallets are advisory balances; they never inherit another
+        # account's immutable campaign floor or create new spending authority.
+        return usage.for_root(root)
     observation = _read(_path(root, provider + "-account.json"))
     if not observation:
         return usage.for_root(root)

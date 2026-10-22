@@ -66,7 +66,9 @@ the explicitly cumulative `run_cost`. A new context window keeps that checkpoint
   authorized work can still proceed. A saved workbook can be a checkpoint.
 - Load `marketops-providers` (which provider for which job, cheapest first, what to do when one
   runs out) and call `marketops_costs(action='balances')`; tell the user in one line what each
-  account has left.
+  account has left, distinguishing reported snapshots, local estimates and UNKNOWN. For missing
+  Serper/Jev readings, follow the persistent once-only question in `marketops-providers`; do not
+  ask again just because this is a new conversation or Run.
 - Crawl4AI must be working: check `provider_readiness.providers.crawl4ai` in
   `marketops_setup_status`. If it is not `READY`, follow "Before the first page read" in
   `marketops-providers`. Put the repair offer, or the question about going on with TinyFish

@@ -52,6 +52,12 @@ Do not submit forms, send messages, subscribe to plans, top up credits or access
 
 ## 五家可选 Provider：用户自己开通，不默认已登录
 
+账户与 Key 分开登记：同一供应商的一个计费账户共用余额，多把 Key 不代表多份额度。
+现有 Key 可通过本地账户 CLI 只登记归属，不读取或改写 Key；新增 Key 仅经本机隐藏输入
+和 OS Keyring 保存。Serper/Jev 余额通过 `marketops_accounts` 持久化问一次，未知也不反复问。
+合法已有 Jev 账户可明确启用配额切换；Serper 保持单账户；换账户不重置总预算。
+命令和限制见 [账户与余额](../../references/ACCOUNT_BALANCES.md)。
+
 首次双路径配置完成后，调用 `marketops_setup_status` 读取 `provider_readiness`（各服务 READY 或需要的修复），按 [官方申请/API Key/MCP/登录态与费用指南](../../references/PROVIDER_ONBOARDING.md) 引导 Member-A **自行**决定启用哪些供应商。绝不要求一次填五个Key、不得自动注册、充值、下载或启用付费网络。每个项目的 provider 认证/配额/域名允许名单和TinyFish Browser Context Profile都需单独确认。
 
 Claude Code 源码预览可用 `scripts/launch_research_mcp.sh`，缺 MCP SDK 就短码提示配置项目私有虚拟环境；安装程序生成可移植包时绑定绝对 venv Python。首用失败后须人工核对宿主 MCP连接状态和缓存，不得默默恢复为有权限的连接。

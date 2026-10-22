@@ -85,10 +85,10 @@ def classify(answer: dict) -> str:
     text = json.dumps({k: answer.get(k) for k in ("reason_code", "caveats", "payload",
                                                   "provider_reason_codes")},
                       ensure_ascii=False, default=str).casefold()
-    if any(marker in text for marker in QUOTA_MARKERS):
-        return "QUOTA_EXHAUSTED"
     if any(marker in text for marker in RATE_MARKERS):
         return "RATE_LIMITED"
+    if any(marker in text for marker in QUOTA_MARKERS):
+        return "QUOTA_EXHAUSTED"
     return ""
 
 
@@ -106,10 +106,11 @@ def _until(provider: str, state: str) -> str:
     return (now + QUOTA_HOLD).isoformat()
 
 
-def record(root: Path, provider: str, state: str, *, detail: str = "") -> dict:
+def record(root: Path, provider: str, state: str, *, detail: str = "", account_ref: str = "") -> dict:
     entry = {"state": state, "since": _now().isoformat(), "until": _until(provider, state),
-             "detail": str(detail)[:120]}
-    _update(root, provider, entry)
+             "detail": str(detail)[:120], "provider": provider,
+             "account_ref": account_ref or provider}
+    _update(root, account_ref or provider, entry)
     return entry
 
 

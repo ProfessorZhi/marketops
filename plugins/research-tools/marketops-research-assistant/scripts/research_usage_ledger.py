@@ -956,7 +956,10 @@ class UsageLedger:
                 raise LedgerRefused(
                     "INVALID_REQUEST",
                     "a provider account scope key is <project>/<provider>/<account_ref>")
-            where, params = "project = ? AND provider = ? AND account_ref = ?", list(parts)
+            if parts[2] == "*":
+                where, params = "project = ? AND provider = ?", parts[:2]
+            else:
+                where, params = "project = ? AND provider = ? AND account_ref = ?", list(parts)
         else:
             raise LedgerRefused("INVALID_REQUEST", f"unknown cap scope kind {scope_kind!r}")
         for part in params:
@@ -1050,7 +1053,7 @@ class UsageLedger:
     def set_cap(self, scope_kind: str, scope_key: str, *, ceiling_micros: int | None = None,
                 ceiling_calls: int | None = None, ceiling_seconds: int | None = None,
                 window: str = "total", source: str,
-                usd_enforced: bool = False) -> Usage:
+                usd_enforced: bool = False, if_absent: bool = False) -> Usage:
         """State a ceiling, and name who stated it.
 
         A ceiling without a name is not readable later: "who allowed this run to
@@ -1083,6 +1086,10 @@ class UsageLedger:
                 raise LedgerRefused("INVALID_REQUEST", f"{name} must be a nonnegative integer")
         period = self._period_key(window, self._now())
         with self._connect(write=True) as db:
+            if if_absent:
+                existing = self._usage_in(db, scope_kind, scope_key, window, period)
+                if existing is not None:
+                    return existing
             # An operation ceiling bounds one operation, so past spend does not make
             # a lower value inconsistent; every other ceiling is cumulative and must
             # not be lowered below what is already held.
@@ -1583,6 +1590,7 @@ class UsageLedger:
             ("operation", signature), ("operation", f"{request.project}/*"),
             ("run", f"{request.project}/{request.run_id}"),
             ("provider_account", f"{request.project}/{request.provider}/{request.account_ref}"),
+            ("provider_account", f"{request.project}/{request.provider}/*"),
             ("project", request.project),
         ]
         run_scope = ("run", f"{request.project}/{request.run_id}")
