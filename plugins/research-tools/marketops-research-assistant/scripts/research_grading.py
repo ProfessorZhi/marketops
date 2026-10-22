@@ -20,7 +20,7 @@ from collections import Counter, defaultdict
 
 import research_scene as scene
 
-__all__ = ["grade_routes", "summary"]
+__all__ = ["grade_routes", "summary", "named_leads"]
 
 _TITLE_FIELDS = ("role_title", "role_function", "title", "department")
 
@@ -219,6 +219,37 @@ def grade_routes(records: list[dict], brief: dict | None) -> tuple[dict, dict]:
                 result["grade"] = "C"
                 result["reasons"].append("ROLE_NOT_IN_EMAIL_BLOCK")
     return out, rules
+
+
+def named_leads(records: list[dict], grades: dict, rules: dict) -> list[dict]:
+    """Named people in a wanted role (decision or operational) with no A/B email route.
+
+    A named person without an email is still a lead: the team can reach them through
+    the organisation's entry route, by name.
+    """
+    if not rules.get("roles"):
+        return []
+    with_ab = {g["person_key"] for g in grades.values() if g["grade"] in {"A", "B"}}
+    leads, seen = [], set()
+    for record in records:
+        if record["kind"] not in {"person", "role"}:
+            continue
+        data = record.get("data") or {}
+        name = _text(data, "name", "person_name")
+        title = _text(data, *_TITLE_FIELDS)
+        cls = scene.role_class(title, rules)
+        org = _text(data, "organization_id")
+        key = _text(data, "person_id") or record["entity_key"]
+        if not name or cls not in {"decision", "operational"} or key in with_ab:
+            continue
+        if (org, scene.fold(name)) in seen:
+            continue
+        seen.add((org, scene.fold(name)))
+        quote = next((q for _, q in _quotes(record)), "")
+        leads.append({"record_id": record["record_id"], "organization_id": org, "name": name,
+                      "role": title, "role_class": cls, "quote": quote,
+                      "artifact_id": next(iter(record.get("artifact_ids") or []), "")})
+    return leads
 
 
 def summary(grades: dict, *, targets_finished: int | None = None,

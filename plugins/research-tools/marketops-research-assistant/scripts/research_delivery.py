@@ -1001,6 +1001,7 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
                      if scene_rules["source"] else "RULES_UNKNOWN：任务说明里没有岗位规则"),
         ("评级分布", json.dumps(grade_summary["grades"], ensure_ascii=False, sort_keys=True)),
         ("A+B 去重人数", grade_summary["ab_people"]),
+        ("具名关键岗位（无公开邮箱）", "见 contact-pack/named_people_no_email.csv"),
         ("有 A+B 的组织数", grade_summary["organisations_with_ab"]),
         ("每100个目标的 A+B 人数", "UNKNOWN" if grade_summary["ab_per_100"] is None
          else f"{grade_summary['ab_per_100']}（分母：{grade_summary['per_100_of']} "
@@ -1055,13 +1056,20 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
             "; ".join(verdict["reasons"]), asset.get("url", ""), _plain(claim.get("quote", ""))[:600],
             asset.get("sha256", ""), candidate["record_id"]))
     pack_rows.sort(key=lambda r: ({"A": 0, "B": 1, "C": 2, "D": 3, "X": 4}.get(r[0], 5), r[1]))
+    leads = grading.named_leads(people, grades, scene_rules)
+    lead_rows = [(lead["organization_id"] or "UNKNOWN", org_names.get(lead["organization_id"], "UNKNOWN"),
+                  _plain(lead["name"]), _plain(lead["role"]), lead["role_class"],
+                  (assets.get(lead["artifact_id"]) or {}).get("url", ""), _plain(lead["quote"])[:600],
+                  (assets.get(lead["artifact_id"]) or {}).get("sha256", ""), lead["record_id"])
+                 for lead in leads]
     no_route = []
     for target in sources.run_targets(root, run_id):
         if target["status"] in {"hold", "excluded"}:
             no_route.append((target["name"], target["website"], target["address"],
                              target["status"].upper(), target["reason"], target["source_id"]))
     return sheets, {
-        "_contact_pack": {"routes": pack_rows, "no_route": no_route},
+        "_contact_pack": {"routes": pack_rows, "no_route": no_route, "leads": lead_rows},
+        "named_leads_without_email": len(lead_rows),
         "run_id": run_id, "scope": run["scope"], "rule_version": run["rule_version"],
         "status": "PARTIAL_CANDIDATE_ONLY_NOT_FORMAL_CONTACTS",
         "counts": {name: len(collected[name]) for name, _ in TABLES},
@@ -1159,6 +1167,11 @@ def write_delivery(data_root: Path | str | None, run_id: str, delivery_id: str) 
                 writer = csv.writer(handle)
                 writer.writerow(CONTACT_PACK_HEADERS)
                 writer.writerows(rows)
+        with (pack_dir / "named_people_no_email.csv").open("x", encoding="utf-8-sig", newline="") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(("organisation_id", "organisation", "person", "role", "role_class",
+                             "source_url", "quote", "source_sha256", "record_id"))
+            writer.writerows(pack["leads"])
         with (pack_dir / "no_route_targets.csv").open("x", encoding="utf-8-sig", newline="") as handle:
             writer = csv.writer(handle)
             writer.writerow(("target", "website", "address", "status", "reason", "source"))

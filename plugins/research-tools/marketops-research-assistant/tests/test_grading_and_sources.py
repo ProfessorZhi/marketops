@@ -165,6 +165,13 @@ class Grades(unittest.TestCase):
         g = self.grade([contact("c1", "a@example.org", "a@example.org")], brief={})
         self.assertEqual("RULES_UNKNOWN", g["c1"]["grade"])
 
+    def test_a_named_person_without_an_email_is_a_lead(self):
+        records = [person("p1", "Anne Petit", "Directrice des sports", "Anne Petit, directrice des sports"),
+                   person("p2", "Luc Roux", "Chargé de communication", "Luc Roux, communication")]
+        grades, rules = grading.grade_routes(records, PARIS)
+        leads = grading.named_leads(records, grades, rules)
+        self.assertEqual(["Anne Petit"], [lead["name"] for lead in leads])
+
     def test_the_kpi_counts_people_not_rows(self):
         grades, _ = grading.grade_routes([
             person("p1", "Marie Durand", "Directrice des sports", "Marie Durand, directrice des sports"),
