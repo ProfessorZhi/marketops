@@ -72,6 +72,33 @@ def _role_mailbox(email: str, title_words: str) -> bool:
     return bool(local & _ROLE_WORDS) or bool(local and local & set(title_words.split()) & _ROLE_WORDS)
 
 
+def _name_in_quote(email: str, quotes: list[tuple[str, str]]) -> str:
+    """The person an address belongs to, when the quote that prints it also prints the
+    name its local part spells ("Jean Dupont, directeur ... jean.dupont@club.fr").
+
+    Both name parts must appear capitalised in that same quote; nothing is inferred
+    from the address alone.
+    """
+    import re
+    parts = [scene.fold(p).replace(" ", "") for p in re.split(r"[._-]+", email.split("@", 1)[0])]
+    parts = [p for p in parts if len(p) >= 2 and not p.isdigit()]
+    if len(parts) < 2:
+        return ""
+    for _, quote in quotes:
+        if email.casefold() not in quote.casefold():
+            continue
+        words = re.findall(r"[A-ZÀ-ÖØ-Þ][\w'À-ÿ-]+", quote)
+        found = []
+        for part in parts:
+            match = next((w for w in words if scene.fold(w).replace(" ", "") == part), None)
+            if match is None:
+                break
+            found.append(match)
+        else:
+            return " ".join(found)
+    return ""
+
+
 def grade_routes(records: list[dict], brief: dict | None) -> tuple[dict, dict]:
     """({record_id: {grade, reasons, person_key, organization_id}}, rules) for email routes."""
     rules = scene.load(brief)
@@ -110,13 +137,18 @@ def grade_routes(records: list[dict], brief: dict | None) -> tuple[dict, dict]:
         value = str(data.get("value", "")).strip()
         org = _text(data, "organization_id")
         person_id, name, person = person_of(contact)
+        named_from_quote = False
+        if not name:
+            name = _name_in_quote(value, _quotes(contact))
+            named_from_quote = bool(name)
         role_records = roles_by_person.get(person_id, []) if person_id else []
         title = _text(data, *_TITLE_FIELDS) or next(
             (_text(r.get("data") or {}, *_TITLE_FIELDS) for r in role_records), "") or (
             _text(person.get("data") or {}, *_TITLE_FIELDS) if person else "")
         key = person_id or (f"{org}:{scene.fold(name)}" if name else value.casefold())
-        result = {"grade": "", "reasons": [], "person_key": key, "organization_id": org,
-                  "role_class": ""}
+        result = {"grade": "", "reasons": ["NAME_FROM_EMAIL_QUOTE"] if named_from_quote else [],
+                  "person_key": key, "organization_id": org, "role_class": "",
+                  "person_name": name}
         out[contact["record_id"]] = result
         if not rules["roles"]:
             result["grade"], result["reasons"] = "RULES_UNKNOWN", ["NO_SCENE_RULES"]

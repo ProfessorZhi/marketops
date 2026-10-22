@@ -107,6 +107,19 @@ class Grades(unittest.TestCase):
         self.assertEqual("B", g["c1"]["grade"])
         self.assertIn("ROLE_MAILBOX_OF_NAMED_PERSON", g["c1"]["reasons"])
 
+    def test_a_name_printed_with_its_own_address_needs_no_person_record(self):
+        g = self.grade([
+            contact("c1", "jean.dupont@example.fr",
+                    "Jean Dupont, directeur des sports : jean.dupont@example.fr"),
+            contact("c2", "jdupont@example.fr",
+                    "Jean Dupont, directeur des sports : jdupont@example.fr"),
+            contact("c3", "jean.dupont@example.fr",
+                    "Contactez le directeur des sports : jean.dupont@example.fr", artifact="art-2")])
+        self.assertEqual("A", g["c1"]["grade"])
+        self.assertIn("NAME_FROM_EMAIL_QUOTE", g["c1"]["reasons"])
+        self.assertNotEqual("A", g["c2"]["grade"])  # 'jdupont' spells no full name part
+        self.assertEqual("B", g["c3"]["grade"])      # no name printed: role-bound only
+
     def test_role_from_another_page_is_only_c(self):
         g = self.grade([
             person("p1", "Marie Durand", "Directrice des sports",
