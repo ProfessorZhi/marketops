@@ -43,7 +43,12 @@ class RuntimeDiagnostics(unittest.TestCase):
                 url="https://example.org/page", query="", selected=walls.CLOUD_RUNG,
                 attempts=[{"capability_id": walls.LOCAL_RUNG, "status": "FAILED",
                            "reason_code": "SOURCE_EMPTY_EXTRACT", "ordinal": 1}])
-            self.assertEqual((walls.CLOUD_RUNG,), walls.preferred_route(root, "https://example.org/other", route))
+            # The cloud goes first on this host; the local reader stays as the last rung.
+            self.assertEqual((walls.CLOUD_RUNG, walls.LOCAL_RUNG),
+                             walls.preferred_route(root, "https://example.org/other", route))
+            # A data endpoint on the same host keeps the local reader first.
+            self.assertEqual(route, walls.preferred_route(
+                root, "https://example.org/api/explore/v2.1/catalog/datasets/x/records", route))
 
 
 if __name__ == "__main__":

@@ -67,8 +67,14 @@ class Inventory(unittest.TestCase):
     def test_municipal_venues_group_by_town(self):
         self.load()
         towns = bulk.venue_groups(self.root, run_id="run-a", by="city", operator_types=["Commune"])
-        self.assertEqual({"Ville de Créteil", "Ville de Nanterre", "Ville de Paris"},
+        self.assertEqual({"Créteil municipality", "Nanterre municipality", "Paris municipality"},
                          {g["target_name"] for g in towns["groups"]})
+        # Any language: the caller names a town's target the way the country does.
+        local = bulk.venue_groups(self.root, run_id="run-a", by="city", operator_types=["Commune"],
+                                  name_template="Ville de {group}")
+        self.assertIn("Ville de Paris", {g["target_name"] for g in local["groups"]})
+        with self.assertRaisesRegex(ValueError, "VENUE_GROUP_TEMPLATE_INVALID"):
+            bulk.venue_groups(self.root, run_id="run-a", by="city", name_template="City hall")
 
     def test_the_ladder_does_not_end_while_operators_are_uncovered(self):
         import research_execution
@@ -111,6 +117,65 @@ class SiteQueries(unittest.TestCase):
                           "https://blog.urbansoccer.fr/equipe"},
                          {hit["url"] for hit in answer["results"]})
         self.assertEqual(1, answer["off_site_results_dropped"])
+
+
+class WallsAreRecorded(unittest.TestCase):
+    """Every kind of wall reaches the experience journal without the agent writing a note."""
+
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.root = Path(temp.name)
+        store.start_run(self.root, "run-a", "Any market", "Any goal", "test")
+
+    def codes(self):
+        import research_event_journal as journal
+        from contextlib import closing
+        with closing(journal._connect(journal._root(self.root))) as db:
+            return [e["reason_code"] for e in journal.read_all_events(db)
+                    if e["status"] in journal.BUMP_STATUSES]
+
+    def test_a_refused_tool_call_is_journaled(self):
+        import research_mcp as mcp
+
+        def marketops_pool_import(run_id="", pool_id=""):
+            raise ValueError("BULK_ROWS_INVALID: too many rows")
+
+        guarded = mcp._guarded(marketops_pool_import)
+        with patch.object(mcp, "root", return_value=self.root):
+            with self.assertRaises(Exception):
+                guarded(run_id="run-a", pool_id="p")
+        self.assertIn("BULK_ROWS_INVALID", self.codes())
+
+    def test_a_held_pool_target_is_journaled(self):
+        pool.import_targets(self.root, pool_id="p", source_id="s", source_url="", provider="local",
+                            listed_count=1, targets=[{"name": "Any Club", "address": "Town"}])
+        claimed = pool.claim(self.root, pool_id="p", worker_id="w", count=1)
+        key = claimed["targets"][0]["target_key"]
+        pool.complete(self.root, pool_id="p", worker_id="w", results=[
+            {"target_key": key, "outcome": "hold", "reason": "SITE_UNREACHABLE: timeout",
+             "run_id": "run-a"}])
+        self.assertIn("SITE_UNREACHABLE", self.codes())
+
+    def test_an_ignored_site_operator_is_journaled(self):
+        import research_mcp as mcp
+        with patch.object(mcp, "root", return_value=self.root), \
+                patch.object(mcp, "search", return_value={"results": [{"url": "https://other.example/"}]}):
+            mcp._search_all("site:club.example coach", "GB", "en", "run-a", "op-1", 10)
+        self.assertIn("SEARCH_SITE_OPERATOR_IGNORED", self.codes())
+
+    def test_the_experience_file_maps_walls_by_cause_reader_and_website(self):
+        import research_experience_summary as summary
+        import research_walls as walls
+        walls.record_chain(self.root, run_id="run-a", task_kind="known_public_url",
+                           url="https://blocked.example/team", query="", selected=walls.CLOUD_RUNG,
+                           attempts=[{"capability_id": walls.LOCAL_RUNG, "status": "FAILED",
+                                      "reason_code": "SOURCE_ACCESS_BLOCKED", "ordinal": 1}])
+        text = summary.render([], [], {}, walls=walls.summary(self.root))
+        self.assertIn("碰壁地图", text)
+        self.assertIn("SOURCE_ACCESS_BLOCKED", text)
+        self.assertIn("blocked.example", text)
+        self.assertNotIn("https://blocked.example/team", text)
 
 
 if __name__ == "__main__":

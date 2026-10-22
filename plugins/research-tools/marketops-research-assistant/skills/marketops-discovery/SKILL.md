@@ -13,9 +13,21 @@ name. Verify commune fields instead of assuming `lib_bdv` is a city. A mixed
 directory does not prove every venue indoors. Supply an `indoor` source claim
 and require it in the brief for indoor venue eligibility.
 
-**Open-data registers (Opendatasoft portals such as Data ES): fetch exports, not pages.**
-The records API returns 100 rows per call and refuses offsets past 10,000. The Paris
-run spent 17 minutes on 100 page reads and still lost the last 2,772 rows. Instead:
+**Any register or open-data portal: find its bulk export before paging.** Record APIs
+page slowly and often stop at a fixed depth. The Paris run read 100 pages of 100 rows on an
+Opendatasoft portal for 17 minutes and still lost the last 2,772 rows past offset 10,000.
+Common export endpoints:
+- Opendatasoft: `/exports/json` or `/exports/csv`.
+- CKAN: the resource download URL, or `datastore_search` with a high `limit`.
+- Socrata: `rows.json` or `$limit`.
+- ArcGIS: `query?f=geojson` with `resultOffset`.
+- Many sites: a plain CSV/XLSX download link.
+
+Rules:
+- Read one regional slice per call (under 50,000 rows), keeping only the columns you need.
+- Get the total first and check each slice against it.
+
+Opendatasoft example:
 - Read one department (or another slice under 50,000 rows) per call from the export
   endpoint, keeping only the columns you need. For example:
   `…/api/explore/v2.1/catalog/datasets/<id>/exports/json?where=dep_code="75" AND

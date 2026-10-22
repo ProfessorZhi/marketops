@@ -1104,6 +1104,16 @@ def _search_all(query, country, language, run_id, operation_id, limit):
            "by_provider": {p: (len(_hits(a)) if "error" not in a else a["error"])
                            for p, a in answers.items()},
            "artifact_ids": [x for a in answers.values() for x in a.get("artifact_ids") or []]}
+    if dropped or not merged:
+        # Search walls belong in the experience file as much as page walls do.
+        code = "SEARCH_SITE_OPERATOR_IGNORED" if dropped and not merged else (
+            "SEARCH_OFF_SITE_RESULTS" if dropped else "SEARCH_NO_RESULTS")
+        try:
+            append_event(root(), run_id=run_id, operation_id=f"{operation_id}-wall"[:96],
+                         stage="discovery", kind="source", status="hold",
+                         provider="search", reason_code=code)
+        except Exception:  # noqa: BLE001
+            pass
     if dropped:
         out["off_site_results_dropped"] = dropped
         if not merged:
@@ -1464,6 +1474,42 @@ def _blocked_call_route(fn, args: tuple, kwargs: dict) -> dict | None:
         reservation="UNKNOWN_BLOCKED_BEFORE_OR_AFTER_PROVIDER_ATTEMPT")
 
 
+#: Which research stage a refused tool belongs to, for the experience journal.
+_TOOL_STAGES = {"marketops_search": "discovery", "marketops_serpapi_mcp_search": "discovery",
+                "marketops_research_step": "acquisition", "marketops_pool_import": "discovery",
+                "marketops_venue_groups": "discovery", "marketops_site_harvest": "acquisition",
+                "marketops_harvest_batch": "acquisition", "marketops_jev_choice": "qualification",
+                "marketops_jev_triage": "qualification", "marketops_propose_batch": "entities",
+                "marketops_evidence_audit": "review", "marketops_handoff": "handoff",
+                "marketops_material_excerpt": "acquisition"}
+
+
+def _journal_refusal(fn, args, kwargs, reason: str) -> None:
+    """A refused tool call is a wall too: record its code against the Run.
+
+    BULK_ROWS_INVALID, FALLBACK_TASK_COUNTRY_REQUIRED and the like reached the
+    agent and nowhere else, so the experience file could not show them.
+    """
+    try:
+        fields = inspect.signature(fn).bind_partial(*args, **kwargs).arguments
+        run_id = fields.get("run_id")
+        if not isinstance(run_id, str) or not run_id:
+            return
+        code = (re.match(r"[A-Z][A-Z0-9_]{2,80}", reason) or [None])[0] or "TOOL_REFUSED"
+        op = "refusal-" + hashlib.sha256(f"{fn.__name__}:{run_id}:{reason}:{datetime_now()}"
+                                         .encode()).hexdigest()[:24]
+        append_event(root(), run_id=run_id, operation_id=op,
+                     stage=_TOOL_STAGES.get(fn.__name__, "review"), kind="tool",
+                     status="blocked", provider="local", reason_code=code)
+    except Exception:  # noqa: BLE001 - recording a refusal never hides it
+        pass
+
+
+def datetime_now() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat()
+
+
 def _guarded(fn):
     """Return an anticipated domain refusal as a readable MCP tool failure.
 
@@ -1490,6 +1536,7 @@ def _guarded(fn):
             from mcp.server.mcpserver.exceptions import ToolError
             response = {"status": "BLOCKED", "tool": fn.__name__,
                         "reason": str(exc)}
+            _journal_refusal(fn, args, kwargs, str(exc))
             route = _blocked_call_route(fn, args, kwargs)
             if route is not None:
                 response["invocation"] = route
@@ -1978,23 +2025,26 @@ def build_server():
     @tool
     def marketops_venue_groups(run_id: str, by: str = "operator", operator_types: list[str] | None = None,
                                limit: int = 50, import_to_pool: str = "",
-                               country_hint: str = "") -> dict:
+                               country_hint: str = "", name_template: str = "") -> dict:
         """The Run's venues grouped by who runs them, largest groups first; no network.
 
         A venue's decision-makers usually sit at its operator: the municipality's
         sports department for public venues, the company or association otherwise.
         Map operator/operator_type when importing the inventory (marketops_pool_import
         mapping), then group here. by='operator' uses that field; by='city' groups
-        municipal venues by town (pass operator_types with the source's municipal
-        values, e.g. ['Commune']). import_to_pool=<pool_id> adds the largest uncovered
-        groups as organisation targets; research them with marketops_harvest_batch.
+        municipal venues by town (pass operator_types with the source's own value for
+        public/municipal management). name_template names each town's target in the
+        local language, e.g. "City of {group}". import_to_pool=<pool_id> adds the
+        largest uncovered groups as organisation targets; research them with
+        marketops_harvest_batch.
         """
         import research_bulk
         store.list_run(root(), run_id, limit=1)
         return research_bulk.venue_groups(root(), run_id=run_id, by=by,
                                           operator_types=operator_types, limit=limit,
                                           import_to_pool=import_to_pool,
-                                          country_hint=country_hint)
+                                          country_hint=country_hint,
+                                          name_template=name_template)
 
     @tool
     def marketops_crawl4ai_check(run_id: str = "", repair: bool = False) -> dict:

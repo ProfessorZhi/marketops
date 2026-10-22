@@ -405,10 +405,38 @@ def complete(root, *, pool_id: str, worker_id: str, results: list[dict]) -> dict
                  str(item.get("organization_key") or ""), int(item.get("routes") or 0),
                  _stamp(), pool_id, key, worker_id, attempt, attempt))
             (accepted if cursor.rowcount else refused).append(
-                {"target_key": key} if cursor.rowcount else
+                {"target_key": key, "outcome": outcome, "reason": str(item.get("reason") or ""),
+                 "run_id": str(item.get("run_id") or ""), "attempt": attempt}
+                if cursor.rowcount else
                 {"target_key": key, "reason": "NOT_HELD_BY_THIS_WORKER"})
         db.commit()
+    _journal_walls(root, pool_id, accepted)
     return {"accepted": len(accepted), "refused": refused}
+
+
+def _journal_walls(root, pool_id: str, accepted: list[dict]) -> None:
+    """Every target that ended HOLD is a wall: record it in the experience journal.
+
+    Site-level outcomes (name not on the site, site unreachable, no public route)
+    were only in the pool table, so the experience file never showed where whole
+    target lists stalled.
+    """
+    import hashlib
+    try:
+        from research_event_journal import append_event
+    except ImportError:
+        return
+    for item in accepted:
+        if item.get("outcome") != "hold" or not item.get("run_id"):
+            continue
+        code = (re.match(r"[A-Z][A-Z0-9_]{2,80}", item["reason"]) or [None])[0] or "POOL_TARGET_HOLD"
+        op = "pool-hold-" + hashlib.sha256(f"{pool_id}:{item['target_key']}:{item.get('attempt')}"
+                                           .encode()).hexdigest()[:24]
+        try:
+            append_event(root, run_id=item["run_id"], operation_id=op, stage="acquisition",
+                         kind="source", status="hold", provider="local", reason_code=code)
+        except Exception:  # noqa: BLE001 - the journal never blocks the pool
+            pass
 
 
 def list_targets(root, *, pool_id: str, status: str = "", limit: int = 100,

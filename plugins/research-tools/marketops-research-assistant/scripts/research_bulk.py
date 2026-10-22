@@ -10,9 +10,9 @@ import research_lite_store as store
 import research_pool as pool
 
 
-#: A whole-department open-data export, read once and imported in local pages. The
-#: Paris run stopped at 5,000: the Data ES tail (offset >= 10,000 on the records API)
-#: was only reachable as an export, and the export was refused.
+#: A whole-region open-data export, read once and imported in local pages. Portals
+#: cap paged record APIs (Opendatasoft refuses offsets past 10,000); their export
+#: endpoints do not, and a 5,000-row limit here made the tail unreachable.
 MAX_ROWS = 50_000
 
 
@@ -193,7 +193,8 @@ def _label(text) -> str:
 
 
 def venue_groups(root, *, run_id: str, by: str = "operator", operator_types=None,
-                 limit: int = 50, import_to_pool: str = "", country_hint: str = "") -> dict:
+                 limit: int = 50, import_to_pool: str = "", country_hint: str = "",
+                 name_template: str = "") -> dict:
     """The run's venues grouped by who runs them, largest first.
 
     by="operator" groups on the mapped operator name; by="city" groups venues run
@@ -201,7 +202,12 @@ def venue_groups(root, *, run_id: str, by: str = "operator", operator_types=None
     Groups already present as a target in any pool count as covered. With
     import_to_pool, the largest uncovered groups become organisation targets there,
     ready for marketops_harvest_batch (which finds each official site).
+    name_template names a town's target in the local language ("City of {group}",
+    "{group} Council", "Ville de {group}", "{group}市体育局"); default "{group} municipality".
     """
+    template = name_template or ("{group}" if by == "operator" else "{group} municipality")
+    if "{group}" not in template or len(template) > 120:
+        raise ValueError("VENUE_GROUP_TEMPLATE_INVALID: must contain {group}")
     if by not in {"operator", "city"}:
         raise ValueError("VENUE_GROUP_BY_INVALID: operator or city")
     if type(limit) is not int or not 1 <= limit <= 500:
@@ -237,7 +243,7 @@ def venue_groups(root, *, run_id: str, by: str = "operator", operator_types=None
             known = {" ".join(pool._words(n)) for (n,) in db.execute("SELECT name FROM pool_targets")}
     out = []
     for group in groups.values():
-        name = group["group"] if by == "operator" else f"Ville de {group['group']}"
+        name = template.replace("{group}", group["group"])
         covered = " ".join(pool._words(name)) in known or " ".join(pool._words(group["group"])) in known
         out.append({"group": group["group"], "target_name": name, "venues": group["venues"],
                     "operator_type": group["types"].most_common(1)[0][0],
