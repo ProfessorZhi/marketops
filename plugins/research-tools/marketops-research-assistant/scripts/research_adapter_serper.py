@@ -750,6 +750,14 @@ class SerperAdapter:
                 "url": href[:2000],
                 "snippet": str(item.get("snippet") or item.get("description") or "")[:1000],
                 "rank": len(hits) + 1,
+                # Map results: the address keeps two sites of one chain apart in the
+                # pool, and the category tells a venue from a shop.
+                **({"kind": "place_candidate",
+                    "address": str(item.get("address") or "")[:500],
+                    "category": str(item.get("category") or item.get("type") or "")[:200],
+                    "phone": str(item.get("phoneNumber") or "")[:60],
+                    "place_id": str(item.get("cid") or item.get("placeId") or "")[:240]}
+                   if serper_modes.mode_spec(mode).mode == "maps" else {}),
             }))
             if len(hits) >= limit:
                 break

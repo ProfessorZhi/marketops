@@ -60,6 +60,18 @@ def _personal_address(email: str, name: str) -> bool:
     return len(tokens) > 1 and joined in {tokens[0][0] + surname, surname + tokens[0][0]}
 
 
+_ROLE_WORDS = frozenset("""president presidente presidence directeur directrice direction
+director manager gerant gerante responsable secretaire secretary chef head coordinateur
+coordinatrice regisseur administrateur administratrice""".split())
+
+
+def _role_mailbox(email: str, title_words: str) -> bool:
+    """president@, directeur.sports@, manager@: an address named after a role, not a service."""
+    local = set(scene.fold(email.split("@", 1)[0].replace(".", " ").replace("_", " ")
+                           .replace("-", " ")).split())
+    return bool(local & _ROLE_WORDS) or bool(local and local & set(title_words.split()) & _ROLE_WORDS)
+
+
 def grade_routes(records: list[dict], brief: dict | None) -> tuple[dict, dict]:
     """({record_id: {grade, reasons, person_key, organization_id}}, rules) for email routes."""
     rules = scene.load(brief)
@@ -151,7 +163,13 @@ def grade_routes(records: list[dict], brief: dict | None) -> tuple[dict, dict]:
             role_same_page = bool(title_words) and (
                 any(scene._matches(f, title_words) for _, f in with_email)
                 or bool(role_artifacts & {a for a, _ in with_email}))
-            if named_block and role_same_page and not _personal_address(value, name):
+            role_box = _role_mailbox(value, title_words)
+            if named_block and role_same_page and not _personal_address(value, name) and role_box:
+                # president@club.fr next to "Président : Jean Dupont": the role's own
+                # address, which reaches that person; a role-bound email is B.
+                result["grade"] = "B"
+                result["reasons"].append("ROLE_MAILBOX_OF_NAMED_PERSON")
+            elif named_block and role_same_page and not _personal_address(value, name):
                 result["grade"] = "C"
                 result["reasons"].append("DEPARTMENT_INBOX_NEXT_TO_NAME")
             elif named_block and role_same_page:
