@@ -634,7 +634,7 @@ def admission(root, capability_id):
     if not _credential_present(entry.provider):
         return denied("CAPABILITY_NOT_AVAILABLE", "PROVIDER_CREDENTIAL_MISSING")
     account = _read(_path(root, entry.provider + "-account.json"))
-    if account and not account_observation_fresh(account):
+    if account and plan["budget_mode"] != "MONEY" and not account_observation_fresh(account):
         return denied("WALLET_PRECONDITION_FAILED", "ACCOUNT_OBSERVATION_STALE: confirm a new observation with observe-account --refresh")
     if entry.provider in ENDPOINTS:
         from research_s0_preflight_gate import validate_snapshot_entry, _parse_iso

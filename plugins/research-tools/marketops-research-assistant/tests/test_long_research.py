@@ -106,6 +106,12 @@ class Money(unittest.TestCase):
         with self.assertRaises(usage.LedgerRefused):
             self.ledger().reserve(self.request(1))
 
+    def test_money_mode_uses_its_current_balance_instead_of_stale_legacy_baseline(self):
+        runtime._write(self.root / "state/serper-account.json", {
+            "observed_at": (datetime.now(timezone.utc) - timedelta(days=3)).isoformat(), "units": 10})
+        with patch.object(runtime, "_credential_present", return_value=True):
+            self.assertTrue(runtime.admission(self.root, "serper.search")["allowed"])
+
 
 class Bulk(unittest.TestCase):
     def setUp(self):
