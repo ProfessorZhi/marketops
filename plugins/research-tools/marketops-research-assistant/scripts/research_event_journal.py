@@ -43,6 +43,7 @@ NOTE_CATEGORIES = (
     "provider_blocked",             # 收费 Provider 未授权/额度/凭据前置件
     "evidence_missing",             # 结论拿不到可回读证据
     "human_correction",             # 人工纠正了模型判断
+    "source_low_yield",             # 来源试点 A+B 产出过低，已停用
     "other",
 )
 

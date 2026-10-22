@@ -157,6 +157,27 @@ def yields(root, run_id: str, *, grades: dict | None = None, brief: dict | None 
             "unit": "pool targets finished by this Run; A+B = organisation has an A or B route"}
 
 
+def _note_yields(root, run_id: str, stopped: list[dict]) -> None:
+    """Each stopped source goes into the experience pack, like a wall: the next Run on
+    a similar scene sees which kind of list gave nothing."""
+    import re
+    from research_event_journal import append_note
+    for row in stopped:
+        ref = re.sub(r"[^A-Za-z0-9_.-]+", "-", f"yield-{row['pool_id']}-{row['source_id']}")[:120]
+        try:
+            append_note(root, run_id=run_id, note_id=ref, stage="discovery",
+                        category="source_low_yield",
+                        problem=f"Source {row['source_id']} gave {row['with_ab']} of {row['finished']} "
+                                "finished targets with an A or B route",
+                        action_taken="Parked its remaining targets (SOURCE_YIELD_STOP)",
+                        observed_result=f"A+B account rate {row['ab_rate']}",
+                        hypothesis="This kind of list rarely publishes role-bound emails for this "
+                                   "scene; prefer sources whose pages name the wanted roles",
+                        evidence_ref=ref)
+        except (ValueError, OSError):
+            continue  # the parking stands; a note that cannot be written is not a reason to undo it
+
+
 def park_stopped(root, run_id: str) -> dict:
     """Park pending targets of STOP sources; returns what was parked."""
     report = yields(root, run_id)
@@ -176,5 +197,6 @@ def park_stopped(root, run_id: str) -> dict:
                 "WHERE pool_id=? AND source_id=? AND status='pending'",
                 (reason[:500], run_id, now, row["pool_id"], row["source_id"])).rowcount
         db.commit()
+    _note_yields(root, run_id, stopped)
     return {"parked": parked, "sources": [
         {k: r[k] for k in ("pool_id", "source_id", "finished", "with_ab", "ab_rate")} for r in stopped]}
