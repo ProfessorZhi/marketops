@@ -8,6 +8,30 @@ description: Single entry for a MarketOps research task (venues, organisations, 
 Goal: the user does as little as possible; you run the whole task in long autonomous stretches and
 deliver an evidence-backed workbook. Effect first, cost second.
 
+Read [long research and monetary envelopes](../../references/LONG_RESEARCH_AND_BUDGETS.md).
+In MONEY mode, request/page counters are telemetry, not a spending ceiling.
+Read `marketops_costs(action='budget')`; do not interpret a null request limit as
+zero. Free local Crawl4AI remains available when a paid supplier envelope closes.
+Never renew or widen an envelope just to continue. Legacy REQUEST_COUNT mode
+keeps its explicitly approved cap until local setup changes the policy.
+
+For long regional discovery, save each upstream JSON page once and use the
+artifact mode of `marketops_pool_import` to preview/filter/import it locally.
+Never refetch one record per request merely to get around the excerpt window.
+Follow both local `next_offset` and upstream pagination until reconciled.
+
+For named contacts, ask for desired decision roles rather than an invented
+headcount. Put the wanted subset of `management`, `operations`,
+`commercial_events` in `brief.role_groups_wanted`. Use
+`marketops_next.contact_coverage` to research missing roles from alternative
+public sources; a generic inbox or the first named person does not close the
+task. Reuse people across venues only through sourced operator relationships.
+Pilot batch sizes are method tests, never total target quotas.
+
+Retain `usage_checkpoint.since` returned by `marketops_start` for this session.
+Pass it to `marketops_handoff(since=...)`; report `session_cost` separately from
+the explicitly cumulative `run_cost`. A new context window keeps that checkpoint.
+
 ## Hard rules (read first)
 
 1. **Only the `marketops_*` tools.** Do not use Bash, Read, Grep or Python on the plugin's code,
@@ -74,6 +98,25 @@ deliver an evidence-backed workbook. Effect first, cost second.
 A pool of 300 names with no contacts does not meet a contacts goal. The Paris run did
 exactly that: 0 venues and 0 people delivered.
 
+**When a method finds little, switch methods; never stop.** Contacts are found by a ladder of
+methods, and `marketops_method(run_id)` says which one is next:
+1. Own site.
+2. Operator: the municipality, school, club or company that runs the venue.
+3. Role searches.
+4. Official directories.
+5. Documents such as minutes, tenders and organisation charts.
+6. TinyFish agent, only if allowed.
+
+After a method has been tried on about 20–30 targets with little result:
+1. Record it: `marketops_method(run_id, method, outcome='exhausted', note='<counts>')`.
+2. Apply `next_method` to the remaining targets right away, in the same turn.
+
+The Paris continuation stopped with 70 targets pending and $1.93 left because the own-site
+method found nothing. That was the wrong move: "no email on the venue's site" does not mean the
+contact does not exist. Public venues are usually run by an operator whose staff are listed
+elsewhere. Keep the inventory going (paging the official list) while contacts are researched;
+one does not stop the other.
+
 An operator shortlist is also not a venue inventory. For a region-wide venue task,
 build the facility list from the scoped official sources, retain venue addresses,
 and map venues to operators; a chain with many sites is not one venue. Researching
@@ -95,7 +138,19 @@ WorkBuddy) run the same account procedure from `marketops-accounts` one organisa
 
 ## 3. When to stop and ask
 
-Only: the budget cap is about to be reached; a paid tier (TinyFish Agent) is needed but not
+**Do not end your turn while `execution.continuation_required=true`.** A saved workbook or a
+checkpoint handoff is not the end. If a reply carries `do_not_stop` or `execution.turn_rule`,
+carry out its `next_action` and `next_method` straight away, without an interim summary.
+
+The research ends only when one of these holds:
+- the budget is spent;
+- the goal is met;
+- `execution.state` is `FINAL_METHODS_EXHAUSTED` (every method recorded as exhausted);
+- one of the reasons below for asking the user.
+
+When it does end, say which of these it was.
+
+Ask the user only when: the budget cap is about to be reached; a paid tier (TinyFish Agent) is needed but not
 authorised; the same rule conflict keeps recurring (many `RULES_UNKNOWN`); a credential or
 configuration is missing; Crawl4AI stopped working (`crawl4ai_down`) and the user has not yet
 agreed to TinyFish-only reading. Everything else: pick another authorised source or record HOLD with the

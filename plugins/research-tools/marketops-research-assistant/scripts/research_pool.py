@@ -122,16 +122,18 @@ def target_key(name: str, address: str = "", website: str = "") -> str:
 
 def import_targets(root, *, pool_id: str, source_id: str, source_url: str, provider: str,
                    listed_count: int | None, targets: list[dict], objective: str = "",
-                   scene: str = "") -> dict:
+                   scene: str = "", excluded_count: int = 0) -> dict:
     """Add one source's targets; report listed vs imported/duplicates/rejected."""
     _id(pool_id, "pool_id"); _id(source_id, "source_id")
-    if not isinstance(targets, list) or not 1 <= len(targets) <= MAX_IMPORT:
+    if type(excluded_count) is not int or excluded_count < 0 or excluded_count > MAX_IMPORT:
+        raise ValueError("POOL_EXCLUDED_COUNT_INVALID")
+    if not isinstance(targets, list) or not 0 <= len(targets) <= MAX_IMPORT or (not targets and not excluded_count):
         raise ValueError(f"POOL_TARGETS_INVALID: 1-{MAX_IMPORT} targets per import")
     if listed_count is not None and (type(listed_count) is not int or listed_count < 0):
         raise ValueError("POOL_LISTED_COUNT_INVALID: the number of entities the source listed")
     base = _root(root)
     imported = duplicates = 0
-    rejected: list[dict] = []
+    rejected: list[dict] = [{"reason": "EXPLICIT_SOURCE_FILTER"} for _ in range(excluded_count)]
     with closing(_db(base)) as db:
         db.execute("BEGIN IMMEDIATE")
         db.execute("INSERT OR IGNORE INTO pools VALUES(?,?,?,?)",
@@ -184,11 +186,14 @@ def _row(row) -> dict:
     keys = ("target_key", "name", "kind", "website", "address", "source_id", "priority",
             "status", "claimed_by", "lease_until", "attempts", "run_id", "organization_key",
             "reason", "routes")
-    return dict(zip(keys, row))
+    result = dict(zip(keys, row))
+    if len(row) > len(keys):
+        result["source_context"] = json.loads(row[len(keys)])
+    return result
 
 
 _COLUMNS = ("target_key,name,kind,website,address,source_id,priority,status,claimed_by,"
-            "lease_until,attempts,run_id,organization_key,reason,routes")
+            "lease_until,attempts,run_id,organization_key,reason,routes,extra_json")
 
 
 def claim(root, *, pool_id: str, worker_id: str, count: int = 20,

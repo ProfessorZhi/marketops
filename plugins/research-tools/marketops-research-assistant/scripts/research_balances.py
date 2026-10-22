@@ -17,6 +17,7 @@ import asyncio
 import json
 import os
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 __all__ = ["read_all", "record_manual", "readings"]
@@ -93,6 +94,17 @@ def read_tinyfish(root: Path) -> dict:
     parsed = asyncio.run(go())
     payload = parsed.get("tool_result", parsed) if isinstance(parsed, dict) else parsed
     wallet = wallet_observation(payload)
+    if not wallet.get("shape_recognized") and isinstance(payload, dict) and payload.get("currency") == "USD":
+        # Wallet balance is independently useful even when the paid-Agent rate
+        # catalogue has changed shape. Never relax the Agent's strict parser.
+        try:
+            balance = Decimal(str(payload["available_balance"]))
+            if balance.is_finite() and 0 <= balance <= 100_000_000:
+                return {"status": "READ_BALANCE_ONLY", "unit": "USD", "left": str(balance),
+                        "agent_step_rate_usd": None, "auto_reload_enabled": None,
+                        "evidence": "PROVIDER_WALLET_READ", "agent_pricing_verified": False}
+        except (KeyError, InvalidOperation, ValueError):
+            pass
     return {"status": "READ" if wallet.get("shape_recognized") else "READ_UNRECOGNISED",
             "unit": "USD", "left": wallet.get("balance"),
             "auto_reload_enabled": wallet.get("auto_reload_enabled"),
@@ -113,7 +125,7 @@ def read_all(root: Path) -> dict:
         except Exception as exc:  # noqa: BLE001 - a failed read is reported, never raised
             reading = {"status": "READ_FAILED", "reason": type(exc).__name__}
         reading["observed_at"] = _now()
-        if reading["status"].startswith("READ") and reading["status"] != "READ_FAILED":
+        if reading["status"] in {"READ", "READ_BALANCE_ONLY"} and reading.get("left") is not None:
             _save(root, provider, reading)
             _refresh_health(root, provider, reading)
         out[provider] = reading

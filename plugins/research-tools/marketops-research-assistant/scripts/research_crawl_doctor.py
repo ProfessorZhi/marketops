@@ -44,10 +44,11 @@ FIXES = {
     "CACHE_CONFIGURATION": "The Crawl4AI cache must be an absolute path outside source control. Correct the local cache setting, then restart the agent.",
     "PACKAGES_MISSING": "Crawl4AI is not installed in the plugin's Python. Run the repair.",
     "BROWSER_MISSING": "The Chromium browser Crawl4AI uses is missing. Run the repair.",
-    "BROWSER_WONT_START": ("Chromium is installed but will not start. Run the repair; if it "
-                           "still fails, security software may be blocking it: allow "
-                           "<install>\\browsers in the antivirus, or install the Microsoft "
-                           "Visual C++ Redistributable."),
+    "BROWSER_WONT_START": ("No launch mode works: Playwright's Chromium, full Chromium, Chrome "
+                           "and Edge were each started, given a page and closed, and all "
+                           "failed. Run the repair; if it still fails, security software is "
+                           "probably blocking the browser: allow <install>\\browsers in the "
+                           "antivirus, or install Microsoft Edge or Google Chrome."),
     "PAGE_READ_FAILED": ("Chromium starts but could not read a test page through the plugin. "
                          "Check the network (a company proxy: customer_setup.py --proxy), "
                          "then run the check again."),
@@ -83,22 +84,23 @@ def repair_command() -> list[str]:
 
 
 def _launch_probe() -> tuple[bool, str]:
-    """Start headless Chromium and open a blank page, in its own process."""
-    probe = ("from playwright.sync_api import sync_playwright\n"
-             "with sync_playwright() as pw:\n"
-             "    b = pw.chromium.launch(headless=True)\n"
-             "    b.new_page().goto('about:blank')\n"
-             "    b.close()\n"
-             "print('LAUNCHED')\n")
-    try:
-        done = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True,
-                              timeout=90, env=os.environ.copy())
-    except subprocess.TimeoutExpired:
-        return False, "launch timed out after 90 s"
-    if done.returncode == 0 and "LAUNCHED" in done.stdout:
+    """Start Chromium, read a page and close it, in its own process.
+
+    When the remembered launch mode fails, the others are tried (full Chromium,
+    Chrome, Edge) and a working one is remembered for every crawl on this
+    computer: a reinstall cannot fix a headless shell that hangs on this machine.
+    """
+    import research_browser_launch as launch
+    mode = launch.configured_mode()
+    first = launch.probe(mode)
+    if first["ok"]:
         return True, ""
-    last = (done.stderr.strip().splitlines() or ["no error text"])[-1]
-    return False, last[:160]
+    chosen = launch.choose()
+    if chosen["mode"]:
+        launch.install_launch_default()
+        return True, (f"switched the browser to the '{chosen['mode']}' launch mode "
+                      f"({mode} failed: {first['detail']})")[:300]
+    return False, "; ".join(f"{t['mode']}: {t['detail']}" for t in chosen["tried"])[:300]
 
 
 def check(root: Path, *, page_read=None) -> dict:
@@ -126,6 +128,10 @@ def check(root: Path, *, page_read=None) -> dict:
                       detail=str(state["chromium_path"])[:160])
     else:
         launched, detail = _launch_probe()
+        import research_browser_launch
+        result["browser_mode"] = research_browser_launch.configured_mode()
+        if launched and detail:
+            result["browser_note"] = detail
         if not launched:
             result.update(status="NOT_WORKING", failed_step="BROWSER_WONT_START", detail=detail)
         elif page_read is not None:

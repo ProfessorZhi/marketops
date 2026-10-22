@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import functools
+from datetime import datetime, timezone
 import hashlib
 import importlib.util
 import inspect
@@ -35,6 +36,11 @@ def next_step(run_id, limit=10, previous_snapshot_id="", after_attempt=False):
     result = workflow.next_step(root(), run_id, limit, previous_snapshot_id, after_attempt,
                                 budget=_source_selection_budget(run_id))
     result["experience"] = _experience_view(run_id, stage=result.get("stage", "intake"))
+    import research_contacts
+    contacts = research_contacts.coverage(root(), run_id, limit=limit)
+    result["contact_coverage"] = contacts
+    if contacts.get("organizations_with_missing_roles", 0):
+        result.update(goal_satisfied=False, status="MORE_RESEARCH_REQUIRED")
     import research_execution
     result["execution"] = research_execution.assess(root(), run_id, goal=result,
                                                     budget=_source_selection_budget(run_id))
@@ -72,6 +78,12 @@ def compact_next(result: dict) -> dict:
         }
     if "candidate_write_contract" in result:
         view["write_help"] = "marketops-accounts skill: claims, joins and examples"
+    execution = result.get("execution")
+    if isinstance(execution, dict) and isinstance(execution.get("methods"), dict):
+        view["execution"] = {**execution, "methods": {
+            ladder: {"next_method": info.get("next_method"),
+                     "tried": {t["method"]: t["outcome"] for t in info.get("tried", [])}}
+            for ladder, info in execution["methods"].items()}}
     return view
 
 
@@ -226,7 +238,12 @@ def provider_readiness() -> dict:
     budget = None
     if data_root is not None and settings.get("max_calls") is not None:
         from research_runtime_status import usage
-        budget = usage(data_root, settings.get("project_max_calls", settings["max_calls"]))
+        import research_runtime_setup as budget_runtime
+        budget = usage(data_root, budget_runtime.cap_plan(settings)["project_max_calls"])
+        if budget_runtime.cap_plan(settings)["budget_mode"] == "MONEY":
+            import research_spending
+            budget.update(metric="requests_observed_not_a_spending_limit", request_limit_active=False,
+                          monetary=research_spending.status(data_root))
     return {"providers": out,
             "low_balance_warnings": low,
             "shared_request_budget": budget,
@@ -457,8 +474,14 @@ def _source_selection_budget(run_id: str) -> dict:
         try:
             from research_runtime_status import usage as runtime_usage
             snapshot = runtime_usage(
-                data_root, settings.get("project_max_calls", settings["max_calls"]))
-            return {"search_remaining": snapshot["remaining"],
+                data_root, runtime_setup.cap_plan(settings)["project_max_calls"])
+            monetary = {}
+            if runtime_setup.cap_plan(settings)["budget_mode"] == "MONEY":
+                import research_spending
+                money = research_spending.status(data_root)
+                monetary = {"budget_mode": "MONEY", "request_limit_active": False,
+                            "remaining_usd": money["remaining_usd"], "free_page_reads_available": True}
+            return {**monetary, "search_remaining": snapshot["remaining"],
                     "provider_remaining": snapshot["remaining"],
                     "unknown_held": snapshot.get("ambiguous_outcome_operations",
                                                  snapshot["unknown_charge_operations"]),
@@ -636,7 +659,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         configured_root = None
     if configured_root is not None and runtime_setup.config(configured_root):
         from research_runtime_status import view
-        return {"product": "MarketOps Research MCP", "version": "0.5.10-rc4",
+        return {"product": "MarketOps Research MCP", "version": "0.5.11-rc2",
                 **view(configured_root, task_kind=task_kind),
                 "external_host": _external_inventory(host_observed_tools),
                 "embedded_official_mcp": provider_policy.embedded_official_mcp_capabilities(),
@@ -711,7 +734,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         if task_kind else None)
     return {
         "product": "MarketOps Lite Research MCP",
-        "version": "0.5.10-rc4",
+        "version": "0.5.11-rc2",
         "providers": {
             "serpapi": {"transport": "REST through local MCP", **search["serpapi"]},
             "serper": {"transport": "REST through local MCP", **search["serper"]},
@@ -811,6 +834,8 @@ def start(run_id, scope, objective, rule_version, brief=None):
     if brief_receipt is None and next_state.get("brief_record_id"):
         brief_receipt = {"status": "EXISTING_BRIEF", "record_id": next_state["brief_record_id"]}
     return {**result, "event": event,
+            "usage_checkpoint": {"since": datetime.now(timezone.utc).isoformat(),
+                                 "scope": "this conversation slice; retain across checkpoint continuation"},
             "brief": brief_receipt or {"status": "BRIEF_REQUIRED"},
             "next_status": next_state["status"],
             "next_skill": next_state["recommended_skill"],
@@ -950,6 +975,8 @@ def crawl4ai_down_notice(data_root) -> dict:
 def crawl4ai_check(run_id="", repair=False) -> dict:
     """Run (or repair and rerun) the Crawl4AI self-check; a run_id adds a real page read."""
     import research_crawl_doctor as doctor
+    # A repair/download can finish after this long-lived MCP process started.
+    _use_installed_browser()
     data_root = root()
     if repair:
         outcome = doctor.repair(data_root)
@@ -964,7 +991,10 @@ def crawl4ai_check(run_id="", repair=False) -> dict:
                 return True, ""
             reason = answer.get("primary_reason_code") or answer.get("reason_code")
             if reason in doctor.RUNTIME_FAILURES or answer.get("reason_code") == "CAPABILITY_NOT_AVAILABLE":
-                return False, reason
+                detail = (answer.get("payload") or {}).get("detail", "")
+                safe_detail = (detail if isinstance(detail, str) and re.fullmatch(
+                    r"[A-Za-z][A-Za-z0-9_]{0,79}:[A-Z0-9_]{1,80}", detail) else "")
+                return False, reason + (":" + safe_detail if safe_detail else "")
             return None  # the run's rules refused it: says nothing about the browser
     result = doctor.check(data_root, page_read=page_read)
     return {**result, "tell_the_user": "" if result["status"] == "WORKING"
@@ -1318,7 +1348,7 @@ def handoff(run_id, operation_id, mode="auto"):
     try:
         experience_result = draft_experience(
             r, run_id=run_id, scope=head["scope"],
-            rule_version=head["rule_version"], skill_version="0.5.10-rc4",
+            rule_version=head["rule_version"], skill_version="0.5.11-rc2",
             output=experience_path)
         result["experience_candidate"] = str(experience_path)
         result["experience_incidents"] = experience_result["incidents"]
@@ -1465,7 +1495,7 @@ PUBLIC_TOOLS = frozenset({
     "marketops_pool_status", "marketops_harvest_batch", "marketops_lessons_report",
     "marketops_jev_triage", "marketops_suppression", "marketops_feedback_pack",
     "marketops_pool_reopen", "marketops_costs", "marketops_update_check",
-    "marketops_crawl4ai_check",
+    "marketops_crawl4ai_check", "marketops_method",
 })
 
 
@@ -1498,9 +1528,16 @@ def build_server():
     # Direct by default; only an explicitly configured proxy changes that.
     research_config.load_upstream_proxy_into_environment()
     _use_installed_browser()
+    try:
+        # A launch mode chosen on this computer (installer, check or repair) applies
+        # to every crawl, Crawl4AI included.
+        import research_browser_launch
+        research_browser_launch.install_launch_default()
+    except Exception:  # noqa: BLE001 - the default launch still runs
+        pass
     _ensure_repair_entrypoints()
     from mcp.server import MCPServer
-    mcp = MCPServer("MarketOps Lite Research", version="0.5.10-rc4")
+    mcp = MCPServer("MarketOps Lite Research", version="0.5.11-rc2")
 
     def tool(fn):
         if fn.__name__ not in PUBLIC_TOOLS:
@@ -1791,16 +1828,30 @@ def build_server():
         return fetch
 
     @tool
-    def marketops_pool_import(pool_id: str, source_id: str, source_url: str, provider: str,
-                              listed_count: int | None, targets: list[dict],
-                              objective: str = "", scene: str = "") -> dict:
+    def marketops_pool_import(pool_id: str, source_id: str, source_url: str = "", provider: str = "",
+                              listed_count: int | None = None, targets: list[dict] | None = None,
+                              objective: str = "", scene: str = "", run_id: str = "",
+                              artifact_id: str = "", mapping: dict | None = None,
+                              filters: dict | None = None, offset: int = 0,
+                              limit: int = 500, preview: bool = False) -> dict:
         """Add one source's targets to the shared pool every window works from.
 
         targets: [{name, website?, address?, kind?, priority?}]. listed_count is how
         many entities the source itself listed; the reply says whether imported +
         duplicates + rejected reconcile with it. Dedupe: name + postcode/region.
+        For saved JSON pass run_id/artifact_id and preview=true to inspect fields,
+        then mapping={name:source_field,indoor:source_field,...} and literal-value
+        filters={source_field:[allowed_values]}. Local pagination consumes no
+        provider requests; follow next_offset, then upstream_pagination_remaining.
         """
         import research_pool
+        if artifact_id:
+            if targets is not None:
+                raise ValueError("BULK_OR_EXPLICIT_TARGETS_NOT_BOTH")
+            import research_bulk
+            return research_bulk.import_saved(root(), run_id=run_id, artifact_id=artifact_id,
+                pool_id=pool_id, source_id=source_id, mapping=mapping, filters=filters,
+                offset=offset, limit=limit, preview=preview, objective=objective, scene=scene)
         return research_pool.import_targets(
             root(), pool_id=pool_id, source_id=source_id, source_url=source_url,
             provider=provider, listed_count=listed_count, targets=targets,
@@ -1834,7 +1885,8 @@ def build_server():
     @tool
     def marketops_costs(action: str = "report", run_id: str = "", provider: str = "",
                         capability: str = "", usd_per_unit: str = "", plan: str = "",
-                        left: float | None = None, unit: str = "") -> dict:
+                        left: float | None = None, unit: str = "", since: str = "",
+                        amount_usd: str = "") -> dict:
         """Money, not just call counts: spend per project/Run/provider and account balances.
 
         action="report": estimated spend (all Runs, or run_id), free allowances left.
@@ -1845,12 +1897,22 @@ def build_server():
         action="set_balance": what a provider console shows, e.g. provider="serper",
           left=2380, unit="credit".
         Estimates say so; a provider account reading is the authority.
+        since: the usage_checkpoint.since returned by marketops_start; omitting
+        it reports cumulative Run totals. action=budget reads money envelopes.
+        action=set_budget with amount_usd and optional provider narrows an
+        already approved envelope; it cannot grant additional spending.
         """
         import research_balances
         import research_costs
         data_root = root()
         if action == "report":
-            return research_costs.report(data_root, run_id=run_id or None)
+            return research_costs.report(data_root, run_id=run_id or None, since=since)
+        if action == "budget":
+            import research_spending
+            return research_spending.status(data_root)
+        if action == "set_budget":
+            import research_spending
+            return research_spending.tighten(data_root, amount_usd=amount_usd, provider=provider)
         if action == "balances":
             return research_costs.balances(data_root)
         if action == "set_rate":
@@ -1872,6 +1934,22 @@ def build_server():
         folder, then restart this agent. Never run the update yourself mid-task.
         """
         return update_check(include_prerelease)
+
+    @tool
+    def marketops_method(run_id: str, method: str = "", outcome: str = "", note: str = "") -> dict:
+        """Which research methods this Run has tried, and the next one to use.
+
+        Without method: the status of both ladders (contacts, inventory). With
+        method and outcome (started, productive, exhausted, not_applicable): record
+        it. When a method finds little, record it exhausted and go straight on with
+        next_method on the remaining targets; stopping a method never ends the
+        research. note: one line on why (counts, not URLs or emails).
+        """
+        import research_methods
+        store.list_run(root(), run_id, limit=1)
+        if not method:
+            return research_methods.status(root(), run_id)
+        return research_methods.record(root(), run_id, method, outcome, note)
 
     @tool
     def marketops_crawl4ai_check(run_id: str = "", repair: bool = False) -> dict:
@@ -2026,7 +2104,7 @@ def build_server():
         return evidence_workbook(run_id, delivery_id)
 
     @tool
-    def marketops_handoff(run_id: str, operation_id: str, mode: str = "auto") -> dict:
+    def marketops_handoff(run_id: str, operation_id: str, mode: str = "auto", since: str = "") -> dict:
         """Deliver one audited candidate XLSX/CSV snapshot and experience artifacts with partial failures visible.
 
         mode: auto, checkpoint or final. A final request cannot override pending
@@ -2034,11 +2112,21 @@ def build_server():
         the same Run. The reply carries this Run's estimated spend per provider.
         """
         result = handoff(run_id, operation_id, mode)
+        execution = result.get("execution") or {}
+        if result.get("continuation_required") and execution.get("turn_rule"):
+            # The Paris continuation ended right after a checkpoint handoff with
+            # 70 targets pending: the file is saved, the research goes on.
+            result["do_not_stop"] = {"turn_rule": execution["turn_rule"],
+                                     "next_action": execution.get("next_action"),
+                                     "next_method": execution.get("next_method"),
+                                     "next_method_how": execution.get("next_method_how")}
         try:
             import research_costs
             spend = research_costs.report(root(), run_id=run_id)
             result["run_cost"] = {"total_estimated_usd": spend["total_estimated_usd"],
-                                  "by_provider": spend["by_provider"]}
+                                  "by_provider": spend["by_provider"], "measurement_scope": "RUN_CUMULATIVE"}
+            if since:
+                result["session_cost"] = research_costs.report(root(), run_id=run_id, since=since)
         except Exception as exc:  # noqa: BLE001 - delivery never fails for a cost summary
             result["run_cost"] = {"status": "UNAVAILABLE", "reason": type(exc).__name__}
         return result
@@ -2085,7 +2173,7 @@ def build_server():
             raise ValueError("EXPERIENCE_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT")
         output.parent.mkdir(parents=True, exist_ok=True)
         return draft_experience(r, run_id=run_id, scope=scope,
-                                rule_version=rule_version, skill_version="0.5.10-rc4",
+                                rule_version=rule_version, skill_version="0.5.11-rc2",
                                 output=output)
 
     @tool

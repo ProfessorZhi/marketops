@@ -76,6 +76,18 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         raise ValueError("PROVIDER_REDIRECT_BLOCKED")
 
 
+def proxy_handler() -> urllib.request.ProxyHandler:
+    """The proxy MarketOps itself was told to use, never the machine's ambient one.
+
+    urllib otherwise reads HTTP(S)_PROXY and, on Windows, the Internet Settings
+    registry. A stale local proxy there (a VPN or IDE that moved port) turned every
+    search into HTTP 502 on a customer machine while direct access worked. Only
+    ``customer_setup.py --proxy`` (MARKETOPS_EGRESS_UPSTREAM_PROXY) routes through one.
+    """
+    upstream = os.environ.get("MARKETOPS_EGRESS_UPSTREAM_PROXY", "").strip()
+    return urllib.request.ProxyHandler({"http": upstream, "https": upstream} if upstream else {})
+
+
 # The operator's escape hatch for the SerpApi REST compatibility path. It is
 # not in any shipped manifest's env_vars on purpose: a setting that appears in
 # a generated connector template is a setting a customer turns on by filling a
@@ -485,7 +497,7 @@ def _request(provider: str, mode: str, q: str, country: str,
         endpoint = "https://serpapi.com/search.json?" + urllib.parse.urlencode(params)
         req = urllib.request.Request(endpoint, method="GET")
     if opener is None:
-        opener = urllib.request.build_opener(NoRedirect()).open
+        opener = urllib.request.build_opener(NoRedirect(), proxy_handler()).open
     # The refusal code is chosen inside the handler and raised after it. A raise
     # inside `except` re-attaches the caught exception as `__context__`, and a
     # refused HTTPError carries an attacker-controlled reason phrase (and, on the

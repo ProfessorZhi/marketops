@@ -502,11 +502,19 @@ class _GatewayAfterTheGate:
                                              project=project, ledger=self._built.ledger)
             provider_ceiling = settings.get("provider_limits", {}).get(
                 kwargs["account_ref"], plan["max_calls"])
+            if plan["budget_mode"] == "MONEY":
+                provider_ceiling = None
             for kind, key, limit in (
                     ("provider_account",
                      f"{project}/{kwargs['account_ref']}/{kwargs['account_ref']}",
                      provider_ceiling),
                     ("operation", f"{project}/*", 1)):
+                if plan["budget_mode"] == "MONEY" and kind == "provider_account":
+                    envelope = settings["spending"]
+                    self._built.ledger.set_cap(kind, key, ceiling_calls=None,
+                        ceiling_micros=envelope["ledger_money_baseline"] + envelope["total_budget_micros"],
+                        usd_enforced=True, source="LOCAL_MONETARY_ENVELOPE")
+                    continue
                 runtime.set_call_cap_preserving_money(
                     self._built.ledger, kind, key, ceiling_calls=limit,
                     source="LOCAL_REQUEST_COUNT_CONSENT")

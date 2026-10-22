@@ -16,7 +16,7 @@ import venv
 from pathlib import Path
 
 SOURCE = Path(__file__).resolve().parents[1]
-VERSION = "0.5.10-rc4"
+VERSION = "0.5.11-rc2"
 CLIENTS = ("codex", "workbuddy", "both", "claude", "all")
 STATE_FILE = "INSTALL_STATE.json"
 STATE_OWNER = "marketops.setup_clients.v1"
@@ -145,6 +145,39 @@ def _state_write(dest, state):
     pending = dest / (STATE_FILE + ".pending")
     pending.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
     pending.replace(dest / STATE_FILE)
+
+
+PROXY_VARIABLES = ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy")
+
+
+def _reachable(url: str, *, direct: bool) -> bool:
+    import urllib.request
+    handlers = [urllib.request.ProxyHandler({})] if direct else []
+    try:
+        with urllib.request.build_opener(*handlers).open(
+                urllib.request.Request(url, method="HEAD"), timeout=15):
+            return True
+    except Exception:  # noqa: BLE001 - any failure means "not this way"
+        return False
+
+
+def _download_env(probe_url: str = "https://pypi.org/simple/pip/") -> tuple[dict, str]:
+    """The environment for pip and the Chromium download.
+
+    The machine's proxy (environment or, on Windows, Internet Settings) is used
+    when it works. A stale one left by a VPN or IDE answered 502 on a customer
+    machine while direct access worked; then the downloads go direct, and the
+    receipt says so. A proxy that works, or no network at all, changes nothing.
+    """
+    env = dict(os.environ)
+    if sys.platform != "win32" and not any(env.get(name) for name in PROXY_VARIABLES):
+        return env, ""  # no proxy anywhere to go wrong
+    if _reachable(probe_url, direct=False) or not _reachable(probe_url, direct=True):
+        return env, ""
+    for name in PROXY_VARIABLES:
+        env.pop(name, None)
+    env["NO_PROXY"] = env["no_proxy"] = "*"
+    return env, "MACHINE_PROXY_UNREACHABLE_DOWNLOADED_DIRECT"
 
 
 def _python(venv_path: Path) -> Path:
@@ -329,6 +362,9 @@ def install(destination: Path, client: str, *, dependencies: bool,
     # future tree ships without a lock — but that fallback is recorded, because
     # an unverified install is not the reproducible one.
     dependency_sources = []
+    download_env, proxy_note = _download_env() if (dependencies or browser) else (dict(os.environ), "")
+    if proxy_note:
+        state["network_note"] = proxy_note
     for ranges, lock in (("requirements-lite.txt", "requirements-lock-lite.txt"),
                          ("requirements-crawl-local.txt", "requirements-lock-crawl-local.txt")):
         if not (dependencies if ranges.startswith("requirements-lite") else local_crawl):
@@ -346,7 +382,7 @@ def install(destination: Path, client: str, *, dependencies: bool,
         # Capture the child's output: a failing package manager may print
         # mirrored URLs or local paths, and the installer only ever reports
         # its own stable code and one recovery step.
-        subprocess.run(command, check=True, capture_output=True, text=True)
+        subprocess.run(command, check=True, capture_output=True, text=True, env=download_env)
         dependency_sources.append({"file": requirement.name, "hash_pinned": locked})
     if dependencies:
         subprocess.run([str(py), "-m", "pip", "check"], check=True,
@@ -360,16 +396,18 @@ def install(destination: Path, client: str, *, dependencies: bool,
         # This survives isolated HOME and cross-client launch differences.
         # The download is explicit, not a paid vendor API or site interaction.
         browser_root.mkdir(mode=0o700, exist_ok=True)
-        env = dict(os.environ)
+        env = dict(download_env)
         env["PLAYWRIGHT_BROWSERS_PATH"] = str(browser_root)
         subprocess.run([str(py), "-m", "playwright", "install", "chromium"],
                        check=True, env=env, capture_output=True, text=True)
-        check = subprocess.run([str(py), "-c",
-            "from playwright.sync_api import sync_playwright; "
-            "p=sync_playwright().start(); b=p.chromium.launch(headless=True); "
-            "page=b.new_page(); page.goto('about:blank'); b.close(); p.stop()"],
-            env=env, capture_output=True, timeout=60)
-        browser_verified = check.returncode == 0
+        # Start, read and close the browser for real, in each launch mode until
+        # one works (Playwright's headless shell hangs on some Windows machines
+        # where full Chromium or Edge work); the choice is kept beside the browsers.
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import research_browser_launch
+        launch = research_browser_launch.choose(root=browser_root, python=str(py), env=env)
+        browser_verified = bool(launch["mode"])
+        state["browser_launch"] = launch
     # Bind each generated MCP config to the customer-owned package copy.
     for config_name in ("mcp.json", ".mcp.json"):
         config_path = target / config_name
@@ -430,6 +468,11 @@ def install(destination: Path, client: str, *, dependencies: bool,
                "chromium_download_requested": browser,
                "browser_cache": str(browser_root) if browser else None,
                "browser_launch_verified": browser_verified,
+               "network_note": state.get("network_note") or None,
+               "browser_launch_mode": (state.get("browser_launch") or {}).get("mode") or None,
+               "browser_launch_tried": [
+                   {k: t[k] for k in ("mode", "ok", "detail", "seconds")}
+                   for t in (state.get("browser_launch") or {}).get("tried", [])],
                "provider_login_performed": False, "paid_provider_calls": 0,
                "external_official_mcp_registered": False,
                "provider_onboarding_commands": {
@@ -454,6 +497,13 @@ def install(destination: Path, client: str, *, dependencies: bool,
     results["credentials_configure_argv"] = [str(py), str(target / "scripts" / "research_credentials.py"), "configure"]
     results["customer_setup_argv"] = [str(py), str(target / "scripts" / "customer_setup.py")]
     validation_ok = bool(probe_report.get("ok")) and (not browser or browser_verified)
+    if browser and not browser_verified:
+        results["browser_problem"] = (
+            "Chromium did not start, read a test page and close in any launch mode ("
+            + "; ".join(f"{t['mode']}: {t['detail'] or 'failed'}" for t in
+                        results["browser_launch_tried"])
+            + "). Allow the install's browsers folder in the antivirus, or install Microsoft "
+              "Edge or Google Chrome, then run Repair.cmd (repair.sh).")
     if dependencies:
         results["status"] = "RUNTIME_READY_HOST_PENDING" if validation_ok else "INSTALL_VALIDATION_INCOMPLETE"
     if client in {"claude", "all"}:
@@ -649,6 +699,9 @@ def main() -> int:
                   ) if args.apply
                   else {"status": "DRY_RUN", **plan(args.destination, args.client)})
         print(json.dumps(result, ensure_ascii=False, indent=2))
+        if result.get("browser_problem"):
+            print(f"INSTALL_BLOCKED: BROWSER_NOT_WORKING: {result['browser_problem']}",
+                  file=sys.stderr)
         return 2 if result.get("status") == "INSTALL_VALIDATION_INCOMPLETE" else 0
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         return _refuse(exc)

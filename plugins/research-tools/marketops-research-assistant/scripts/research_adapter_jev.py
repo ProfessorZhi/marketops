@@ -52,6 +52,7 @@ evidence, and no path here writes a promotion or authorization field.
 from __future__ import annotations
 
 import hashlib
+import os
 import inspect
 import json
 import re
@@ -915,13 +916,20 @@ class JevAdapter:
 
     def _call(self, state, questions):
         sdk = _sdk_module()
-        with sdk.TypeSafeClient(
+        import httpx2
+        # Its own HTTP client so the machine's proxy variables are not read: a stale
+        # one inherited from an IDE answered 502 on a customer machine. Only the proxy
+        # configured for MarketOps (customer_setup.py --proxy) is used.
+        upstream = os.environ.get("MARKETOPS_EGRESS_UPSTREAM_PROXY", "").strip() or None
+        http_client = httpx2.Client(trust_env=False, proxy=upstream,
+                                    timeout=self._timeout if self._timeout is not None else 120)
+        with http_client, sdk.TypeSafeClient(
             api_key=self._api_key,
+            http_client=http_client,
             # None lets the SDK apply its own defaults (typesafe_sdk.constants in
             # 0.7.5); the module has no top-level DEFAULT_* names to read.
             base_url=self._base_url,
             model=self._model,
-            timeout=self._timeout,
             # One dispatch is one charge; a retry inside the SDK is invisible to the
             # budget, so retrying is the caller's explicit decision, not this layer's.
             retry=sdk.RetryPolicy(max_retries=0),

@@ -43,7 +43,7 @@ def usage(root, limit):
             calls = unknown = reserved = ambiguous = None
             state = "LEDGER_UNREADABLE"
     return {"limit": limit, "calls_used": calls,
-            "remaining": max(0, limit - calls) if calls is not None else None,
+            "remaining": max(0, limit - calls) if calls is not None and limit is not None else None,
             "unknown_charge_operations": unknown, "reserved_operations": reserved,
             # Of those, calls whose outcome is itself unknown (timeouts, lost
             # replies). Successful calls without a vendor bill are counted above
@@ -62,7 +62,12 @@ def view(root, *, task_kind=None):
     # historical single ``max_calls``. Reading the wrong one made a run-level
     # bound look like a project-wide one, and the ``remaining`` number disagreed
     # with what the ledger would actually allow.
-    budget = usage(root, settings.get("project_max_calls", settings["max_calls"]))
+    plan = runtime.cap_plan(settings)
+    budget = usage(root, plan["project_max_calls"])
+    if plan["budget_mode"] == "MONEY":
+        import research_spending
+        budget.update(metric="requests_observed_not_a_spending_limit", request_limit_active=False,
+                      monetary=research_spending.status(root))
     matrix = {}
     for capability in sorted(runtime.CORE):
         verdict = runtime.admission(root, capability)
@@ -89,7 +94,7 @@ def view(root, *, task_kind=None):
             "pricing_source": current.get("pricing_source"),
         }
     route = None if task_kind is None else {
-        "task_kind": task_kind, "mode": "MANAGED_FINITE_REQUESTS",
+        "task_kind": task_kind, "mode": "MANAGED_MONETARY_ENVELOPES" if plan["budget_mode"] == "MONEY" else "MANAGED_FINITE_REQUESTS",
         "candidates": [matrix[name] for name in ROUTES[task_kind]],
         "instruction": "Choose an admitted capability; source quality and actual charges remain independently checked.",
     }

@@ -472,7 +472,8 @@ def _http_json(url: str, *, method: str, key: str, data: dict | None = None,
     if opener is None:
         # Refuse redirected requests: may carry an auth header to another origin.
         import dual_search_mcp
-        opener = urllib.request.build_opener(dual_search_mcp.NoRedirect()).open
+        opener = urllib.request.build_opener(dual_search_mcp.NoRedirect(),
+                                             dual_search_mcp.proxy_handler()).open
     # The refusal code is chosen inside the handler but *raised* after it.
     # `raise ... from None` only sets `__suppress_context__`: the caught
     # exception stays attached as `__context__`, and the refused HTTPError's
