@@ -56,6 +56,14 @@ class SceneRules(unittest.TestCase):
         self.assertIn("groundsman", rules["roles"]["operational"])
         self.assertEqual("shipped:uk-natural-grass", scene.load({"scene": "uk-natural-grass"})["source"])
 
+    def test_a_deputy_is_operational(self):
+        rules = scene.load(PARIS)
+        self.assertEqual("operational", scene.role_class("Directeur adjoint des sports", rules))
+        self.assertEqual("operational", scene.role_class("Vice-directrice des sports", rules))
+        self.assertEqual("operational", scene.nearest_title(
+            "Florence MERX Vice-directrice des sports f.merx@example.fr", "f.merx@example.fr", rules)[0])
+        self.assertEqual("decision", scene.role_class("Directrice des sports", rules))
+
     def test_roles_wanted_alone_still_grades(self):
         rules = scene.load({"roles_wanted": ["Head Groundsman", "Grounds Manager"]})
         self.assertEqual("brief.roles_wanted", rules["source"])

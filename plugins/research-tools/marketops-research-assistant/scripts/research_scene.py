@@ -116,11 +116,33 @@ def match(text: object, rules: dict, order=("excluded", "decision", "operational
     found = [(len(fold(words)), -rank, key, fold(words)) for rank, key in enumerate(order)
              for words in roles.get(key, ()) if _matches(folded, fold(words))]
     if not found:
+        # "Directeur adjoint des sports": the deputy word sits inside the title.
+        bare = " ".join(w for w in folded.split() if w not in _DEPUTY_AFTER + _DEPUTY_BEFORE)
+        if bare != folded:
+            key, words = match(bare, rules, order)
+            return ("operational" if key == "decision" else key), words
         return "", ""
     # The most specific title wins ("vice-présidente" is not "présidente"); on a tie
     # the earlier class in `order` (excluded first).
     _, _, key, words = max(found)
+    if key == "decision" and _deputy(folded, words):
+        return "operational", words
     return key, words
+
+
+#: A decision title with one of these in front is someone's deputy, not the decision
+#: maker: "vice-présidente", "directeur adjoint", "deputy head of grounds".
+_DEPUTY_BEFORE = ("vice", "sous", "deputy", "assistant", "assistante", "co")
+_DEPUTY_AFTER = ("adjoint", "adjointe", "deputy")
+
+
+def _deputy(folded_text: str, words: str) -> bool:
+    for hit in re.finditer(rf"(?<![0-9a-z]){re.escape(words)}(?![0-9a-z])", folded_text):
+        before = folded_text[:hit.start()].split()[-1:]
+        after = folded_text[hit.end():].split()[:1]
+        if (before and before[0] in _DEPUTY_BEFORE) or (after and after[0] in _DEPUTY_AFTER):
+            return True
+    return False
 
 
 #: "avenue du Président Wilson" is an address, not a role.
@@ -154,7 +176,11 @@ def nearest_title(text: str, email: str, rules: dict, *, before: int = 70,
                 for hit in re.finditer(rf"(?<![0-9a-z]){re.escape(folded)}(?![0-9a-z])", words_text):
                     distance = (len(words_text) - hit.end()) if side == "left" else hit.start()
                     if best[2] < 0 or distance < best[2] or (distance == best[2] and len(folded) > len(best[1])):
-                        best = (key, folded, distance)
+                        cls = key
+                        if key == "decision" and _deputy(
+                                words_text[max(0, hit.start() - 12):hit.end() + 12], folded):
+                            cls = "operational"
+                        best = (cls, folded, distance)
     return best
 
 
