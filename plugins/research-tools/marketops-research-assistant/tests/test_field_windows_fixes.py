@@ -192,6 +192,10 @@ class MethodLadder(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.root = Path(tmp.name)
+        # These tests are about the ladder; the effort gate has its own tests.
+        enough = patch.object(methods, "effort", return_value={"enough": True})
+        enough.start()
+        self.addCleanup(enough.stop)
 
     def test_a_poor_method_hands_over_to_the_next(self):
         self.assertEqual("OWN_SITE", methods.status(self.root, "r1")["contacts"]["next_method"])

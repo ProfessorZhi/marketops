@@ -13,6 +13,43 @@ name. Verify commune fields instead of assuming `lib_bdv` is a city. A mixed
 directory does not prove every venue indoors. Supply an `indoor` source claim
 and require it in the brief for indoor venue eligibility.
 
+**Any register or open-data portal: find its bulk export before paging.** Record APIs
+page slowly and often stop at a fixed depth. The Paris run read 100 pages of 100 rows on an
+Opendatasoft portal for 17 minutes and still lost the last 2,772 rows past offset 10,000.
+Common export endpoints:
+- Opendatasoft: `/exports/json` or `/exports/csv`.
+- CKAN: the resource download URL, or `datastore_search` with a high `limit`.
+- Socrata: `rows.json` or `$limit`.
+- ArcGIS: `query?f=geojson` with `resultOffset`.
+- Many sites: a plain CSV/XLSX download link.
+
+`marketops_research_step` does this by itself for Opendatasoft, CKAN and Socrata: give it the
+first-page record URL with your filter, and it reads the export instead. The reply says so in
+`bulk_export`; `as_is=true` reads a URL exactly as given. For other portals, find the export
+yourself.
+
+Rules:
+- Read one regional slice per call (under 50,000 rows), keeping only the columns you need.
+- Get the total first and check each slice against it.
+
+Opendatasoft example:
+- Read one department (or another slice under 50,000 rows) per call from the export
+  endpoint, keeping only the columns you need. For example:
+  `…/api/explore/v2.1/catalog/datasets/<id>/exports/json?where=dep_code="75" AND
+  equip_nature="Intérieur"&select=equip_numero,inst_nom,equip_nom,equip_type_name,
+  inst_adresse,inst_cp,com_nom,equip_gest_type,equip_prop_type`.
+- Use `marketops_research_step(task_kind='known_public_url')`, then
+  `marketops_pool_import` in artifact mode, one local page at a time.
+- Get the total first with `records?limit=0&where=…`, then check each slice's
+  count against it.
+- Field names differ between datasets: preview the schema first.
+
+**Map who runs each venue.** When the source has operator/manager and owner fields, map
+them as `operator`, `operator_type` and `owner_type`.
+- Contacts sit with the operator: the municipality's sports department for public
+  venues, the company or association otherwise.
+- `marketops_venue_groups` turns the inventory into operator targets.
+
 ## Brief
 
 Save it with `marketops_start(..., brief=...)`. Fields:

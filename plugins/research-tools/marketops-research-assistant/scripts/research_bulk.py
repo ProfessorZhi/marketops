@@ -10,6 +10,12 @@ import research_lite_store as store
 import research_pool as pool
 
 
+#: A whole-region open-data export, read once and imported in local pages. Portals
+#: cap paged record APIs (Opendatasoft refuses offsets past 10,000); their export
+#: endpoints do not, and a 5,000-row limit here made the tail unreachable.
+MAX_ROWS = 50_000
+
+
 class _Pre(HTMLParser):
     def __init__(self):
         super().__init__()
@@ -42,12 +48,15 @@ def _json(material):
     if isinstance(data, list):
         rows, listed = data, len(data)
     elif isinstance(data, dict):
+        if isinstance(data.get("result"), dict):  # CKAN: {"result": {"records", "total"}}
+            data = {"records": data["result"].get("records"),
+                    "total_count": data["result"].get("total")}
         rows = data.get("results", data.get("records"))
         listed = data.get("total_count", len(rows) if isinstance(rows, list) else None)
     else:
         rows, listed = None, None
-    if not isinstance(rows, list) or len(rows) > 5000 or any(not isinstance(r, dict) for r in rows):
-        raise ValueError("BULK_ROWS_INVALID: at most 5000 JSON objects per saved response")
+    if not isinstance(rows, list) or len(rows) > MAX_ROWS or any(not isinstance(r, dict) for r in rows):
+        raise ValueError(f"BULK_ROWS_INVALID: at most {MAX_ROWS} JSON objects per saved response")
     # Opendatasoft v1 wraps fields; v2.1 does not.
     rows = [r["fields"] if isinstance(r.get("fields"), dict) else r for r in rows]
     return text, rows, listed
@@ -76,7 +85,10 @@ def import_saved(root, *, run_id, artifact_id, pool_id, source_id, mapping=None,
             raise ValueError()
     except (ValueError, TypeError):
         raise ValueError("BULK_UPSTREAM_OFFSET_INVALID") from None
-    allowed = {"name", "website", "address", "city", "postcode", "source_key", "indoor"}
+    # operator / operator_type / owner_type: who runs the venue. Contacts are found
+    # at the operator (a municipality's sports department, a company), not venue by venue.
+    allowed = {"name", "website", "address", "city", "postcode", "source_key", "indoor",
+               "operator", "operator_type", "owner_type"}
     if set(mapping) - allowed or any(not isinstance(v, str) for v in mapping.values()):
         raise ValueError("BULK_MAPPING_INVALID")
     if not isinstance(filters, dict) or any(not isinstance(k, str) or not isinstance(v, list)
@@ -176,4 +188,84 @@ def import_saved(root, *, run_id, artifact_id, pool_id, source_id, mapping=None,
         "replayed": False}
     store.put_candidate(root, run_id, receipt_id, "entities", "observation", receipt_id,
                         result, [artifact_id])
+    return result
+
+
+def _label(text) -> str:
+    return " ".join(str(text or "").split())[:200]
+
+
+def venue_groups(root, *, run_id: str, by: str = "operator", operator_types=None,
+                 limit: int = 50, import_to_pool: str = "", country_hint: str = "",
+                 name_template: str = "") -> dict:
+    """The run's venues grouped by who runs them, largest first.
+
+    by="operator" groups on the mapped operator name; by="city" groups venues run
+    by their municipality (filter operator_types to the source's municipal values).
+    Groups already present as a target in any pool count as covered. With
+    import_to_pool, the largest uncovered groups become organisation targets there,
+    ready for marketops_harvest_batch (which finds each official site).
+    name_template names a town's target in the local language ("City of {group}",
+    "{group} Council", "Ville de {group}", "{group}市体育局"); default "{group} municipality".
+    """
+    template = name_template or ("{group}" if by == "operator" else "{group} municipality")
+    if "{group}" not in template or len(template) > 120:
+        raise ValueError("VENUE_GROUP_TEMPLATE_INVALID: must contain {group}")
+    if by not in {"operator", "city"}:
+        raise ValueError("VENUE_GROUP_BY_INVALID: operator or city")
+    if type(limit) is not int or not 1 <= limit <= 500:
+        raise ValueError("VENUE_GROUP_LIMIT_INVALID: 1..500")
+    wanted = {_label(t).casefold() for t in (operator_types or [])}
+    from contextlib import closing
+    with closing(store._connection(root)) as db:
+        rows = db.execute("SELECT entity_key, payload_json FROM records WHERE run_id=? AND kind='venue'",
+                          (run_id,)).fetchall()
+    venues, groups = {}, {}
+    for key, body in rows:
+        facts = json.loads(body)
+        venues[key] = facts
+    missing = 0
+    for key, facts in venues.items():
+        kind = _label(facts.get("operator_type") or facts.get("owner_type"))
+        if wanted and kind.casefold() not in wanted:
+            continue
+        label = _label(facts.get("operator") if by == "operator" else facts.get("city"))
+        if not label:
+            missing += 1
+            continue
+        group = groups.setdefault(label.casefold(), {"group": label, "venues": 0, "types": Counter(),
+                                                    "cities": Counter(), "sample_venues": []})
+        group["venues"] += 1
+        group["types"][kind] += 1
+        group["cities"][_label(facts.get("city"))] += 1
+        if len(group["sample_venues"]) < 3:
+            group["sample_venues"].append(_label(facts.get("name"))[:80])
+    known = set()
+    if (pool._root(root) / "state" / "research-pool.sqlite3").is_file():
+        with closing(pool._db(pool._root(root))) as db:
+            known = {" ".join(pool._words(n)) for (n,) in db.execute("SELECT name FROM pool_targets")}
+    out = []
+    for group in groups.values():
+        name = template.replace("{group}", group["group"])
+        covered = " ".join(pool._words(name)) in known or " ".join(pool._words(group["group"])) in known
+        out.append({"group": group["group"], "target_name": name, "venues": group["venues"],
+                    "operator_type": group["types"].most_common(1)[0][0],
+                    "main_city": group["cities"].most_common(1)[0][0],
+                    "sample_venues": group["sample_venues"], "covered": covered})
+    out.sort(key=lambda g: (g["covered"], -g["venues"], g["group"]))
+    uncovered = [g for g in out if not g["covered"]]
+    result = {"run_id": run_id, "by": by, "venues_total": len(venues),
+              "venues_without_group_field": missing, "groups_total": len(out),
+              "groups_uncovered": len(uncovered),
+              "venues_in_uncovered_groups": sum(g["venues"] for g in uncovered),
+              "groups": out[:limit], "network_requests": 0}
+    if import_to_pool and uncovered:
+        chosen = uncovered[:limit]
+        targets = [{"name": g["target_name"], "kind": "organization",
+                    "address": ", ".join(x for x in (g["main_city"], country_hint) if x),
+                    "priority": float(g["venues"])} for g in chosen]
+        result["imported"] = pool.import_targets(
+            root, pool_id=import_to_pool, source_id=f"venue-groups-{by}-{run_id}"[:80],
+            source_url="", provider="local", listed_count=len(targets), targets=targets,
+            objective="Operators of the run's venues, largest first", scene="venue_operators")
     return result

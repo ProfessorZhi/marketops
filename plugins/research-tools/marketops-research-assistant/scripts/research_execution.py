@@ -55,6 +55,25 @@ def assess(root, run_id, *, goal, budget=None):
     import research_methods
     methods = research_methods.status(base, run_id)
     ladder = methods["contacts"]
+    # A venue inventory is only contact-researched when its operators were: the Paris
+    # run tried 20 brands, called the ladder exhausted and left 4,737 venues untouched.
+    groups = None
+    if not reached:
+        import research_bulk
+        try:
+            groups = research_bulk.venue_groups(base, run_id=run_id, by="operator", limit=1)
+            if groups["venues_total"] and groups["groups_total"] == 0:
+                groups = research_bulk.venue_groups(base, run_id=run_id, by="city", limit=1)
+        except Exception:  # noqa: BLE001 - grouping is advice, not a gate on reading
+            groups = None
+    uncovered = bool(groups and groups["groups_uncovered"])
+    if uncovered and (final or state == "CHECKPOINT_CONTINUE_RESEARCH") and remaining != 0:
+        state, action, final = ("CHECKPOINT_CONTINUE_RESEARCH",
+                                "IMPORT_VENUE_OPERATORS_AND_HARVEST", False)
+        ladder = {**ladder, "next_method": "OPERATOR", "all_exhausted": False,
+                  "next_method_how": dict(research_methods.LADDERS["contacts"])["OPERATOR"]
+                  + f" Use marketops_venue_groups(run_id, by='{groups['by']}', "
+                    "import_to_pool=...) to turn the venues into operator targets, largest first."}
     if state == "CHECKPOINT_CONTINUE_RESEARCH" and not pending and ladder["all_exhausted"]:
         # Every method on the ladder was tried and said exhausted: a real stop.
         state, action, final = "FINAL_METHODS_EXHAUSTED", "REPORT_PARTIAL_GOAL_AND_METHODS_TRIED", True
@@ -65,6 +84,9 @@ def assess(root, run_id, *, goal, budget=None):
             "goal_satisfied": reached, "coverage_scope": "known_targets_not_an_exhaustive_market_claim",
             "pools": [{"pool_id": p["pool_id"], "queue": p["by_status"], "queue_complete": p["queue_complete"]} for p in pools],
             "methods": methods,
+            "venue_operator_groups": None if groups is None else {
+                k: groups[k] for k in ("by", "venues_total", "groups_total", "groups_uncovered",
+                                       "venues_in_uncovered_groups")},
             "next_method": None if final else ladder["next_method"],
             "next_method_how": "" if final else ladder["next_method_how"]}
     if not final:

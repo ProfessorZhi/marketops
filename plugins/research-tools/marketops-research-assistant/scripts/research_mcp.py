@@ -659,7 +659,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         configured_root = None
     if configured_root is not None and runtime_setup.config(configured_root):
         from research_runtime_status import view
-        return {"product": "MarketOps Research MCP", "version": "0.5.11-rc2",
+        return {"product": "MarketOps Research MCP", "version": "0.5.11-rc3",
                 **view(configured_root, task_kind=task_kind),
                 "external_host": _external_inventory(host_observed_tools),
                 "embedded_official_mcp": provider_policy.embedded_official_mcp_capabilities(),
@@ -734,7 +734,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         if task_kind else None)
     return {
         "product": "MarketOps Lite Research MCP",
-        "version": "0.5.11-rc2",
+        "version": "0.5.11-rc3",
         "providers": {
             "serpapi": {"transport": "REST through local MCP", **search["serpapi"]},
             "serper": {"transport": "REST through local MCP", **search["serper"]},
@@ -1057,7 +1057,15 @@ def find_official_site(run_id, operation_id, target, country="us", language="en"
     return f"https://{parts.hostname}/"
 
 
-def _search_all(query, country, language, run_id, operation_id, limit):
+def _simple_site_query(query: str) -> str:
+    """site:X plus the first few plain words: what engines honour reliably."""
+    sites = re.findall(r"\bsite:\S+", query)
+    rest = re.sub(r"\bsite:\S+|\(|\)|\bOR\b|\bAND\b|\"", " ", query)
+    words = [w for w in rest.split() if not w.startswith("-") and ":" not in w][:4]
+    return " ".join(sites[:1] + words)
+
+
+def _search_all(query, country, language, run_id, operation_id, limit, _retried=False):
     """Serper and TinyFish search on the same query at once; results merged by URL."""
     from concurrent.futures import ThreadPoolExecutor
     def one(provider):
@@ -1088,11 +1096,46 @@ def _search_all(query, country, language, run_id, operation_id, limit):
                 merged.append({"title": hit.get("title"), "url": url,
                                "snippet": hit.get("snippet") or hit.get("description"),
                                "found_by": answer.get("substituted_by", provider)})
+    # A site: query that comes back with other sites (the Paris run got Gmail,
+    # Outlook and US Senate pages for "site:urbansoccer.fr (... OR ...) email") is
+    # the engine ignoring the operator: those hits are noise, not leads.
+    sites = [m.casefold().removeprefix("www.") for m in re.findall(r"\bsite:([^\s)\"']+)", query)]
+    dropped = 0
+    if sites:
+        def on_site(url):
+            host = (urlsplit(url).hostname or "").casefold().removeprefix("www.")
+            return any(host == s.split("/")[0] or host.endswith("." + s.split("/")[0]) for s in sites)
+        kept = [hit for hit in merged if on_site(hit["url"])]
+        dropped, merged = len(merged) - len(kept), kept
     import research_provider_health as health
     out = {"status": "OK", "query": query, "results": merged,
            "by_provider": {p: (len(_hits(a)) if "error" not in a else a["error"])
                            for p, a in answers.items()},
            "artifact_ids": [x for a in answers.values() for x in a.get("artifact_ids") or []]}
+    if dropped or not merged:
+        # Search walls belong in the experience file as much as page walls do.
+        code = "SEARCH_SITE_OPERATOR_IGNORED" if dropped and not merged else (
+            "SEARCH_OFF_SITE_RESULTS" if dropped else "SEARCH_NO_RESULTS")
+        try:
+            append_event(root(), run_id=run_id, operation_id=f"{operation_id}-wall"[:96],
+                         stage="discovery", kind="source", status="hold",
+                         provider="search", reason_code=code)
+        except Exception:  # noqa: BLE001
+            pass
+    if dropped:
+        out["off_site_results_dropped"] = dropped
+        simple = _simple_site_query(query)
+        if not merged and not _retried and simple and simple != query:
+            # The engine ignored site: on a complex query: ask once more, simply.
+            again = _search_all(simple, country, language, run_id, f"{operation_id}-simple"[:90],
+                                limit, _retried=True)
+            again["original_query"] = query
+            again["simplified_query"] = simple
+            again["off_site_results_dropped"] = dropped + again.get("off_site_results_dropped", 0)
+            return again
+        if not merged:
+            out["query_hint"] = ("Every result was off the site, also for the simplified query. "
+                                 "Harvest the site directly with marketops_site_harvest.")
     substituted = {p: a["substituted_by"] for p, a in answers.items() if a.get("substituted_by")}
     if substituted:
         out["substituted"] = substituted
@@ -1348,7 +1391,7 @@ def handoff(run_id, operation_id, mode="auto"):
     try:
         experience_result = draft_experience(
             r, run_id=run_id, scope=head["scope"],
-            rule_version=head["rule_version"], skill_version="0.5.11-rc2",
+            rule_version=head["rule_version"], skill_version="0.5.11-rc3",
             output=experience_path)
         result["experience_candidate"] = str(experience_path)
         result["experience_incidents"] = experience_result["incidents"]
@@ -1447,6 +1490,42 @@ def _blocked_call_route(fn, args: tuple, kwargs: dict) -> dict | None:
         reservation="UNKNOWN_BLOCKED_BEFORE_OR_AFTER_PROVIDER_ATTEMPT")
 
 
+#: Which research stage a refused tool belongs to, for the experience journal.
+_TOOL_STAGES = {"marketops_search": "discovery", "marketops_serpapi_mcp_search": "discovery",
+                "marketops_research_step": "acquisition", "marketops_pool_import": "discovery",
+                "marketops_venue_groups": "discovery", "marketops_site_harvest": "acquisition",
+                "marketops_harvest_batch": "acquisition", "marketops_jev_choice": "qualification",
+                "marketops_jev_triage": "qualification", "marketops_propose_batch": "entities",
+                "marketops_evidence_audit": "review", "marketops_handoff": "handoff",
+                "marketops_material_excerpt": "acquisition"}
+
+
+def _journal_refusal(fn, args, kwargs, reason: str) -> None:
+    """A refused tool call is a wall too: record its code against the Run.
+
+    BULK_ROWS_INVALID, FALLBACK_TASK_COUNTRY_REQUIRED and the like reached the
+    agent and nowhere else, so the experience file could not show them.
+    """
+    try:
+        fields = inspect.signature(fn).bind_partial(*args, **kwargs).arguments
+        run_id = fields.get("run_id")
+        if not isinstance(run_id, str) or not run_id:
+            return
+        code = (re.match(r"[A-Z][A-Z0-9_]{2,80}", reason) or [None])[0] or "TOOL_REFUSED"
+        op = "refusal-" + hashlib.sha256(f"{fn.__name__}:{run_id}:{reason}:{datetime_now()}"
+                                         .encode()).hexdigest()[:24]
+        append_event(root(), run_id=run_id, operation_id=op,
+                     stage=_TOOL_STAGES.get(fn.__name__, "review"), kind="tool",
+                     status="blocked", provider="local", reason_code=code)
+    except Exception:  # noqa: BLE001 - recording a refusal never hides it
+        pass
+
+
+def datetime_now() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat()
+
+
 def _guarded(fn):
     """Return an anticipated domain refusal as a readable MCP tool failure.
 
@@ -1473,6 +1552,7 @@ def _guarded(fn):
             from mcp.server.mcpserver.exceptions import ToolError
             response = {"status": "BLOCKED", "tool": fn.__name__,
                         "reason": str(exc)}
+            _journal_refusal(fn, args, kwargs, str(exc))
             route = _blocked_call_route(fn, args, kwargs)
             if route is not None:
                 response["invocation"] = route
@@ -1495,7 +1575,7 @@ PUBLIC_TOOLS = frozenset({
     "marketops_pool_status", "marketops_harvest_batch", "marketops_lessons_report",
     "marketops_jev_triage", "marketops_suppression", "marketops_feedback_pack",
     "marketops_pool_reopen", "marketops_costs", "marketops_update_check",
-    "marketops_crawl4ai_check", "marketops_method",
+    "marketops_crawl4ai_check", "marketops_method", "marketops_venue_groups",
 })
 
 
@@ -1537,7 +1617,7 @@ def build_server():
         pass
     _ensure_repair_entrypoints()
     from mcp.server import MCPServer
-    mcp = MCPServer("MarketOps Lite Research", version="0.5.11-rc2")
+    mcp = MCPServer("MarketOps Lite Research", version="0.5.11-rc3")
 
     def tool(fn):
         if fn.__name__ not in PUBLIC_TOOLS:
@@ -1743,24 +1823,42 @@ def build_server():
                                 query: str = "", url: str = "", artifact_id: str = "",
                                 question: str = "", options: list[str] | None = None,
                                 country: str = "", language: str = "",
-                                limit: int = 5, max_attempts: int = 3) -> dict:
+                                limit: int = 5, max_attempts: int = 3,
+                                as_is: bool = False) -> dict:
         """Run one bounded research step with recorded, admitted fallback channels.
 
         task_kind: source_discovery, known_public_url, batch_public_pages (one
         URL per step), or semantic_choice. Unknown charges, timeouts, access
         restrictions and exhausted shared budgets stop the chain. Results are
         candidate materials; read the returned artifact IDs and verify claims.
+        A first-page open-data record URL (Opendatasoft, CKAN, Socrata) is read
+        as the portal's bulk export of the same filter; the reply says so in
+        bulk_export. as_is=true reads the URL exactly as given.
         """
         import research_fallback
         import research_runtime_setup
         data_root = root()
         _require_brief_for_network(data_root, run_id)
-        return research_fallback.research_step(
+        rewrite = None
+        if url and not as_is and task_kind in {"known_public_url", "batch_public_pages"}:
+            import research_portals
+            exported, portal = research_portals.bulk_url(url)
+            if portal:
+                rewrite = {"portal": portal, "requested_url": url, "read_url": exported,
+                           "note": "Read as one export instead of 100-row pages; import it with "
+                                   "marketops_pool_import in artifact mode. Over "
+                                   f"{research_portals.MAX_EXPORT_ROWS} rows: narrow the filter "
+                                   "(one region per call)."}
+                url = exported
+        result = research_fallback.research_step(
             data_root, run_id=run_id, operation_id=operation_id, task_kind=task_kind,
             managed_call=managed_call,
             admission=lambda capability: research_runtime_setup.admission(data_root, capability),
             query=query, url=url, artifact_id=artifact_id, question=question, options=options,
             country=country, language=language, limit=limit, max_attempts=max_attempts)
+        if rewrite and isinstance(result, dict):
+            result["bulk_export"] = rewrite
+        return result
 
     @tool
     def marketops_site_harvest(run_id: str, operation_id: str, organization_name: str,
@@ -1949,7 +2047,38 @@ def build_server():
         store.list_run(root(), run_id, limit=1)
         if not method:
             return research_methods.status(root(), run_id)
+        if method == "OPERATOR" and outcome == "not_applicable":
+            import research_bulk
+            groups = research_bulk.venue_groups(root(), run_id=run_id, limit=1)
+            if groups["venues_total"]:
+                raise ValueError("METHOD_OPERATOR_REQUIRED_FOR_VENUES: this Run holds "
+                                 f"{groups['venues_total']} venues; group them by operator or "
+                                 "city with marketops_venue_groups and research the operators")
         return research_methods.record(root(), run_id, method, outcome, note)
+
+    @tool
+    def marketops_venue_groups(run_id: str, by: str = "operator", operator_types: list[str] | None = None,
+                               limit: int = 50, import_to_pool: str = "",
+                               country_hint: str = "", name_template: str = "") -> dict:
+        """The Run's venues grouped by who runs them, largest groups first; no network.
+
+        A venue's decision-makers usually sit at its operator: the municipality's
+        sports department for public venues, the company or association otherwise.
+        Map operator/operator_type when importing the inventory (marketops_pool_import
+        mapping), then group here. by='operator' uses that field; by='city' groups
+        municipal venues by town (pass operator_types with the source's own value for
+        public/municipal management). name_template names each town's target in the
+        local language, e.g. "City of {group}". import_to_pool=<pool_id> adds the
+        largest uncovered groups as organisation targets; research them with
+        marketops_harvest_batch.
+        """
+        import research_bulk
+        store.list_run(root(), run_id, limit=1)
+        return research_bulk.venue_groups(root(), run_id=run_id, by=by,
+                                          operator_types=operator_types, limit=limit,
+                                          import_to_pool=import_to_pool,
+                                          country_hint=country_hint,
+                                          name_template=name_template)
 
     @tool
     def marketops_crawl4ai_check(run_id: str = "", repair: bool = False) -> dict:
@@ -2173,7 +2302,7 @@ def build_server():
             raise ValueError("EXPERIENCE_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT")
         output.parent.mkdir(parents=True, exist_ok=True)
         return draft_experience(r, run_id=run_id, scope=scope,
-                                rule_version=rule_version, skill_version="0.5.11-rc2",
+                                rule_version=rule_version, skill_version="0.5.11-rc3",
                                 output=output)
 
     @tool

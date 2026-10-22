@@ -54,6 +54,51 @@ LADDERS = {
     ),
 }
 OUTCOMES = ("started", "productive", "exhausted", "not_applicable")
+#: "Exhausted" must be earned: at least this many targets finished, or this many
+#: provider operations made, since the method started (or every queued target done).
+MIN_TARGETS, MIN_OPERATIONS = 20, 15
+
+
+def _when(text):
+    try:
+        moment = datetime.fromisoformat(str(text))
+    except ValueError:
+        return None
+    return moment if moment.tzinfo else moment.replace(tzinfo=timezone.utc)
+
+
+def effort(root, run_id: str, ladder: str, method: str) -> dict:
+    """What the Run actually did since this method started; counted, not reported."""
+    since = None
+    path = Path(root) / "state" / "research-methods.sqlite3"
+    if path.is_file():
+        with closing(_db(root)) as db:
+            rows = db.execute("SELECT method, outcome, at FROM methods WHERE run_id=? AND ladder=?",
+                              (run_id, ladder)).fetchall()
+        mine = [_when(at) for m, outcome, at in rows if m == method and outcome == "started"]
+        others = [_when(at) for m, outcome, at in rows if m != method]
+        since = max([t for t in mine if t] or [t for t in others if t] or [None],
+                    key=lambda t: t or datetime.min.replace(tzinfo=timezone.utc))
+    finished = pending = operations = 0
+    pool_db = Path(root) / "state" / "research-pool.sqlite3"
+    if pool_db.is_file():
+        with closing(sqlite3.connect(pool_db.as_uri() + "?mode=ro", uri=True)) as db:
+            for status, updated in db.execute(
+                    "SELECT status, updated_at FROM pool_targets WHERE run_id=?", (run_id,)):
+                if status in ("pending", "claimed"):
+                    pending += 1
+                elif status in ("done", "hold") and (since is None or (_when(updated) or since) >= since):
+                    finished += 1
+    ledger = Path(root) / "state" / "usage-ledger.sqlite3"
+    if ledger.is_file():
+        with closing(sqlite3.connect(ledger.as_uri() + "?mode=ro", uri=True)) as db:
+            for (created,) in db.execute("SELECT created_at FROM operations WHERE run_id=?", (run_id,)):
+                if since is None or (_when(created) or since) >= since:
+                    operations += 1
+    return {"since": since.isoformat() if since else None, "targets_finished": finished,
+            "targets_pending": pending, "provider_operations": operations,
+            "enough": finished >= MIN_TARGETS or operations >= MIN_OPERATIONS
+                      or (finished > 0 and pending == 0)}
 
 
 def _db(root) -> sqlite3.Connection:
@@ -74,10 +119,18 @@ def record(root, run_id: str, method: str, outcome: str, note: str = "") -> dict
             step for steps in LADDERS.values() for step, _ in steps))
     if outcome not in OUTCOMES:
         raise ValueError("METHOD_OUTCOME_INVALID: one of " + ", ".join(OUTCOMES))
+    if outcome == "exhausted":
+        done = effort(root, run_id, ladder, method)
+        if not done["enough"]:
+            raise ValueError(
+                f"METHOD_NOT_TRIED_ENOUGH: {method} has {done['targets_finished']} targets finished "
+                f"and {done['provider_operations']} provider calls since it started; "
+                f"exhausted needs {MIN_TARGETS} targets or {MIN_OPERATIONS} calls "
+                "(or every queued target finished). Keep applying it.")
     with closing(_db(root)) as db, db:
         db.execute("INSERT OR REPLACE INTO methods VALUES (?,?,?,?,?,?)",
                    (run_id, ladder, method, outcome, str(note)[:300],
-                    datetime.now(timezone.utc).isoformat(timespec="seconds")))
+                    datetime.now(timezone.utc).isoformat()))
     return status(root, run_id)
 
 

@@ -87,8 +87,31 @@ def _grouped(events: list[dict]) -> list[dict]:
     return [buckets[key] for key in sorted(buckets)]
 
 
+#: The raw bump list keeps the newest rows only; the counts and the wall map above
+#: it cover everything. A 200 KB file of rows is a log, not a lesson.
+DETAIL_ROWS = 200
+
+
+def _wall_map(walls: dict | None) -> list[str]:
+    """Where page reads hit walls, across Runs: by cause, by reader, by website."""
+    lines = ["## 〇、碰壁地图（自动：所有 Run 的页面读取）", ""]
+    if not walls or not walls.get("failures"):
+        return lines + [f"> {_NOT_RECORDED}：还没有页面读取失败的记录。", ""]
+    lines += [f"> 读取尝试 {walls['attempts']} 次，失败 {walls['failures']} 次。"
+              "网站只记域名，不记具体网址。", "",
+              "| 碰壁原因 | 次数 |", "| --- | --- |"]
+    lines += [f"| {_cell(code)} | {count} |" for code, count in walls["by_code"]]
+    lines += ["", "| 读取方式 | 失败 | 被下一种方式救回 | 救回它的方式 |", "| --- | --- | --- | --- |"]
+    lines += [f"| {_cell(reader)} | {failed} | {saved} | {_cell(by) or '-'} |"
+              for reader, failed, saved, by in walls["by_reader"]]
+    lines += ["", "| 网站（域名） | 失败 | 主要原因 | 能读通它的方式 |", "| --- | --- | --- | --- |"]
+    lines += [f"| {_cell(host)} | {count} | {_cell(codes)} | {_cell(by) or '未找到'} |"
+              for host, count, codes, by in walls["by_host"]]
+    return lines + [""]
+
+
 def render(events: list[dict], notes: list[dict], header: dict,
-           feedback_rows: list[dict] | None = None) -> str:
+           feedback_rows: list[dict] | None = None, walls: dict | None = None) -> str:
     """Pure render: the entire file content, given the journal contents."""
     stamp = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     bumps = [e for e in events if e["status"] in BUMP_STATUSES]
@@ -111,6 +134,7 @@ def render(events: list[dict], notes: list[dict], header: dict,
          f"> **无异常不代表零卡点**：本文件记录了 {len(bumps)} 项卡点；没有出现在这里的部分仍未可知。"),
         "> 只保留脱敏 ID 和简短文本；不含邮件、URL、Key/Token/cookie，也不含隐藏思维链。",
         "",
+        *_wall_map(walls),
         "## 一、按「阶段 / 问题类型」统计",
         "",
         "| 阶段 | 问题类型 | 次数 | 最近发生(UTC) | 涉及 Run |",
@@ -129,12 +153,15 @@ def render(events: list[dict], notes: list[dict], header: dict,
         "| 发生时间(UTC) | Run | 工具/原因 | 处理尝试 | 证据 ref | 经验候选 |",
         "| --- | --- | --- | --- | --- | --- |",
     ]
+    if len(bumps) > DETAIL_ROWS:
+        lines.insert(len(lines) - 2, f"> 共 {len(bumps)} 项，只列最近 {DETAIL_ROWS} 项；"
+                                     "全部计数见上方统计。\n")
     if bumps:
         lines += [
             f"| {_cell(e['recorded_at'])} | {_cell(e['run_id'])} | "
             f"{_cell((e.get('provider') or 'local') + '/' + (e.get('reason_code') or e['status']))} | "
             f"{_NOT_RECORDED} | research-events.sqlite3#event-{e['sequence']} | {_NO_ROOT_CAUSE} |"
-            for e in bumps]
+            for e in bumps[-DETAIL_ROWS:]]
     else:
         lines.append(f"| {_NOT_RECORDED} | {_NOT_RECORDED} | {_NOT_RECORDED} | {_NOT_RECORDED} | "
                      f"{_NOT_RECORDED} | {_NOT_RECORDED} |")
@@ -259,7 +286,13 @@ def refresh(*, data_root: str | Path | None = None,
                     return {"status": "SKIPPED_NOT_NEWER",
                             "reason_code": "EXPERIENCE_FILE_IS_NEWER",
                             "experience_file": str(target), **header}
-                text = render(events=events, notes=notes, header=header, feedback_rows=feedback_rows)
+                try:
+                    import research_walls
+                    walls = research_walls.summary(root)
+                except Exception:  # noqa: BLE001 - the map is extra; the journal view still renders
+                    walls = None
+                text = render(events=events, notes=notes, header=header,
+                              feedback_rows=feedback_rows, walls=walls)
                 _atomic_write(target, text)
                 db.commit()
             except BaseException:

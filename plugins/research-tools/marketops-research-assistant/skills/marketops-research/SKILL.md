@@ -18,6 +18,8 @@ keeps its explicitly approved cap until local setup changes the policy.
 For long regional discovery, save each upstream JSON page once and use the
 artifact mode of `marketops_pool_import` to preview/filter/import it locally.
 Never refetch one record per request merely to get around the excerpt window.
+Prefer a portal's export endpoint (one call per department, up to 50,000 rows) over
+100-row record pages; see `marketops-discovery`.
 Follow both local `next_offset` and upstream pagination until reconciled.
 
 For named contacts, ask for desired decision roles rather than an invented
@@ -98,6 +100,25 @@ the explicitly cumulative `run_cost`. A new context window keeps that checkpoint
 A pool of 300 names with no contacts does not meet a contacts goal. The Paris run did
 exactly that: 0 venues and 0 people delivered.
 
+**A venue inventory gets its contacts through its operators.** Do not pick 20 well-known
+brands and call that the contact search. The Paris run did that: 4,737 venues stayed
+untouched and only 1 email was found.
+
+Steps:
+1. `marketops_venue_groups(run_id, by='operator')`, or `by='city'` with the source's
+   municipal operator types for public venues.
+2. `import_to_pool=<contacts pool>` puts the largest uncovered groups in the pool.
+3. Harvest them with `marketops_harvest_batch`.
+
+Where the named staff are:
+- A commune's sports department (direction des sports / service des sports) usually lists
+  its director and team on the town site, with work emails.
+- Companies list theirs in legal notices, press pages and annual reports.
+
+`execution.venue_operator_groups` shows how many groups are still uncovered. While any
+are, the research is not finished. `OPERATOR` cannot be marked `not_applicable` when the
+Run holds venues.
+
 **When a method finds little, switch methods; never stop.** Contacts are found by a ladder of
 methods, and `marketops_method(run_id)` says which one is next:
 1. Own site.
@@ -107,7 +128,9 @@ methods, and `marketops_method(run_id)` says which one is next:
 5. Documents such as minutes, tenders and organisation charts.
 6. TinyFish agent, only if allowed.
 
-After a method has been tried on about 20–30 targets with little result:
+After a method has been tried on about 20–30 targets with little result (the plugin only accepts
+`exhausted` after 20 finished targets or 15 provider calls since the method started, or once
+every queued target is finished; otherwise it answers `METHOD_NOT_TRIED_ENOUGH`):
 1. Record it: `marketops_method(run_id, method, outcome='exhausted', note='<counts>')`.
 2. Apply `next_method` to the remaining targets right away, in the same turn.
 
