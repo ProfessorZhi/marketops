@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 from contextlib import closing
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor, wait
 from pathlib import Path
@@ -74,6 +75,13 @@ def _record_dispositions(data_root, run_id: str, results: list[dict]) -> None:
 
 def _organization_key(target: dict) -> str:
     return "org-" + target["target_key"].removeprefix("t-")
+
+
+def _error_code(exc: BaseException) -> str:
+    """The exception type, plus its reason code when it has one; never free text."""
+    head = str(exc).split(":", 1)[0].strip()
+    return (f"{type(exc).__name__}:{head}" if re.fullmatch(r"[A-Z][A-Z0-9_]{2,80}", head)
+            else type(exc).__name__)
 
 
 def _settle_result(data_root, *, pool_id, worker_id, run_id, item):
@@ -149,7 +157,7 @@ def harvest_batch(data_root, *, pool_id: str, worker_id: str, run_id: str, fetch
                                             run_id=job["run_id"], item=job["result"]) is not None)
         except Exception as exc:
             # The type and the code, so the cause is visible, not just "ValueError".
-            code = f"{type(exc).__name__}:{str(exc).split(':', 1)[0][:60]}"
+            code = _error_code(exc)
             recovery_errors.append(code)
             pool.note_settle_failure(data_root, pool_id=pool_id, target_key=job["target_key"],
                                      worker_id=job["worker_id"], lease_attempt=job["lease_attempt"],
@@ -218,7 +226,7 @@ def harvest_batch(data_root, *, pool_id: str, worker_id: str, run_id: str, fetch
                 item["recorded_result"] = _settle_result(data_root, pool_id=pool_id, worker_id=worker_id,
                                                         run_id=run_id, item=item)
         except Exception as exc:
-            item["finalization_error"] = f"{type(exc).__name__}:{str(exc).split(':', 1)[0][:60]}"
+            item["finalization_error"] = _error_code(exc)
         return item
 
     executor = ThreadPoolExecutor(max_workers=concurrency)

@@ -375,7 +375,7 @@ def note_settle_failure(root, *, pool_id, target_key, worker_id, lease_attempt, 
     return failures
 
 
-def release(root, *, pool_id: str, worker_id: str) -> dict:
+def release_worker(root, *, pool_id: str, worker_id: str) -> dict:
     """Hand a worker's live leases back now, instead of waiting for them to expire.
 
     Leases with a saved batch result are kept (finalizing them needs no new

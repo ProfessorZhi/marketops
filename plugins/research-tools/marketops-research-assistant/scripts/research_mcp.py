@@ -2183,7 +2183,7 @@ def build_server():
         if reason == "RELEASE_CLAIMS":
             if not worker_id:
                 raise ValueError("WORKER_ID_REQUIRED: the worker whose leases to release")
-            return research_pool.release(root(), pool_id=pool_id, worker_id=worker_id)
+            return research_pool.release_worker(root(), pool_id=pool_id, worker_id=worker_id)
         return research_pool.reopen(root(), pool_id=pool_id, reason=reason)
 
     @tool

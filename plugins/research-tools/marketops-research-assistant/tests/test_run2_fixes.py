@@ -88,7 +88,7 @@ class StuckBatchWork(unittest.TestCase):
 
     def test_a_workers_leases_are_released_at_once(self):
         pool.claim(self.root, pool_id="p", worker_id="w", count=3)
-        out = pool.release(self.root, pool_id="p", worker_id="w")
+        out = pool.release_worker(self.root, pool_id="p", worker_id="w")
         self.assertEqual(3, out["released"])
         self.assertEqual(3, pool.status(self.root, pool_id="p")["by_status"]["pending"])
 
