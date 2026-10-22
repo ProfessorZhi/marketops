@@ -63,9 +63,22 @@ Save it with `marketops_start(..., brief=...)`. Fields:
 - `minimum_targets`: the user's explicit number, else `null`. Do not invent a quota.
 - `evidence_requirements`: kind → field names each target must have quoted, e.g.
   `{venue:['identity','hourly_rate'], organization:['identity']}`. Narrative goes in `objective`.
-- Scene rules (roles, grades, exclusions) come from the user or an acceptance profile such as
-  [UK natural grass](../../references/ACCEPTANCE_PROFILE_UK_GRASS.md). Never apply one market's
-  profile to another market silently.
+- **Scene rules: what is A, B, C or X here.** The code grades every email route from them at
+  handoff, so write them before the first harvest:
+  - A shipped market: `scene:'uk-natural-grass'` (packs in `references/scenes/`).
+  - Any other market (Paris, a new country, a new product): write `scene_rules` yourself from the
+    user's roles, in the market's language, a few title words per class:
+    `scene_rules:{decision:[...], operational:[...], entry:[...], excluded:[...]}`.
+    `decision` = owns the purchase (A when named, bound, email in one block); `operational` =
+    runs the site day to day (B); `entry` = bookings / facilities team / venue hire (C);
+    `excluded` = never a contact (finance, HR, communication, competitors). Show the user the
+    lists in one line with your other intake questions; they can correct them later with a new
+    brief record (`supersedes`).
+  - `scene_rules` on top of `scene` replaces only the classes it lists.
+  - Never apply one market's pack to another market.
+- `source_gate`: leave it out. By default each source's first 30 finished targets decide whether
+  the rest of that source is researched (A+B accounts ≥10% go on, 5–10% change approach once,
+  <5% parked). `{pilot:20}` for small pools; `false` only if the user asks for every target.
 - Changing the goal later: a new brief record with `facts.supersedes`; never lower a goal to pass.
 
 ## Source pool: find the whole list first

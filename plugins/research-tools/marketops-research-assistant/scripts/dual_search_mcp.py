@@ -76,6 +76,11 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         raise ValueError("PROVIDER_REDIRECT_BLOCKED")
 
 
+def upstream_proxy() -> str | None:
+    """MarketOps' own configured proxy (customer_setup.py --proxy), or None for direct."""
+    return os.environ.get("MARKETOPS_EGRESS_UPSTREAM_PROXY", "").strip() or None
+
+
 def proxy_handler() -> urllib.request.ProxyHandler:
     """The proxy MarketOps itself was told to use, never the machine's ambient one.
 

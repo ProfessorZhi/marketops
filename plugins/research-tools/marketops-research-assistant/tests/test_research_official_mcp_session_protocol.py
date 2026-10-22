@@ -63,9 +63,10 @@ def tearDownModule(module=None):
 
 class FakeHTTP:
     observations=[]
-    def __init__(self, *, headers=None, auth=None, follow_redirects=None, timeout=None):
+    def __init__(self, *, headers=None, auth=None, follow_redirects=None, timeout=None,
+                 trust_env=True, proxy=None):
         FakeHTTP.observations.append({"headers":dict(headers or {}),
-            "auth":auth, "redirects":follow_redirects})
+            "auth":auth, "redirects":follow_redirects, "trust_env":trust_env, "proxy":proxy})
     async def __aenter__(self): return self
     async def __aexit__(self,*args): return False
 

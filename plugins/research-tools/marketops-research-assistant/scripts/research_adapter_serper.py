@@ -420,7 +420,9 @@ class SerperAdapter:
         self._guard = guard if guard is not None else search_canonical.DispatchGuard()
         # Built even when a transport is injected: an unredirected opener is the
         # only client this adapter may use, and the test asserts it is installed.
-        self._opener = urllib.request.build_opener(NoRedirect(), urllib.request.ProxyHandler({}))
+        # Never the machine's ambient proxy; only the one configured for MarketOps.
+        from dual_search_mcp import proxy_handler
+        self._opener = urllib.request.build_opener(NoRedirect(), proxy_handler())
 
     # -- §6 Protocol -------------------------------------------------------
     def capabilities(self) -> tuple[str, ...]:
@@ -497,7 +499,8 @@ class SerperAdapter:
             self._check_mode(mode, page)
         except ValueError as exc:
             code = str(exc).split(":", 1)[0].strip()
-            return self._refusal(code, f"{code}: 分类未通过校验", capability_id=capability_id)
+            return self._refusal(code, f"{code}: 分类未通过校验; modes: "
+                                 + ", ".join(sorted(serper_modes._BY_MODE)), capability_id=capability_id)
         try:
             query = _checked_query(params.get("query"))
             country = _checked_country(params.get("country"))
@@ -700,7 +703,7 @@ class SerperAdapter:
     # -- internals ----------------------------------------------------------
     def _check_mode(self, mode: str, page: int) -> None:
         """Three refusals, three different sentences, all before the network."""
-        spec = serper_modes.mode_spec(mode)      # raises UNSUPPORTED_SERPER_MODE
+        spec = serper_modes.mode_spec(mode)      # raises SERPER_MODE_UNSUPPORTED
         if spec.dispatch != "OK":
             raise ValueError("SERPER_MODE_REQUIRES_UNSENT_PARAM")
         serper_modes.assert_page_allowed(mode, page)
@@ -747,6 +750,14 @@ class SerperAdapter:
                 "url": href[:2000],
                 "snippet": str(item.get("snippet") or item.get("description") or "")[:1000],
                 "rank": len(hits) + 1,
+                # Map results: the address keeps two sites of one chain apart in the
+                # pool, and the category tells a venue from a shop.
+                **({"kind": "place_candidate",
+                    "address": str(item.get("address") or "")[:500],
+                    "category": str(item.get("category") or item.get("type") or "")[:200],
+                    "phone": str(item.get("phoneNumber") or "")[:60],
+                    "place_id": str(item.get("cid") or item.get("placeId") or "")[:240]}
+                   if serper_modes.mode_spec(mode).mode == "maps" else {}),
             }))
             if len(hits) >= limit:
                 break

@@ -51,7 +51,9 @@ FOCUS_WORD_MIN = 4
 #: The local part may carry letters beyond ASCII ("geschäftsstelle@"): the
 #: literal on the page is the address. A match never starts after a
 #: replacement character, which would cut a word in half.
-_EMAIL = re.compile(r"(?<![\w.+\ufffd-])[\w.%+-]{1,64}@[A-Za-z0-9.-]+\.[A-Za-z]{2,24}(?![\w-])")
+# The local part starts and ends with a letter or digit: "...@antony.fr" is a
+# placeholder in a form ("réservez une adresse ...@antony.fr"), not an address.
+_EMAIL = re.compile(r"(?<![\w.+\ufffd-])[^\W_](?:[\w.%+-]{0,62}[^\W_])?@[A-Za-z0-9.-]+\.[A-Za-z]{2,24}(?![\w-])")
 _PHONE = re.compile(r"(?<![\w+])(?:\+\d{1,3}[\s.-]?|0)(?:\(?\d{2,5}\)?[\s.-]?)\d{3,4}[\s.-]?\d{3,4}(?!\d)")
 _ASSET_SUFFIXES = (".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".css", ".js", ".ico")
 
@@ -167,12 +169,20 @@ def _not_a_phone(text: str, start: int, value: str) -> bool:
     return bool(re.search(r"\.\d{5,}", value))
 
 
+#: Domains forms use to show the shape of an address ("Exemple : nom.prenom@exemple.com").
+_PLACEHOLDER_DOMAINS = re.compile(
+    r"@(?:[\w-]+\.)*(?:example|exemple|beispiel|ejemplo|esempio|voorbeeld|domain|domaine|"
+    r"votre-?domaine|yourdomain|mydomain|email|e-mail|mail|test|sample)\.[a-z]{2,6}$", re.IGNORECASE)
+
+
 def extract_routes(text: str) -> list[dict]:
     """Every literal email/phone in normalised text with a quote and its context."""
     found, routes = set(), []
     for channel, pattern in (("email", _EMAIL), ("phone", _PHONE)):
         for match in pattern.finditer(text):
             value = match.group(0).strip().rstrip(".")
+            if channel == "email" and _PLACEHOLDER_DOMAINS.search(value):
+                continue
             if channel == "phone" and (sum(ch.isdigit() for ch in value) < 10
                                        or _not_a_phone(text, match.start(), value)):
                 continue
@@ -213,6 +223,11 @@ def name_variants(name: str) -> list[str]:
     ("X Football Club" -> "X FC"), or drop the type word ("X Football")."""
     base = re.sub(r"\s+", " ", name).strip(" ,.")
     out = [base]
+    # Map listings append a place or a description: "Brand Nanterre - Salle d'escalade",
+    # "Brand | Padel". The part before the separator is how the site names itself.
+    head = re.split(r"\s+[-–—|:]\s+|\s*\(", base, maxsplit=1)[0].strip(" ,.")
+    if head and head != base:
+        out.append(head)
     for article in _ARTICLES:
         if base.casefold().startswith(article):
             out.append(base[len(article):])
@@ -255,10 +270,19 @@ def host_bound_name(name: str, page_url: str) -> str:
     own host carries it (rumst.be). A single word binds only with that support."""
     words = [w for w in re.findall(r"[^\W_]+(?:-[^\W_]+)*", name)
              if w.casefold() not in _BODY_WORDS]
-    if len(words) != 1 or len(words[0]) < 4:
-        return ""
     host = (urlsplit(page_url).hostname or "").casefold().replace("-", "")
-    return words[0] if words[0].casefold().replace("-", "") in host else ""
+    if len(words) == 1:
+        return words[0] if len(words[0]) >= 4 and words[0].casefold().replace("-", "") in host else ""
+    # A brand followed by a place, as map listings name a chain's site ("Arkose
+    # Nanterre", "Climb Up Epinay"): the longest leading words the host spells out.
+    # "Harlow Cricket Club" is not "Harlow": a rest naming a kind of body means the
+    # first word is a place, which the site would also print for the council.
+    for width in range(min(3, len(words) - 1), 0, -1):
+        brand = "".join(words[:width]).casefold().replace("-", "")
+        rest = {w.casefold() for w in words[width:]}
+        if len(brand) >= 4 and brand in host and not rest & _TYPE_WORDS:
+            return " ".join(words[:width])
+    return ""
 
 
 def _acronym_quote(text: str, name: str) -> tuple[str, str]:

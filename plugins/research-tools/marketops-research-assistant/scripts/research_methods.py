@@ -37,12 +37,12 @@ LADDERS = {
         ("OFFICIAL_DIRECTORIES", "Official staff and organisation directories (public "
                                  "administration directories, federation and league club "
                                  "directories, municipal organisation charts)."),
-        ("DOCUMENTS", "Documents that name officers. Public procurement notices often give the "
-                      "buyer's contact person and work email for venue maintenance, equipment "
-                      "and management contracts. Search the country's notice board: TED for EU "
-                      "tenders, the national board (BOAMP, Contracts Finder, SAM.gov, ...), the "
-                      "buyer's profile. Also council minutes, annual reports and organisation "
-                      "charts. Read them with marketops_research_step and "
+        ("DOCUMENTS", "Documents that name officers: council minutes, annual reports, "
+                      "organisation charts, recruitment packs. Public procurement notices (TED, "
+                      "BOAMP, Contracts Finder, SAM.gov, the buyer's profile) show who is buying "
+                      "works or equipment now - a timing signal; their contact is usually a "
+                      "buyer, so it counts only when the notice names the site or facilities "
+                      "role with an email. Read them with marketops_research_step and "
                       "marketops_material_excerpt."),
         ("TINYFISH_AGENT", "TinyFish's paid browser agent for the hard pages that are left, "
                            "only if the user allowed it in the brief."),
@@ -87,10 +87,12 @@ def effort(root, run_id: str, ladder: str, method: str) -> dict:
     pool_db = Path(root) / "state" / "research-pool.sqlite3"
     if pool_db.is_file():
         with closing(sqlite3.connect(pool_db.as_uri() + "?mode=ro", uri=True)) as db:
-            for status, updated in db.execute(
-                    "SELECT status, updated_at FROM pool_targets WHERE run_id=?", (run_id,)):
+            for status, updated, reason in db.execute(
+                    "SELECT status, updated_at, reason FROM pool_targets WHERE run_id=?", (run_id,)):
                 if status in ("pending", "claimed"):
                     pending += 1
+                elif str(reason).startswith("SOURCE_YIELD_STOP"):
+                    continue  # parked by the source gate: not work done with this method
                 elif status in ("done", "hold") and (since is None or (_when(updated) or since) >= since):
                     finished += 1
     ledger = Path(root) / "state" / "usage-ledger.sqlite3"

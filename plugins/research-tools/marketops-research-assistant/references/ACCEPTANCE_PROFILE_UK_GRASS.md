@@ -1,7 +1,8 @@
 # Acceptance profile: UK outdoor natural-grass sports venues
 
 Compiled from `profiles/uk-acme-natural-grass/` (role-matrix, grading, profile) and Member A's
-corrections. Apply it only when the brief is this scene; other markets need their own profile or
+corrections. The role lists the code grades with are in `scenes/uk-natural-grass.json`
+(brief `scene:'uk-natural-grass'`). Apply it only when the brief is this scene; other markets need their own profile or
 the user's rules. Grades are candidate assessments for human review, not approvals.
 
 ## Targets
@@ -80,6 +81,6 @@ date; an old role is HOLD until current evidence confirms it.
 - Every organisation gets a row, including `Not found` with the reason and pages tried.
 - A sample batch is not the pool, and the first pass is not completion: report coverage honestly.
 - Source method test: try 30 accounts; account rate ≥10% expand, 5–10% optimise once, <5% stop
-  that method. Use only when the user sets these thresholds for the task.
+  that method. The code applies this to every import source by default (`source_gate`).
 - Link-driven discovery (following real site links) found emails at 62–88% of sites in past GB
   work; guessed paths found 6.5%. Follow links.

@@ -15,8 +15,19 @@ import sys
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
+import logging
 
 import dual_search_mcp
+
+
+def _quiet_http_logs() -> None:
+    """httpx logs each request URL at INFO, query included. SerpApi takes its key in the
+    query, so a host that shows the server's stderr showed the key (seen in a live run)."""
+    for name in ("httpx", "httpcore", "httpx2", "mcp.client.streamable_http"):
+        logging.getLogger(name).setLevel(logging.WARNING)
+
+
+_quiet_http_logs()
 import research_config
 import research_usage_ledger as usage_ledger
 import research_lite_store as store
@@ -387,9 +398,20 @@ def _use_installed_browser() -> None:
     the system default cache, finding nothing, and failing on every page.
     """
     current = os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "").strip()
-    if current and not current.startswith("$" + "{"):
-        return
     folder = installed_browser_root()
+    if current and not current.startswith("$" + "{"):
+        # A machine-wide PLAYWRIGHT_BROWSERS_PATH (set for some other tool) may hold
+        # other Chromium builds than the one this Playwright needs; then Crawl4AI found
+        # "no browser" on every page although the installer had put one beside us.
+        if folder is None or Path(current).resolve() == folder.resolve():
+            return
+        wanted = {c.name for c in folder.iterdir() if c.name.startswith("chromium")}
+        try:
+            have = {c.name for c in Path(current).iterdir()}
+        except OSError:
+            have = set()
+        if wanted <= have:
+            return
     if folder is not None:
         os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(folder)
 
@@ -668,7 +690,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         configured_root = None
     if configured_root is not None and runtime_setup.config(configured_root):
         from research_runtime_status import view
-        return {"product": "MarketOps Research MCP", "version": "0.5.11-rc5",
+        return {"product": "MarketOps Research MCP", "version": "0.5.11-rc6",
                 **view(configured_root, task_kind=task_kind),
                 "external_host": _external_inventory(host_observed_tools),
                 "embedded_official_mcp": provider_policy.embedded_official_mcp_capabilities(),
@@ -743,7 +765,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         if task_kind else None)
     return {
         "product": "MarketOps Lite Research MCP",
-        "version": "0.5.11-rc5",
+        "version": "0.5.11-rc6",
         "providers": {
             "serpapi": {"transport": "REST through local MCP", **search["serpapi"]},
             "serper": {"transport": "REST through local MCP", **search["serper"]},
@@ -797,6 +819,17 @@ def _valid_brief(run_id: str, brief: dict) -> None:
         raise ValueError("RESEARCH_BRIEF_INVALID")
     if "supersedes" in brief:
         raise ValueError("BRIEF_REVISION_REQUIRES_MARKETOPS_PROPOSE")
+    import research_scene
+    if brief.get("scene") and research_scene.shipped(brief["scene"]) is None:
+        raise ValueError("RESEARCH_BRIEF_INVALID: scene '" + str(brief["scene"])[:60]
+                         + "' is not shipped; write scene_rules for this market instead")
+    if "scene_rules" in brief:
+        problems = research_scene.validate(brief["scene_rules"])
+        if problems:
+            raise ValueError("RESEARCH_BRIEF_INVALID: " + "; ".join(problems))
+    gate = brief.get("source_gate", True)
+    if not (gate is True or gate is False or isinstance(gate, dict)):
+        raise ValueError("RESEARCH_BRIEF_INVALID: source_gate must be false or {pilot, promote, stop}")
     synthetic = {"record_id": "brief-validation", "stage": "qualification",
                  "kind": "observation", "status": "candidate_unverified",
                  "entity_key": "research-brief", "artifact_ids": [], "data": brief}
@@ -1303,8 +1336,24 @@ def invoke(action, run_id, operation_id, url="", query="", document="",
             "managed_status": answer["status"], "result": answer.get("payload")}
 
 
+def _check_scene_fields(facts) -> None:
+    """A brief revised mid-Run gets the same scene checks as one given at start:
+    rules that do not validate would silently leave every route RULES_UNKNOWN."""
+    if not isinstance(facts, dict) or facts.get("record_type") != "research_brief":
+        return
+    import research_scene
+    if facts.get("scene") and research_scene.shipped(facts["scene"]) is None:
+        raise ValueError("RESEARCH_BRIEF_INVALID: scene '" + str(facts["scene"])[:60]
+                         + "' is not shipped; write scene_rules for this market instead")
+    if "scene_rules" in facts:
+        problems = research_scene.validate(facts["scene_rules"])
+        if problems:
+            raise ValueError("RESEARCH_BRIEF_INVALID: " + "; ".join(problems))
+
+
 def propose(run_id, record_id, stage, kind, entity_key, facts, artifact_ids=None):
     r = root()
+    _check_scene_fields(facts)
     result = store.put_candidate(r, run_id, record_id, stage, kind,
                                  entity_key, facts, artifact_ids or [])
     append_event(r, run_id=run_id, operation_id=record_id, stage=stage,
@@ -1315,6 +1364,8 @@ def propose(run_id, record_id, stage, kind, entity_key, facts, artifact_ids=None
 def propose_batch(run_id, items):
     """Atomic append-only candidates, at most 20 per transaction/tool call."""
     r = root()
+    for item in items if isinstance(items, list) else ():
+        _check_scene_fields(item.get("facts") if isinstance(item, dict) else None)
     result = store.put_candidates_batch(r, run_id, items)
     operation_id = "batch-" + hashlib.sha256(
         json.dumps([item["record_id"] for item in items], sort_keys=True).encode()).hexdigest()[:24]
@@ -1437,7 +1488,7 @@ def handoff(run_id, operation_id, mode="auto"):
     try:
         experience_result = draft_experience(
             r, run_id=run_id, scope=head["scope"],
-            rule_version=head["rule_version"], skill_version="0.5.11-rc5",
+            rule_version=head["rule_version"], skill_version="0.5.11-rc6",
             output=experience_path)
         result["experience_candidate"] = str(experience_path)
         result["experience_incidents"] = experience_result["incidents"]
@@ -1663,7 +1714,8 @@ def build_server():
         pass
     _ensure_repair_entrypoints()
     from mcp.server import MCPServer
-    mcp = MCPServer("MarketOps Lite Research", version="0.5.11-rc5")
+    mcp = MCPServer("MarketOps Lite Research", version="0.5.11-rc6")
+    _quiet_http_logs()  # after the server set up its own logging
 
     def tool(fn):
         if fn.__name__ not in PUBLIC_TOOLS:
@@ -2231,19 +2283,26 @@ def build_server():
         go back to the pool (done / hold with reason). Call again for the next batch.
         roles_wanted (e.g. "head groundsman, grounds manager, head of grounds") makes
         Jev tag every email with wanted_role_person / wanted_role_team_inbox /
-        other_named_role / generic_inbox / unclear and a confidence: grade from
-        the tags, and read the page only for low-confidence ones.
+        other_named_role / generic_inbox / unclear and a confidence, to rank routes
+        and pick pages to read. The A/B/C/D/X grade itself is set by code from the
+        brief's scene rules at handoff. Sources whose first 30 targets gave too few
+        A+B accounts are parked before claiming (see marketops_next source_gate).
         """
         import research_batch
+        import research_sources
         data_root = root()
         _require_brief_for_network(data_root, run_id)
-        return research_batch.harvest_batch(
+        parked = research_sources.park_stopped(data_root, run_id)
+        result = research_batch.harvest_batch(
             data_root, pool_id=pool_id, worker_id=worker_id, run_id=run_id,
             fetch=_fetcher(data_root, run_id), count=count, concurrency=concurrency,
             max_pages=max_pages, grade=_role_grader(run_id, roles_wanted),
             find_site=lambda target, op: find_official_site(run_id, op, target,
                                                             country, language),
             focus=roles_wanted.strip() or _brief_roles(run_id))
+        if parked["parked"]:
+            result["source_gate_parked"] = parked
+        return result
 
     @tool
     def marketops_jev_triage(run_id: str, operation_id: str, artifact_ids: list[str],
@@ -2318,7 +2377,8 @@ def build_server():
     def marketops_export_xlsx(run_id: str, delivery_id: str) -> dict:
         """Write real 9-sheet evidence-audited XLSX + CSV from this Run's Lite store.
 
-        All contacts remain CANDIDATE_NOT_APPROVED; no A/B/C/D or send authority.
+        All contacts remain CANDIDATE_NOT_APPROVED; grades are code-set candidate grades
+        from the brief's scene rules, never send authority.
         """
         return delivery.write_delivery(root(), run_id, delivery_id)
 
@@ -2397,7 +2457,7 @@ def build_server():
             raise ValueError("EXPERIENCE_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT")
         output.parent.mkdir(parents=True, exist_ok=True)
         return draft_experience(r, run_id=run_id, scope=scope,
-                                rule_version=rule_version, skill_version="0.5.11-rc5",
+                                rule_version=rule_version, skill_version="0.5.11-rc6",
                                 output=output)
 
     @tool

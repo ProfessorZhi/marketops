@@ -32,7 +32,7 @@ from research_event_journal import _root, append_event, append_note
 from research_experience_summary import refresh_quietly as refresh_summary
 from _xlsx import Sheet, render_workbook
 
-VERSION = "0.5.11-rc5"
+VERSION = "0.5.11-rc6"
 EMAIL = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 FORMULA = ("=", "+", "-", "@")
 NAMESPACE = {"x": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
@@ -766,6 +766,20 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
     suppressed = [c for c in contacts if c["record_id"] in suppressed_ids]
     contacts = [c for c in contacts if c["record_id"] not in suppressed_ids]
     people = admitted_by_kind["person"] + admitted_by_kind["role"]
+    # Grades come from code and the scene's rules, over admitted records only, so
+    # a name from a rejected record can never lift a route to A.
+    import research_grading as grading
+    import research_sources as sources
+    # The whole revision chain: the current brief supersedes earlier ones, and a tip
+    # whose parent is missing from the list is (rightly) no tip at all.
+    brief_rows = [r for r in records if r["kind"] == "observation"
+                  and r["data"].get("record_type") == "research_brief"]
+    brief = (workflow._tip(brief_rows) or {}).get("data") or {} if brief_rows else {}
+    grades, scene_rules = grading.grade_routes(
+        organizations + people + contacts, brief)
+    grade_summary = grading.summary(grades, targets_finished=sources.finished_targets(root, run_id),
+                                    organizations=len(organizations))
+    source_yield = sources.yields(root, run_id, grades=grades, brief=brief)
     # Admitted relationships are reported in the manifest; the fixed nine-sheet
     # contract has no client relationship sheet, so no row is invented for them.
     relationships = admitted_by_kind["relationship"]
@@ -817,6 +831,15 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
                   "候选引用了资料但未记录读取跨度：" + "; ".join(record["artifact_ids"][:8]),
                   "回到同一资料的具名片段；仅有附件级支持的候选不进入业务结论",
                   entity_key=record["entity_key"])
+    for candidate in contacts:
+        verdict = grades.get(candidate["record_id"])
+        if verdict and verdict["grade"] == "C" and any(
+                r.startswith("NAME_ROLE_EMAIL_NOT_ONE_BLOCK") for r in verdict["reasons"]):
+            add_issue("评级降为C", candidate["record_id"],
+                      "姓名、岗位与邮箱不在同一页面段落中出现，不能算 A/B",
+                      "找到同时写明姓名、岗位和邮箱的页面后重新提交",
+                      entity_key=candidate["entity_key"],
+                      organization_id=verdict["organization_id"] or None)
     for route in by_kind["contact_route"]:
         # The Lite MCP can only persist *proposals*. No text or grade is formal.
         add_issue("联系路线待审核", route["record_id"],
@@ -891,17 +914,21 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
             _plain(fact.get("person_name", fact.get("department", ""))),
             _plain(role_text),
             channel or "UNKNOWN", value or "UNKNOWN", validation,
-            "RULES_UNKNOWN", "CANDIDATE_NOT_APPROVED",
+            (grades.get(candidate["record_id"]) or {}).get("grade") or "RULES_UNKNOWN",
+            "CANDIDATE_NOT_APPROVED",
             "; ".join(candidate["artifact_ids"]) or "NONE",
         ))
     # Within each organisation, the wanted role first, generic inboxes last.
     rank = {"wanted_role_person": 0, "wanted_role_team_inbox": 1, "other_named_role": 2,
             "generic_inbox": 3}
 
+    grade_rank = {"A": 0, "B": 1, "C": 2, "D": 3, "X": 5}
+
     def _row_rank(row):
         text = str(row[3])
         tag = text[5:].split(" ")[0] if text.startswith("Jev: ") else ""
-        return (row[1], rank.get(tag, 0 if text and not text.startswith("Jev: ") else 4))
+        return (row[1], grade_rank.get(row[7], 4),
+                rank.get(tag, 0 if text and not text.startswith("Jev: ") else 4))
     contact_rows.sort(key=_row_rank)
 
     venue_rows = [(
@@ -972,7 +999,18 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
         ("待核查事项数", len(issues)),
         ("市场总覆盖率", "UNKNOWN_NO_TRUSTWORTHY_DENOMINATOR"),
         ("收费 Provider 额度与价格", "UNKNOWN_NOT_IN_LITE_STORE"),
-        ("联系路线评级", "RULES_UNKNOWN; no A/B/C/D assigned by Agent"),
+        ("联系路线评级", ("代码按场景规则评级（候选，未经人工审批）；规则来源 " + scene_rules["source"])
+                     if scene_rules["source"] else "RULES_UNKNOWN：任务说明里没有岗位规则"),
+        ("评级分布", json.dumps(grade_summary["grades"], ensure_ascii=False, sort_keys=True)),
+        ("A+B 去重人数", grade_summary["ab_people"]),
+        ("具名关键岗位（无公开邮箱）", "见 contact-pack/named_people_no_email.csv"),
+        ("有 A+B 的组织数", grade_summary["organisations_with_ab"]),
+        ("每100个目标的 A+B 人数", "UNKNOWN" if grade_summary["ab_per_100"] is None
+         else f"{grade_summary['ab_per_100']}（分母：{grade_summary['per_100_of']} "
+              f"{grade_summary['denominator']}）"),
+        ("各来源 A+B 产出", json.dumps(
+            [{k: r.get(k) for k in ("source_id", "finished", "with_ab", "ab_rate", "verdict")}
+             for r in source_yield["sources"]], ensure_ascii=False)),
         ("发送授权", "FALSE: research-only; no outreach"),
         ("通用证据审计状态", audit["status"]),
         ("待补证据计数", json.dumps(audit["gap_counts"], ensure_ascii=False, sort_keys=True)),
@@ -1002,7 +1040,42 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
         "来源与查询": source_rows, "候选数据审计": audit_rows,
     }
     sheets = [_table(name, collected[name]) for name, _ in TABLES]
+    org_names = {o["entity_key"]: _plain(o["data"].get("name")) for o in organizations}
+    pack_rows = []
+    for candidate in contacts:
+        verdict = grades.get(candidate["record_id"])
+        if not verdict:
+            continue
+        fact = candidate["data"]
+        claim = next((c for c in fact.get("claims") or () if isinstance(c, dict)), {})
+        asset = assets.get(str(claim.get("artifact_id", ""))) or {}
+        org_key = _field_text(fact, "organization_id")
+        listed = "LISTED_ON_ANOTHER_ORGANISATIONS_PAGE" in verdict["reasons"]
+        pack_rows.append((
+            verdict["grade"], "UNKNOWN" if listed else (org_key or "UNKNOWN"),
+            ("UNKNOWN (listed by " + org_names.get(org_key, "UNKNOWN") + ")") if listed
+            else org_names.get(org_key, "UNKNOWN"),
+            _plain(verdict.get("person_name") or fact.get("person_name") or ""),
+            _plain(fact.get("role_title") or fact.get("role_function") or fact.get("department")
+                   or verdict.get("role_title") or ""),
+            verdict.get("role_class") or "", str(fact.get("value", "")).strip(),
+            "; ".join(verdict["reasons"]), asset.get("url", ""), _plain(claim.get("quote", ""))[:600],
+            asset.get("sha256", ""), candidate["record_id"]))
+    pack_rows.sort(key=lambda r: ({"A": 0, "B": 1, "C": 2, "D": 3, "X": 4}.get(r[0], 5), r[1]))
+    leads = grading.named_leads(people, grades, scene_rules)
+    lead_rows = [(lead["organization_id"] or "UNKNOWN", org_names.get(lead["organization_id"], "UNKNOWN"),
+                  _plain(lead["name"]), _plain(lead["role"]), lead["role_class"],
+                  (assets.get(lead["artifact_id"]) or {}).get("url", ""), _plain(lead["quote"])[:600],
+                  (assets.get(lead["artifact_id"]) or {}).get("sha256", ""), lead["record_id"])
+                 for lead in leads]
+    no_route = []
+    for target in sources.run_targets(root, run_id):
+        if target["status"] in {"hold", "excluded"}:
+            no_route.append((target["name"], target["website"], target["address"],
+                             target["status"].upper(), target["reason"], target["source_id"]))
     return sheets, {
+        "_contact_pack": {"routes": pack_rows, "no_route": no_route, "leads": lead_rows},
+        "named_leads_without_email": len(lead_rows),
         "run_id": run_id, "scope": run["scope"], "rule_version": run["rule_version"],
         "status": "PARTIAL_CANDIDATE_ONLY_NOT_FORMAL_CONTACTS",
         "counts": {name: len(collected[name]) for name, _ in TABLES},
@@ -1011,6 +1084,8 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
         "saved_artifact_count": len(artifacts),
         "evidence_hash_readback": "ALL_OK", "business_verification": "NOT_PERFORMED",
         "send_authorized": False,
+        "grading": {**grade_summary, "rules_source": scene_rules["source"]},
+        "source_yield": source_yield,
         "evidence_assessment": audit,
         "evidence_ready_for_business_use": False,
         "client_business_tables_admitted_only": True,
@@ -1050,11 +1125,17 @@ def _readback_xlsx(path: Path, sheets: list[Sheet]) -> None:
                 raise ValueError(f"XLSX_HEADER_MISMATCH:{sheet.name}")
 
 
+CONTACT_PACK_HEADERS = ("grade", "organisation_id", "organisation", "person", "role",
+                        "role_class", "email", "grade_reasons", "source_url", "quote",
+                        "source_sha256", "record_id")
+
+
 def write_delivery(data_root: Path | str | None, run_id: str, delivery_id: str) -> dict:
     root = _root(data_root)
     store._id(run_id, "run_id")
     store._id(delivery_id, "delivery_id")
     sheets, manifest = build_delivery(root, run_id)
+    pack = manifest.pop("_contact_pack")
     destination = root / "exports" / run_id / delivery_id
     if destination.exists():
         raise FileExistsError("DELIVERY_ID_ALREADY_EXISTS: exports are immutable")
@@ -1076,6 +1157,32 @@ def write_delivery(data_root: Path | str | None, run_id: str, delivery_id: str) 
                 if sum(1 for _ in csv.reader(handle)) != len(sheet.rows) + 1:
                     raise ValueError(f"CSV_READBACK_COUNT_MISMATCH:{sheet.name}")
             files.append(filepath)
+        # The contact pack: one file per grade family, the shape outreach teams
+        # work from (A/B is the KPI; C/D are entry points; X and no-route explain
+        # what was left out). Every row carries its page, quote and hash.
+        pack_dir = staging / "contact-pack"
+        pack_dir.mkdir()
+        pack_files = {
+            "A_B_named_role_emails.csv": [r for r in pack["routes"] if r[0] in {"A", "B"}],
+            "C_D_business_routes.csv": [r for r in pack["routes"] if r[0] in {"C", "D"}],
+            "X_excluded_or_unrated_routes.csv": [r for r in pack["routes"]
+                                                 if r[0] not in {"A", "B", "C", "D"}],
+        }
+        for name, rows in pack_files.items():
+            with (pack_dir / name).open("x", encoding="utf-8-sig", newline="") as handle:
+                writer = csv.writer(handle)
+                writer.writerow(CONTACT_PACK_HEADERS)
+                writer.writerows(rows)
+        with (pack_dir / "named_people_no_email.csv").open("x", encoding="utf-8-sig", newline="") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(("organisation_id", "organisation", "person", "role", "role_class",
+                             "source_url", "quote", "source_sha256", "record_id"))
+            writer.writerows(pack["leads"])
+        with (pack_dir / "no_route_targets.csv").open("x", encoding="utf-8-sig", newline="") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(("target", "website", "address", "status", "reason", "source"))
+            writer.writerows(pack["no_route"])
+        files += sorted(pack_dir.iterdir())
         # The client view is not a caller's optional post-processing step. It is
         # generated from the *already filtered* business sheets inside this
         # transaction, so a caller cannot hand-write a friendlier view, and a
@@ -1099,7 +1206,7 @@ def write_delivery(data_root: Path | str | None, run_id: str, delivery_id: str) 
         receipt = {**manifest, "format": "xlsx+csv+manifest",
                    "generated_at": generated_at,
                    "files": {
-                       **{f.name: {
+                       **{str(f.relative_to(staging)): {
                            "bytes": f.stat().st_size,
                            "sha256": hashlib.sha256(f.read_bytes()).hexdigest()
                        } for f in files},

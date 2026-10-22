@@ -4,6 +4,10 @@ from pathlib import Path
 import sqlite3
 
 
+def rules_ok(kpi) -> bool:
+    return bool(kpi and kpi.get("rules_source"))
+
+
 def assess(root, run_id, *, goal, budget=None):
     import research_runtime_setup as runtime
     import research_runtime_status as runtime_status
@@ -25,6 +29,20 @@ def assess(root, run_id, *, goal, budget=None):
                 remaining = min(remaining, max(0, limits["run_max_calls"] - used))
     elif isinstance(budget, dict):
         remaining = budget.get("search_remaining")
+    # The source gate: a source whose first targets gave too few A+B accounts has its
+    # remaining targets parked before the queue is counted, so the Run moves on to
+    # better sources (or closes) instead of researching the rest of a poor list.
+    import research_grading as grading
+    import research_sources as sources
+    try:
+        parked = sources.park_stopped(base, run_id)
+        grades, rules, brief = sources.graded(base, run_id)
+        source_yield = sources.yields(base, run_id, grades=grades, brief=brief)
+        kpi = {**grading.summary(grades, targets_finished=sources.finished_targets(base, run_id)),
+               "rules_source": rules["source"]}
+    except (sqlite3.Error, OSError, ValueError) as exc:
+        parked, source_yield = {"parked": 0, "sources": []}, {"sources": [], "error": type(exc).__name__}
+        kpi = None
     pools = []
     path = base / "state/research-pool.sqlite3"
     if path.is_file():
@@ -93,8 +111,27 @@ def assess(root, run_id, *, goal, budget=None):
             "venue_operator_groups": None if groups is None else {
                 k: groups[k] for k in ("by", "venues_total", "groups_total", "groups_uncovered",
                                        "venues_in_uncovered_groups")},
+            "grading": kpi,
+            "source_gate": {"parked_now": parked, "gate": source_yield.get("gate"),
+                            "sources": source_yield["sources"]},
             "next_method": None if final else ladder["next_method"],
             "next_method_how": "" if final else ladder["next_method_how"]}
+    advice = []
+    for row in source_yield["sources"]:
+        if row.get("verdict") == "OPTIMIZE_ONCE" and row["pending"]:
+            advice.append(f"Source {row['source_id']}: {row['with_ab']}/{row['finished']} targets with "
+                          "A or B. Change the approach for it once (other pages, roles or operator), "
+                          "then go on; below 10% after that it is stopped.")
+        elif row.get("verdict") == "STOP":
+            advice.append(f"Source {row['source_id']} stopped at {row['with_ab']}/{row['finished']} "
+                          "targets with A or B; its pending targets are parked. Find a better source "
+                          "for this target type (see the scene's source order).")
+    if advice:
+        out["source_advice"] = advice
+    if not rules_ok(kpi) and not final:
+        out["grading_advice"] = ("No role rules for grading: add scene_rules to the brief "
+                                 "(decision / operational / entry / excluded title words in the "
+                                 "market's language) with marketops_propose(supersedes=<brief>).")
     if not final:
         out["turn_rule"] = (
             "Research is not finished. Do not end your turn or write a final answer: do "

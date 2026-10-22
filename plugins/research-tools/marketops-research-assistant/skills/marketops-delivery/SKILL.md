@@ -35,7 +35,10 @@ read the databases or plugin code; the handoff applies the evidence gate you wou
 3. **Check.** `marketops_evidence_audit(run_id)`; on hosts with subagents, run `research-verifier`
    on a sample (all A/B rows if fewer than 20). Fix or HOLD what fails.
 4. **Checkpoint or finish.** `marketops_handoff(run_id, operation_id, mode='auto')` writes the nine-sheet XLSX, CSVs,
-   manifest, client-view files (business rows only) and the experience draft. A `PARTIAL_HANDOFF_*`
+   manifest, client-view files (business rows only), the experience draft and `contact-pack/`:
+   `A_B_named_role_emails.csv` (the KPI rows), `C_D_business_routes.csv`, excluded/unrated
+   routes and `no_route_targets.csv`, each row with its page, quote and SHA-256. Point the user
+   to the contact pack first. A `PARTIAL_HANDOFF_*`
    status is reported as partial, never as clean. Inspect `is_final` and `execution`:
    `CHECKPOINT_RESEARCH_NOT_FINISHED` / `continuation_required=true` means save the
    file, follow `execution.next_action`, and continue the same task. Pending or
@@ -52,8 +55,10 @@ read the databases or plugin code; the handoff applies the evidence gate you wou
    handoff's `goal_satisfied`, not `delivery_completeness`. COMPLETE only means the paperwork is
    in order, so never write "complete" when the goal was not met. Also say whether Crawl4AI ran
    the whole time, and whether pages were read by TinyFish only (which the user agreed to).
-   Then, in plain terms: targets covered; admitted routes by grade; generic inboxes counted
-   separately; HOLD/EXCLUDED with reasons; sources blocked; what the user should review. Workbook
+   Then the KPI from the handoff's `grading`: A+B distinct people, organisations with A+B, and
+   A+B per 100 finished targets (say the denominator); then C and D counts separately, and each
+   source's A+B rate from `source_yield` (which sources were parked). Then, in plain terms:
+   targets covered; generic inboxes counted separately; HOLD/EXCLUDED with reasons; sources blocked; what the user should review. Workbook
    rows are candidates for human review, not approved contacts, and row counts are not market
    coverage.
 6. **Money**, from the handoff's `run_cost` and `marketops_costs(action='balances')`: a small

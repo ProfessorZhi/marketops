@@ -99,6 +99,17 @@ def _words(text: str) -> list[str]:
     return [w for w in re.findall(r"[0-9a-z]+", text.casefold()) if w not in _STOP]
 
 
+def _without_tracking(url: str) -> str:
+    """Map listings append utm_* and similar tags; one page should be one URL."""
+    if not url or "?" not in url:
+        return url
+    from urllib.parse import parse_qsl, urlencode, urlunsplit
+    parts = urlsplit(url)
+    kept = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True)
+            if not k.lower().startswith(("utm_", "gclid", "fbclid", "mc_"))]
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(kept), parts.fragment))
+
+
 def target_key(name: str, address: str = "", website: str = "") -> str:
     """Stable dedupe key: normalised name + postcode district, else region words.
 
@@ -151,6 +162,7 @@ def import_targets(root, *, pool_id: str, source_id: str, source_url: str, provi
             address = item.get("address") or ""
             if website and urlsplit(str(website)).scheme not in {"http", "https"}:
                 website = ""
+            website = _without_tracking(str(website))
             try:
                 key = target_key(name, str(address), str(website))
             except ValueError:
