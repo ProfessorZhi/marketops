@@ -48,6 +48,9 @@ def _json(material):
     if isinstance(data, list):
         rows, listed = data, len(data)
     elif isinstance(data, dict):
+        if isinstance(data.get("result"), dict):  # CKAN: {"result": {"records", "total"}}
+            data = {"records": data["result"].get("records"),
+                    "total_count": data["result"].get("total")}
         rows = data.get("results", data.get("records"))
         listed = data.get("total_count", len(rows) if isinstance(rows, list) else None)
     else:

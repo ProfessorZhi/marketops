@@ -79,6 +79,9 @@ class Inventory(unittest.TestCase):
     def test_the_ladder_does_not_end_while_operators_are_uncovered(self):
         import research_execution
         self.load()
+        enough = patch.object(methods, "effort", return_value={"enough": True})
+        enough.start()
+        self.addCleanup(enough.stop)
         for name, _ in methods.LADDERS["contacts"]:
             methods.record(self.root, "run-a", name, "exhausted")
         state = research_execution.assess(self.root, "run-a", goal={"goal_satisfied": False})
@@ -117,6 +120,78 @@ class SiteQueries(unittest.TestCase):
                           "https://blog.urbansoccer.fr/equipe"},
                          {hit["url"] for hit in answer["results"]})
         self.assertEqual(1, answer["off_site_results_dropped"])
+
+
+class Mechanical(unittest.TestCase):
+    """Three things the agent used to have to remember, now done by the plugin."""
+
+    def test_record_pages_become_the_portal_export(self):
+        import research_portals as portals
+        cases = {
+            "https://data.example.org/api/explore/v2.1/catalog/datasets/d/records?limit=100&where=a%3D1":
+                ("https://data.example.org/api/explore/v2.1/catalog/datasets/d/exports/json?where=a%3D1",
+                 "opendatasoft"),
+            "https://ckan.example.org/api/3/action/datastore_search?resource_id=r&limit=100":
+                ("https://ckan.example.org/api/3/action/datastore_search?resource_id=r&limit=32000",
+                 "ckan"),
+            "https://socrata.example.org/resource/abcd-1234.json":
+                ("https://socrata.example.org/resource/abcd-1234.json?%24limit=50000", "socrata"),
+        }
+        for given, expected in cases.items():
+            self.assertEqual(expected, portals.bulk_url(given))
+        for untouched in ("https://data.example.org/api/explore/v2.1/catalog/datasets/d/records?offset=200",
+                          "https://x.example.org/api/records/1.0/search/?dataset=d&q=free+text",
+                          "https://example.org/team"):
+            self.assertEqual((untouched, ""), portals.bulk_url(untouched))
+
+    def test_a_ckan_response_imports(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store.start_run(root, "run-a", "Any", "Any", "test")
+            body = {"result": {"total": 2, "records": [{"id": 1, "name": "Hall A"},
+                                                        {"id": 2, "name": "Hall B"}]}}
+            store.save_artifact(root, "run-a", "ckan", "crawl4ai",
+                                "https://ckan.example.org/api/3/action/datastore_search?resource_id=r",
+                                json.dumps(body).encode(), "raw_response")
+            out = bulk.import_saved(root, run_id="run-a", artifact_id="ckan", pool_id="p",
+                                    source_id="s", mapping={"name": "name", "source_key": "id"})
+            self.assertEqual(2, out["imported"])
+            self.assertEqual(2, out["source_total_count"])
+
+    def test_an_ignored_site_query_is_retried_simply(self):
+        import research_mcp as mcp
+        asked = []
+
+        def search(provider, query, *args, **kwargs):
+            asked.append(query)
+            if "(" in query:
+                return {"results": [{"url": "https://mail.example.com/"}]}
+            return {"results": [{"url": "https://club.example/team"}]}
+
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch.object(mcp, "root", return_value=Path(tmp)), \
+                patch.object(mcp, "search", side_effect=search):
+            answer = mcp._search_all("site:club.example (coach OR director) email", "GB", "en",
+                                     "r", "op", 10)
+        self.assertEqual(["https://club.example/team"], [h["url"] for h in answer["results"]])
+        self.assertEqual("site:club.example coach director email", answer["simplified_query"])
+
+    def test_exhausted_must_be_earned(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            with self.assertRaisesRegex(ValueError, "METHOD_NOT_TRIED_ENOUGH"):
+                methods.record(root, "run-a", "OWN_SITE", "exhausted")
+            pool.import_targets(root, pool_id="p", source_id="s", source_url="", provider="local",
+                                listed_count=25, targets=[{"name": f"Club {n}", "address": f"Town {n}"}
+                                                          for n in range(25)])
+            claimed = pool.claim(root, pool_id="p", worker_id="w", count=25)
+            pool.complete(root, pool_id="p", worker_id="w", results=[
+                {"target_key": t["target_key"], "outcome": "hold", "reason": "NO_PUBLIC_ROUTE_ON_SITE",
+                 "run_id": "run-a"} for t in claimed["targets"]])
+            status = methods.record(root, "run-a", "OWN_SITE", "exhausted", "25 sites, no names")
+            self.assertEqual("OPERATOR", status["contacts"]["next_method"])
+            with self.assertRaisesRegex(ValueError, "METHOD_NOT_TRIED_ENOUGH"):
+                methods.record(root, "run-a", "OPERATOR", "exhausted")
 
 
 class WallsAreRecorded(unittest.TestCase):

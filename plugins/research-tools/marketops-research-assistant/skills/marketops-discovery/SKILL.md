@@ -23,6 +23,11 @@ Common export endpoints:
 - ArcGIS: `query?f=geojson` with `resultOffset`.
 - Many sites: a plain CSV/XLSX download link.
 
+`marketops_research_step` does this by itself for Opendatasoft, CKAN and Socrata: give it the
+first-page record URL with your filter, and it reads the export instead. The reply says so in
+`bulk_export`; `as_is=true` reads a URL exactly as given. For other portals, find the export
+yourself.
+
 Rules:
 - Read one regional slice per call (under 50,000 rows), keeping only the columns you need.
 - Get the total first and check each slice against it.

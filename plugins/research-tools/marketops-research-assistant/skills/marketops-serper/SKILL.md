@@ -34,5 +34,6 @@ then asks SerpApi instead and TinyFish search keeps running. Tell the user to to
 **Keep `site:` queries simple.** One phrase per query: `site:example.fr directeur`, not
 `site:example.fr (partenariats OR commercial OR directeur) email`. The engine sometimes ignores
 `site:` on long boolean queries and returns unrelated pages; the Paris run got Gmail and US Senate
-contact pages. The merged search drops off-site hits (`off_site_results_dropped`). To read one
+contact pages. The merged search drops off-site hits (`off_site_results_dropped`). If nothing is
+left, it retries once with `site:` plus the first plain words (`simplified_query`). To read one
 site thoroughly, use `marketops_site_harvest` instead of searching it.

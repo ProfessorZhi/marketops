@@ -128,7 +128,9 @@ methods, and `marketops_method(run_id)` says which one is next:
 5. Documents such as minutes, tenders and organisation charts.
 6. TinyFish agent, only if allowed.
 
-After a method has been tried on about 20–30 targets with little result:
+After a method has been tried on about 20–30 targets with little result (the plugin only accepts
+`exhausted` after 20 finished targets or 15 provider calls since the method started, or once
+every queued target is finished; otherwise it answers `METHOD_NOT_TRIED_ENOUGH`):
 1. Record it: `marketops_method(run_id, method, outcome='exhausted', note='<counts>')`.
 2. Apply `next_method` to the remaining targets right away, in the same turn.
 

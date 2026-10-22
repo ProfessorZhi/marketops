@@ -1057,7 +1057,15 @@ def find_official_site(run_id, operation_id, target, country="us", language="en"
     return f"https://{parts.hostname}/"
 
 
-def _search_all(query, country, language, run_id, operation_id, limit):
+def _simple_site_query(query: str) -> str:
+    """site:X plus the first few plain words: what engines honour reliably."""
+    sites = re.findall(r"\bsite:\S+", query)
+    rest = re.sub(r"\bsite:\S+|\(|\)|\bOR\b|\bAND\b|\"", " ", query)
+    words = [w for w in rest.split() if not w.startswith("-") and ":" not in w][:4]
+    return " ".join(sites[:1] + words)
+
+
+def _search_all(query, country, language, run_id, operation_id, limit, _retried=False):
     """Serper and TinyFish search on the same query at once; results merged by URL."""
     from concurrent.futures import ThreadPoolExecutor
     def one(provider):
@@ -1116,10 +1124,18 @@ def _search_all(query, country, language, run_id, operation_id, limit):
             pass
     if dropped:
         out["off_site_results_dropped"] = dropped
+        simple = _simple_site_query(query)
+        if not merged and not _retried and simple and simple != query:
+            # The engine ignored site: on a complex query: ask once more, simply.
+            again = _search_all(simple, country, language, run_id, f"{operation_id}-simple"[:90],
+                                limit, _retried=True)
+            again["original_query"] = query
+            again["simplified_query"] = simple
+            again["off_site_results_dropped"] = dropped + again.get("off_site_results_dropped", 0)
+            return again
         if not merged:
-            out["query_hint"] = ("Every result was off the site: the engine ignored site:. "
-                                 "Use one simple phrase per query (no parentheses or OR), or "
-                                 "harvest the site directly with marketops_site_harvest.")
+            out["query_hint"] = ("Every result was off the site, also for the simplified query. "
+                                 "Harvest the site directly with marketops_site_harvest.")
     substituted = {p: a["substituted_by"] for p, a in answers.items() if a.get("substituted_by")}
     if substituted:
         out["substituted"] = substituted
@@ -1807,24 +1823,42 @@ def build_server():
                                 query: str = "", url: str = "", artifact_id: str = "",
                                 question: str = "", options: list[str] | None = None,
                                 country: str = "", language: str = "",
-                                limit: int = 5, max_attempts: int = 3) -> dict:
+                                limit: int = 5, max_attempts: int = 3,
+                                as_is: bool = False) -> dict:
         """Run one bounded research step with recorded, admitted fallback channels.
 
         task_kind: source_discovery, known_public_url, batch_public_pages (one
         URL per step), or semantic_choice. Unknown charges, timeouts, access
         restrictions and exhausted shared budgets stop the chain. Results are
         candidate materials; read the returned artifact IDs and verify claims.
+        A first-page open-data record URL (Opendatasoft, CKAN, Socrata) is read
+        as the portal's bulk export of the same filter; the reply says so in
+        bulk_export. as_is=true reads the URL exactly as given.
         """
         import research_fallback
         import research_runtime_setup
         data_root = root()
         _require_brief_for_network(data_root, run_id)
-        return research_fallback.research_step(
+        rewrite = None
+        if url and not as_is and task_kind in {"known_public_url", "batch_public_pages"}:
+            import research_portals
+            exported, portal = research_portals.bulk_url(url)
+            if portal:
+                rewrite = {"portal": portal, "requested_url": url, "read_url": exported,
+                           "note": "Read as one export instead of 100-row pages; import it with "
+                                   "marketops_pool_import in artifact mode. Over "
+                                   f"{research_portals.MAX_EXPORT_ROWS} rows: narrow the filter "
+                                   "(one region per call)."}
+                url = exported
+        result = research_fallback.research_step(
             data_root, run_id=run_id, operation_id=operation_id, task_kind=task_kind,
             managed_call=managed_call,
             admission=lambda capability: research_runtime_setup.admission(data_root, capability),
             query=query, url=url, artifact_id=artifact_id, question=question, options=options,
             country=country, language=language, limit=limit, max_attempts=max_attempts)
+        if rewrite and isinstance(result, dict):
+            result["bulk_export"] = rewrite
+        return result
 
     @tool
     def marketops_site_harvest(run_id: str, operation_id: str, organization_name: str,
