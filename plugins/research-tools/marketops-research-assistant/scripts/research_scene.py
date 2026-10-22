@@ -22,6 +22,7 @@ import unicodedata
 from pathlib import Path
 
 __all__ = ["CLASSES", "GENERIC_LOCAL_PARTS", "fold", "validate", "load", "role_class", "match",
+           "nearest_title",
            "is_generic_inbox", "shipped"]
 
 CLASSES = ("decision", "operational", "entry", "excluded")
@@ -112,11 +113,49 @@ def match(text: object, rules: dict, order=("excluded", "decision", "operational
     if not folded:
         return "", ""
     roles = rules.get("roles", {})
-    for key in order:
-        for words in roles.get(key, ()):
-            if _matches(folded, fold(words)):
-                return key, fold(words)
-    return "", ""
+    found = [(len(fold(words)), -rank, key, fold(words)) for rank, key in enumerate(order)
+             for words in roles.get(key, ()) if _matches(folded, fold(words))]
+    if not found:
+        return "", ""
+    # The most specific title wins ("vice-présidente" is not "présidente"); on a tie
+    # the earlier class in `order` (excluded first).
+    _, _, key, words = max(found)
+    return key, words
+
+
+#: "avenue du Président Wilson" is an address, not a role.
+_STREET = re.compile(r"\b(?:avenue|av|rue|boulevard|bd|place|pl|allee|quai|square|cours|impasse|"
+                     r"chemin|route|esplanade|parvis|rond[- ]point)\.?\s+(?:du|de la|de l|des|de|d)?\s*"
+                     r"[\w-]+(?:\s+[\w-]+)?", re.IGNORECASE)
+
+
+def nearest_title(text: str, email: str, rules: dict, *, before: int = 70,
+                  after: int = 30) -> tuple[str, str, int]:
+    """(class, title words, distance in characters) of the role printed next to an
+    address in a quote; ('', '', -1) when none is.
+
+    Only the stretch since the previous address counts, street names are dropped,
+    and the role closest to the address wins.
+    """
+    plain = unicodedata.normalize("NFKD", str(text or ""))
+    plain = "".join(ch for ch in plain if not unicodedata.combining(ch)).casefold()
+    at = plain.find(str(email).casefold())
+    if at < 0:
+        return "", "", -1
+    left = plain[max(0, at - before):at]
+    left = re.split(r"[\w.+-]+@[\w.-]+\.[a-z]{2,24}", left)[-1]
+    right = re.split(r"[\w.+-]+@[\w.-]+\.[a-z]{2,24}", plain[at + len(email):at + len(email) + after])[0]
+    best = ("", "", -1)
+    for side, chunk in (("left", _STREET.sub(" ", left)), ("right", _STREET.sub(" ", right))):
+        words_text = " ".join(re.findall(r"[0-9a-z]+", chunk))
+        for key in ("excluded", "decision", "operational", "entry"):
+            for title in rules.get("roles", {}).get(key, ()):
+                folded = fold(title)
+                for hit in re.finditer(rf"(?<![0-9a-z]){re.escape(folded)}(?![0-9a-z])", words_text):
+                    distance = (len(words_text) - hit.end()) if side == "left" else hit.start()
+                    if best[2] < 0 or distance < best[2] or (distance == best[2] and len(folded) > len(best[1])):
+                        best = (key, folded, distance)
+    return best
 
 
 def role_class(title: object, rules: dict) -> str:

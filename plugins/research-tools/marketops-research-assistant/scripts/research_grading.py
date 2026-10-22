@@ -60,6 +60,10 @@ def _personal_address(email: str, name: str) -> bool:
     return len(tokens) > 1 and joined in {tokens[0][0] + surname, surname + tokens[0][0]}
 
 
+#: How close (in characters) a role label must stand to an address for the address
+#: to count as that role's, when no name is printed ("Président : x@...").
+ROLE_LABEL_DISTANCE = 20
+
 _ROLE_WORDS = frozenset("""president presidente presidence directeur directrice direction
 director manager gerant gerante responsable secretaire secretary chef head coordinateur
 coordinatrice regisseur administrateur administratrice""".split())
@@ -87,14 +91,16 @@ def _name_in_quote(email: str, quotes: list[tuple[str, str]]) -> str:
     for _, quote in quotes:
         if email.casefold() not in quote.casefold():
             continue
-        words = re.findall(r"[A-ZÀ-ÖØ-Þ][\w'À-ÿ-]+", quote)
-        found = []
-        for part in parts:
-            match = next((w for w in words if scene.fold(w).replace(" ", "") == part), None)
-            if match is None:
-                break
-            found.append(match)
-        else:
+        # Capitalised words, hyphenated names split ("Marie-Florence"), and pairs of
+        # neighbours joined ("Muller Lardeau" spells "mullerlardeau").
+        words = [w for token in re.findall(r"[A-ZÀ-ÖØ-Þ][\w'À-ÿ-]+", quote)
+                 for w in token.split("-") if w]
+        keys = [scene.fold(w).replace(" ", "") for w in words]
+        candidates = {k: w for k, w in zip(keys, words)}
+        candidates.update({a + b: f"{wa} {wb}" for (a, wa), (b, wb)
+                           in zip(zip(keys, words), zip(keys[1:], words[1:]))})
+        found = [candidates.get(part) for part in parts]
+        if all(found):
             return " ".join(found)
     return ""
 
@@ -156,18 +162,27 @@ def grade_routes(records: list[dict], brief: dict | None) -> tuple[dict, dict]:
         quotes = _quotes(contact)
         folded = [(artifact, scene.fold(quote), quote.casefold()) for artifact, quote in quotes]
         with_email = [(a, f) for a, f, raw in folded if value.casefold() in raw]
+        distance = -1
         if title:
             cls, title_words = scene.match(title, rules)
             title_words = title_words or scene.fold(title)
         else:
-            # No role record: the role words printed next to the address on the saved
-            # page ("Head Groundsman: ...") are evidence too. A department word that
-            # only appears elsewhere in the sentence does not exclude the route.
-            cls, title_words = next(((c, w) for c, w in (
-                scene.match(f, rules, ("decision", "operational", "entry")) for _, f in with_email)
-                if c), ("", ""))
+            # No role record: the role printed right next to the address on the saved
+            # page ("Head Groundsman: ...") is evidence too, but only that one - not a
+            # role further along the sentence, and not a street named after a president.
+            cls, title_words, distance = "", "", -1
+            for _, quote in quotes:
+                found = scene.nearest_title(quote, value, rules)
+                if found[0] and (distance < 0 or found[2] < distance):
+                    cls, title_words, distance = found
             if cls:
                 result["reasons"].append("ROLE_FROM_EMAIL_QUOTE")
+            elif _role_mailbox(value, ""):
+                # president@club.fr names its role itself.
+                local = value.split("@", 1)[0].replace(".", " ").replace("_", " ").replace("-", " ")
+                cls, title_words = scene.match(local, rules, ("decision", "operational"))
+                if cls:
+                    result["reasons"].append("ROLE_FROM_MAILBOX_NAME")
         result["role_class"] = cls
         if cls == "excluded":
             result["grade"], result["reasons"] = "X", ["ROLE_EXCLUDED"]
@@ -177,6 +192,12 @@ def grade_routes(records: list[dict], brief: dict | None) -> tuple[dict, dict]:
             continue
         if len(names_by_email[value.casefold()]) > 1:
             result["grade"], result["reasons"] = "D", ["SHARED_INBOX_SEVERAL_PEOPLE"]
+            continue
+        if any(raw.count(value.casefold()) > 1 for _, _, raw in folded):
+            # One address printed for several roles on the same page (president and
+            # vice-president both "club@...") is the club's inbox.
+            result["grade"] = "C"
+            result["reasons"] = result["reasons"] + ["SAME_ADDRESS_FOR_SEVERAL_ROLES"]
             continue
         if cls not in {"decision", "operational"}:
             result["grade"] = "C"
@@ -211,10 +232,17 @@ def grade_routes(records: list[dict], brief: dict | None) -> tuple[dict, dict]:
                 result["grade"] = "C"
                 result["reasons"].append("NAME_ROLE_EMAIL_NOT_ONE_BLOCK")
         else:
-            if title_words and any(scene._matches(f, title_words) for _, f in with_email):
+            bound = title_words and any(scene._matches(f, title_words) for _, f in with_email)
+            if bound and (_role_mailbox(value, title_words) or 0 <= distance <= ROLE_LABEL_DISTANCE):
+                # "Président : president@club.fr" or a role's own mailbox: role-bound.
                 result["grade"] = "B"
                 result["reasons"] += ["ROLE_BOUND_NO_NAME"] + (
                     ["NO_NAME_MAX_B"] if cls == "decision" else [])
+            elif bound:
+                # A role mentioned nearby, but the address is the organisation's
+                # own inbox (club-name@gmail.com): an entry point, not the role.
+                result["grade"] = "C"
+                result["reasons"].append("ROLE_NEAR_ORGANISATION_INBOX")
             else:
                 result["grade"] = "C"
                 result["reasons"].append("ROLE_NOT_IN_EMAIL_BLOCK")

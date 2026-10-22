@@ -120,6 +120,41 @@ class Grades(unittest.TestCase):
         self.assertNotEqual("A", g["c2"]["grade"])  # 'jdupont' spells no full name part
         self.assertEqual("B", g["c3"]["grade"])      # no name printed: role-bound only
 
+    def test_cases_from_the_live_paris_audit(self):
+        rules = {"record_type": "research_brief", "scene_rules": {
+            **PARIS["scene_rules"],
+            "decision": PARIS["scene_rules"]["decision"] + ["president", "presidente"],
+            "operational": PARIS["scene_rules"]["operational"] + ["vice presidente"],
+            "entry": PARIS["scene_rules"]["entry"] + ["tresoriere"]}}
+        g = self.grade([
+            contact("c1", "saint-denis@example.fr",
+                    "361 avenue du Président Wilson, 93200 Saint-Denis 01 84 21 12 04 saint-denis@example.fr"),
+            contact("c2", "florence.merx@example.fr",
+                    "Sylvie Sauvage Présidente tcpj@example.fr Florence MERX Vice-présidente "
+                    "florence.merx@example.fr Céline Muller Lardeau Trésorière celine.mullerlardeau@example.fr"),
+            contact("c3", "celine.mullerlardeau@example.fr",
+                    "Florence MERX Vice-présidente florence.merx@example.fr Céline Muller Lardeau "
+                    "Trésorière celine.mullerlardeau@example.fr"),
+            contact("c4", "club.badminton@example.fr",
+                    "Le Bureau Ludovic C. club.badminton@example.fr Président Arnaud P. "
+                    "club.badminton@example.fr Vice-Président"),
+            contact("c5", "marie-florence.deprince@example.fr",
+                    "Contact Marie-Florence Deprince, présidente Tél. : 06 71 96 97 28 "
+                    "E-mail : marie-florence.deprince@example.fr"),
+            contact("c6", "cirque.arts@example.fr",
+                    "Contact Mahi Franck Gbale (Président) et/ou Nicolas Heniet (intervenant) "
+                    "Tél. : 07 81 97 70 08 E-mail : cirque.arts@example.fr"),
+            contact("c7", "president@example.fr",
+                    "Contact présidence : @Mail -> president@example.fr Contact administratif")],
+            brief=rules)
+        self.assertEqual("C", g["c1"]["grade"])           # a street, not a role
+        self.assertEqual("B", g["c2"]["grade"])           # vice-présidente, not présidente
+        self.assertEqual("C", g["c3"]["grade"])           # her own role: trésorière
+        self.assertEqual("C", g["c4"]["grade"])           # one club box for two roles
+        self.assertEqual("A", g["c5"]["grade"])           # hyphenated name, présidente
+        self.assertEqual("C", g["c6"]["grade"])           # the club's inbox, role far away
+        self.assertEqual("B", g["c7"]["grade"])           # a role mailbox
+
     def test_role_from_another_page_is_only_c(self):
         g = self.grade([
             person("p1", "Marie Durand", "Directrice des sports",
