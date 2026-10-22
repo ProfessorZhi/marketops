@@ -1,0 +1,169 @@
+{
+  "schema": "marketops.session-ledger-summary.v1",
+  "method": "sqlite_uri_readonly_aggregate_no_network",
+  "time_selection": "operation created_at; event recorded_at; UTC",
+  "note": "SETTLED is a charge state, not proof of successful page acquisition.",
+  "windows": {
+    "latest_turn": {
+      "start_utc_inclusive": "2026-10-22T05:31:03Z",
+      "end_utc_exclusive": "2026-10-22T05:41:01Z",
+      "operation_rows": [
+        {
+          "provider": "crawl4ai",
+          "capability": "render",
+          "outcome": "PRE_DISPATCH_REFUSAL",
+          "execution_outcome": "",
+          "charge_state": "NO_CHARGE_PROVEN",
+          "count": 1
+        },
+        {
+          "provider": "crawl4ai",
+          "capability": "render",
+          "outcome": "SETTLED",
+          "execution_outcome": "",
+          "charge_state": "SETTLED",
+          "count": 53
+        },
+        {
+          "provider": "serper",
+          "capability": "search",
+          "outcome": "SETTLED",
+          "execution_outcome": "",
+          "charge_state": "SETTLED",
+          "count": 31
+        },
+        {
+          "provider": "tinyfish",
+          "capability": "fetch",
+          "outcome": "SETTLED",
+          "execution_outcome": "",
+          "charge_state": "SETTLED",
+          "count": 31
+        },
+        {
+          "provider": "tinyfish",
+          "capability": "search",
+          "outcome": "SETTLED",
+          "execution_outcome": "",
+          "charge_state": "SETTLED",
+          "count": 30
+        },
+        {
+          "provider": "typesafe_jev",
+          "capability": "judge",
+          "outcome": "SETTLED",
+          "execution_outcome": "",
+          "charge_state": "SETTLED",
+          "count": 33
+        }
+      ],
+      "raw_operation_count": 179,
+      "pre_dispatch_refusals": 1,
+      "crawl_terminal_event_statuses": {
+        "blocked": 1,
+        "hold": 16,
+        "succeeded": 37
+      },
+      "crawl_failure_reason_counts": {
+        "CAPABILITY_PARAM_NOT_ALLOWED": 1,
+        "CRAWL_REDIRECT_REFUSED": 4,
+        "LOCAL_CRAWL_FAILED": 8,
+        "SOURCE_ACCESS_BLOCKED": 3,
+        "SOURCE_ANTIBOT_HEURISTIC": 1
+      }
+    },
+    "two_turns": {
+      "start_utc_inclusive": "2026-10-22T04:52:09Z",
+      "end_utc_exclusive": "2026-10-22T05:41:01Z",
+      "operation_rows": [
+        {
+          "provider": "crawl4ai",
+          "capability": "render",
+          "outcome": "PRE_DISPATCH_REFUSAL",
+          "execution_outcome": "",
+          "charge_state": "NO_CHARGE_PROVEN",
+          "count": 2
+        },
+        {
+          "provider": "crawl4ai",
+          "capability": "render",
+          "outcome": "SETTLED",
+          "execution_outcome": "",
+          "charge_state": "SETTLED",
+          "count": 80
+        },
+        {
+          "provider": "serper",
+          "capability": "search",
+          "outcome": "SETTLED",
+          "execution_outcome": "",
+          "charge_state": "SETTLED",
+          "count": 71
+        },
+        {
+          "provider": "tinyfish",
+          "capability": "fetch",
+          "outcome": "AMBIGUOUS_RESPONSE",
+          "execution_outcome": "UNKNOWN",
+          "charge_state": "UNKNOWN",
+          "count": 3
+        },
+        {
+          "provider": "tinyfish",
+          "capability": "fetch",
+          "outcome": "SETTLED",
+          "execution_outcome": "",
+          "charge_state": "SETTLED",
+          "count": 31
+        },
+        {
+          "provider": "tinyfish",
+          "capability": "search",
+          "outcome": "AMBIGUOUS_RESPONSE",
+          "execution_outcome": "UNKNOWN",
+          "charge_state": "UNKNOWN",
+          "count": 1
+        },
+        {
+          "provider": "tinyfish",
+          "capability": "search",
+          "outcome": "SETTLED",
+          "execution_outcome": "",
+          "charge_state": "SETTLED",
+          "count": 31
+        },
+        {
+          "provider": "typesafe_jev",
+          "capability": "judge",
+          "outcome": "SETTLED",
+          "execution_outcome": "",
+          "charge_state": "SETTLED",
+          "count": 33
+        }
+      ],
+      "raw_operation_count": 252,
+      "pre_dispatch_refusals": 2,
+      "crawl_terminal_event_statuses": {
+        "blocked": 2,
+        "hold": 20,
+        "succeeded": 60
+      },
+      "crawl_failure_reason_counts": {
+        "CAPABILITY_PARAM_NOT_ALLOWED": 2,
+        "CRAWL_REDIRECT_REFUSED": 4,
+        "LOCAL_CRAWL_FAILED": 12,
+        "SOURCE_ACCESS_BLOCKED": 3,
+        "SOURCE_ANTIBOT_HEURISTIC": 1
+      }
+    }
+  },
+  "export_manifest": {
+    "sha256": "a9a453fa81537a133601ae2681be2dd0cf347bef82efd9016788a13bf96c1f45",
+    "bytes": 803957,
+    "status": "PARTIAL_CANDIDATE_ONLY_NOT_FORMAL_CONTACTS",
+    "generated_at": "2026-10-22T05:40:13.247214+00:00",
+    "input_record_count": 1923,
+    "active_record_count": 1850,
+    "note": "Aggregate and file fingerprint only; workbook/contact rows are local-only."
+  }
+}

@@ -126,3 +126,7 @@ python reproduce_country_error.py --scripts INSTALLED_PLUGIN_SCRIPTS_DIRECTORY
 ```
 
 `THREAD_*_JSON` 使用 Codex `read_thread` 的 `thread/turns/items` 结构，只需用户消息、最终消息、命令元数据、web 动作和 MCP 调用元数据；无需推理内容。输出目录应为新目录，重现结果先在本地比较，再决定是否更新此记录。
+
+## 后续复测
+
+[2026-10-22：0.5.11-rc1 巴黎长调研提前停止复现](../2026-10-22-paris-continuation/README.md)记录了新版金额预算生效后的一次旧 Run 续接。停止时仍有 70 个待处理目标和约 $1.93 授权预算；这是持续执行失败的复测记录，不是与本轮同条件的新 A/B 对照，也不改写本轮历史结论。
