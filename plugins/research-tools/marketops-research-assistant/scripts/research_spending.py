@@ -192,8 +192,24 @@ def enforce(db, request, price, estimated, root):
     from research_balances import readings
     latest = readings(Path(root)).get(request.provider, {})
     observation = latest if (latest.get("unit") == provider.get("unit") and str(latest.get("observed_at") or "") > str(provider.get("observed_at") or "")) else provider
+    if provider.get("status") == "LIMIT_ONLY":
+        # No balance can be read (Jev has no balance API): the user's limit, in
+        # requests, is the only ceiling, and nothing past it is spent.
+        current = _totals(db, request.project, plan).get(request.provider, {"committed_micros": 0, "units": 0})
+        units = getattr(price, "quota_per_call", 1) * request.units if price is not None else request.units
+        if Decimal(current["units"]) + Decimal(units) > Decimal(str(provider["limit"])):
+            raise LedgerRefused(
+                "BUDGET_PROVIDER_CEILING",
+                f"limit: {request.provider} may use {provider['limit']} requests and has used "
+                f"{current['units']}. If the user wants more, marketops_costs(action='set_limit', "
+                "provider=..., limit=..., user_words=...)", dimension="limit")
+        return
     if provider.get("status") != "CONFIGURED" or not _fresh(observation.get("observed_at")):
-        raise LedgerRefused("BUDGET_PROVIDER_CEILING", "balance unknown/stale; keep the provider reserve", dimension="money")
+        raise LedgerRefused(
+            "BUDGET_PROVIDER_CEILING",
+            "balance unknown/stale; keep the provider reserve. An account with no balance API can "
+            "run under a limit: marketops_costs(action='set_limit', provider=..., limit=<requests>, "
+            "user_words=...)", dimension="money")
     if not usd_cap_basis(price)[0]:
         raise LedgerRefused("PRICE_UNKNOWN", "a money reservation requires a verified upper bound", dimension="money")
     totals = _totals(db, request.project, plan)
@@ -337,8 +353,20 @@ def set_limit(root, *, provider="", limit, user_words=""):
         totals = _totals(db, usage.project_for_root(root), plan)
         if provider:
             entry = plan["providers"][provider]
-            if entry.get("status") != "CONFIGURED":
-                raise ValueError("BALANCE_UNKNOWN_OR_STALE: read or enter the balance first")
+            if entry.get("status") not in {"CONFIGURED", "LIMIT_ONLY"}:
+                # No balance to measure a red line against: the limit itself becomes
+                # the ceiling. Spending goes from nothing to something, so it needs the
+                # user's words like any raise.
+                if len(words) < 4:
+                    raise ValueError("USER_WORDS_REQUIRED: this account's balance is unknown, so a "
+                                     "limit lets it spend; quote what the user said")
+                entry.clear()
+                entry.update({"status": "LIMIT_ONLY", "unit": "request", "limit": str(new)})
+                runtime._write(runtime._path(root, runtime.CONFIG_NAME), settings)
+                _history(root, {"limit": {"provider": provider, "from": None, "to": str(new),
+                                          "basis": "BALANCE_UNKNOWN", "user_words": words}})
+                db.commit()
+                return status(root)
             unit = entry.get("unit")
             held = totals.get(provider, {"committed_micros": 0, "units": 0})
             used = Decimal(held["committed_micros"]) / 1_000_000 if unit == "USD" else Decimal(held["units"])
@@ -441,6 +469,14 @@ def status(root):
         providers = {}
         with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)) as db:
             for name, entry in plan["providers"].items():
+                if entry.get("status") == "LIMIT_ONLY":
+                    used = Decimal(totals.get(name, {"units": 0})["units"])
+                    room = max(Decimal(0), Decimal(str(entry["limit"])) - used)
+                    providers[name] = {"unit": "request", "left_now": "UNKNOWN_NO_BALANCE_API",
+                                       "limit": entry["limit"], "used_under_policy": str(used),
+                                       "usable_under_limit": str(room),
+                                       "state": "AT_LIMIT" if room <= 0 else "OK"}
+                    continue
                 if entry.get("status") != "CONFIGURED":
                     providers[name] = {"state": entry.get("status"), "unit": entry.get("unit")}
                     continue

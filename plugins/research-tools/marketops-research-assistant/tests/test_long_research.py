@@ -199,6 +199,28 @@ class RedLine(Money):
         state = spending.status(self.root)["providers"]["serpapi"]
         self.assertEqual("30", state["limit"])
 
+    def test_an_account_with_no_balance_api_runs_under_a_limit(self):
+        # Jev reports no balance: without a limit it cannot spend at all.
+        def judge(count, start):
+            ledger, done = self.ledger(), 0
+            for n in range(start, start + count):
+                try:
+                    ledger.reserve(usage.OperationRequest(
+                        project=self.project, run_id="run-a", operation_id=f"jev-{n}",
+                        provider="typesafe_jev", capability="judge", account_ref="typesafe_jev",
+                        transport="python_sdk", intent=f"judge-{n}", args={"q": str(n)}))
+                    done += 1
+                except usage.LedgerRefused:
+                    break
+            return done
+        self.assertEqual(0, judge(3, 0))
+        with self.assertRaisesRegex(ValueError, "USER_WORDS_REQUIRED"):
+            spending.set_limit(self.root, provider="jev", limit="4")
+        spending.set_limit(self.root, provider="jev", limit="4", user_words="你自己注意下额度")
+        self.assertEqual(4, judge(10, 300))
+        state = spending.status(self.root)["providers"]["typesafe_jev"]
+        self.assertEqual(("4", "AT_LIMIT"), (state["limit"], state["state"]))
+
     # The ENVELOPE-only cases of the parent class do not apply to the red line.
     test_free_pages_outlive_old_request_cap_and_keep_audit_history = None
     test_concurrent_paid_reservations_cannot_spend_credit_reserve = None

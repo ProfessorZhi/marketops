@@ -29,7 +29,9 @@ Rules:
   - Do not open a new Run or reset anything to get round a limit.
 - Balances read automatically for SerpApi, Serper and TinyFish
   (`marketops_costs(action='balances')`). Jev has no balance API: enter the console figure
-  once with `set_balance`; usage is then computed from tokens.
+  once with `set_balance`, or, when the user gave a request allowance instead ("用 300 次",
+  "你自己注意下额度"), `set_limit(provider='jev', limit=<requests>, user_words=...)`: Jev then
+  runs until that many requests and stops. Without either, Jev cannot spend at all.
 See [monetary budget details](../../references/LONG_RESEARCH_AND_BUDGETS.md).
 
 Every call goes through MarketOps tools: material is saved in the Run, counted in one shared ledger

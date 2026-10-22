@@ -90,5 +90,13 @@ class MapListingNames(unittest.TestCase):
         self.assertEqual("Rumst", harvest.host_bound_name("Gemeente Rumst", "https://www.rumst.be"))
 
 
+class EmailExtraction(unittest.TestCase):
+    def test_a_placeholder_is_not_an_address(self):
+        import research_site_harvest as harvest
+        values = [r["value"] for r in harvest.extract_routes(
+            "Réservez une adresse ...@antony.fr pour votre blog. Contact : jean.dupont@ville.fr.")]
+        self.assertEqual(["jean.dupont@ville.fr"], values)
+
+
 if __name__ == "__main__":
     unittest.main()
