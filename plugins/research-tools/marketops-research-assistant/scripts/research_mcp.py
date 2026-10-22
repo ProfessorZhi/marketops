@@ -1336,8 +1336,24 @@ def invoke(action, run_id, operation_id, url="", query="", document="",
             "managed_status": answer["status"], "result": answer.get("payload")}
 
 
+def _check_scene_fields(facts) -> None:
+    """A brief revised mid-Run gets the same scene checks as one given at start:
+    rules that do not validate would silently leave every route RULES_UNKNOWN."""
+    if not isinstance(facts, dict) or facts.get("record_type") != "research_brief":
+        return
+    import research_scene
+    if facts.get("scene") and research_scene.shipped(facts["scene"]) is None:
+        raise ValueError("RESEARCH_BRIEF_INVALID: scene '" + str(facts["scene"])[:60]
+                         + "' is not shipped; write scene_rules for this market instead")
+    if "scene_rules" in facts:
+        problems = research_scene.validate(facts["scene_rules"])
+        if problems:
+            raise ValueError("RESEARCH_BRIEF_INVALID: " + "; ".join(problems))
+
+
 def propose(run_id, record_id, stage, kind, entity_key, facts, artifact_ids=None):
     r = root()
+    _check_scene_fields(facts)
     result = store.put_candidate(r, run_id, record_id, stage, kind,
                                  entity_key, facts, artifact_ids or [])
     append_event(r, run_id=run_id, operation_id=record_id, stage=stage,
@@ -1348,6 +1364,8 @@ def propose(run_id, record_id, stage, kind, entity_key, facts, artifact_ids=None
 def propose_batch(run_id, items):
     """Atomic append-only candidates, at most 20 per transaction/tool call."""
     r = root()
+    for item in items if isinstance(items, list) else ():
+        _check_scene_fields(item.get("facts") if isinstance(item, dict) else None)
     result = store.put_candidates_batch(r, run_id, items)
     operation_id = "batch-" + hashlib.sha256(
         json.dumps([item["record_id"] for item in items], sort_keys=True).encode()).hexdigest()[:24]

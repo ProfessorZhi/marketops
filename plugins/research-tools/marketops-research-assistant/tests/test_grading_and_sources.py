@@ -257,6 +257,9 @@ class BriefValidation(unittest.TestCase):
             mcp._valid_brief("r", {**base, "scene_rules": {"entry": ["accueil"]}})
         mcp._valid_brief("r", {**base, "scene_rules": PARIS["scene_rules"]})
         mcp._valid_brief("r", {**base, "scene": "uk-natural-grass"})
+        # A revision through propose gets the same check.
+        with self.assertRaisesRegex(ValueError, "scene_rules"):
+            mcp._check_scene_fields({**base, "scene_rules": {"boss": ["x"]}})
 
 
 if __name__ == "__main__":
