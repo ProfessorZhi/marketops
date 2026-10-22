@@ -126,17 +126,18 @@ def audit_records(records: list[dict], artifacts: dict[str, dict],
     from research_workflow import _tip
     related = defaultdict(list)
     for row in records:
-        if row["kind"] in {"person", "role"}:
+        if row["kind"] in {"person", "role"} and row.get("entity_key"):
             related[(row["kind"], row["entity_key"])].append(row)
     active_related = [tip for group in related.values() if (tip := _tip(group)) is not None]
-    people = {r["entity_key"]: r for r in active_related if r["kind"] == "person"}
+    people = {r["entity_key"]: r for r in active_related if r["kind"] == "person" and r.get("entity_key")}
     roles_by_person = defaultdict(list)
     for row in active_related:
         if row["kind"] == "role":
             roles_by_person[(row["data"].get("organization_id"), row["data"].get("person_id"))].append(row)
     versions = defaultdict(list)
     for row in records:
-        versions[(row["kind"], row["entity_key"])].append(row)
+        if row.get("entity_key"):
+            versions[(row["kind"], row["entity_key"])].append(row)
     superseded = {r["record_id"] for group in versions.values() if (tip := _tip(group)) is not None
                   for r in group if r["record_id"] != tip["record_id"]}
     for rec in records:
