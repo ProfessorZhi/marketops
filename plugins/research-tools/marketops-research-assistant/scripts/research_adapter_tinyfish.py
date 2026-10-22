@@ -1781,6 +1781,12 @@ async def _run(plan: dict) -> dict:
     return receipt
 
 
+def _upstream_proxy():
+    """Only the proxy configured for MarketOps; never the machine's ambient settings."""
+    from dual_search_mcp import upstream_proxy
+    return upstream_proxy()
+
+
 @asynccontextmanager
 async def _official_transport(endpoint: str, http_client):
     """The production transport: the official Streamable HTTP MCP endpoint."""
@@ -1811,7 +1817,8 @@ async def _live_runner(tool: str, arguments: dict, *, transport=None) -> dict:
         headers = {PROVIDER_KEY_HEADER: os.environ[variable]}
 
     opener = transport or _official_transport
-    async with httpx2.AsyncClient(headers=headers, auth=auth,
+    async with httpx2.AsyncClient(headers=headers, auth=auth, trust_env=False,
+                                  proxy=_upstream_proxy(),
                                   follow_redirects=False,
                                   timeout=httpx2.Timeout(65.0, connect=10.0)) as http:
         async with opener(ENDPOINT, http) as streams:
@@ -2154,7 +2161,8 @@ def _descriptors_from_session(transport) -> list:
     opener = transport or _official_transport
 
     async def run():
-        async with httpx2.AsyncClient(headers=headers, auth=auth,
+        async with httpx2.AsyncClient(headers=headers, auth=auth, trust_env=False,
+                                  proxy=_upstream_proxy(),
                                       follow_redirects=False,
                                       timeout=httpx2.Timeout(65.0, connect=10.0)) as http:
             async with opener(ENDPOINT, http) as streams:

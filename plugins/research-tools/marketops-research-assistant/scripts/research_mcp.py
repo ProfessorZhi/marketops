@@ -15,8 +15,19 @@ import sys
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
+import logging
 
 import dual_search_mcp
+
+
+def _quiet_http_logs() -> None:
+    """httpx logs each request URL at INFO, query included. SerpApi takes its key in the
+    query, so a host that shows the server's stderr showed the key (seen in a live run)."""
+    for name in ("httpx", "httpcore", "httpx2", "mcp.client.streamable_http"):
+        logging.getLogger(name).setLevel(logging.WARNING)
+
+
+_quiet_http_logs()
 import research_config
 import research_usage_ledger as usage_ledger
 import research_lite_store as store
@@ -387,9 +398,20 @@ def _use_installed_browser() -> None:
     the system default cache, finding nothing, and failing on every page.
     """
     current = os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "").strip()
-    if current and not current.startswith("$" + "{"):
-        return
     folder = installed_browser_root()
+    if current and not current.startswith("$" + "{"):
+        # A machine-wide PLAYWRIGHT_BROWSERS_PATH (set for some other tool) may hold
+        # other Chromium builds than the one this Playwright needs; then Crawl4AI found
+        # "no browser" on every page although the installer had put one beside us.
+        if folder is None or Path(current).resolve() == folder.resolve():
+            return
+        wanted = {c.name for c in folder.iterdir() if c.name.startswith("chromium")}
+        try:
+            have = {c.name for c in Path(current).iterdir()}
+        except OSError:
+            have = set()
+        if wanted <= have:
+            return
     if folder is not None:
         os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(folder)
 
@@ -1675,6 +1697,7 @@ def build_server():
     _ensure_repair_entrypoints()
     from mcp.server import MCPServer
     mcp = MCPServer("MarketOps Lite Research", version="0.5.11-rc5")
+    _quiet_http_logs()  # after the server set up its own logging
 
     def tool(fn):
         if fn.__name__ not in PUBLIC_TOOLS:

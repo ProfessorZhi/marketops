@@ -44,7 +44,7 @@ class DeclaredModeRegistryTests(unittest.TestCase):
         # google.serper.dev only.
         for undeclared in ("scrape", "search", "lens_deprecated"):
             with self.subTest(mode=undeclared):
-                with self.assertRaisesRegex(ValueError, "UNSUPPORTED_SERPER_MODE"):
+                with self.assertRaisesRegex(ValueError, "SERPER_MODE_UNSUPPORTED"):
                     serper_modes.mode_spec(undeclared)
 
     def test_maps_is_the_places_endpoint_and_says_so(self):

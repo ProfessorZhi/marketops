@@ -43,6 +43,23 @@ def _name_tokens(name: str) -> list[str]:
     return [t for t in scene.fold(name).split() if len(t) >= 3]
 
 
+def _personal_address(email: str, name: str) -> bool:
+    """Whether the address is this person's own (prenom.nom@, pnom@, nom@), not a team's.
+
+    "Directeur des sports : Jean Martin - sports@ville.fr" names a person next to the
+    department inbox; that route is the department's (C), not Jean Martin's.
+    """
+    local = scene.fold(email.split("@", 1)[0].replace(".", " ").replace("_", " ").replace("-", " "))
+    joined = local.replace(" ", "")
+    tokens = [t for t in scene.fold(name).split() if len(t) >= 2]
+    if not tokens or not joined:
+        return False
+    if any(len(t) >= 3 and t in joined for t in tokens):
+        return True
+    surname = tokens[-1]
+    return len(tokens) > 1 and joined in {tokens[0][0] + surname, surname + tokens[0][0]}
+
+
 def grade_routes(records: list[dict], brief: dict | None) -> tuple[dict, dict]:
     """({record_id: {grade, reasons, person_key, organization_id}}, rules) for email routes."""
     rules = scene.load(brief)
@@ -134,7 +151,10 @@ def grade_routes(records: list[dict], brief: dict | None) -> tuple[dict, dict]:
             role_same_page = bool(title_words) and (
                 any(scene._matches(f, title_words) for _, f in with_email)
                 or bool(role_artifacts & {a for a, _ in with_email}))
-            if named_block and role_same_page:
+            if named_block and role_same_page and not _personal_address(value, name):
+                result["grade"] = "C"
+                result["reasons"].append("DEPARTMENT_INBOX_NEXT_TO_NAME")
+            elif named_block and role_same_page:
                 result["grade"] = "A" if cls == "decision" else "B"
                 result["reasons"].append("NAME_ROLE_EMAIL_ONE_BLOCK")
             else:

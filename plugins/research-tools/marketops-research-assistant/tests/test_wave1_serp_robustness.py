@@ -88,7 +88,7 @@ class CreditMeteringTests(unittest.TestCase):
         self.assertEqual("UNKNOWN_ACCOUNT_DEPENDENT", estimate["credit_basis"])
 
     def test_an_undeclared_category_cannot_be_metered(self):
-        with self.assertRaisesRegex(ValueError, "UNSUPPORTED_SERPER_MODE"):
+        with self.assertRaisesRegex(ValueError, "SERPER_MODE_UNSUPPORTED"):
             serper_modes.credit_estimate("scrape", num=1)
 
     def test_the_receipt_carries_the_metering_the_request_actually_incurs(self):

@@ -276,10 +276,15 @@ def mode_spec(mode: str) -> ModeSpec:
     ``/reviews`` appear in third-party clients, and a mode string accepted on
     that basis would be coverage claimed from someone else's client library.
     """
-    spec = _BY_MODE.get(mode) if isinstance(mode, str) else None
+    spec = _BY_MODE.get(MODE_ALIASES.get(mode, mode)) if isinstance(mode, str) else None
     if spec is None:
-        raise ValueError("UNSUPPORTED_SERPER_MODE")
+        raise ValueError("SERPER_MODE_UNSUPPORTED")
     return spec
+
+
+#: Names agents reach for that mean a declared category ("places" is Serper's own
+#: word for its map results). An alias never adds a category.
+MODE_ALIASES = {"places": "maps", "local": "maps"}
 
 
 def pagination_param(mode: str) -> str | None:

@@ -48,6 +48,12 @@ _ENGINE = re.compile(r"^[a-z][a-z0-9_]{1,63}$")
 _PLACEHOLDER = re.compile(r"^\$\{[A-Z_][A-Z0-9_]*\}$")
 
 
+def _upstream_proxy():
+    """Only the proxy configured for MarketOps; never the machine's ambient settings."""
+    from dual_search_mcp import upstream_proxy
+    return upstream_proxy()
+
+
 def _credential(provider: str, environ: dict | None = None) -> tuple[str, str]:
     if provider not in ENDPOINTS:
         raise ValueError("OFFICIAL_MCP_PROVIDER_UNSUPPORTED")
@@ -372,7 +378,8 @@ async def _live_call(provider: str, tool: str, arguments: dict, *,
     else:
         headers = {"Authorization": "Bearer " + token}
     # Never expose tokens in URLs, redirects, log bodies, or callbacks.
-    async with httpx2.AsyncClient(headers=headers, auth=auth,
+    async with httpx2.AsyncClient(headers=headers, auth=auth, trust_env=False,
+                                  proxy=_upstream_proxy(),
                                   follow_redirects=False,
                                   timeout=httpx2.Timeout(65.0, connect=10.0)) as http:
         async with streamable_http_client(ENDPOINTS[provider], http_client=http) as streams:

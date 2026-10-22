@@ -87,6 +87,18 @@ class Grades(unittest.TestCase):
                     "Marie Durand, directrice des sports : m.durand@example.fr", person_id="p1")])
         self.assertEqual("A", g["c1"]["grade"])
 
+    def test_a_department_inbox_next_to_a_named_director_is_c(self):
+        g = self.grade([
+            person("p1", "Jean Martin", "Directeur des sports", "Directeur des sports : Jean Martin"),
+            contact("c1", "sports@example.fr",
+                    "Directeur des sports : Jean Martin - sports@example.fr", person_id="p1"),
+            person("p2", "Lea Moreau", "Directrice des sports", "Directrice des sports : Lea Moreau"),
+            contact("c2", "lmoreau@example.fr",
+                    "Directrice des sports : Lea Moreau - lmoreau@example.fr", person_id="p2")])
+        self.assertEqual("C", g["c1"]["grade"])
+        self.assertIn("DEPARTMENT_INBOX_NEXT_TO_NAME", g["c1"]["reasons"])
+        self.assertEqual("A", g["c2"]["grade"])
+
     def test_role_from_another_page_is_only_c(self):
         g = self.grade([
             person("p1", "Marie Durand", "Directrice des sports",
