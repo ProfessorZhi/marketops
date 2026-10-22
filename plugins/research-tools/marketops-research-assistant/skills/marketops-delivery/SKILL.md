@@ -5,6 +5,14 @@ description: Close a MarketOps Run - dispositions for every target, count reconc
 
 # Close, check, deliver
 
+Use the original session `usage_checkpoint.since` in
+`marketops_handoff(..., since=...)`. Report `session_cost` as this session and
+`run_cost` as Run cumulative. Never mix cumulative provider counts into a
+session-duration cost claim. In MONEY mode, free page counts do not imply
+budget exhaustion. A supplier's reserve closing still permits authorized free
+work, another supplier, and local processing of saved JSON. Check missing
+decision roles and source coverage before considering final delivery.
+
 The only way to produce the workbook is `marketops_handoff`. Never write XLSX/CSV yourself, never
 read the databases or plugin code; the handoff applies the evidence gate you would otherwise skip.
 

@@ -345,6 +345,8 @@ def research_step(data_root, *, run_id, operation_id, task_kind, managed_call, a
     attempts, calls, artifacts, selected = [], 0, [], None
     source_refs = {"primary_artifact_ids": [], "provider_html_artifact_ids": []}
     final_reason = "FALLBACK_NO_USABLE_PROVIDER"
+    free_only = False
+    free_routes = {"crawl4ai.fetch_page", "tinyfish.search", "tinyfish.fetch_content"}
     import research_walls
     route = ROUTES[task_kind]
     if task_kind in {"known_public_url", "batch_public_pages"}:
@@ -360,6 +362,11 @@ def research_step(data_root, *, run_id, operation_id, task_kind, managed_call, a
                 "artifact_ids": [],
                 "actual_usd": None, "cost_unknown": False, "charge_state": "NOT_DISPATCHED",
                 "recorded_at": _stamp()}
+        if free_only and capability not in free_routes:
+            item.update(reason_code="MONETARY_ALLOWANCE_CLOSED", decision_reason="TRY_AUTHORIZED_FREE_ROUTE_ONLY")
+            attempts.append(item)
+            _attempt_write(root, run_id, operation_id, ordinal, item)
+            continue
         try:
             verdict = admission(capability)
         except Exception:
@@ -386,6 +393,15 @@ def research_step(data_root, *, run_id, operation_id, task_kind, managed_call, a
             if not isinstance(response, dict):
                 raise ValueError("FALLBACK_RESPONSE_INVALID")
             action, reason = _decision(response, request)
+            if (response.get("status") == "BLOCKED" and action == "STOP"
+                    and reason in {"BUDGET_PROJECT_CEILING", "BUDGET_RUN_CEILING"}):
+                import research_spending
+                if research_spending.policy(root):
+                    # A monetary cap stops spending, not explicitly free work.
+                    # Source refusals, unknown charges and legacy count caps
+                    # keep their original stop behavior above.
+                    free_only = True
+                    action, reason = "NEXT", "MONETARY_ALLOWANCE_CLOSED_TRY_FREE_ROUTE"
         except Exception as exc:
             # Never echo errors; they can contain provider keys or request text.
             response = {"status": "UNKNOWN", "reason_code": "FALLBACK_CALLBACK_FAILED",
@@ -412,7 +428,7 @@ def research_step(data_root, *, run_id, operation_id, task_kind, managed_call, a
         if capability in LOCAL_CAPABILITIES:
             item["local_reader_down_confirmed"] = bool(response.get("crawl4ai_down"))
             detail = (response.get("payload") or {}).get("detail", "") if isinstance(response.get("payload"), dict) else ""
-            if isinstance(detail, str) and re.fullmatch(r"(?:[A-Za-z][A-Za-z0-9_]{0,79}(?::[A-Z_]{1,80})?|HTTP [1-5][0-9]{2})", detail):
+            if isinstance(detail, str) and re.fullmatch(r"(?:[A-Za-z][A-Za-z0-9_]{0,79}(?::[A-Z0-9_]{1,80})?|HTTP [1-5][0-9]{2})", detail):
                 item["local_runtime_diagnostic"] = detail
         if response.get("status") == "OK" and action in {"SUCCESS", "NEXT"}:
             try:

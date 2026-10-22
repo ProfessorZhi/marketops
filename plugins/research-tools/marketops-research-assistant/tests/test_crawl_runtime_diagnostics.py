@@ -21,6 +21,10 @@ class RuntimeDiagnostics(unittest.TestCase):
             self.assertEqual(expected, crawl.runtime_failure_detail(exc))
             self.assertNotIn("private-token", crawl.runtime_failure_detail(exc))
 
+    def test_os_diagnosis_retains_codes_without_message_or_filename(self):
+        exc = OSError(22, "private-token", "private-filename")
+        self.assertEqual("OSError:OS_ERROR_ERRNO_22", crawl.runtime_failure_detail(exc))
+
     def test_runtime_or_old_cache_failure_does_not_permanently_skip_the_local_reader(self):
         route = (walls.LOCAL_RUNG, walls.CLOUD_RUNG)
         for code in ("LOCAL_CRAWL_RUNTIME_FAILED", "CRAWL_CACHE_RESTART_REQUIRED", "LOCAL_CRAWL_FAILED"):

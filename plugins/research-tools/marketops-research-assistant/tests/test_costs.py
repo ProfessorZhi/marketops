@@ -16,6 +16,7 @@ import research_costs as costs  # noqa: E402
 def op(provider, capability, run_id="r1", units=1, when=None, actual=None):
     return SimpleNamespace(provider=provider, capability=capability, run_id=run_id,
                            quota_units=units, quota_unit="unit", counts_against_caps=True,
+                           charge_state="SETTLED",
                            actual_micros=actual, actual_source="vendor" if actual else "",
                            created_at=(when or datetime.now(timezone.utc)).isoformat())
 

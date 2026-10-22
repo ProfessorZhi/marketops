@@ -18,7 +18,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import research_source_selection as selection  # noqa: E402
 
 BRIEF = {"target_kind": "organization", "goal": "contacts",
-         "require_named_person": False}
+         "require_named_person": False,
+         "evidence_requirements": {"organization": ["identity", "hourly_rate", "phone"]}}
 
 
 def row(record_id, kind, entity_key, data, artifacts=()):
