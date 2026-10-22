@@ -58,12 +58,33 @@ def configured_mode(root: Path | None = None) -> str:
     return mode if mode in MODES else "default"
 
 
+def _descendants(pid: int) -> list[int]:
+    found, queue = [], [pid]
+    while queue:
+        try:
+            children = subprocess.run(["pgrep", "-P", str(queue.pop())], capture_output=True,
+                                      text=True, timeout=10).stdout.split()
+        except (OSError, subprocess.SubprocessError):
+            break
+        for child in children:
+            found.append(int(child))
+            queue.append(int(child))
+    return found
+
+
 def _kill_tree(process: subprocess.Popen) -> None:
     try:
         if sys.platform == "win32":
             subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)],
                            capture_output=True, timeout=30)
         else:
+            # Playwright starts the browser in a process group of its own, so the
+            # probe's group alone would leave a hung browser behind.
+            for pid in _descendants(process.pid):
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except OSError:
+                    pass
             os.killpg(process.pid, signal.SIGKILL)
     except (OSError, subprocess.SubprocessError):
         process.kill()
