@@ -99,13 +99,15 @@ if (-not $pythonExe) {
     if (-not $consent) {
         Stop-MarketOpsInstall 'PYTHON_312_64BIT_REQUIRED' 'Install 64-bit Python 3.12 from https://www.python.org/downloads/windows/ (or rerun Install.cmd with -InstallPython), then run Install.cmd again.'
     }
+    # A missing or broken winget only means: try python.org next.
     $installed = $false
-    if (Get-Command winget.exe -ErrorAction SilentlyContinue) {
-        $ErrorActionPreference = 'Continue'
+    $ErrorActionPreference = 'Continue'
+    $global:LASTEXITCODE = 1
+    if ($consent) {
         & winget.exe install --exact --id Python.Python.3.12 --source winget --scope user --silent --accept-source-agreements --accept-package-agreements 2>&1 | Out-Null
         $installed = ($LASTEXITCODE -eq 0)
-        $ErrorActionPreference = 'Stop'
     }
+    $ErrorActionPreference = 'Stop'
     if (-not $installed -or -not (Find-MarketOpsPython)) {
         Write-Host 'winget is unavailable or failed; downloading the signed Python 3.12 installer from python.org.'
         if (-not (Install-MarketOpsPythonFromPythonOrg)) {
