@@ -66,7 +66,13 @@ def assess(root, run_id, *, goal, budget=None):
                 groups = research_bulk.venue_groups(base, run_id=run_id, by="city", limit=1)
         except Exception:  # noqa: BLE001 - grouping is advice, not a gate on reading
             groups = None
-    uncovered = bool(groups and groups["groups_uncovered"])
+    # Covering every operator group is the route, not the goal: once OPERATOR has been
+    # worked hard enough to be recorded exhausted (an earned record, see
+    # research_methods.effort), more groups of the same kind will not change the answer.
+    # Run2 kept adding towns, 0 personal emails per batch, and could never close.
+    operator_done = any(t["method"] == "OPERATOR" and t["outcome"] == "exhausted"
+                        for t in ladder["tried"])
+    uncovered = bool(groups and groups["groups_uncovered"]) and not operator_done
     if uncovered and (final or state == "CHECKPOINT_CONTINUE_RESEARCH") and remaining != 0:
         state, action, final = ("CHECKPOINT_CONTINUE_RESEARCH",
                                 "IMPORT_VENUE_OPERATORS_AND_HARVEST", False)

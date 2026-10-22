@@ -668,7 +668,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         configured_root = None
     if configured_root is not None and runtime_setup.config(configured_root):
         from research_runtime_status import view
-        return {"product": "MarketOps Research MCP", "version": "0.5.11-rc4",
+        return {"product": "MarketOps Research MCP", "version": "0.5.11-rc5",
                 **view(configured_root, task_kind=task_kind),
                 "external_host": _external_inventory(host_observed_tools),
                 "embedded_official_mcp": provider_policy.embedded_official_mcp_capabilities(),
@@ -743,7 +743,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         if task_kind else None)
     return {
         "product": "MarketOps Lite Research MCP",
-        "version": "0.5.11-rc4",
+        "version": "0.5.11-rc5",
         "providers": {
             "serpapi": {"transport": "REST through local MCP", **search["serpapi"]},
             "serper": {"transport": "REST through local MCP", **search["serper"]},
@@ -1437,7 +1437,7 @@ def handoff(run_id, operation_id, mode="auto"):
     try:
         experience_result = draft_experience(
             r, run_id=run_id, scope=head["scope"],
-            rule_version=head["rule_version"], skill_version="0.5.11-rc4",
+            rule_version=head["rule_version"], skill_version="0.5.11-rc5",
             output=experience_path)
         result["experience_candidate"] = str(experience_path)
         result["experience_incidents"] = experience_result["incidents"]
@@ -1663,7 +1663,7 @@ def build_server():
         pass
     _ensure_repair_entrypoints()
     from mcp.server import MCPServer
-    mcp = MCPServer("MarketOps Lite Research", version="0.5.11-rc4")
+    mcp = MCPServer("MarketOps Lite Research", version="0.5.11-rc5")
 
     def tool(fn):
         if fn.__name__ not in PUBLIC_TOOLS:
@@ -2031,7 +2031,7 @@ def build_server():
                         capability: str = "", usd_per_unit: str = "", plan: str = "",
                         left: float | None = None, unit: str = "", account_ref: str = "",
                         since: str = "", amount_usd: str = "", keep: str = "",
-                        user_words: str = "") -> dict:
+                        limit: str = "", user_words: str = "") -> dict:
         """Money, not just call counts: spend per project/Run/provider and account balances.
 
         action="report": estimated spend (all Runs, or run_id), free allowances left.
@@ -2050,6 +2050,11 @@ def build_server():
         action=set_red_line with provider and keep (the amount to leave in the
         account, in its unit): raising it is always allowed; lowering it spends more
         and needs user_words, the user's own words asking for it, kept on record.
+        action=set_limit with limit and provider (in that account's unit) or no
+        provider (the total, in USD): how much research may spend. Lowering is always
+        allowed; raising needs user_words. Either action turns an older fixed-share
+        policy into red lines. When the user asks to spend more mid-Run, use these;
+        never a new Run or a reset.
         """
         import research_balances
         import research_costs
@@ -2062,6 +2067,12 @@ def build_server():
         if action == "set_budget":
             import research_spending
             return research_spending.tighten(data_root, amount_usd=amount_usd, provider=provider)
+        if action == "set_limit":
+            import research_spending
+            if limit == "":
+                raise ValueError("LIMIT_REQUIRED: limit (and provider, or none for the total)")
+            return research_spending.set_limit(data_root, provider=provider, limit=limit,
+                                               user_words=user_words)
         if action == "set_red_line":
             import research_spending
             if not provider or keep == "":
@@ -2080,7 +2091,7 @@ def build_server():
             return research_balances.record_manual(data_root, provider=provider, left=left,
                                                    unit=unit or "credit", account_ref=account_ref)
         raise ValueError("COSTS_ACTION_INVALID: report, balances, budget, set_rate, set_balance, "
-                         "set_budget or set_red_line")
+                         "set_budget, set_limit or set_red_line")
 
     @tool
     def marketops_accounts(action: str = "status", account_ref: str = "") -> dict:
@@ -2386,7 +2397,7 @@ def build_server():
             raise ValueError("EXPERIENCE_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT")
         output.parent.mkdir(parents=True, exist_ok=True)
         return draft_experience(r, run_id=run_id, scope=scope,
-                                rule_version=rule_version, skill_version="0.5.11-rc4",
+                                rule_version=rule_version, skill_version="0.5.11-rc5",
                                 output=output)
 
     @tool
