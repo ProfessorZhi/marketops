@@ -16,10 +16,17 @@ Rules:
   The total red line (default $500) is a safety stop.
 - An account at its red line (`BUDGET_PROVIDER_CEILING`, dimension `red_line`) switches
   provider or method; it never stops free research.
-- **When the user says to use more** (e.g. "SerpApi 有余额，允许继续使用"), call
-  `marketops_costs(action='set_red_line', provider=..., keep=<amount to leave>,
-  user_words='<their words>')`. Do not open a new Run or reset anything to get round a
-  red line. Never lower a red line without the user's words.
+- **Limits and red lines can change mid-Run; never answer "it cannot be raised".**
+  - Before a Run the owner sets them in local setup (`--limit PROVIDER=AMOUNT`,
+    `--total-usd`).
+  - When the user says to use more (e.g. "SerpApi 有余额，允许继续使用", "本 run 允许多配置额度"):
+    - `marketops_costs(action='set_limit', provider=..., limit=<new amount in its unit>,
+      user_words='<their words>')`;
+    - leave out `provider` for the total, in USD;
+    - and, if the account is at its red line, `action='set_red_line', keep=<amount to leave>`.
+  - Either action turns an older fixed-share (30%) policy into red lines.
+  - Raising needs the user's words and is recorded; lowering never does.
+  - Do not open a new Run or reset anything to get round a limit.
 - Balances read automatically for SerpApi, Serper and TinyFish
   (`marketops_costs(action='balances')`). Jev has no balance API: enter the console figure
   once with `set_balance`; usage is then computed from tokens.

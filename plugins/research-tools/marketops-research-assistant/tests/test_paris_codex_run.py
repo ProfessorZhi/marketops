@@ -83,11 +83,17 @@ class Inventory(unittest.TestCase):
         enough.start()
         self.addCleanup(enough.stop)
         for name, _ in methods.LADDERS["contacts"]:
-            methods.record(self.root, "run-a", name, "exhausted")
+            if name != "OPERATOR":
+                methods.record(self.root, "run-a", name, "exhausted")
         state = research_execution.assess(self.root, "run-a", goal={"goal_satisfied": False})
         self.assertTrue(state["continuation_required"])
         self.assertEqual("OPERATOR", state["next_method"])
         self.assertEqual(4, state["venue_operator_groups"]["groups_uncovered"])
+        # Once OPERATOR is (earned-)exhausted, more groups of the same kind do not hold
+        # the Run open.
+        methods.record(self.root, "run-a", "OPERATOR", "exhausted", "165 towns, 0 personal emails")
+        state = research_execution.assess(self.root, "run-a", goal={"goal_satisfied": False})
+        self.assertEqual("FINAL_METHODS_EXHAUSTED", state["state"])
         bulk.venue_groups(self.root, run_id="run-a", import_to_pool="operators")
         with closing_pool(self.root) as db:
             db.execute("UPDATE pool_targets SET status='done' WHERE pool_id='operators'")

@@ -37,9 +37,13 @@ LADDERS = {
         ("OFFICIAL_DIRECTORIES", "Official staff and organisation directories (public "
                                  "administration directories, federation and league club "
                                  "directories, municipal organisation charts)."),
-        ("DOCUMENTS", "PDFs that name officers: council minutes, annual reports, tenders and "
-                      "contract notices, organisation charts. Read them with "
-                      "marketops_research_step and marketops_material_excerpt."),
+        ("DOCUMENTS", "Documents that name officers. Public procurement notices often give the "
+                      "buyer's contact person and work email for venue maintenance, equipment "
+                      "and management contracts. Search the country's notice board: TED for EU "
+                      "tenders, the national board (BOAMP, Contracts Finder, SAM.gov, ...), the "
+                      "buyer's profile. Also council minutes, annual reports and organisation "
+                      "charts. Read them with marketops_research_step and "
+                      "marketops_material_excerpt."),
         ("TINYFISH_AGENT", "TinyFish's paid browser agent for the hard pages that are left, "
                            "only if the user allowed it in the brief."),
     ),

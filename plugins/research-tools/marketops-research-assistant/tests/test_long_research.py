@@ -93,6 +93,27 @@ class Money(unittest.TestCase):
         with self.assertRaises(usage.LedgerRefused):
             ledger.reserve(request)
 
+    def test_an_old_fixed_share_policy_becomes_red_lines_when_the_user_asks(self):
+        ledger = self.ledger()
+        done = 0
+        for n in range(10):
+            try:
+                ledger.reserve(self.request(n))
+                done += 1
+            except usage.LedgerRefused:
+                break
+        self.assertEqual(3, done)  # 30% of 10 credits
+        spending.set_limit(self.root, provider="serper", limit="9", user_words="可以多用 serper")
+        self.assertEqual("RED_LINE", spending.policy(self.root)["model"])
+        more = 0
+        for n in range(100, 120):
+            try:
+                self.ledger().reserve(self.request(n))
+                more += 1
+            except usage.LedgerRefused:
+                break
+        self.assertEqual(6, more)  # limit 9 in total; the 10% red line (1 credit) still holds
+
     def test_agent_can_lower_but_never_increase_or_refill_budget(self):
         ledger = self.ledger()
         ledger.reserve(self.request(1))
@@ -165,11 +186,25 @@ class RedLine(Money):
         balances.record_manual(self.root, provider="serper", left=500, unit="credit")
         self.assertGreater(self.spend("serper", 5, start=200), 0)
 
+    def test_a_limit_can_be_set_lowered_and_raised_with_the_users_words(self):
+        spending.set_limit(self.root, provider="serpapi", limit="10")
+        self.assertEqual(10, self.spend("serpapi", 20))
+        with self.assertRaisesRegex(ValueError, "USER_WORDS_REQUIRED"):
+            spending.set_limit(self.root, provider="serpapi", limit="30")
+        spending.set_limit(self.root, provider="serpapi", limit="30",
+                           user_words="本 run 我允许多配置额度，继续完成")
+        self.assertEqual(20, self.spend("serpapi", 40, start=100))
+        with self.assertRaisesRegex(ValueError, "LIMIT_BELOW_USED"):
+            spending.set_limit(self.root, provider="serpapi", limit="5")
+        state = spending.status(self.root)["providers"]["serpapi"]
+        self.assertEqual("30", state["limit"])
+
     # The ENVELOPE-only cases of the parent class do not apply to the red line.
     test_free_pages_outlive_old_request_cap_and_keep_audit_history = None
     test_concurrent_paid_reservations_cannot_spend_credit_reserve = None
     test_restart_and_new_run_do_not_renew_an_envelope = None
     test_agent_can_lower_but_never_increase_or_refill_budget = None
+    test_an_old_fixed_share_policy_becomes_red_lines_when_the_user_asks = None
     test_new_lower_balance_cannot_move_the_reserve_down = None
     test_money_mode_uses_its_current_balance_instead_of_stale_legacy_baseline = None
 

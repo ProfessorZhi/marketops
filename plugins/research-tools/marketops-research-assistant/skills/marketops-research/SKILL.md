@@ -175,6 +175,17 @@ The research ends only when one of these holds:
 
 When it does end, say which of these it was.
 
+**Public sources exhausted, goal not met.** If it ends as `FINAL_METHODS_EXHAUSTED` with the goal
+unmet, say plainly that the public sources are exhausted for this goal. Give the yield of each
+method, for example "165 municipal sports departments: 0 personal work emails, only
+switchboards and forms". Then offer the user concrete choices in one message:
+- accept named people with role but no email;
+- accept a department or role mailbox for a named person's team;
+- authorize TinyFish Agent for specific hard pages;
+- stop here.
+
+Do not keep importing more targets of a kind that has already yielded nothing.
+
 Ask the user only when: the budget cap is about to be reached; a paid tier (TinyFish Agent) is needed but not
 authorised; the same rule conflict keeps recurring (many `RULES_UNKNOWN`); a credential or
 configuration is missing; Crawl4AI stopped working (`crawl4ai_down`) and the user has not yet

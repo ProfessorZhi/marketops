@@ -891,6 +891,9 @@ def main(argv=None):
     parser.add_argument("--spend-fraction", default="0.90",
                         help="share of each observed balance research may use; the rest is the "
                              "account's red line (default 0.90: keep 10%%)")
+    parser.add_argument("--limit", action="append", metavar="PROVIDER=AMOUNT",
+                        help="most research may use from one account, in its unit (searches, "
+                             "credits, USD); repeatable; can change later with set_limit")
     parser.add_argument("--money-model", default="RED_LINE", choices=("RED_LINE", "ENVELOPE"),
                         help="RED_LINE: spend down to each account's red line, measured on fresh "
                              "balances; ENVELOPE: the older frozen share")
@@ -945,9 +948,15 @@ def main(argv=None):
                 if not separator or provider in amounts:
                     raise ValueError("MONEY_PROVIDER_INVALID")
                 amounts[provider] = amount
+            limits = {}
+            for item in args.limit or []:
+                provider, separator, amount = item.partition("=")
+                if not separator or provider in limits:
+                    raise ValueError("LIMIT_INVALID")
+                limits[provider] = amount
             result = research_spending.configure(_root(args.data_root), confirm=args.confirm,
                 fraction=args.spend_fraction, total_usd=args.total_usd, provider_usd=amounts,
-                renew=args.renew_budget, model=args.money_model)
+                renew=args.renew_budget, model=args.money_model, limits=limits)
         elif args.command == "observe-account":
             if len(args.provider or []) != 1:
                 raise ValueError("ONE_PROVIDER_REQUIRED")

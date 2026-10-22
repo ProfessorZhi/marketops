@@ -43,6 +43,10 @@ code. Two failed tries on one target means HOLD and the next target.
   sports department, school, club, management company) usually lists the staff. Import the
   operator, bind the venue with an `operates` relationship quoting the page that says so, and
   research the operator (method `OPERATOR` in `marketops_method`).
+- Public procurement notices are a strong source for public operators: a tender for a sports hall's
+  maintenance or equipment usually names the buyer's contact person with a work email. Look on TED
+  for EU tenders, the national notice board, and the buyer's profile. Quote the notice as saved; an
+  old notice still needs a check that the person holds the role now.
 - A contact binds to its organisation when the quote names the organisation, or it comes from the
   organisation's own site (where it has an identity quote and no other organisation does), or a
   relationship record names both. Directory pages never bind a contact.

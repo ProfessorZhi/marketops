@@ -19,6 +19,8 @@ MAX_AGE_SECONDS = 7 * 24 * 3600
 #: The total red line when the owner sets none: no research spends more than this
 #: across all accounts without the local setup saying so (--total-usd).
 DEFAULT_TOTAL_RED_LINE_USD = "500"
+#: Share of a balance research may use under the default red line (keeps 10%).
+DEFAULT_RED_LINE_FRACTION = "0.90"
 
 
 def policy(root):
@@ -51,7 +53,8 @@ def _fresh(stamp):
 
 
 def configure(root, *, confirm=False, fraction="0.90", total_usd=None,
-              provider_usd=None, observations=None, renew=False, model="RED_LINE"):
+              provider_usd=None, observations=None, renew=False, model="RED_LINE",
+              limits=None):
     """Local setup only; no MCP consent endpoint and no implicit renewal.
 
     model="RED_LINE" (default): each account keeps a red line of (1 - fraction) of
@@ -123,6 +126,18 @@ def configure(root, *, confirm=False, fraction="0.90", total_usd=None,
     ceiling = sum(x["budget_micros"] for x in providers.values())
     if total_usd is not None:
         ceiling = min(ceiling, _amount(total_usd))
+    for name, amount in (limits or {}).items():
+        # A limit per account in its own unit (searches, credits, USD), set before
+        # the Run; it can change later with set_limit.
+        if name not in providers:
+            raise ValueError("MONEY_PROVIDER_INVALID")
+        try:
+            value = Decimal(str(amount))
+        except InvalidOperation:
+            raise ValueError("LIMIT_INVALID") from None
+        if not value.is_finite() or value < 0:
+            raise ValueError("LIMIT_INVALID")
+        providers[name]["limit"] = str(value)
     if model == "RED_LINE" and total_usd is None:
         # The account red lines bound spending; the total red line is a safety stop.
         ceiling = _amount(DEFAULT_TOTAL_RED_LINE_USD)
@@ -205,10 +220,14 @@ def enforce(db, request, price, estimated, root):
         if Decimal(str(latest["left"])) - draw < Decimal(provider["reserve_units"]):
             raise LedgerRefused("BUDGET_PROVIDER_CEILING", "new balance observation would breach the frozen reserve", dimension="money")
     if current["committed_micros"] + estimated > provider["budget_micros"]:
-        raise LedgerRefused("BUDGET_PROVIDER_CEILING", "provider money envelope would breach its balance reserve", dimension="money")
+        raise LedgerRefused("BUDGET_PROVIDER_CEILING", "provider money envelope would breach its balance "
+                            "reserve. If the user wants more: marketops_costs(action='set_limit' or "
+                            "'set_red_line', ..., user_words=...)", dimension="money")
     quota = provider.get("quota_budget")
     if quota is not None and current["units"] + price.quota_per_call * request.units > quota:
-        raise LedgerRefused("BUDGET_PROVIDER_CEILING", "provider credit reserve would be breached", dimension="quota")
+        raise LedgerRefused("BUDGET_PROVIDER_CEILING", "provider credit reserve would be breached. If the "
+                            "user wants more: marketops_costs(action='set_limit' or 'set_red_line', ..., "
+                            "user_words=...)", dimension="quota")
     if sum(v["committed_micros"] for v in totals.values()) + estimated > plan["total_budget_micros"]:
         raise LedgerRefused("BUDGET_PROJECT_CEILING", "total monetary envelope would be exceeded", dimension="money")
 
@@ -245,6 +264,112 @@ def _enforce_red_line(db, request, price, estimated, plan, provider, latest, cur
             f"red line: {request.provider} keeps {red_line} {unit}; about {max(Decimal(0), left)} "
             f"{unit} left. Ask the user before moving the red line "
             "(marketops_costs action=set_red_line)", dimension="red_line")
+    cap = provider.get("limit")
+    if cap is not None:
+        used = (Decimal(current["committed_micros"]) / 1_000_000 if unit == "USD"
+                else Decimal(current["units"]))
+        if used + this_call > Decimal(str(cap)):
+            raise LedgerRefused(
+                "BUDGET_PROVIDER_CEILING",
+                f"limit: {request.provider} may use {cap} {unit} under this policy and has used "
+                f"{used}. If the user wants more, marketops_costs(action='set_limit', "
+                "provider=..., limit=..., user_words=...)", dimension="limit")
+
+
+def _as_red_line(plan) -> None:
+    """Turn a frozen ENVELOPE policy into red lines, on the user's request.
+
+    Each account gets the default red line (10% of its balance at setup) and its old
+    envelope as its limit; the user's change then applies on top.
+    """
+    if plan.get("model") == "RED_LINE":
+        return
+    plan["model"] = "RED_LINE"
+    keep = 1 - Decimal(DEFAULT_RED_LINE_FRACTION)
+    for entry in plan.get("providers", {}).values():
+        if entry.get("status") != "CONFIGURED":
+            continue
+        start = Decimal(str(entry.get("balance_at_start", "0")))
+        entry["reserve_units"] = str(start * keep)
+        if entry.get("quota_budget") is not None:
+            entry["limit"] = str(entry["quota_budget"])
+        elif entry.get("unit") == "USD":
+            entry["limit"] = str(Decimal(entry.get("budget_micros", 0)) / 1_000_000)
+    if plan.get("total_budget_micros") == sum(p.get("budget_micros", 0) for p in plan["providers"].values()):
+        plan["total_budget_micros"] = _amount(DEFAULT_TOTAL_RED_LINE_USD)
+
+
+def _history(root, entry: dict) -> None:
+    import research_runtime_setup as runtime
+    history = runtime._path(root, "money-policy-history.jsonl")
+    history.parent.mkdir(parents=True, exist_ok=True)
+    with os.fdopen(os.open(history, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600), "a",
+                   encoding="utf-8") as handle:
+        handle.write(json.dumps({"at": datetime.now(timezone.utc).isoformat(), **entry},
+                                ensure_ascii=False, sort_keys=True) + "\n")
+
+
+def set_limit(root, *, provider="", limit, user_words=""):
+    """Change how much research may spend: one account (in its unit) or the total (USD).
+
+    Lowering is always allowed (not below what is already held). Raising needs the
+    user's own words, kept in the policy history. The red line still applies on top.
+    """
+    import research_runtime_setup as runtime
+    import research_usage_ledger as usage
+    root = Path(root).resolve()
+    provider = "typesafe_jev" if provider == "jev" else provider
+    try:
+        new = Decimal(str(limit))
+    except InvalidOperation:
+        raise ValueError("LIMIT_INVALID") from None
+    if not new.is_finite() or new < 0:
+        raise ValueError("LIMIT_INVALID: zero or more")
+    words = " ".join(str(user_words or "").split())[:300]
+    usage.for_root(root)
+    path = root / "state/usage-ledger.sqlite3"
+    with closing(sqlite3.connect(path, timeout=20)) as db:
+        db.execute("BEGIN IMMEDIATE")
+        settings = runtime.config(root)
+        plan = settings.get("spending", {})
+        if plan.get("mode") != "MONEY" or (provider and provider not in plan.get("providers", {})):
+            raise ValueError("MONETARY_POLICY_NOT_CONFIGURED: run the local money setup once")
+        totals = _totals(db, usage.project_for_root(root), plan)
+        if provider:
+            entry = plan["providers"][provider]
+            if entry.get("status") != "CONFIGURED":
+                raise ValueError("BALANCE_UNKNOWN_OR_STALE: read or enter the balance first")
+            unit = entry.get("unit")
+            held = totals.get(provider, {"committed_micros": 0, "units": 0})
+            used = Decimal(held["committed_micros"]) / 1_000_000 if unit == "USD" else Decimal(held["units"])
+            if plan.get("model") == "RED_LINE" and entry.get("limit") is not None:
+                old = Decimal(str(entry["limit"]))
+            elif plan.get("model") == "RED_LINE":
+                old = None  # no limit yet: only the red line
+            else:
+                old = Decimal(str(entry["quota_budget"])) if entry.get("quota_budget") is not None \
+                    else Decimal(entry.get("budget_micros", 0)) / 1_000_000
+        else:
+            unit = "USD"
+            used = Decimal(sum(v["committed_micros"] for v in totals.values())) / 1_000_000
+            old = None if plan.get("total_budget_micros") is None else \
+                Decimal(plan["total_budget_micros"]) / 1_000_000
+        if new < used:
+            raise ValueError(f"LIMIT_BELOW_USED: {used} {unit} already used or held")
+        # A first limit only restricts (the red line was the only bound); raising one spends more.
+        if old is not None and new > old and len(words) < 4:
+            raise ValueError("USER_WORDS_REQUIRED: raising a limit spends more; quote what the user said")
+        _as_red_line(plan)
+        if provider:
+            plan["providers"][provider]["limit"] = str(new)
+        else:
+            plan["total_budget_micros"] = _amount(new)
+        runtime._write(runtime._path(root, runtime.CONFIG_NAME), settings)
+        _history(root, {"limit": {"provider": provider or "TOTAL", "unit": unit,
+                                  "from": None if old is None else str(old), "to": str(new),
+                                  "user_words": words}})
+        db.commit()
+    return status(root)
 
 
 def move_red_line(root, *, provider, keep, user_words=""):
@@ -280,19 +405,11 @@ def move_red_line(root, *, provider, keep, user_words=""):
         if new < old and len(words) < 4:
             raise ValueError("USER_WORDS_REQUIRED: lowering the red line spends more; quote what the "
                              "user said")
+        _as_red_line(plan)
         entry["reserve_units"] = str(new)
-        if plan.get("model") != "RED_LINE":
-            plan["model"] = "RED_LINE"
-            if plan.get("total_budget_micros") == sum(p.get("budget_micros", 0) for p in plan["providers"].values()):
-                # The old sum of shares is not a red line; use the safety stop instead.
-                plan["total_budget_micros"] = _amount(DEFAULT_TOTAL_RED_LINE_USD)
         runtime._write(runtime._path(root, runtime.CONFIG_NAME), settings)
-        history = runtime._path(root, "money-policy-history.jsonl")
-        with os.fdopen(os.open(history, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600), "a",
-                       encoding="utf-8") as handle:
-            handle.write(json.dumps({"at": datetime.now(timezone.utc).isoformat(), "red_line": {
-                "provider": provider, "from": str(old), "to": str(new), "user_words": words}},
-                ensure_ascii=False, sort_keys=True) + "\n")
+        _history(root, {"red_line": {"provider": provider, "from": str(old), "to": str(new),
+                                     "user_words": words}})
         db.commit()
     return status(root)
 
@@ -334,7 +451,13 @@ def status(root):
                 if unit != "USD":
                     room = room.to_integral_value(ROUND_FLOOR)  # whole searches / credits
                 start_room = max(Decimal(0), Decimal(str(entry.get("balance_at_start", "0"))) - red_line)
+                held = totals.get(name, {"committed_micros": 0, "units": 0})
+                used = (Decimal(held["committed_micros"]) / 1_000_000 if unit == "USD"
+                        else Decimal(held["units"]))
+                if entry.get("limit") is not None:
+                    room = min(room, max(Decimal(0), Decimal(str(entry["limit"])) - used))
                 providers[name] = {"unit": unit, "left_now": str(left), "red_line": str(red_line),
+                                   "limit": entry.get("limit"), "used_under_policy": str(used),
                                    "usable_above_red_line": str(room),
                                    "state": "AT_RED_LINE" if room <= (Decimal("0.01") if unit == "USD" else 0) else
                                             "NEAR_RED_LINE" if start_room and room < start_room * Decimal("0.2")
@@ -345,9 +468,10 @@ def status(root):
                 "total_red_line_usd": None if cap is None else str(Decimal(cap) / 1_000_000),
                 "spent_since_policy_usd": str(Decimal(sum(v["committed_micros"] for v in totals.values())) / 1_000_000),
                 "providers": providers,
-                "how_to_change": "Spending stops only at an account's red line. If the user wants to "
-                                 "spend more, marketops_costs(action='set_red_line', provider=..., "
-                                 "keep=<amount to leave>, user_words='<what they said>').",
+                "how_to_change": "Spending stops at an account's limit (if set) or its red line. If "
+                                 "the user wants to spend more: marketops_costs(action='set_limit', "
+                                 "provider=... or '' for the total, limit=..., user_words='<what they "
+                                 "said>') or action='set_red_line' with keep=<amount to leave>.",
                 "note": "Measured against the freshest balance reading; held and unknown charges count."}
     return {"budget_mode": "MONEY", "configured": True, "request_limit_active": False,
             "free_crawl_cost_usd": "0", "fraction": plan["fraction"],
@@ -357,7 +481,10 @@ def status(root):
             "providers": {p: {**v, **totals.get(p, {}),
                 "remaining_usd": str(Decimal(max(0, v["budget_micros"] - totals.get(p, {}).get("committed_micros", 0))) / 1_000_000),
                 "balance_fresh": _fresh(v.get("observed_at"))} for p, v in plan["providers"].items()},
-            "note": "Amounts include held/unknown exposure. Credit values are not cash invoices. Other applications' spending requires a refreshed balance observation."}
+            "note": "Amounts include held/unknown exposure. Credit values are not cash invoices. Other applications' spending requires a refreshed balance observation.",
+            "how_to_change": "This is the older fixed-share policy. If the user wants to spend more, "
+                             "marketops_costs(action='set_limit' or 'set_red_line', ..., user_words=...) "
+                             "turns it into red lines and applies the change."}
 
 
 def tighten(root, *, amount_usd, provider=""):
@@ -380,7 +507,8 @@ def tighten(root, *, amount_usd, provider=""):
         old = plan["providers"][provider]["budget_micros"] if provider else plan["total_budget_micros"]
         held = totals.get(provider, {}).get("committed_micros", 0) if provider else sum(v["committed_micros"] for v in totals.values())
         if limit > old:
-            raise ValueError("BUDGET_INCREASE_REQUIRES_LOCAL_OWNER_POLICY")
+            raise ValueError("BUDGET_INCREASE_REQUIRES_LOCAL_OWNER_POLICY: to spend more with the "
+                             "user's agreement use action='set_limit' with user_words")
         if limit < held:
             raise ValueError("CAP_BELOW_HELD")
         if provider:
