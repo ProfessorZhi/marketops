@@ -2,10 +2,12 @@
 """Read what each provider account says is left, without spending research budget.
 
 * SerpApi: the official Account API (free; it does not use a search).
+* Serper: ``GET https://google.serper.dev/account`` with the key returns the
+  credit balance (free; reading it twice leaves the balance unchanged).
 * TinyFish: the official MCP ``get_wallet`` read (free; read-only).
-* Serper and Jev publish no balance endpoint we can rely on. The operator
-  enters what the console shows (``record_manual``) and the report estimates
-  what is left from the calls made since.
+* Jev publishes no balance endpoint (only ``/v1/models``). The operator enters
+  what the console shows once (``record_manual``); the report then computes
+  what is left from each call's token usage at the published rate.
 
 Every read goes out through the managed egress, allowlisted to that one host,
 and only for a provider the operator enabled. Readings are kept with their time,
@@ -23,8 +25,9 @@ from pathlib import Path
 __all__ = ["read_all", "record_manual", "readings"]
 
 SERPAPI_ACCOUNT = "https://serpapi.com/account.json"
-AUTOMATIC = ("serpapi", "tinyfish")
-MANUAL = ("serper", "typesafe_jev")
+SERPER_ACCOUNT = "https://google.serper.dev/account"
+AUTOMATIC = ("serpapi", "serper", "tinyfish")
+MANUAL = ("typesafe_jev",)
 
 
 def _path(root: Path) -> Path:
@@ -87,7 +90,8 @@ def _enabled(root: Path, provider: str) -> str:
         return "RESEARCH_NETWORK_DISABLED"
     if provider not in settings.get("providers", ()):
         return "PROVIDER_NOT_ENABLED"
-    key = {"serpapi": "SERPAPI_API_KEY", "tinyfish": "TINYFISH_API_KEY"}[provider]
+    key = {"serpapi": "SERPAPI_API_KEY", "serper": "SERPER_API_KEY",
+           "tinyfish": "TINYFISH_API_KEY"}[provider]
     if not os.environ.get(key, "").strip():
         return "KEY_MISSING"
     return ""
@@ -110,6 +114,24 @@ def read_serpapi(root: Path) -> dict:
             **{f: data.get(f) for f in fields if f in data},
             "left": data.get("total_searches_left", data.get("plan_searches_left")),
             "evidence": "PROVIDER_ACCOUNT_API"}
+
+
+def read_serper(root: Path) -> dict:
+    import httpx2
+    from research_egress import open_session
+    with open_session(allowlist=frozenset({"google.serper.dev"})) as connection:
+        with httpx2.Client(proxy=connection.proxy.url, trust_env=False, follow_redirects=False,
+                           timeout=httpx2.Timeout(20, connect=10)) as http:
+            answer = http.get(SERPER_ACCOUNT,
+                              headers={"X-API-KEY": os.environ["SERPER_API_KEY"].strip()})
+    if answer.status_code != 200:
+        return {"status": "READ_FAILED", "http_status": answer.status_code}
+    data = answer.json()
+    balance = data.get("balance") if isinstance(data, dict) else None
+    if not isinstance(balance, (int, float)) or isinstance(balance, bool) or balance < 0:
+        return {"status": "READ_UNRECOGNISED"}
+    return {"status": "READ", "unit": "credit", "left": balance,
+            "rate_limit_per_second": data.get("rateLimit"), "evidence": "PROVIDER_ACCOUNT_API"}
 
 
 def read_tinyfish(root: Path) -> dict:
@@ -144,7 +166,8 @@ def read_tinyfish(root: Path) -> dict:
 def read_all(root: Path) -> dict:
     """Read every account that can be read; keep the last reading of each."""
     out = {}
-    for provider, reader in (("serpapi", read_serpapi), ("tinyfish", read_tinyfish)):
+    for provider, reader in (("serpapi", read_serpapi), ("serper", read_serper),
+                             ("tinyfish", read_tinyfish)):
         refused = _enabled(root, provider)
         if refused:
             out[provider] = {"status": refused}

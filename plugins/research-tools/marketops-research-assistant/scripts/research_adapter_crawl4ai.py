@@ -747,6 +747,7 @@ def auxiliary_http_get(
     *,
     timeout_s: float = 15.0,
     max_bytes: int = 2 * 1024 * 1024,
+    accept: str = "text/html,application/xhtml+xml,application/xml,text/plain;q=0.9",
 ) -> AuxiliaryResponse:
     """经出口取一份辅助材料（robots / sitemap / 链接页）。
 
@@ -779,7 +780,7 @@ def auxiliary_http_get(
         _NoRedirect(),
     )
     request = urllib.request.Request(url, method="GET", headers={
-        "Accept": "text/html,application/xhtml+xml,application/xml,text/plain;q=0.9",
+        "Accept": accept,
         "User-Agent": "MarketOps-Research/1.0 (+anonymous public browsing)",
     })
     try:
@@ -1583,6 +1584,11 @@ class Crawl4AIAdapter:
         if capability_id in {"crawl4ai.screenshot", "crawl4ai.pdf"}:
             return self._execute_artifact(capability_id, run_id, operation_id, params,
                                           meter, artifacts, egress, browser_kwargs)
+        if capability_id == "crawl4ai.fetch_page":
+            import research_walls
+            if research_walls.is_data_url(url):
+                return self._execute_data(capability_id, run_id, operation_id, url, egress,
+                                          budget, meter, artifacts, decision)
 
         module = self._require_sdk()
         started = self._clock()
@@ -1641,6 +1647,54 @@ class Crawl4AIAdapter:
             caveats=("本地 SDK 无厂商计价：配额单位是 pages/bytes/seconds，"
                      "**不是** USD，也不折算。",),
         )
+
+    def _execute_data(self, capability_id: str, run_id: str, operation_id: str, url: str,
+                      egress: EgressBinding, budget: CrawlResourceBudget, meter: BudgetMeter,
+                      artifacts: ArtifactPolicy, decision: Any) -> CrawlOutcome:
+        """A data endpoint (JSON/CSV/API) is read as plain HTTP through the same egress.
+
+        A browser turns an export (Content-Disposition: attachment) into a download
+        and the page read fails: Opendatasoft exports failed this way on every portal
+        tried, so 12,772 rows were paged 100 at a time instead. The raw bytes are what
+        the bulk importer needs anyway.
+        """
+        started = self._clock()
+        response = auxiliary_http_get(
+            egress, url, timeout_s=max(15.0, float(budget.max_seconds)),
+            max_bytes=int(artifacts.max_bytes_per_artifact),
+            accept="application/json,text/csv,application/geo+json,application/xml;q=0.9,*/*;q=0.5")
+        elapsed = self._clock() - started
+        meter.consume_seconds(elapsed)
+        meter.consume_page(url, domain=_domain(url))
+        meter.consume_bytes(response.bytes_read)
+        if not response.body.strip():
+            raise _egress_error("SOURCE_EMPTY_EXTRACT", detail="empty data response")
+        primary_ids = ()
+        if self._material_writer is not None:
+            primary_ids = tuple(self._material_writer(run_id, operation_id, url,
+                                                       response.body.encode("utf-8")))
+        manifest = EvidenceManifest(run_id=run_id)
+        manifest.add(ManifestRow(
+            run_id=run_id, operation_id=operation_id, provider=PROVIDER,
+            capability_id=capability_id, url=url,
+            retrieved_at=datetime.now(timezone.utc),
+            content_sha256=content_sha256(response.body),
+            extraction_method="local_http:data",
+            outcome="OK", artifact_refs=tuple(primary_ids),
+            egress_decision_ref=f"{decision.method} {decision.target}:{decision.port}",
+            caveats=("Data endpoint read without a browser.",),
+        ))
+        payload = {"url": url, "final_url": response.url, "mode": "raw_data",
+                   "content_type": response.headers.get("Content-Type", ""),
+                   "bytes": response.bytes_read, "text": response.body[:2000],
+                   "document_truncated": response.bytes_read > 2000,
+                   "meter": meter.snapshot(),
+                   "manifest": [row.as_row() for row in manifest.rows]}
+        return CrawlOutcome(
+            outcome="OK", payload=_clean(payload), transport=TRANSPORT,
+            artifacts=primary_ids, schema_verdict="UNVERIFIED",
+            quota_units_used=Decimal(meter.pages),
+            caveats=("Local HTTP read: no vendor charge.",))
 
     def _execute_artifact(self, capability_id: str, run_id: str, operation_id: str,
                           params: Mapping[str, Any], meter: BudgetMeter,

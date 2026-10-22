@@ -5,13 +5,24 @@ description: Router for the five research providers (Serper, SerpApi, Crawl4AI, 
 
 # Five providers: right job, cheapest first, never stuck
 
-For MONEY-mode deployments use `marketops_costs(action='budget')`. Each supplier
-has a balance reserve and an atomic monetary/credit envelope; free Crawl4AI and
-reviewed TinyFish search/fetch consume no money. A supplier ceiling switches
-methods/providers; it does not stop free research on the whole project. Do not
-renew an envelope on resume or silently raise it. `action='set_budget'` with
-`amount_usd` and optional `provider` can only narrow a previously approved
-envelope. Balances and usage timestamps matter; unknown/stale stays explicit.
+**Budget = red lines.** `marketops_costs(action='budget')` shows, for each account:
+- how much is left now (from the freshest balance reading);
+- its red line, the amount research must leave in the account (default 10% of the
+  balance at setup);
+- how much can still be used above the red line.
+
+Rules:
+- Spend freely above the red line. Free Crawl4AI and TinyFish search/fetch cost nothing.
+  The total red line (default $500) is a safety stop.
+- An account at its red line (`BUDGET_PROVIDER_CEILING`, dimension `red_line`) switches
+  provider or method; it never stops free research.
+- **When the user says to use more** (e.g. "SerpApi 有余额，允许继续使用"), call
+  `marketops_costs(action='set_red_line', provider=..., keep=<amount to leave>,
+  user_words='<their words>')`. Do not open a new Run or reset anything to get round a
+  red line. Never lower a red line without the user's words.
+- Balances read automatically for SerpApi, Serper and TinyFish
+  (`marketops_costs(action='balances')`). Jev has no balance API: enter the console figure
+  once with `set_balance`; usage is then computed from tokens.
 See [monetary budget details](../../references/LONG_RESEARCH_AND_BUDGETS.md).
 
 Every call goes through MarketOps tools: material is saved in the Run, counted in one shared ledger

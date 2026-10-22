@@ -1,6 +1,6 @@
 # MarketOps 安装与第一次调研
 
-> 本源码包版本为 **0.5.11-rc3（release candidate）**。它不同于既有 `0.5.5` 发行包；请使用本包自己的 ZIP 与 SHA256，不要覆盖或复用 `0.5.5` 的安装目录。
+> 本源码包版本为 **0.5.11-rc4（release candidate）**。它不同于既有 `0.5.5` 发行包；请使用本包自己的 ZIP 与 SHA256，不要覆盖或复用 `0.5.5` 的安装目录。
 
 一次安装包含业务 Skills、一个 MarketOps MCP、内嵌 TinyFish/SerpApi 官方 MCP 客户端，以及 Serper REST、Crawl4AI 本地 SDK 和 TypeSafe Jev SDK。**不用再安装两家供应商插件。** 四家账户由自己注册；Crawl4AI 本地无需账号。
 
@@ -44,7 +44,7 @@ python scripts/provider_onboarding.py --client codex --provider all
 
 首次本地设置会询问：研究数据目录，以及单独收取的 `Research_Experience.md` 文件绝对路径。经验汇总文件放在研究目录之外；数据库、材料、证据、运行事件与导出集中于研究目录。保持它们在安装目录和 Git 仓库之外。已有配置不重复询问，也不被升级覆盖。
 
-随后可选择本次研究服务、目标与允许域名。旧请求次数模式保持兼容；长调研推荐在明确同意后使用 `research_runtime_setup.py configure-money --confirm --spend-fraction 0.30`：每项最多分配当前余额的 30%，保留至少 70%；免费 Crawl4AI 不占金额预算。可用 `--total-usd` 与多个 `--provider-usd PROVIDER=USD` 设置更低上限。余额未知或过期的收费服务暂停，其他已授权免费工作继续。恢复会话不会重新分配预算；不重置历史账本。详情见 [长调研与金额预算](LONG_RESEARCH_AND_BUDGETS.md)。默认不开启联网，TinyFish 付费 Agent/Browser 不属于首次验收。
+随后可选择本次研究服务、目标与允许域名。旧请求次数模式保持兼容；长调研推荐在明确同意后使用 `research_runtime_setup.py configure-money --confirm`：默认每个账户保留 10% 作为红线，红线以上都可以用；按最新读取到的余额计算，充值后立即可用。调研中你说"可以多用"，agent 会把你的原话记下来后下调红线；免费 Crawl4AI 不占金额预算。可用 `--total-usd` 与多个 `--provider-usd PROVIDER=USD` 设置更低上限。余额未知或过期的收费服务暂停，其他已授权免费工作继续。恢复会话不会重新分配预算；不重置历史账本。详情见 [长调研与金额预算](LONG_RESEARCH_AND_BUDGETS.md)。默认不开启联网，TinyFish 付费 Agent/Browser 不属于首次验收。
 
 已有任务时继续使用**同一研究数据目录**，重新运行本地 `customer_setup.py`。向导会显示原/新累计总上限、累计已用与预约/UNKNOWN 操作，输入 `AMEND` 后才续授权；已有 Run、材料、经验及消耗不会清零。例如原上限 20、已用 7，改为 30 表示总上限 30，而不是额外增加 30。高级命令为 `research_runtime_setup.py configure --data-root <已有目录> --provider <服务> --domains <域名> --max-calls <累计总上限> --task <目标> --amend --confirm`，须使用安装后的 Python；服务可重复指定，保留本次需要的全部服务。
 

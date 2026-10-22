@@ -32,7 +32,8 @@ class Money(unittest.TestCase):
         self.root = Path(temp.name)
         runtime.configure(self.root, providers=["crawl4ai", "serper", "serpapi", "tinyfish", "typesafe_jev"],
                           domains=["example.org"], max_calls=1, task="Synthetic long research", confirm=True)
-        spending.configure(self.root, confirm=True, observations={"serper": {
+        # The frozen-share model these cases were written for stays available.
+        spending.configure(self.root, confirm=True, fraction="0.30", model="ENVELOPE", observations={"serper": {
             "left": 10, "unit": "credit", "observed_at": (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat(),
             "evidence": "SYNTHETIC_TEST_READING"}})
         self.project = usage.project_for_root(self.root)
@@ -78,7 +79,7 @@ class Money(unittest.TestCase):
         for n in range(3):
             ledger.reserve(self.request(n))
         original = spending.policy(self.root)
-        spending.configure(self.root, confirm=True, observations={})
+        spending.configure(self.root, confirm=True, fraction="0.30", model="ENVELOPE", observations={})
         self.assertEqual(original, spending.policy(self.root))
         other = self.ledger("run-b")
         with self.assertRaises(usage.LedgerRefused):
@@ -111,6 +112,66 @@ class Money(unittest.TestCase):
             "observed_at": (datetime.now(timezone.utc) - timedelta(days=3)).isoformat(), "units": 10})
         with patch.object(runtime, "_credential_present", return_value=True):
             self.assertTrue(runtime.admission(self.root, "serper.search")["allowed"])
+
+
+class RedLine(Money):
+    """Spend down to a red line on the freshest balance; the user can move it."""
+
+    def setUp(self):
+        environment = patch.dict(os.environ, {"MARKETOPS_USAGE_PRICING": ""})
+        environment.start()
+        self.addCleanup(environment.stop)
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.root = Path(temp.name)
+        runtime.configure(self.root, providers=["crawl4ai", "serper", "serpapi", "tinyfish", "typesafe_jev"],
+                          domains=["example.org"], max_calls=1, task="Synthetic long research", confirm=True)
+        now = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
+        spending.configure(self.root, confirm=True, observations={
+            "serpapi": {"left": 63, "unit": "search", "observed_at": now, "evidence": "SYNTHETIC"},
+            "serper": {"left": 10, "unit": "credit", "observed_at": now, "evidence": "SYNTHETIC"}})
+        self.project = usage.project_for_root(self.root)
+
+    def spend(self, provider, count, start=0):
+        ledger, done = self.ledger(), 0
+        for n in range(start, start + count):
+            try:
+                ledger.reserve(self.request(n, provider))
+                done += 1
+            except usage.LedgerRefused:
+                break
+        return done
+
+    def test_default_keeps_ten_percent_instead_of_allowing_thirty(self):
+        # 63 searches: the old 30% share stopped at 19; the red line keeps 10% (6.3).
+        self.assertEqual(56, self.spend("serpapi", 70))
+        state = spending.status(self.root)["providers"]["serpapi"]
+        self.assertEqual("AT_RED_LINE", state["state"])
+
+    def test_the_user_can_move_the_red_line_with_their_words(self):
+        self.spend("serpapi", 70)
+        with self.assertRaisesRegex(ValueError, "USER_WORDS_REQUIRED"):
+            spending.move_red_line(self.root, provider="serpapi", keep="0")
+        spending.move_red_line(self.root, provider="serpapi", keep="0",
+                               user_words="SerpApi 有余额，允许继续使用")
+        self.assertEqual(7, self.spend("serpapi", 10, start=100))
+        history = (self.root / "state/money-policy-history.jsonl").read_text(encoding="utf-8")
+        self.assertIn("允许继续使用", history)
+        # Raising it back needs no words.
+        spending.move_red_line(self.root, provider="serpapi", keep="5")
+
+    def test_a_fresh_balance_reading_is_what_counts(self):
+        self.spend("serper", 9)
+        balances.record_manual(self.root, provider="serper", left=500, unit="credit")
+        self.assertGreater(self.spend("serper", 5, start=200), 0)
+
+    # The ENVELOPE-only cases of the parent class do not apply to the red line.
+    test_free_pages_outlive_old_request_cap_and_keep_audit_history = None
+    test_concurrent_paid_reservations_cannot_spend_credit_reserve = None
+    test_restart_and_new_run_do_not_renew_an_envelope = None
+    test_agent_can_lower_but_never_increase_or_refill_budget = None
+    test_new_lower_balance_cannot_move_the_reserve_down = None
+    test_money_mode_uses_its_current_balance_instead_of_stale_legacy_baseline = None
 
 
 class Bulk(unittest.TestCase):

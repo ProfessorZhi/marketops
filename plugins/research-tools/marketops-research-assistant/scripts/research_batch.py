@@ -148,7 +148,12 @@ def harvest_batch(data_root, *, pool_id: str, worker_id: str, run_id: str, fetch
             recovered += int(_settle_result(data_root, pool_id=pool_id, worker_id=job["worker_id"],
                                             run_id=job["run_id"], item=job["result"]) is not None)
         except Exception as exc:
-            recovery_errors.append(type(exc).__name__)
+            # The type and the code, so the cause is visible, not just "ValueError".
+            code = f"{type(exc).__name__}:{str(exc).split(':', 1)[0][:60]}"
+            recovery_errors.append(code)
+            pool.note_settle_failure(data_root, pool_id=pool_id, target_key=job["target_key"],
+                                     worker_id=job["worker_id"], lease_attempt=job["lease_attempt"],
+                                     code=code)
     leased = pool.claim_batch(data_root, pool_id=pool_id, worker_id=worker_id, run_id=run_id,
                               count=count, lease_minutes=lease_minutes)
 
@@ -213,7 +218,7 @@ def harvest_batch(data_root, *, pool_id: str, worker_id: str, run_id: str, fetch
                 item["recorded_result"] = _settle_result(data_root, pool_id=pool_id, worker_id=worker_id,
                                                         run_id=run_id, item=item)
         except Exception as exc:
-            item["finalization_error"] = type(exc).__name__
+            item["finalization_error"] = f"{type(exc).__name__}:{str(exc).split(':', 1)[0][:60]}"
         return item
 
     executor = ThreadPoolExecutor(max_workers=concurrency)

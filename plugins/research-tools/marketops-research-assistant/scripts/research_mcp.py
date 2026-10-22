@@ -668,7 +668,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         configured_root = None
     if configured_root is not None and runtime_setup.config(configured_root):
         from research_runtime_status import view
-        return {"product": "MarketOps Research MCP", "version": "0.5.11-rc3",
+        return {"product": "MarketOps Research MCP", "version": "0.5.11-rc4",
                 **view(configured_root, task_kind=task_kind),
                 "external_host": _external_inventory(host_observed_tools),
                 "embedded_official_mcp": provider_policy.embedded_official_mcp_capabilities(),
@@ -743,7 +743,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         if task_kind else None)
     return {
         "product": "MarketOps Lite Research MCP",
-        "version": "0.5.11-rc3",
+        "version": "0.5.11-rc4",
         "providers": {
             "serpapi": {"transport": "REST through local MCP", **search["serpapi"]},
             "serper": {"transport": "REST through local MCP", **search["serper"]},
@@ -1437,7 +1437,7 @@ def handoff(run_id, operation_id, mode="auto"):
     try:
         experience_result = draft_experience(
             r, run_id=run_id, scope=head["scope"],
-            rule_version=head["rule_version"], skill_version="0.5.11-rc3",
+            rule_version=head["rule_version"], skill_version="0.5.11-rc4",
             output=experience_path)
         result["experience_candidate"] = str(experience_path)
         result["experience_incidents"] = experience_result["incidents"]
@@ -1663,7 +1663,7 @@ def build_server():
         pass
     _ensure_repair_entrypoints()
     from mcp.server import MCPServer
-    mcp = MCPServer("MarketOps Lite Research", version="0.5.11-rc3")
+    mcp = MCPServer("MarketOps Lite Research", version="0.5.11-rc4")
 
     def tool(fn):
         if fn.__name__ not in PUBLIC_TOOLS:
@@ -2030,12 +2030,14 @@ def build_server():
     def marketops_costs(action: str = "report", run_id: str = "", provider: str = "",
                         capability: str = "", usd_per_unit: str = "", plan: str = "",
                         left: float | None = None, unit: str = "", account_ref: str = "",
-                        since: str = "", amount_usd: str = "") -> dict:
+                        since: str = "", amount_usd: str = "", keep: str = "",
+                        user_words: str = "") -> dict:
         """Money, not just call counts: spend per project/Run/provider and account balances.
 
         action="report": estimated spend (all Runs, or run_id), free allowances left.
-        action="balances": read SerpApi and TinyFish accounts now (free reads) and
-          estimate Serper/Jev from the last balance a person entered.
+        action="balances": read SerpApi, Serper and TinyFish accounts now (free reads);
+          Jev has no balance API, so it is computed from token usage since the last
+          balance a person entered.
         action="set_rate": the user's own price, e.g. provider="serpapi",
           capability="search", usd_per_unit="0.015", plan="Developer".
         action="set_balance": what a provider console shows, e.g. provider="serper",
@@ -2045,6 +2047,9 @@ def build_server():
         it reports cumulative Run totals. action=budget reads money envelopes.
         action=set_budget with amount_usd and optional provider narrows an
         already approved envelope; it cannot grant additional spending.
+        action=set_red_line with provider and keep (the amount to leave in the
+        account, in its unit): raising it is always allowed; lowering it spends more
+        and needs user_words, the user's own words asking for it, kept on record.
         """
         import research_balances
         import research_costs
@@ -2057,6 +2062,12 @@ def build_server():
         if action == "set_budget":
             import research_spending
             return research_spending.tighten(data_root, amount_usd=amount_usd, provider=provider)
+        if action == "set_red_line":
+            import research_spending
+            if not provider or keep == "":
+                raise ValueError("RED_LINE_ARGUMENTS_REQUIRED: provider and keep")
+            return research_spending.move_red_line(data_root, provider=provider, keep=keep,
+                                                   user_words=user_words)
         if action == "balances":
             return research_costs.balances(data_root)
         if action == "set_rate":
@@ -2068,7 +2079,8 @@ def build_server():
                 raise ValueError("BALANCE_REQUIRED: left=<number shown in the console>")
             return research_balances.record_manual(data_root, provider=provider, left=left,
                                                    unit=unit or "credit", account_ref=account_ref)
-        raise ValueError("COSTS_ACTION_INVALID: report, balances, set_rate or set_balance")
+        raise ValueError("COSTS_ACTION_INVALID: report, balances, budget, set_rate, set_balance, "
+                         "set_budget or set_red_line")
 
     @tool
     def marketops_accounts(action: str = "status", account_ref: str = "") -> dict:
@@ -2159,13 +2171,19 @@ def build_server():
         return crawl4ai_check(run_id, repair)
 
     @tool
-    def marketops_pool_reopen(pool_id: str, reason: str) -> dict:
+    def marketops_pool_reopen(pool_id: str, reason: str, worker_id: str = "") -> dict:
         """Put HOLD targets back to pending once their cause is fixed.
 
         reason: the HOLD reason prefix to reopen (e.g. NO_OFFICIAL_SITE_IN_POOL), or
         ALL. Targets already tried 3 times stay HOLD.
+        reason="RELEASE_CLAIMS" with worker_id: hand that worker's unfinished leases
+        back to pending now, instead of waiting for them to expire.
         """
         import research_pool
+        if reason == "RELEASE_CLAIMS":
+            if not worker_id:
+                raise ValueError("WORKER_ID_REQUIRED: the worker whose leases to release")
+            return research_pool.release(root(), pool_id=pool_id, worker_id=worker_id)
         return research_pool.reopen(root(), pool_id=pool_id, reason=reason)
 
     @tool
@@ -2368,7 +2386,7 @@ def build_server():
             raise ValueError("EXPERIENCE_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT")
         output.parent.mkdir(parents=True, exist_ok=True)
         return draft_experience(r, run_id=run_id, scope=scope,
-                                rule_version=rule_version, skill_version="0.5.11-rc3",
+                                rule_version=rule_version, skill_version="0.5.11-rc4",
                                 output=output)
 
     @tool

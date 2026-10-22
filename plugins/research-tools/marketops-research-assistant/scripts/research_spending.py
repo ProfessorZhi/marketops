@@ -16,6 +16,9 @@ FREE = frozenset({("crawl4ai", "render"), ("crawl4ai", "extract"),
                   ("tinyfish", "search"), ("tinyfish", "fetch")})
 PROVIDERS = ("serper", "serpapi", "typesafe_jev", "tinyfish")
 MAX_AGE_SECONDS = 7 * 24 * 3600
+#: The total red line when the owner sets none: no research spends more than this
+#: across all accounts without the local setup saying so (--total-usd).
+DEFAULT_TOTAL_RED_LINE_USD = "500"
 
 
 def policy(root):
@@ -47,9 +50,17 @@ def _fresh(stamp):
         return False
 
 
-def configure(root, *, confirm=False, fraction="0.30", total_usd=None,
-              provider_usd=None, observations=None, renew=False):
-    """Local setup only; no MCP consent endpoint and no implicit renewal."""
+def configure(root, *, confirm=False, fraction="0.90", total_usd=None,
+              provider_usd=None, observations=None, renew=False, model="RED_LINE"):
+    """Local setup only; no MCP consent endpoint and no implicit renewal.
+
+    model="RED_LINE" (default): each account keeps a red line of (1 - fraction) of
+    its balance; research may spend everything above it, measured against the
+    freshest balance reading. The red line moves only with the user's words
+    (move_red_line). model="ENVELOPE": the older frozen share of each balance.
+    """
+    if model not in {"RED_LINE", "ENVELOPE"}:
+        raise ValueError("MONEY_MODEL_INVALID: RED_LINE or ENVELOPE")
     import research_runtime_setup as runtime
     import research_costs
     root = Path(root).resolve()
@@ -112,7 +123,10 @@ def configure(root, *, confirm=False, fraction="0.30", total_usd=None,
     ceiling = sum(x["budget_micros"] for x in providers.values())
     if total_usd is not None:
         ceiling = min(ceiling, _amount(total_usd))
-    settings["spending"] = {"mode": "MONEY", "fraction": str(ratio),
+    if model == "RED_LINE" and total_usd is None:
+        # The account red lines bound spending; the total red line is a safety stop.
+        ceiling = _amount(DEFAULT_TOTAL_RED_LINE_USD)
+    settings["spending"] = {"mode": "MONEY", "model": model, "fraction": str(ratio),
         "started_at": datetime.now(timezone.utc).isoformat(), "start_rowid": watermark,
         "ledger_money_baseline": baseline_money,
         "total_budget_micros": ceiling, "providers": providers,
@@ -169,6 +183,13 @@ def enforce(db, request, price, estimated, root):
         raise LedgerRefused("PRICE_UNKNOWN", "a money reservation requires a verified upper bound", dimension="money")
     totals = _totals(db, request.project, plan)
     current = totals.get(request.provider, {"committed_micros": 0, "units": 0})
+    if plan.get("model") == "RED_LINE":
+        _enforce_red_line(db, request, price, estimated, plan, provider, latest, current)
+        total_cap = plan.get("total_budget_micros")
+        if total_cap is not None and sum(v["committed_micros"] for v in totals.values()) + estimated > total_cap:
+            raise LedgerRefused("BUDGET_PROJECT_CEILING", "total spending red line would be crossed",
+                                dimension="money")
+        return
     # New observations may tighten the fixed floor, never renew an envelope.
     if (latest.get("unit") == provider.get("unit") and latest.get("left") is not None
             and _fresh(latest.get("observed_at")) and latest["observed_at"] > provider["observed_at"]):
@@ -192,6 +213,90 @@ def enforce(db, request, price, estimated, root):
         raise LedgerRefused("BUDGET_PROJECT_CEILING", "total monetary envelope would be exceeded", dimension="money")
 
 
+def _available(db, project, provider_name, provider, latest, start_rowid, current):
+    """(balance now, red line, unit) from the freshest reading minus what is held since."""
+    newer = (latest.get("unit") == provider.get("unit") and latest.get("left") is not None
+             and _fresh(latest.get("observed_at"))
+             and str(latest.get("observed_at")) > str(provider.get("observed_at") or ""))
+    unit = provider.get("unit")
+    if newer:
+        held = db.execute("SELECT COALESCE(SUM(CASE WHEN charge_state IN ('RESERVED','UNKNOWN') "
+            "THEN reserved_micros ELSE COALESCE(actual_micros,reserved_micros) END),0), COALESCE(SUM(quota_units),0) "
+            "FROM operations WHERE project=? AND provider=? AND rowid>? AND charge_state<>'NO_CHARGE_PROVEN' "
+            "AND (created_at>? OR charge_state IN ('RESERVED','UNKNOWN'))",
+            (project, provider_name, start_rowid, latest["observed_at"])).fetchone()
+        base = Decimal(str(latest["left"]))
+    else:
+        held = (current["committed_micros"], current["units"])
+        base = Decimal(str(provider.get("balance_at_start", "0")))
+    used = Decimal(held[0]) / 1_000_000 if unit == "USD" else Decimal(held[1])
+    return base - used, Decimal(str(provider.get("reserve_units", "0"))), unit
+
+
+def _enforce_red_line(db, request, price, estimated, plan, provider, latest, current):
+    from research_usage_ledger import LedgerRefused
+    left, red_line, unit = _available(db, request.project, request.provider, provider, latest,
+                                      plan["start_rowid"], current)
+    this_call = (Decimal(estimated) / 1_000_000 if unit == "USD"
+                 else Decimal(price.quota_per_call * request.units))
+    if left - this_call < red_line:
+        raise LedgerRefused(
+            "BUDGET_PROVIDER_CEILING",
+            f"red line: {request.provider} keeps {red_line} {unit}; about {max(Decimal(0), left)} "
+            f"{unit} left. Ask the user before moving the red line "
+            "(marketops_costs action=set_red_line)", dimension="red_line")
+
+
+def move_red_line(root, *, provider, keep, user_words=""):
+    """Set how much of an account research must leave untouched.
+
+    Raising the red line (spending less) is always allowed. Lowering it (spending
+    more) needs the user's own words, which are kept in the policy history; it can
+    never go below zero. A frozen ENVELOPE policy becomes RED_LINE here.
+    """
+    import research_runtime_setup as runtime
+    import research_usage_ledger as usage
+    root = Path(root).resolve()
+    provider = "typesafe_jev" if provider == "jev" else provider
+    try:
+        new = Decimal(str(keep))
+    except InvalidOperation:
+        raise ValueError("RED_LINE_INVALID") from None
+    if not new.is_finite() or new < 0:
+        raise ValueError("RED_LINE_INVALID: zero or more")
+    usage.for_root(root)
+    path = root / "state/usage-ledger.sqlite3"
+    with closing(sqlite3.connect(path, timeout=20)) as db:
+        db.execute("BEGIN IMMEDIATE")
+        settings = runtime.config(root)
+        plan = settings.get("spending", {})
+        if plan.get("mode") != "MONEY" or provider not in plan.get("providers", {}):
+            raise ValueError("MONETARY_POLICY_NOT_CONFIGURED: run the local money setup once")
+        entry = plan["providers"][provider]
+        if entry.get("status") != "CONFIGURED":
+            raise ValueError("BALANCE_UNKNOWN_OR_STALE: read or enter the balance first")
+        old = Decimal(str(entry.get("reserve_units", "0")))
+        words = " ".join(str(user_words or "").split())[:300]
+        if new < old and len(words) < 4:
+            raise ValueError("USER_WORDS_REQUIRED: lowering the red line spends more; quote what the "
+                             "user said")
+        entry["reserve_units"] = str(new)
+        if plan.get("model") != "RED_LINE":
+            plan["model"] = "RED_LINE"
+            if plan.get("total_budget_micros") == sum(p.get("budget_micros", 0) for p in plan["providers"].values()):
+                # The old sum of shares is not a red line; use the safety stop instead.
+                plan["total_budget_micros"] = _amount(DEFAULT_TOTAL_RED_LINE_USD)
+        runtime._write(runtime._path(root, runtime.CONFIG_NAME), settings)
+        history = runtime._path(root, "money-policy-history.jsonl")
+        with os.fdopen(os.open(history, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o600), "a",
+                       encoding="utf-8") as handle:
+            handle.write(json.dumps({"at": datetime.now(timezone.utc).isoformat(), "red_line": {
+                "provider": provider, "from": str(old), "to": str(new), "user_words": words}},
+                ensure_ascii=False, sort_keys=True) + "\n")
+        db.commit()
+    return status(root)
+
+
 def derived_cost(operation, payload):
     if operation.provider == "typesafe_jev" and operation.price_version == "money-envelope-1":
         tokens = (payload.get("usage") or {}).get("input_tokens") if isinstance(payload, dict) else None
@@ -211,6 +316,39 @@ def status(root):
     if path.is_file():
         with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)) as db:
             totals = _totals(db, usage.project_for_root(root), plan)
+    if plan.get("model") == "RED_LINE":
+        from research_balances import readings
+        if not path.is_file():
+            usage.for_root(root)
+        latest_all = readings(root)
+        providers = {}
+        with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)) as db:
+            for name, entry in plan["providers"].items():
+                if entry.get("status") != "CONFIGURED":
+                    providers[name] = {"state": entry.get("status"), "unit": entry.get("unit")}
+                    continue
+                left, red_line, unit = _available(
+                    db, usage.project_for_root(root), name, entry, latest_all.get(name, {}),
+                    plan["start_rowid"], totals.get(name, {"committed_micros": 0, "units": 0}))
+                room = max(Decimal(0), left - red_line)
+                if unit != "USD":
+                    room = room.to_integral_value(ROUND_FLOOR)  # whole searches / credits
+                start_room = max(Decimal(0), Decimal(str(entry.get("balance_at_start", "0"))) - red_line)
+                providers[name] = {"unit": unit, "left_now": str(left), "red_line": str(red_line),
+                                   "usable_above_red_line": str(room),
+                                   "state": "AT_RED_LINE" if room <= (Decimal("0.01") if unit == "USD" else 0) else
+                                            "NEAR_RED_LINE" if start_room and room < start_room * Decimal("0.2")
+                                            else "OK"}
+        cap = plan.get("total_budget_micros")
+        return {"budget_mode": "MONEY", "model": "RED_LINE", "configured": True,
+                "request_limit_active": False, "free_crawl_cost_usd": "0",
+                "total_red_line_usd": None if cap is None else str(Decimal(cap) / 1_000_000),
+                "spent_since_policy_usd": str(Decimal(sum(v["committed_micros"] for v in totals.values())) / 1_000_000),
+                "providers": providers,
+                "how_to_change": "Spending stops only at an account's red line. If the user wants to "
+                                 "spend more, marketops_costs(action='set_red_line', provider=..., "
+                                 "keep=<amount to leave>, user_words='<what they said>').",
+                "note": "Measured against the freshest balance reading; held and unknown charges count."}
     return {"budget_mode": "MONEY", "configured": True, "request_limit_active": False,
             "free_crawl_cost_usd": "0", "fraction": plan["fraction"],
             "budget_epoch_started_at": plan["started_at"],

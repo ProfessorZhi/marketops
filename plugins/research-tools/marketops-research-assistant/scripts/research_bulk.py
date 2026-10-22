@@ -37,7 +37,8 @@ class _Pre(HTMLParser):
 
 def _json(material):
     text = material["content"].decode("utf-8-sig")
-    if material["material_kind"] == "rendered_html":
+    if material["material_kind"] == "rendered_html" and not text.lstrip().startswith(("{", "[")):
+        # A browser shows JSON inside <pre>; a plain HTTP read is the JSON itself.
         parser = _Pre()
         parser.feed(text)
         text = "".join(parser.parts)

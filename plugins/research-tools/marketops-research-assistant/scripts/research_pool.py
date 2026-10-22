@@ -336,6 +336,70 @@ def end_batch_finalization(root, *, pool_id, worker_id, target_key, lease_attemp
         db.commit()
 
 
+#: A saved batch result that fails to finalize this many times stops blocking delivery.
+MAX_SETTLE_FAILURES = 3
+
+
+def note_settle_failure(root, *, pool_id, target_key, worker_id, lease_attempt, code: str) -> int:
+    """Count a failed finalization; at the limit the target becomes HOLD and the job goes.
+
+    One result that raised on every retry kept a Run at "saved results to
+    finalize" for good, so its delivery could never be final.
+    """
+    with closing(_db(_root(root))) as db:
+        db.execute("BEGIN IMMEDIATE")
+        row = db.execute("SELECT result_json, run_id FROM pool_batch_jobs WHERE pool_id=? AND target_key=? "
+                         "AND worker_id=? AND lease_attempt=?",
+                         (pool_id, target_key, worker_id, lease_attempt)).fetchone()
+        if not row:
+            db.commit()
+            return 0
+        result = json.loads(row[0] or "{}")
+        failures = int(result.get("settle_failures") or 0) + 1
+        result["settle_failures"] = failures
+        if failures < MAX_SETTLE_FAILURES:
+            db.execute("UPDATE pool_batch_jobs SET result_json=?, updated_at=? WHERE pool_id=? AND "
+                       "target_key=? AND worker_id=? AND lease_attempt=?",
+                       (json.dumps(result, ensure_ascii=False), _stamp(), pool_id, target_key,
+                        worker_id, lease_attempt))
+            db.commit()
+            return failures
+        reason = f"FINALIZATION_FAILED: {code}"[:200]
+        db.execute("UPDATE pool_targets SET status='hold', reason=?, run_id=?, claimed_by='', "
+                   "lease_until='', updated_at=? WHERE pool_id=? AND target_key=?",
+                   (reason, row[1], _stamp(), pool_id, target_key))
+        db.execute("DELETE FROM pool_batch_jobs WHERE pool_id=? AND target_key=?", (pool_id, target_key))
+        db.commit()
+    _journal_walls(root, pool_id, [{"target_key": target_key, "outcome": "hold", "reason": reason,
+                                    "run_id": row[1], "attempt": lease_attempt}])
+    return failures
+
+
+def release(root, *, pool_id: str, worker_id: str) -> dict:
+    """Hand a worker's live leases back now, instead of waiting for them to expire.
+
+    Leases with a saved batch result are kept (finalizing them needs no new
+    fetch); the rest go back to pending. A Run waited out 370 leases for 20 minutes.
+    """
+    _id(pool_id, "pool_id"); _id(worker_id, "worker_id")
+    with closing(_db(_root(root))) as db:
+        db.execute("BEGIN IMMEDIATE")
+        saved = {key for (key,) in db.execute(
+            "SELECT target_key FROM pool_batch_jobs WHERE pool_id=? AND worker_id=? AND result_json IS NOT NULL",
+            (pool_id, worker_id))}
+        keys = [key for (key,) in db.execute(
+            "SELECT target_key FROM pool_targets WHERE pool_id=? AND status='claimed' AND claimed_by=?",
+            (pool_id, worker_id)) if key not in saved]
+        for key in keys:
+            db.execute("UPDATE pool_targets SET status='pending', claimed_by='', lease_until='', "
+                       "updated_at=? WHERE pool_id=? AND target_key=?", (_stamp(), pool_id, key))
+            db.execute("DELETE FROM pool_batch_jobs WHERE pool_id=? AND target_key=? AND result_json IS NULL",
+                       (pool_id, key))
+        db.commit()
+    return {"pool_id": pool_id, "worker_id": worker_id, "released": len(keys),
+            "kept_with_saved_results": len(saved)}
+
+
 def reopen(root, *, pool_id: str, reason: str, max_attempts: int = 3) -> dict:
     """Put HOLD targets whose reason starts with `reason` back to pending.
 

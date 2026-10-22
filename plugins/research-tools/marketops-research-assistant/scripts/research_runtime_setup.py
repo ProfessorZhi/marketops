@@ -888,7 +888,12 @@ def main(argv=None):
                         help="optional cumulative project USD ceiling (decimal); requires a reviewed pricing catalog")
     parser.add_argument("--provider-limit", action="append", metavar="PROVIDER=N",
                         help="cumulative supplier limit (repeatable); omitted providers inherit max-calls")
-    parser.add_argument("--spend-fraction", default="0.30", help="maximum fraction of each observed balance to allocate")
+    parser.add_argument("--spend-fraction", default="0.90",
+                        help="share of each observed balance research may use; the rest is the "
+                             "account's red line (default 0.90: keep 10%%)")
+    parser.add_argument("--money-model", default="RED_LINE", choices=("RED_LINE", "ENVELOPE"),
+                        help="RED_LINE: spend down to each account's red line, measured on fresh "
+                             "balances; ENVELOPE: the older frozen share")
     parser.add_argument("--total-usd", help="optional lower total amount for the monetary envelope")
     parser.add_argument("--provider-usd", action="append", metavar="PROVIDER=USD",
                         help="optional lower provider amount; never overrides the balance reserve")
@@ -942,7 +947,7 @@ def main(argv=None):
                 amounts[provider] = amount
             result = research_spending.configure(_root(args.data_root), confirm=args.confirm,
                 fraction=args.spend_fraction, total_usd=args.total_usd, provider_usd=amounts,
-                renew=args.renew_budget)
+                renew=args.renew_budget, model=args.money_model)
         elif args.command == "observe-account":
             if len(args.provider or []) != 1:
                 raise ValueError("ONE_PROVIDER_REQUIRED")
