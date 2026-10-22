@@ -20,8 +20,12 @@ code. Two failed tries on one target means HOLD and the next target.
    In bulk, `marketops_harvest_batch(..., roles_wanted="<the brief's roles>")` does this for 20
    targets and Jev tags every email with a role guess and confidence.
 3. **Judge each route** from its Jev tag and `context`: who it reaches (named person, department,
-   generic inbox, switchboard) and what role. Apply the brief's or acceptance profile's grades.
-   Read the page yourself only when the tag's confidence is below 0.85.
+   generic inbox, switchboard) and what role. Read the page yourself only when the tag's
+   confidence is below 0.85. The grade itself is set by code from the scene rules; your job is to
+   record the person and role so it can be: for a named person, save a `person` record (name,
+   `role_title`) and give the contact `person_id`, with a contact quote that prints the name and
+   the email together (one block of the page). Name, role and email taken from different pages
+   or blocks grade C, not A.
 4. **Missing decision-maker?** One Serper role search:
    `site:<domain> "<wanted role 1>" OR "<wanted role 2>"` (the brief's or scene pack's roles), then
    harvest the best staff page. Also `site:<domain> filetype:pdf "<wanted role>"`: recruitment
@@ -43,10 +47,10 @@ code. Two failed tries on one target means HOLD and the next target.
   sports department, school, club, management company) usually lists the staff. Import the
   operator, bind the venue with an `operates` relationship quoting the page that says so, and
   research the operator (method `OPERATOR` in `marketops_method`).
-- Public procurement notices are a strong source for public operators: a tender for a sports hall's
-  maintenance or equipment usually names the buyer's contact person with a work email. Look on TED
-  for EU tenders, the national notice board, and the buyer's profile. Quote the notice as saved; an
-  old notice still needs a check that the person holds the role now.
+- Public procurement notices (TED, the national board, the buyer's profile) show which bodies are
+  buying works or equipment now: use them to prioritise targets. Their contact is usually a buyer
+  (0 of 6 UK notices gave a site or facilities role); it counts only when the notice names that
+  role with an email, and an old notice needs a check that the person still holds it.
 - A contact binds to its organisation when the quote names the organisation, or it comes from the
   organisation's own site (where it has an identity quote and no other organisation does), or a
   relationship record names both. Directory pages never bind a contact.

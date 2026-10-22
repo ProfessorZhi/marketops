@@ -766,6 +766,18 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
     suppressed = [c for c in contacts if c["record_id"] in suppressed_ids]
     contacts = [c for c in contacts if c["record_id"] not in suppressed_ids]
     people = admitted_by_kind["person"] + admitted_by_kind["role"]
+    # Grades come from code and the scene's rules, over admitted records only, so
+    # a name from a rejected record can never lift a route to A.
+    import research_grading as grading
+    import research_sources as sources
+    brief_rows = [r for r in effective if r["kind"] == "observation"
+                  and r["data"].get("record_type") == "research_brief"]
+    brief = (workflow._tip(brief_rows) or {}).get("data") or {} if brief_rows else {}
+    grades, scene_rules = grading.grade_routes(
+        organizations + people + contacts, brief)
+    grade_summary = grading.summary(grades, targets_finished=sources.finished_targets(root, run_id),
+                                    organizations=len(organizations))
+    source_yield = sources.yields(root, run_id, grades=grades, brief=brief)
     # Admitted relationships are reported in the manifest; the fixed nine-sheet
     # contract has no client relationship sheet, so no row is invented for them.
     relationships = admitted_by_kind["relationship"]
@@ -817,6 +829,15 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
                   "候选引用了资料但未记录读取跨度：" + "; ".join(record["artifact_ids"][:8]),
                   "回到同一资料的具名片段；仅有附件级支持的候选不进入业务结论",
                   entity_key=record["entity_key"])
+    for candidate in contacts:
+        verdict = grades.get(candidate["record_id"])
+        if verdict and verdict["grade"] == "C" and any(
+                r.startswith("NAME_ROLE_EMAIL_NOT_ONE_BLOCK") for r in verdict["reasons"]):
+            add_issue("评级降为C", candidate["record_id"],
+                      "姓名、岗位与邮箱不在同一页面段落中出现，不能算 A/B",
+                      "找到同时写明姓名、岗位和邮箱的页面后重新提交",
+                      entity_key=candidate["entity_key"],
+                      organization_id=verdict["organization_id"] or None)
     for route in by_kind["contact_route"]:
         # The Lite MCP can only persist *proposals*. No text or grade is formal.
         add_issue("联系路线待审核", route["record_id"],
@@ -891,17 +912,21 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
             _plain(fact.get("person_name", fact.get("department", ""))),
             _plain(role_text),
             channel or "UNKNOWN", value or "UNKNOWN", validation,
-            "RULES_UNKNOWN", "CANDIDATE_NOT_APPROVED",
+            (grades.get(candidate["record_id"]) or {}).get("grade") or "RULES_UNKNOWN",
+            "CANDIDATE_NOT_APPROVED",
             "; ".join(candidate["artifact_ids"]) or "NONE",
         ))
     # Within each organisation, the wanted role first, generic inboxes last.
     rank = {"wanted_role_person": 0, "wanted_role_team_inbox": 1, "other_named_role": 2,
             "generic_inbox": 3}
 
+    grade_rank = {"A": 0, "B": 1, "C": 2, "D": 3, "X": 5}
+
     def _row_rank(row):
         text = str(row[3])
         tag = text[5:].split(" ")[0] if text.startswith("Jev: ") else ""
-        return (row[1], rank.get(tag, 0 if text and not text.startswith("Jev: ") else 4))
+        return (row[1], grade_rank.get(row[7], 4),
+                rank.get(tag, 0 if text and not text.startswith("Jev: ") else 4))
     contact_rows.sort(key=_row_rank)
 
     venue_rows = [(
@@ -972,7 +997,17 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
         ("待核查事项数", len(issues)),
         ("市场总覆盖率", "UNKNOWN_NO_TRUSTWORTHY_DENOMINATOR"),
         ("收费 Provider 额度与价格", "UNKNOWN_NOT_IN_LITE_STORE"),
-        ("联系路线评级", "RULES_UNKNOWN; no A/B/C/D assigned by Agent"),
+        ("联系路线评级", ("代码按场景规则评级（候选，未经人工审批）；规则来源 " + scene_rules["source"])
+                     if scene_rules["source"] else "RULES_UNKNOWN：任务说明里没有岗位规则"),
+        ("评级分布", json.dumps(grade_summary["grades"], ensure_ascii=False, sort_keys=True)),
+        ("A+B 去重人数", grade_summary["ab_people"]),
+        ("有 A+B 的组织数", grade_summary["organisations_with_ab"]),
+        ("每100个目标的 A+B 人数", "UNKNOWN" if grade_summary["ab_per_100"] is None
+         else f"{grade_summary['ab_per_100']}（分母：{grade_summary['per_100_of']} "
+              f"{grade_summary['denominator']}）"),
+        ("各来源 A+B 产出", json.dumps(
+            [{k: r.get(k) for k in ("source_id", "finished", "with_ab", "ab_rate", "verdict")}
+             for r in source_yield["sources"]], ensure_ascii=False)),
         ("发送授权", "FALSE: research-only; no outreach"),
         ("通用证据审计状态", audit["status"]),
         ("待补证据计数", json.dumps(audit["gap_counts"], ensure_ascii=False, sort_keys=True)),
@@ -1011,6 +1046,8 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
         "saved_artifact_count": len(artifacts),
         "evidence_hash_readback": "ALL_OK", "business_verification": "NOT_PERFORMED",
         "send_authorized": False,
+        "grading": {**grade_summary, "rules_source": scene_rules["source"]},
+        "source_yield": source_yield,
         "evidence_assessment": audit,
         "evidence_ready_for_business_use": False,
         "client_business_tables_admitted_only": True,

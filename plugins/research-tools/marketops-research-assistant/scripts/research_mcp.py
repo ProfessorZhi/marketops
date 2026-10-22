@@ -797,6 +797,17 @@ def _valid_brief(run_id: str, brief: dict) -> None:
         raise ValueError("RESEARCH_BRIEF_INVALID")
     if "supersedes" in brief:
         raise ValueError("BRIEF_REVISION_REQUIRES_MARKETOPS_PROPOSE")
+    import research_scene
+    if brief.get("scene") and research_scene.shipped(brief["scene"]) is None:
+        raise ValueError("RESEARCH_BRIEF_INVALID: scene '" + str(brief["scene"])[:60]
+                         + "' is not shipped; write scene_rules for this market instead")
+    if "scene_rules" in brief:
+        problems = research_scene.validate(brief["scene_rules"])
+        if problems:
+            raise ValueError("RESEARCH_BRIEF_INVALID: " + "; ".join(problems))
+    gate = brief.get("source_gate", True)
+    if not (gate is True or gate is False or isinstance(gate, dict)):
+        raise ValueError("RESEARCH_BRIEF_INVALID: source_gate must be false or {pilot, promote, stop}")
     synthetic = {"record_id": "brief-validation", "stage": "qualification",
                  "kind": "observation", "status": "candidate_unverified",
                  "entity_key": "research-brief", "artifact_ids": [], "data": brief}
@@ -2231,19 +2242,26 @@ def build_server():
         go back to the pool (done / hold with reason). Call again for the next batch.
         roles_wanted (e.g. "head groundsman, grounds manager, head of grounds") makes
         Jev tag every email with wanted_role_person / wanted_role_team_inbox /
-        other_named_role / generic_inbox / unclear and a confidence: grade from
-        the tags, and read the page only for low-confidence ones.
+        other_named_role / generic_inbox / unclear and a confidence, to rank routes
+        and pick pages to read. The A/B/C/D/X grade itself is set by code from the
+        brief's scene rules at handoff. Sources whose first 30 targets gave too few
+        A+B accounts are parked before claiming (see marketops_next source_gate).
         """
         import research_batch
+        import research_sources
         data_root = root()
         _require_brief_for_network(data_root, run_id)
-        return research_batch.harvest_batch(
+        parked = research_sources.park_stopped(data_root, run_id)
+        result = research_batch.harvest_batch(
             data_root, pool_id=pool_id, worker_id=worker_id, run_id=run_id,
             fetch=_fetcher(data_root, run_id), count=count, concurrency=concurrency,
             max_pages=max_pages, grade=_role_grader(run_id, roles_wanted),
             find_site=lambda target, op: find_official_site(run_id, op, target,
                                                             country, language),
             focus=roles_wanted.strip() or _brief_roles(run_id))
+        if parked["parked"]:
+            result["source_gate_parked"] = parked
+        return result
 
     @tool
     def marketops_jev_triage(run_id: str, operation_id: str, artifact_ids: list[str],
@@ -2318,7 +2336,8 @@ def build_server():
     def marketops_export_xlsx(run_id: str, delivery_id: str) -> dict:
         """Write real 9-sheet evidence-audited XLSX + CSV from this Run's Lite store.
 
-        All contacts remain CANDIDATE_NOT_APPROVED; no A/B/C/D or send authority.
+        All contacts remain CANDIDATE_NOT_APPROVED; grades are code-set candidate grades
+        from the brief's scene rules, never send authority.
         """
         return delivery.write_delivery(root(), run_id, delivery_id)
 

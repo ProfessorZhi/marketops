@@ -80,8 +80,12 @@ the explicitly cumulative `run_cost`. A new context window keeps that checkpoint
 - `marketops_start(run_id, scope, objective, rule_version, brief={record_type:'research_brief',
   target_kind:'venue'|'organization', goal:'pool'|'contacts', require_named_person:false,
   roles_wanted:[<the roles the user named>], hard_case:{allowed:<the user's answer, default false>},
-  minimum_targets:<the user's number or null>, evidence_requirements:{organization:['identity']}})`.
-  Details: `marketops-discovery`.
+  minimum_targets:<the user's number or null>, evidence_requirements:{organization:['identity']},
+  scene:'<shipped pack id>' or scene_rules:{decision:[...], operational:[...], entry:[...],
+  excluded:[...]}})`. A market with no shipped pack is normal: write `scene_rules` in the local
+  language (Paris sports venues: decision `directeur des sports`, `responsable des équipements
+  sportifs`; operational `responsable de gymnase`, `régisseur`; entry `service des sports`,
+  `réservations`; excluded `communication`, `ressources humaines`). Details: `marketops-discovery`.
 
 ## 2. Run the funnel (no check-ins)
 
@@ -152,9 +156,21 @@ only when you reach that stage. Past runs' pitfalls, by stage: [lessons](../../r
 
 **Large tasks (over ~50 targets) or several windows**: load `marketops-orchestrate`. Targets go
 into a shared pool on this machine's data directory; worker windows claim batches with
-`marketops_harvest_batch` and never collide. The scene pack for the market (e.g.
-[UK natural grass](../../references/ACCEPTANCE_PROFILE_UK_GRASS.md)) supplies roles, grades,
-exclusions, authority sources and query templates.
+`marketops_harvest_batch` and never collide. A shipped scene pack (e.g. `uk-natural-grass`, with
+[its profile](../../references/ACCEPTANCE_PROFILE_UK_GRASS.md)) also lists sources in the order
+they yielded A+B before.
+
+**Grades and the KPI are computed, not judged.** At handoff the code grades each email route
+from the scene rules (A/B need name, role and email in one block of one saved page; a generic or
+shared inbox is D; an excluded role is X). `marketops_next` shows `execution.grading`: A+B as
+distinct people per 100 finished targets. That number is the KPI; C/D are counted separately and
+never presented as key contacts.
+
+**Sources are judged by what they yield.** `execution.source_gate` gives each import source's A+B
+rate. After 30 finished targets a source under 5% is parked (its pending targets go to HOLD
+`SOURCE_YIELD_STOP`); 5–10% means change the approach for it once. Follow
+`execution.source_advice`: a better list for the same target type is worth more than deeper
+research on a poor one (past work: 30% vs 3% from two lists of the same kind).
 
 **Parallel accounts.** If the host can start subagents (Claude Code: `account-researcher`), give
 each subagent 1–3 organisations with `run_id`, published name, `organization_key` and website, in
