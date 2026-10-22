@@ -725,7 +725,7 @@ def status(root=None):
             "wallet_floor_enforced": bool(any(observations.values())) or (plan or {}).get("budget_mode") == "MONEY",
             "qa": verify_build_receipt(), "providers": {
                 p: {"selected": p in settings.get("providers", ()),
-                    "max_calls": settings.get("provider_limits", {}).get(p, settings.get("max_calls"))
+                    "max_calls": None if (plan or {}).get("budget_mode") == "MONEY" else settings.get("provider_limits", {}).get(p, settings.get("max_calls"))
                         if p in settings.get("providers", ()) else None,
                     "credential_present": _credential_present(p), "balance": None,
                     "balance_status": "BASELINE_OBSERVED_CURRENT_UNKNOWN" if observations[p] else "UNKNOWN",

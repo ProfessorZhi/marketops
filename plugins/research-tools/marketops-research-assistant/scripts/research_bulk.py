@@ -4,6 +4,7 @@ from collections import Counter
 from html.parser import HTMLParser
 import json
 import re
+from urllib.parse import parse_qs, urlsplit
 
 import research_lite_store as store
 import research_pool as pool
@@ -69,6 +70,12 @@ def import_saved(root, *, run_id, artifact_id, pool_id, source_id, mapping=None,
     material = store.read_artifact(root, run_id, artifact_id)
     text, rows, listed = _json(material)
     mapping, filters = mapping or {}, filters or {}
+    try:
+        upstream_offset = int(parse_qs(urlsplit(material["origin_url"]).query).get("offset", ["0"])[0])
+        if upstream_offset < 0:
+            raise ValueError()
+    except (ValueError, TypeError):
+        raise ValueError("BULK_UPSTREAM_OFFSET_INVALID") from None
     allowed = {"name", "website", "address", "city", "postcode", "source_key", "indoor"}
     if set(mapping) - allowed or any(not isinstance(v, str) for v in mapping.values()):
         raise ValueError("BULK_MAPPING_INVALID")
@@ -76,8 +83,11 @@ def import_saved(root, *, run_id, artifact_id, pool_id, source_id, mapping=None,
             or not v or len(v) > 100 or any(not isinstance(x, (str, int, float, bool)) for x in v)
             for k, v in filters.items()):
         raise ValueError("BULK_FILTER_INVALID: field to allowed literal values; no expressions")
+    more_upstream = isinstance(listed, int) and listed > upstream_offset + len(rows)
     metadata = {"saved_rows": len(rows), "source_total_count": listed,
-                "upstream_pagination_remaining": isinstance(listed, int) and listed > len(rows),
+                "upstream_offset": upstream_offset,
+                "upstream_next_offset": upstream_offset + len(rows) if more_upstream and rows else None,
+                "upstream_pagination_remaining": more_upstream,
                 "available_fields": sorted({k for row in rows for k in row}),
                 "network_requests": 0, "artifact_id": artifact_id,
                 "source_sha256": material["content_sha256"]}
@@ -91,7 +101,8 @@ def import_saved(root, *, run_id, artifact_id, pool_id, source_id, mapping=None,
     page = rows[offset:offset + limit]
     if not page:
         return {**metadata, "status": "LOCAL_JSON_COMPLETE", "next_offset": None}
-    identity = json.dumps({"sha": material["content_sha256"], "mapping": mapping,
+    identity = json.dumps({"sha": material["content_sha256"], "pool": pool_id,
+        "source_label": source_id, "origin": material["origin_url"], "mapping": mapping,
         "filters": filters, "offset": offset, "limit": limit}, sort_keys=True, ensure_ascii=True)
     digest = hashlib.sha256(identity.encode()).hexdigest()[:24]
     source = "bulk-" + digest

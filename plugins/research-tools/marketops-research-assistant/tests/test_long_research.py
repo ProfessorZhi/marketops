@@ -147,6 +147,18 @@ class Bulk(unittest.TestCase):
             self.call(filters={"not_a_field": ["Interior"]})
         self.assertFalse((self.root / "state/research-pool.sqlite3").exists())
 
+    def test_final_upstream_page_finishes_and_importing_another_pool_is_not_a_replay(self):
+        self.call()
+        second = self.call(pool_id="another-pool")
+        self.assertFalse(second["replayed"])
+        self.assertGreater(pool.status(self.root, pool_id="another-pool")["total"], 0)
+        store.save_artifact(self.root, "run-a", "last-page", "crawl4ai",
+            "https://example.org/data?offset=200&limit=100",
+            json.dumps({"total_count": 300, "results": self.rows[200:]}).encode(), "raw_response")
+        last = self.call(artifact_id="last-page", preview=True)
+        self.assertFalse(last["upstream_pagination_remaining"])
+        self.assertIsNone(last["upstream_next_offset"])
+
 
 class ContactEvidence(unittest.TestCase):
     def setUp(self):

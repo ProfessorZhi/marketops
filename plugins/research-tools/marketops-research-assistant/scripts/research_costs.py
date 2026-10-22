@@ -224,6 +224,7 @@ def report(root: Path, *, run_id: str | None = None, since: str = "") -> dict:
     def money(bucket):
         out = {k: v for k, v in bucket.items() if k != "usd"}
         out["estimated_usd"] = f"{bucket['usd']:.4f}"
+        out["estimated_usd_precise"] = f"{bucket['usd']:.6f}" if not bucket["usd_unknown_calls"] else None
         if bucket["usd_unknown_calls"]:
             out["estimated_usd"] += f" + UNKNOWN ({bucket['usd_unknown_calls']} calls without a rate)"
         return out
@@ -240,6 +241,7 @@ def report(root: Path, *, run_id: str | None = None, since: str = "") -> dict:
     return {"project": project, "run_id": run_id, "since": since or None,
             "measurement_scope": "SESSION_SINCE_CHECKPOINT" if since else "RUN_CUMULATIVE" if run_id else "PROJECT_CUMULATIVE",
             "total_estimated_usd": f"{total:.4f}" + (f" + UNKNOWN ({unknown} calls)" if unknown else ""),
+            "total_estimated_usd_precise": f"{total:.6f}" if not unknown else None,
             "by_provider": {p: money(b) for p, b in sorted(by_provider.items())},
             "by_run": {r: money(b) for r, b in sorted(by_run.items())} if run_id is None else None,
             "free_allowances": allowances,
