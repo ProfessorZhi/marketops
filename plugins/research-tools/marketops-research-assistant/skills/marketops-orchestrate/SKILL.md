@@ -57,3 +57,9 @@ If many targets are HOLD for a cause that has since been fixed (or a better meth
 `marketops_pool_status` must show no pending/claimed targets and every source reconciled. Each worker
 hands off its Run once; `marketops_lessons_report(pool_id)` shows walls, rescue rates and cost per
 route for the user. Every window ends with `marketops_feedback_pack` (see `marketops-feedback`).
+
+**Stuck leases.** Targets a worker claimed but never finished stay claimed until the lease
+expires. Do not wait them out: `marketops_pool_reopen(pool_id, reason='RELEASE_CLAIMS',
+worker_id=<that worker>)` hands them back at once. Saved results are kept and finalized
+without new fetches. A saved result that fails to finalize 3 times becomes HOLD
+`FINALIZATION_FAILED: …` instead of blocking the delivery.
