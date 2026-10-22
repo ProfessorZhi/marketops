@@ -5,6 +5,14 @@ description: Turn a research request into a structured brief, then build the com
 
 # Brief, source pool, target pool
 
+For saved JSON use artifact-mode `marketops_pool_import`: preview its schema,
+then map exact fields and apply literal filters locally. Import local pages
+without new provider requests; upstream pagination is separate. France Data ES
+has `equip_nature` for indoor/outdoor: never filter only on INTERIEUR in the
+name. Verify commune fields instead of assuming `lib_bdv` is a city. A mixed
+directory does not prove every venue indoors. Supply an `indoor` source claim
+and require it in the brief for indoor venue eligibility.
+
 ## Brief
 
 Save it with `marketops_start(..., brief=...)`. Fields:
@@ -47,7 +55,10 @@ list its towns first (a county has 30+), then:
   `site:<that domain> <type>` and use the result titles as names, or use another list;
 - `google_maps` per town for every town in the region, not just the big ones.
 
-Stop when two independent sources overlap by about 70% or more; report the expected size.
+An overlap of about 70% between two independent lists is a method signal, not
+proof of full coverage. Complete registry pagination and reconcile geography,
+venue eligibility, equipment versus facilities and operator relationships;
+report unresolved coverage explicitly.
 
 Whole-list endpoints beat crawling: association search pages, `/wp-json/wp/v2/<type>` (check the
 `X-WP-Total` header), open-data portals, content-type sitemaps. See

@@ -21,7 +21,7 @@ def assess(root, run_id, *, goal, budget=None):
                 used = db.execute("SELECT COUNT(*) FROM operations WHERE project=? AND run_id=? "
                                   "AND counts_against_caps=1 AND charge_state<>'NO_CHARGE_PROVEN'",
                                   (usage.project_for_root(base), run_id)).fetchone()[0]
-            if remaining is not None:
+            if remaining is not None and limits["run_max_calls"] is not None:
                 remaining = min(remaining, max(0, limits["run_max_calls"] - used))
     elif isinstance(budget, dict):
         remaining = budget.get("search_remaining")

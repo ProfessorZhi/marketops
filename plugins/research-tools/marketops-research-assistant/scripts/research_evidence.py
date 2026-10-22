@@ -13,7 +13,7 @@ import json
 import re
 from contextlib import closing
 from pathlib import Path
-from collections import Counter
+from collections import Counter, defaultdict
 
 KEY = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
 CHECK_KINDS = frozenset({"venue", "organization", "relationship", "person",
@@ -123,7 +123,25 @@ def audit_records(records: list[dict], artifacts: dict[str, dict],
     reasons, samples = Counter(), []
     checked = anchored_rendered = anchored_vendor_html = 0
     normalized_sources = {aid: _text(a) for aid, a in artifacts.items()}
+    from research_workflow import _tip
+    related = defaultdict(list)
+    for row in records:
+        if row["kind"] in {"person", "role"}:
+            related[(row["kind"], row["entity_key"])].append(row)
+    active_related = [tip for group in related.values() if (tip := _tip(group)) is not None]
+    people = {r["entity_key"]: r for r in active_related if r["kind"] == "person"}
+    roles_by_person = defaultdict(list)
+    for row in active_related:
+        if row["kind"] == "role":
+            roles_by_person[(row["data"].get("organization_id"), row["data"].get("person_id"))].append(row)
+    versions = defaultdict(list)
+    for row in records:
+        versions[(row["kind"], row["entity_key"])].append(row)
+    superseded = {r["record_id"] for group in versions.values() if (tip := _tip(group)) is not None
+                  for r in group if r["record_id"] != tip["record_id"]}
     for rec in records:
+        if rec["record_id"] in superseded:
+            continue
         kind = rec["kind"]
         data = rec["data"]
         if kind not in CHECK_KINDS:
@@ -162,6 +180,23 @@ def audit_records(records: list[dict], artifacts: dict[str, dict],
                 codes.add("EXCERPT_NOT_FOUND")
                 continue
             matched_fields.add(field)
+            # One primary quote can explicitly prove all three fields. Only
+            # follow the same named person and organisation, never infer an
+            # identity from an email pattern or a neighbouring staff member.
+            if kind == "contact_point" and field in {"email", "value"} and material.get("kind") in {"rendered_html", "raw_response", "provider_html"}:
+                person = people.get(data.get("person_id"))
+                org = data.get("organization_id")
+                if isinstance(org, str) and org and person is not None and person["data"].get("organization_id") == org:
+                    name = person["data"].get("name")
+                    if isinstance(name, str) and _norm(name) and re.search(r"(?<!\w)" + re.escape(_norm(name)) + r"(?!\w)", _norm(quote)):
+                        matched_fields.add("name")
+                        for role in roles_by_person.get((org, person["entity_key"]), ()):
+                            rd = role["data"]
+                            title = rd.get("role_title", rd.get("role_function"))
+                            if (role["kind"] == "role" and rd.get("person_id") == person["entity_key"]
+                                    and rd.get("organization_id") == org and isinstance(title, str)
+                                    and _norm(title) and _norm(title) in _norm(quote)):
+                                matched_fields.add("role")
             if material.get("kind") in {"rendered_html", "raw_response"}:
                 anchored_rendered += 1
             elif material.get("kind") == "provider_html":

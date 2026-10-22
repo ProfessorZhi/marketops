@@ -5,6 +5,15 @@ description: Router for the five research providers (Serper, SerpApi, Crawl4AI, 
 
 # Five providers: right job, cheapest first, never stuck
 
+For MONEY-mode deployments use `marketops_costs(action='budget')`. Each supplier
+has a balance reserve and an atomic monetary/credit envelope; free Crawl4AI and
+reviewed TinyFish search/fetch consume no money. A supplier ceiling switches
+methods/providers; it does not stop free research on the whole project. Do not
+renew an envelope on resume or silently raise it. `action='set_budget'` with
+`amount_usd` and optional `provider` can only narrow a previously approved
+envelope. Balances and usage timestamps matter; unknown/stale stays explicit.
+See [monetary budget details](../../references/LONG_RESEARCH_AND_BUDGETS.md).
+
 Every call goes through MarketOps tools: material is saved in the Run, counted in one shared ledger
 and deduplicated across windows. Each call takes `run_id` and a fresh `operation_id`.
 

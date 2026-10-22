@@ -425,10 +425,10 @@ def _has_person_chain(org_key: str, related_by_org: dict[str, list[dict]],
     related = related_by_org.get(org_key, ())
     people = {row["entity_key"] for row in related
               if row.get("kind") == "person"
-              and _linked(links, row["record_id"], "name", "department")}
+              and _linked(links, row["record_id"], "name", "department", "identity")}
     roles = {row["data"].get("person_id") for row in related
              if row.get("kind") == "role"
-             and _linked(links, row["record_id"], "role_title", "role_function")}
+              and _linked(links, row["record_id"], "role_title", "role_function", "role")}
     contacts = {row["data"].get("person_id") for row in related
                 if row.get("kind") == "contact_point"
                 and _linked(links, row["record_id"], "value", "email")}
@@ -448,7 +448,8 @@ def _missing_fields(candidate: dict, *, org: dict | None, org_name: str,
     if kind == "venue" and not _venue_binding_ok(
             candidate, org_name, related_by_org, links):
         missing.append("venue_org_relationship")
-    if not _rate_covered(candidate, links):
+    required = {field for fields in brief.get("evidence_requirements", {}).values() for field in fields} if isinstance(brief.get("evidence_requirements", {}), dict) else set()
+    if (brief.get("goal") != "contacts" or required & set(_RATE_KEYS)) and not _rate_covered(candidate, links):
         missing.append("hourly_rate")
     org_key = data.get("organization_id") or candidate["entity_key"]
     contacts = _related_contacts(org_key, related_by_org)
@@ -470,7 +471,7 @@ def _missing_fields(candidate: dict, *, org: dict | None, org_name: str,
         missing.append("official_email")
     elif not email_supported or not email_bound:
         missing.append("contact_binding")
-    if not any(_phone_covered(row, org_name, related_by_org, links) for row in phones):
+    if (brief.get("goal") != "contacts" or required & {"phone", "telephone"}) and not any(_phone_covered(row, org_name, related_by_org, links) for row in phones):
         missing.append("phone")
     if brief.get("require_named_person") and not _has_person_chain(org_key, related_by_org, links):
         missing.append("named_person_contact_chain")

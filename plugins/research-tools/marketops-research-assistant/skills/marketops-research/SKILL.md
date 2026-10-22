@@ -8,6 +8,30 @@ description: Single entry for a MarketOps research task (venues, organisations, 
 Goal: the user does as little as possible; you run the whole task in long autonomous stretches and
 deliver an evidence-backed workbook. Effect first, cost second.
 
+Read [long research and monetary envelopes](../../references/LONG_RESEARCH_AND_BUDGETS.md).
+In MONEY mode, request/page counters are telemetry, not a spending ceiling.
+Read `marketops_costs(action='budget')`; do not interpret a null request limit as
+zero. Free local Crawl4AI remains available when a paid supplier envelope closes.
+Never renew or widen an envelope just to continue. Legacy REQUEST_COUNT mode
+keeps its explicitly approved cap until local setup changes the policy.
+
+For long regional discovery, save each upstream JSON page once and use the
+artifact mode of `marketops_pool_import` to preview/filter/import it locally.
+Never refetch one record per request merely to get around the excerpt window.
+Follow both local `next_offset` and upstream pagination until reconciled.
+
+For named contacts, ask for desired decision roles rather than an invented
+headcount. Put the wanted subset of `management`, `operations`,
+`commercial_events` in `brief.role_groups_wanted`. Use
+`marketops_next.contact_coverage` to research missing roles from alternative
+public sources; a generic inbox or the first named person does not close the
+task. Reuse people across venues only through sourced operator relationships.
+Pilot batch sizes are method tests, never total target quotas.
+
+Retain `usage_checkpoint.since` returned by `marketops_start` for this session.
+Pass it to `marketops_handoff(since=...)`; report `session_cost` separately from
+the explicitly cumulative `run_cost`. A new context window keeps that checkpoint.
+
 ## Hard rules (read first)
 
 1. **Only the `marketops_*` tools.** Do not use Bash, Read, Grep or Python on the plugin's code,

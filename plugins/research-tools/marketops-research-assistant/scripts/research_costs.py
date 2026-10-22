@@ -154,11 +154,17 @@ def balances(root: Path, *, read: bool = True) -> dict:
         entry = {**reading}
         if left is not None and reading.get("observed_at"):
             since = [op for op in rows if op.provider == provider and op.counts_against_caps
+                     and getattr(op, "charge_state", "") != "NO_CHARGE_PROVEN"
                      and op.created_at > reading["observed_at"]]
             used = sum(int(op.quota_units or 1) for op in since)
             if reading.get("unit") == "USD":
-                spent = sum((_usd(int(op.quota_units or 1), card.get(f"{op.provider}/{op.capability}", {}))
-                             or Decimal(0)) for op in since)
+                def attributable(op):
+                    if op.actual_micros is not None:
+                        return Decimal(op.actual_micros) / 1_000_000
+                    if getattr(op, "price_version", "") == "money-envelope-1":
+                        return Decimal(op.reserved_micros) / 1_000_000
+                    return _usd(int(op.quota_units or 1), card.get(f"{op.provider}/{op.capability}", {})) or Decimal(0)
+                spent = sum((attributable(op) for op in since), Decimal(0))
                 entry["estimated_left_now"] = f"{Decimal(str(left)) - spent:.4f}"
             else:
                 entry["estimated_left_now"] = float(left) - used
@@ -167,7 +173,7 @@ def balances(root: Path, *, read: bool = True) -> dict:
     return out
 
 
-def report(root: Path, *, run_id: str | None = None) -> dict:
+def report(root: Path, *, run_id: str | None = None, since: str = "") -> dict:
     """Spend per project, per Run and per provider, from the ledger and the rate card.
 
     Every amount is an estimate from the rate card unless a provider account
@@ -179,6 +185,14 @@ def report(root: Path, *, run_id: str | None = None) -> dict:
     project = usage_ledger.project_for_root(root)
     rows = ledger.operations(project=project) if run_id is None else \
         ledger.operations(project=project, run_id=run_id)
+    if since:
+        try:
+            start = datetime.fromisoformat(since.replace("Z", "+00:00"))
+            if start.tzinfo is None:
+                raise ValueError()
+        except (ValueError, TypeError):
+            raise ValueError("USAGE_SINCE_REQUIRES_TIMEZONE_TIMESTAMP") from None
+        rows = [r for r in rows if datetime.fromisoformat(r.created_at.replace("Z", "+00:00")) >= start]
     card = rate_card(root)
     month = datetime.now(timezone.utc).strftime("%Y-%m")
     by_provider: dict[str, dict] = defaultdict(lambda: {"calls": 0, "units": 0, "usd": Decimal(0),
@@ -187,7 +201,7 @@ def report(root: Path, *, run_id: str | None = None) -> dict:
                                                   "usd_unknown_calls": 0})
     allowance_used: dict[str, int] = defaultdict(int)
     for op in rows:
-        if not op.counts_against_caps:
+        if not op.counts_against_caps or op.charge_state == "NO_CHARGE_PROVEN":
             continue
         key = f"{op.provider}/{op.capability}"
         rate = card.get(key, {"usd_per_unit": None, "unit": op.quota_unit or "unit"})
@@ -223,7 +237,8 @@ def report(root: Path, *, run_id: str | None = None) -> dict:
                                "basis": "LOCAL_LEDGER_ESTIMATE"}
     total = sum((b["usd"] for b in by_provider.values()), Decimal(0))
     unknown = sum(b["usd_unknown_calls"] for b in by_provider.values())
-    return {"project": project, "run_id": run_id,
+    return {"project": project, "run_id": run_id, "since": since or None,
+            "measurement_scope": "SESSION_SINCE_CHECKPOINT" if since else "RUN_CUMULATIVE" if run_id else "PROJECT_CUMULATIVE",
             "total_estimated_usd": f"{total:.4f}" + (f" + UNKNOWN ({unknown} calls)" if unknown else ""),
             "by_provider": {p: money(b) for p, b in sorted(by_provider.items())},
             "by_run": {r: money(b) for r, b in sorted(by_run.items())} if run_id is None else None,

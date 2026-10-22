@@ -1554,6 +1554,9 @@ class UsageLedger:
         inside the same ``BEGIN IMMEDIATE`` transaction as the insert, which is what
         makes concurrent reservations stop at the floor instead of racing past it.
         """
+        import research_spending
+        research_spending.enforce(db, request, price, estimated_micros,
+                                  self._path.parent.parent)
         if self._campaign and (estimated_micros > 0 or quota_units > 0):
             # "Potentially charged" is not the same as "costs money". The catalog this
             # plugin ships prices every capability at zero dollars with a real credit
@@ -2571,7 +2574,10 @@ def for_root(root: str | Path | None = None, **kwargs) -> "UsageLedger":
     """
     if "pricing" not in kwargs:
         configured = _pricing_from_environment()
-        kwargs["pricing"] = configured if len(configured) else documented_pricing()
+        import research_spending
+        kwargs["pricing"] = (configured if len(configured) else
+            PricingCatalog.from_entries(research_spending.pricing_entries())
+            if research_spending.policy(default_path(root).parent.parent) else documented_pricing())
     return UsageLedger(default_path(root), **kwargs)
 
 
