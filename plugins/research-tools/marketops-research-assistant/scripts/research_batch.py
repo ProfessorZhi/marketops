@@ -215,6 +215,8 @@ def harvest_batch(data_root, *, pool_id: str, worker_id: str, run_id: str, fetch
         try:
             item = research(target)
         except Exception as exc:
+            if int(target.get("attempts") or 0) < 2:
+                return None  # an unexpected worker failure gets one more try before a HOLD
             item = {"target": target, "outcome": "hold", "reason": "BATCH_WORKER_" + type(exc).__name__,
                     "org_key": _organization_key(target), "record_ids": [], "routes": []}
         if item is None:
