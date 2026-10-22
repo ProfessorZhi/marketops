@@ -770,7 +770,9 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
     # a name from a rejected record can never lift a route to A.
     import research_grading as grading
     import research_sources as sources
-    brief_rows = [r for r in effective if r["kind"] == "observation"
+    # The whole revision chain: the current brief supersedes earlier ones, and a tip
+    # whose parent is missing from the list is (rightly) no tip at all.
+    brief_rows = [r for r in records if r["kind"] == "observation"
                   and r["data"].get("record_type") == "research_brief"]
     brief = (workflow._tip(brief_rows) or {}).get("data") or {} if brief_rows else {}
     grades, scene_rules = grading.grade_routes(

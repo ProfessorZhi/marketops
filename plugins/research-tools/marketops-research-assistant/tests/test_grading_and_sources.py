@@ -335,6 +335,11 @@ class DeliveryGrades(unittest.TestCase):
                             "research-brief", {"record_type": "research_brief",
                                                "scene_rules": {"decision": ["head of grounds"],
                                                                "entry": ["grounds enquiries"]}}, [])
+        # A brief revised later: the delivery grades with the current version.
+        store.put_candidate(case.root, "run-test", "brief-g2", "qualification", "observation",
+                            "research-brief", {"record_type": "research_brief", "supersedes": "brief-g",
+                                               "scene_rules": {"decision": ["head of grounds"],
+                                                               "entry": ["grounds enquiries"]}}, [])
         result = delivery.write_delivery(case.root, "run-test", "delivery-g")
         folder = Path(result["xlsx_path"]).parent
         with (folder / "联系人路线.csv").open(encoding="utf-8-sig", newline="") as handle:
