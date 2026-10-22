@@ -13,6 +13,26 @@ name. Verify commune fields instead of assuming `lib_bdv` is a city. A mixed
 directory does not prove every venue indoors. Supply an `indoor` source claim
 and require it in the brief for indoor venue eligibility.
 
+**Open-data registers (Opendatasoft portals such as Data ES): fetch exports, not pages.**
+The records API returns 100 rows per call and refuses offsets past 10,000. The Paris
+run spent 17 minutes on 100 page reads and still lost the last 2,772 rows. Instead:
+- Read one department (or another slice under 50,000 rows) per call from the export
+  endpoint, keeping only the columns you need. For example:
+  `…/api/explore/v2.1/catalog/datasets/<id>/exports/json?where=dep_code="75" AND
+  equip_nature="Intérieur"&select=equip_numero,inst_nom,equip_nom,equip_type_name,
+  inst_adresse,inst_cp,com_nom,equip_gest_type,equip_prop_type`.
+- Use `marketops_research_step(task_kind='known_public_url')`, then
+  `marketops_pool_import` in artifact mode, one local page at a time.
+- Get the total first with `records?limit=0&where=…`, then check each slice's
+  count against it.
+- Field names differ between datasets: preview the schema first.
+
+**Map who runs each venue.** When the source has operator/manager and owner fields, map
+them as `operator`, `operator_type` and `owner_type`.
+- Contacts sit with the operator: the municipality's sports department for public
+  venues, the company or association otherwise.
+- `marketops_venue_groups` turns the inventory into operator targets.
+
 ## Brief
 
 Save it with `marketops_start(..., brief=...)`. Fields:

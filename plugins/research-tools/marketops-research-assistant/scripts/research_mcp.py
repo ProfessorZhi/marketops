@@ -659,7 +659,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         configured_root = None
     if configured_root is not None and runtime_setup.config(configured_root):
         from research_runtime_status import view
-        return {"product": "MarketOps Research MCP", "version": "0.5.11-rc2",
+        return {"product": "MarketOps Research MCP", "version": "0.5.11-rc3",
                 **view(configured_root, task_kind=task_kind),
                 "external_host": _external_inventory(host_observed_tools),
                 "embedded_official_mcp": provider_policy.embedded_official_mcp_capabilities(),
@@ -734,7 +734,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         if task_kind else None)
     return {
         "product": "MarketOps Lite Research MCP",
-        "version": "0.5.11-rc2",
+        "version": "0.5.11-rc3",
         "providers": {
             "serpapi": {"transport": "REST through local MCP", **search["serpapi"]},
             "serper": {"transport": "REST through local MCP", **search["serper"]},
@@ -1088,11 +1088,28 @@ def _search_all(query, country, language, run_id, operation_id, limit):
                 merged.append({"title": hit.get("title"), "url": url,
                                "snippet": hit.get("snippet") or hit.get("description"),
                                "found_by": answer.get("substituted_by", provider)})
+    # A site: query that comes back with other sites (the Paris run got Gmail,
+    # Outlook and US Senate pages for "site:urbansoccer.fr (... OR ...) email") is
+    # the engine ignoring the operator: those hits are noise, not leads.
+    sites = [m.casefold().removeprefix("www.") for m in re.findall(r"\bsite:([^\s)\"']+)", query)]
+    dropped = 0
+    if sites:
+        def on_site(url):
+            host = (urlsplit(url).hostname or "").casefold().removeprefix("www.")
+            return any(host == s.split("/")[0] or host.endswith("." + s.split("/")[0]) for s in sites)
+        kept = [hit for hit in merged if on_site(hit["url"])]
+        dropped, merged = len(merged) - len(kept), kept
     import research_provider_health as health
     out = {"status": "OK", "query": query, "results": merged,
            "by_provider": {p: (len(_hits(a)) if "error" not in a else a["error"])
                            for p, a in answers.items()},
            "artifact_ids": [x for a in answers.values() for x in a.get("artifact_ids") or []]}
+    if dropped:
+        out["off_site_results_dropped"] = dropped
+        if not merged:
+            out["query_hint"] = ("Every result was off the site: the engine ignored site:. "
+                                 "Use one simple phrase per query (no parentheses or OR), or "
+                                 "harvest the site directly with marketops_site_harvest.")
     substituted = {p: a["substituted_by"] for p, a in answers.items() if a.get("substituted_by")}
     if substituted:
         out["substituted"] = substituted
@@ -1348,7 +1365,7 @@ def handoff(run_id, operation_id, mode="auto"):
     try:
         experience_result = draft_experience(
             r, run_id=run_id, scope=head["scope"],
-            rule_version=head["rule_version"], skill_version="0.5.11-rc2",
+            rule_version=head["rule_version"], skill_version="0.5.11-rc3",
             output=experience_path)
         result["experience_candidate"] = str(experience_path)
         result["experience_incidents"] = experience_result["incidents"]
@@ -1495,7 +1512,7 @@ PUBLIC_TOOLS = frozenset({
     "marketops_pool_status", "marketops_harvest_batch", "marketops_lessons_report",
     "marketops_jev_triage", "marketops_suppression", "marketops_feedback_pack",
     "marketops_pool_reopen", "marketops_costs", "marketops_update_check",
-    "marketops_crawl4ai_check", "marketops_method",
+    "marketops_crawl4ai_check", "marketops_method", "marketops_venue_groups",
 })
 
 
@@ -1537,7 +1554,7 @@ def build_server():
         pass
     _ensure_repair_entrypoints()
     from mcp.server import MCPServer
-    mcp = MCPServer("MarketOps Lite Research", version="0.5.11-rc2")
+    mcp = MCPServer("MarketOps Lite Research", version="0.5.11-rc3")
 
     def tool(fn):
         if fn.__name__ not in PUBLIC_TOOLS:
@@ -1949,7 +1966,35 @@ def build_server():
         store.list_run(root(), run_id, limit=1)
         if not method:
             return research_methods.status(root(), run_id)
+        if method == "OPERATOR" and outcome == "not_applicable":
+            import research_bulk
+            groups = research_bulk.venue_groups(root(), run_id=run_id, limit=1)
+            if groups["venues_total"]:
+                raise ValueError("METHOD_OPERATOR_REQUIRED_FOR_VENUES: this Run holds "
+                                 f"{groups['venues_total']} venues; group them by operator or "
+                                 "city with marketops_venue_groups and research the operators")
         return research_methods.record(root(), run_id, method, outcome, note)
+
+    @tool
+    def marketops_venue_groups(run_id: str, by: str = "operator", operator_types: list[str] | None = None,
+                               limit: int = 50, import_to_pool: str = "",
+                               country_hint: str = "") -> dict:
+        """The Run's venues grouped by who runs them, largest groups first; no network.
+
+        A venue's decision-makers usually sit at its operator: the municipality's
+        sports department for public venues, the company or association otherwise.
+        Map operator/operator_type when importing the inventory (marketops_pool_import
+        mapping), then group here. by='operator' uses that field; by='city' groups
+        municipal venues by town (pass operator_types with the source's municipal
+        values, e.g. ['Commune']). import_to_pool=<pool_id> adds the largest uncovered
+        groups as organisation targets; research them with marketops_harvest_batch.
+        """
+        import research_bulk
+        store.list_run(root(), run_id, limit=1)
+        return research_bulk.venue_groups(root(), run_id=run_id, by=by,
+                                          operator_types=operator_types, limit=limit,
+                                          import_to_pool=import_to_pool,
+                                          country_hint=country_hint)
 
     @tool
     def marketops_crawl4ai_check(run_id: str = "", repair: bool = False) -> dict:
@@ -2173,7 +2218,7 @@ def build_server():
             raise ValueError("EXPERIENCE_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT")
         output.parent.mkdir(parents=True, exist_ok=True)
         return draft_experience(r, run_id=run_id, scope=scope,
-                                rule_version=rule_version, skill_version="0.5.11-rc2",
+                                rule_version=rule_version, skill_version="0.5.11-rc3",
                                 output=output)
 
     @tool

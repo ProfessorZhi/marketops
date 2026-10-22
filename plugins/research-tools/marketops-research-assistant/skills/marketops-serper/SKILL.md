@@ -30,3 +30,9 @@ retried through another route.
 
 **When it runs out**: "not enough credits" marks Serper out; `marketops_search(provider='all')`
 then asks SerpApi instead and TinyFish search keeps running. Tell the user to top up Serper.
+
+**Keep `site:` queries simple.** One phrase per query: `site:example.fr directeur`, not
+`site:example.fr (partenariats OR commercial OR directeur) email`. The engine sometimes ignores
+`site:` on long boolean queries and returns unrelated pages; the Paris run got Gmail and US Senate
+contact pages. The merged search drops off-site hits (`off_site_results_dropped`). To read one
+site thoroughly, use `marketops_site_harvest` instead of searching it.
