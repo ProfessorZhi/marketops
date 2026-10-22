@@ -289,3 +289,9 @@ class DeliveryGrades(unittest.TestCase):
         with (folder / "本轮说明.csv").open(encoding="utf-8-sig", newline="") as handle:
             notes = {r["字段"]: r["值"] for r in csv.DictReader(handle)}
         self.assertIn("A+B 去重人数", notes)
+        with (folder / "contact-pack" / "C_D_business_routes.csv").open(encoding="utf-8-sig") as handle:
+            pack = list(csv.DictReader(handle))
+        self.assertEqual(("C", "grounds@example.org"), (pack[0]["grade"], pack[0]["email"]))
+        self.assertTrue(pack[0]["quote"] and pack[0]["source_sha256"])
+        self.assertIn("contact-pack/A_B_named_role_emails.csv", manifest["files"])
+        self.assertIn("Research_Result.xlsx", manifest["files"])

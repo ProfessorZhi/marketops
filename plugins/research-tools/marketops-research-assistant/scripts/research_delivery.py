@@ -1037,7 +1037,31 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
         "来源与查询": source_rows, "候选数据审计": audit_rows,
     }
     sheets = [_table(name, collected[name]) for name, _ in TABLES]
+    org_names = {o["entity_key"]: _plain(o["data"].get("name")) for o in organizations}
+    pack_rows = []
+    for candidate in contacts:
+        verdict = grades.get(candidate["record_id"])
+        if not verdict:
+            continue
+        fact = candidate["data"]
+        claim = next((c for c in fact.get("claims") or () if isinstance(c, dict)), {})
+        asset = assets.get(str(claim.get("artifact_id", ""))) or {}
+        org_key = _field_text(fact, "organization_id")
+        pack_rows.append((
+            verdict["grade"], org_key or "UNKNOWN", org_names.get(org_key, "UNKNOWN"),
+            _plain(verdict.get("person_name") or fact.get("person_name") or ""),
+            _plain(fact.get("role_title") or fact.get("role_function") or fact.get("department") or ""),
+            verdict.get("role_class") or "", str(fact.get("value", "")).strip(),
+            "; ".join(verdict["reasons"]), asset.get("url", ""), _plain(claim.get("quote", ""))[:600],
+            asset.get("sha256", ""), candidate["record_id"]))
+    pack_rows.sort(key=lambda r: ({"A": 0, "B": 1, "C": 2, "D": 3, "X": 4}.get(r[0], 5), r[1]))
+    no_route = []
+    for target in sources.run_targets(root, run_id):
+        if target["status"] in {"hold", "excluded"}:
+            no_route.append((target["name"], target["website"], target["address"],
+                             target["status"].upper(), target["reason"], target["source_id"]))
     return sheets, {
+        "_contact_pack": {"routes": pack_rows, "no_route": no_route},
         "run_id": run_id, "scope": run["scope"], "rule_version": run["rule_version"],
         "status": "PARTIAL_CANDIDATE_ONLY_NOT_FORMAL_CONTACTS",
         "counts": {name: len(collected[name]) for name, _ in TABLES},
@@ -1087,11 +1111,17 @@ def _readback_xlsx(path: Path, sheets: list[Sheet]) -> None:
                 raise ValueError(f"XLSX_HEADER_MISMATCH:{sheet.name}")
 
 
+CONTACT_PACK_HEADERS = ("grade", "organisation_id", "organisation", "person", "role",
+                        "role_class", "email", "grade_reasons", "source_url", "quote",
+                        "source_sha256", "record_id")
+
+
 def write_delivery(data_root: Path | str | None, run_id: str, delivery_id: str) -> dict:
     root = _root(data_root)
     store._id(run_id, "run_id")
     store._id(delivery_id, "delivery_id")
     sheets, manifest = build_delivery(root, run_id)
+    pack = manifest.pop("_contact_pack")
     destination = root / "exports" / run_id / delivery_id
     if destination.exists():
         raise FileExistsError("DELIVERY_ID_ALREADY_EXISTS: exports are immutable")
@@ -1113,6 +1143,27 @@ def write_delivery(data_root: Path | str | None, run_id: str, delivery_id: str) 
                 if sum(1 for _ in csv.reader(handle)) != len(sheet.rows) + 1:
                     raise ValueError(f"CSV_READBACK_COUNT_MISMATCH:{sheet.name}")
             files.append(filepath)
+        # The contact pack: one file per grade family, the shape outreach teams
+        # work from (A/B is the KPI; C/D are entry points; X and no-route explain
+        # what was left out). Every row carries its page, quote and hash.
+        pack_dir = staging / "contact-pack"
+        pack_dir.mkdir()
+        pack_files = {
+            "A_B_named_role_emails.csv": [r for r in pack["routes"] if r[0] in {"A", "B"}],
+            "C_D_business_routes.csv": [r for r in pack["routes"] if r[0] in {"C", "D"}],
+            "X_excluded_or_unrated_routes.csv": [r for r in pack["routes"]
+                                                 if r[0] not in {"A", "B", "C", "D"}],
+        }
+        for name, rows in pack_files.items():
+            with (pack_dir / name).open("x", encoding="utf-8-sig", newline="") as handle:
+                writer = csv.writer(handle)
+                writer.writerow(CONTACT_PACK_HEADERS)
+                writer.writerows(rows)
+        with (pack_dir / "no_route_targets.csv").open("x", encoding="utf-8-sig", newline="") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(("target", "website", "address", "status", "reason", "source"))
+            writer.writerows(pack["no_route"])
+        files += sorted(pack_dir.iterdir())
         # The client view is not a caller's optional post-processing step. It is
         # generated from the *already filtered* business sheets inside this
         # transaction, so a caller cannot hand-write a friendlier view, and a
@@ -1136,7 +1187,7 @@ def write_delivery(data_root: Path | str | None, run_id: str, delivery_id: str) 
         receipt = {**manifest, "format": "xlsx+csv+manifest",
                    "generated_at": generated_at,
                    "files": {
-                       **{f.name: {
+                       **{str(f.relative_to(staging)): {
                            "bytes": f.stat().st_size,
                            "sha256": hashlib.sha256(f.read_bytes()).hexdigest()
                        } for f in files},

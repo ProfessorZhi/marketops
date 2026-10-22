@@ -35,7 +35,10 @@ read the databases or plugin code; the handoff applies the evidence gate you wou
 3. **Check.** `marketops_evidence_audit(run_id)`; on hosts with subagents, run `research-verifier`
    on a sample (all A/B rows if fewer than 20). Fix or HOLD what fails.
 4. **Checkpoint or finish.** `marketops_handoff(run_id, operation_id, mode='auto')` writes the nine-sheet XLSX, CSVs,
-   manifest, client-view files (business rows only) and the experience draft. A `PARTIAL_HANDOFF_*`
+   manifest, client-view files (business rows only), the experience draft and `contact-pack/`:
+   `A_B_named_role_emails.csv` (the KPI rows), `C_D_business_routes.csv`, excluded/unrated
+   routes and `no_route_targets.csv`, each row with its page, quote and SHA-256. Point the user
+   to the contact pack first. A `PARTIAL_HANDOFF_*`
    status is reported as partial, never as clean. Inspect `is_final` and `execution`:
    `CHECKPOINT_RESEARCH_NOT_FINISHED` / `continuation_required=true` means save the
    file, follow `execution.next_action`, and continue the same task. Pending or

@@ -29,7 +29,8 @@ from pathlib import Path
 import research_grading as grading
 import research_workflow as workflow
 
-__all__ = ["PARK_REASON", "settings", "graded", "yields", "park_stopped", "finished_targets"]
+__all__ = ["PARK_REASON", "settings", "graded", "yields", "park_stopped", "finished_targets",
+           "run_targets"]
 
 PARK_REASON = "SOURCE_YIELD_STOP"
 DEFAULTS = {"pilot": 30, "promote": 0.10, "stop": 0.05}
@@ -100,6 +101,17 @@ def _pool_rows(root, run_id: str) -> list[tuple]:
 
 def _finished(status: str, reason: str) -> bool:
     return status in {"done", "hold"} and not str(reason).startswith(PARK_REASON)
+
+
+def run_targets(root, run_id: str) -> list[dict]:
+    """Every pool target this Run touched, for the no-route list of a delivery."""
+    path = Path(root) / "state" / "research-pool.sqlite3"
+    if not path.is_file():
+        return []
+    with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)) as db:
+        rows = db.execute("SELECT name, website, address, status, reason, source_id "
+                          "FROM pool_targets WHERE run_id=? ORDER BY source_id, name", (run_id,)).fetchall()
+    return [dict(zip(("name", "website", "address", "status", "reason", "source_id"), r)) for r in rows]
 
 
 def finished_targets(root, run_id: str) -> int:
