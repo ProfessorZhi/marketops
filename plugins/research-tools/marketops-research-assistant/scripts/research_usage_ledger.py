@@ -1476,9 +1476,12 @@ class UsageLedger:
                     f"{crossing['operation_id']} over {crossing['transport']}; a second "
                     "transport reaches the same vendor account and is a route change, "
                     "not a second budget")
+            # An attempt refused before it was sent (NO_CHARGE_PROVEN) holds no claim:
+            # a live Run asked for "places", was refused for the mode name, and could
+            # never run that query again after the cause was fixed.
             duplicate = db.execute(
                 "SELECT operation_id, transport, charge_state FROM operations "
-                "WHERE project=? AND run_id=? AND op_signature=?",
+                "WHERE project=? AND run_id=? AND op_signature=? AND charge_state<>'NO_CHARGE_PROVEN'",
                 (request.project, request.run_id, signature)).fetchone()
             if duplicate is not None:
                 raise LedgerRefused(

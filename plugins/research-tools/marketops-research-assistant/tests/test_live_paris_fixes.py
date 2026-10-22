@@ -75,5 +75,20 @@ class QuietHttpLogs(unittest.TestCase):
         self.assertGreaterEqual(logging.getLogger("httpx").level, logging.WARNING)
 
 
+
+
+class MapListingNames(unittest.TestCase):
+    def test_a_listing_title_finds_the_name_the_site_uses(self):
+        import research_site_harvest as harvest
+        self.assertIn("Arkose Nanterre Arboretum",
+                      harvest.name_variants("Arkose Nanterre Arboretum - Salle d'escalade"))
+        self.assertEqual("Arkose", harvest.host_bound_name("Arkose Issy-les-Moulineaux",
+                                                           "https://arkose.com/issy"))
+        self.assertEqual("Climb Up", harvest.host_bound_name("Climb Up Epinay",
+                                                             "https://epinay.climb-up.fr/"))
+        self.assertEqual("", harvest.host_bound_name("Gymnase Japy", "https://www.paris.fr/x"))
+        self.assertEqual("Rumst", harvest.host_bound_name("Gemeente Rumst", "https://www.rumst.be"))
+
+
 if __name__ == "__main__":
     unittest.main()

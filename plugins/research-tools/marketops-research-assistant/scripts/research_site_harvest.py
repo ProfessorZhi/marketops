@@ -213,6 +213,11 @@ def name_variants(name: str) -> list[str]:
     ("X Football Club" -> "X FC"), or drop the type word ("X Football")."""
     base = re.sub(r"\s+", " ", name).strip(" ,.")
     out = [base]
+    # Map listings append a place or a description: "Brand Nanterre - Salle d'escalade",
+    # "Brand | Padel". The part before the separator is how the site names itself.
+    head = re.split(r"\s+[-–—|:]\s+|\s*\(", base, maxsplit=1)[0].strip(" ,.")
+    if head and head != base:
+        out.append(head)
     for article in _ARTICLES:
         if base.casefold().startswith(article):
             out.append(base[len(article):])
@@ -255,10 +260,16 @@ def host_bound_name(name: str, page_url: str) -> str:
     own host carries it (rumst.be). A single word binds only with that support."""
     words = [w for w in re.findall(r"[^\W_]+(?:-[^\W_]+)*", name)
              if w.casefold() not in _BODY_WORDS]
-    if len(words) != 1 or len(words[0]) < 4:
-        return ""
     host = (urlsplit(page_url).hostname or "").casefold().replace("-", "")
-    return words[0] if words[0].casefold().replace("-", "") in host else ""
+    if len(words) == 1:
+        return words[0] if len(words[0]) >= 4 and words[0].casefold().replace("-", "") in host else ""
+    # A brand followed by a place, as map listings name a chain's site ("Arkose
+    # Nanterre", "Climb Up Epinay"): the longest leading words the host spells out.
+    for width in range(min(3, len(words)), 0, -1):
+        brand = "".join(words[:width]).casefold().replace("-", "")
+        if len(brand) >= 4 and brand in host:
+            return " ".join(words[:width])
+    return ""
 
 
 def _acronym_quote(text: str, name: str) -> tuple[str, str]:
