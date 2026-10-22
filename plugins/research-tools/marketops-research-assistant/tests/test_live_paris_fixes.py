@@ -98,5 +98,14 @@ class EmailExtraction(unittest.TestCase):
         self.assertEqual(["jean.dupont@ville.fr"], values)
 
 
+class TrackingParameters(unittest.TestCase):
+    def test_map_links_lose_their_tracking_tags(self):
+        import research_pool
+        self.assertEqual("https://www.lefive.fr/nos-centres/25/creteil",
+                         research_pool._without_tracking(
+                             "https://www.lefive.fr/nos-centres/25/creteil?utm_source=google&utm_medium=x"))
+        self.assertEqual("https://x.fr/p?id=3", research_pool._without_tracking("https://x.fr/p?id=3&gclid=9"))
+
+
 if __name__ == "__main__":
     unittest.main()
