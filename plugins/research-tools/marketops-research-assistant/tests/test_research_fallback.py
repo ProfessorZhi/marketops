@@ -67,6 +67,17 @@ class FallbackTests(unittest.TestCase):
         self.assertFalse(result["business_verified"])
         self.assertTrue(result["artifact_ids"])
 
+    def test_money_cap_keeps_free_discovery_available_without_trying_other_paid_routes(self):
+        import research_runtime_setup as runtime
+        import research_spending as spending
+        runtime.configure(self.root, providers=["serper", "serpapi", "tinyfish"], domains=["example.org"],
+                          max_calls=1, task="synthetic monetary fallback", confirm=True)
+        spending.configure(self.root, confirm=True, observations={})
+        self.answers["serper.search"] = {"status": "BLOCKED", "reason_code": "BUDGET_PROJECT_CEILING"}
+        result = self.step()
+        self.assertEqual("SUCCESS_CANDIDATE", result["status"])
+        self.assertEqual(["serper.search", "tinyfish.search"], [x["capability_id"] for x in self.calls])
+
     def test_unselected_and_unavailable_candidates_skip_without_dispatch(self):
         self.decisions["serper.search"] = {"allowed": False, "reason_code": "POLICY_TIER_NOT_GRANTED"}
         self.decisions["serpapi.search"] = {"allowed": False, "reason_code": "CAPABILITY_SCHEMA_DRIFT"}
