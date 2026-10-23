@@ -537,6 +537,13 @@ def test_the_criterion_sees_the_composition_roots() -> None:
     逐字同一条；点名的理由是「一次受理」那一趟的实现本身就住在适配层
     （``adapters/mcp_server/runs.py::_preamble``），入口层点它，与
     ``mcp/__main__.py`` 点 ``build_server`` 是同一个动作。
+
+    ``dispatch_runner.py`` 是第七个：它 ``from marketops.adapters.local_board import
+    LocalBoardDispatcher``（见证链 ``-> adapters.sqlite.db -> sqlite3``）、
+    ``adapters/dispatch_outcomes`` 与 ``adapters.sqlite.jobs``。与 ``controller.py``
+    同一条理由 —— 什么时候醒、跑几轮、间隔多少是**这个部署**的性质，不是业务规则；
+    而它读的是与派发完全同一张板，所以那处点名不能搬到 ``application/`` 里，
+    否则「谁在领」会有两个答案。
     """
     sites = _vendor_adapter_import_sites(_scanned_files(), _vendor_adapter_closure())
     named = {path.relative_to(REPO_ROOT).as_posix() for path, _ in sites}
@@ -548,11 +555,13 @@ def test_the_criterion_sees_the_composition_roots() -> None:
     assert "marketops/interfaces/research_worker.py" in named
     assert "marketops/interfaces/controller.py" in named
     assert "marketops/interfaces/trigger_driver.py" in named
+    assert "marketops/interfaces/dispatch_runner.py" in named
     outside = {name for name in named if not name.startswith("marketops/adapters/")}
     assert outside == {
         "marketops/interfaces/cli.py",
         "marketops/interfaces/composition.py",
         "marketops/interfaces/controller.py",
+        "marketops/interfaces/dispatch_runner.py",
         "marketops/interfaces/mcp/__main__.py",
         "marketops/interfaces/research_worker.py",
         "marketops/interfaces/trigger_driver.py",
