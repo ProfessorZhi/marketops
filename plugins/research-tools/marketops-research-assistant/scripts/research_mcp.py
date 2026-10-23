@@ -2069,8 +2069,6 @@ def build_server():
         Jev tags each email with who it reaches (roles from roles_wanted or the
         brief's roles_wanted); read the page only for low-confidence tags.
         """
-        import research_fallback
-        import research_runtime_setup
         import research_site_harvest
         data_root = root()
         _require_brief_for_network(data_root, run_id)

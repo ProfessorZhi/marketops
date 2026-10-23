@@ -163,6 +163,21 @@ class HarvestWithJev(unittest.TestCase):
         self.assertTrue(all(d["admitted"] for d in harvest_admission(self.root, result)),
                         harvest_admission(self.root, result))
 
+    def test_clubs_are_staged_when_the_site_name_is_not_on_the_page(self):
+        import research_site_harvest as harvest
+        jev = Fake({"contact@tc-invalides": ("org_1", 0.93)})
+        result = harvest.harvest(self.root, run_id="jev-run", operation_id="h2",
+                                 organization_name="Ville de Nulle Part", organization_key="org-nowhere",
+                                 url=self.HOME, fetch=self.fetch, max_pages=1, jev_ask=jev)
+        self.assertIsNone(result["identity"])
+        records = self.store.list_run(self.root, "jev-run")["records"]
+        orgs = {r["entity_key"] for r in records if r["kind"] == "organization"}
+        self.assertNotIn("org-nowhere", orgs)
+        values = {r["data"]["value"] for r in records if r["kind"] == "contact_point"}
+        self.assertIn("bcp7@orange.fr", values)
+        self.assertNotIn("sports7@paris.fr", values)  # the site's own route waits for its identity
+        self.assertTrue(all(d["admitted"] for d in harvest_admission(self.root, result)))
+
     def test_a_sure_out_of_scope_site_is_not_staged(self):
         result = self.harvest(Fake({"Research target": ("out_of_scope", 0.97)}),
                               question="Research target: natural-grass pitch operators in Paris.")

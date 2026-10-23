@@ -549,16 +549,21 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
     if not identity:
         result["next_action"] = ("NAME_NOT_FOUND_ON_SITE: check the published name or the URL; "
                                  "without an identity quote no route can bind to this organisation")
-    if not write or not identity:
+    # Clubs split from a list page carry their own quotes: they are staged even when
+    # the site's own name is not on the page; the site's own routes are not.
+    listed_only = not identity and any(r.get("directory_org") for r in result["routes"])
+    if not write or not (identity or listed_only):
         return result
 
     items = []
-    if not _exists(root, run_id, "entity_key", organization_key, kind="organization"):
+    if listed_only:
+        result["routes"] = [r for r in result["routes"] if r.get("directory_org")]
+    if identity and not _exists(root, run_id, "entity_key", organization_key, kind="organization"):
         existing = _same_organization(root, run_id, name, url, organization_key)
         if existing:
             result["merged_into_organization_key"] = existing
             organization_key = result["organization_key"] = existing
-    if not _exists(root, run_id, "entity_key", organization_key, kind="organization"):
+    if identity and not _exists(root, run_id, "entity_key", organization_key, kind="organization"):
         items.append({"record_id": _record_id(run_id, organization_key, "org"), "stage": "entities",
                       "kind": "organization", "entity_key": organization_key,
                       "facts": {"name": identity["published_name"], "website": url,
