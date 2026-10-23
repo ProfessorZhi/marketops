@@ -10,7 +10,7 @@
 
 | 客户端 | 安装命令 | 权威文档 | 验证状态 |
 |---|---|---|---|
-| **Claude Code** | `setup_clients.py --client claude --apply --bootstrap-runtime` | `references/CUSTOMER_QUICKSTART.md` | 有安装回执 |
+| **Claude Code** | `/plugin install marketops-research-assistant --marketplace ProfessorZhi/marketops`；或 `setup_clients.py --client claude --apply --bootstrap-runtime` | `references/CUSTOMER_QUICKSTART.md` | 有安装回执 |
 | **Codex** | 同上 `--client codex`；另可 `--register-codex` 自动加 marketplace 并装插件 | `client-projections/codex/install.md` | 有安装回执 |
 | **WorkBuddy** | 同上 `--client workbuddy`；导入须在客户端内完成 | `client-projections/workbuddy/install.md` | **unverified** —— 该文档自己写着，未在任何机器上跑过 |
 
@@ -55,5 +55,5 @@ python scripts/client_install_probe.py # 客户端配置是否落到它真正会
 - **Claude Code 的版本号三处必须一致**：`plugin.json` 的 `version` 是权威，它没递增时
   `claude plugin update` 会判定「已是最新」并静默什么都不做。
 - **WorkBuddy 的导入在客户端里完成**：安装器只写文件，导入动作不归它管。
-- **本仓库还没有 LICENSE 文件**：公开仓库在无许可证时默认「保留所有权利」，
-  分发前需要先定许可。
+- **许可证是 MIT**（仓库根 `LICENSE`）。无许可证时公开仓库默认「保留所有权利」，
+  装上也不能合法转发；本仓库已不再是那个状态。
