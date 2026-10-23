@@ -15,7 +15,7 @@ import research_batch as batch
 import research_pool as pool
 import research_execution as execution
 import research_lite_store as store
-import test_rc6_pool as pool_tests
+import test_workflow_pool as pool_tests
 
 
 class Continuation(unittest.TestCase):

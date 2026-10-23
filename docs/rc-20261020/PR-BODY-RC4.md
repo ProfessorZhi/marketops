@@ -37,7 +37,7 @@ The old rows are never updated or deleted, caller facts are never rewritten, and
 there is no cascade. The seven Essex reviews that used a new entity_key are
 refused at write time instead of surfacing as seven export conflicts.
 
-Controls: 17 tests (`test_rc4_supersedes_write_guard.py`), including the exact
+Controls: 17 tests (`test_grading_supersedes_write_guard.py`), including the exact
 Essex shape, legal same-entity corrections, cross-run/unknown/kind/stage/target
 mismatches, non-tip parent, duplicate disposition, idempotency, batch rollback,
 concurrent corrections and an existing historical fork left untouched.
@@ -59,7 +59,7 @@ new one. A successful fetch or attached artifact is **not** a verified field.
 The budget snapshot reads the runtime-config managed ceiling first and only then
 the legacy env; an unreadable value stays `None`, never a false 0.
 
-Controls: 15 tests (`test_rc4_source_selection.py`) plus the `marketops_next`
+Controls: 15 tests (`test_workflow_source_selection.py`) plus the `marketops_next`
 exposure assertion.
 
 ## Verification (offline; real provider calls = 0)

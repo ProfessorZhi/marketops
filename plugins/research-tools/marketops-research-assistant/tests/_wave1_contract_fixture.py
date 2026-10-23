@@ -7,7 +7,7 @@ W-B, and the real `ProviderAdapter` Protocol in `scripts/research_adapter_base.p
 Both have since landed, so the fixture's remaining job is narrower than it was:
 it lets the gateway's unit tests run without the real registry table, policy or
 ledger, and it keeps them measuring the gateway rather than a vendor. It is still
-not a second source of truth — `tests/test_wave1_integration_seam.py` compares
+not a second source of truth — `tests/test_gateway_integration_seam.py` compares
 every field name here against the module that now owns it, so a shape change in
 W-B's code turns this fixture red instead of letting the two drift together.
 
@@ -110,7 +110,7 @@ class PolicyDecision:
 # authority. A fixture that supplied a plausible `Reservation` would have let the
 # gateway's integration tests agree with a type nothing in the product has — the
 # fixture and the code would have drifted together, invisibly. The drift test in
-# `test_wave1_integration_seam.py` pins this gap by name.
+# `test_gateway_integration_seam.py` pins this gap by name.
 
 
 @dataclass(frozen=True)

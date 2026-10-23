@@ -120,7 +120,7 @@ XLSX 工作表名与状态标志；篡改任一文件会报 `MANIFEST_HASH_MISMA
 ## 7. 集成注意（交给 Lane A / 集成者）
 
 - 本 Lane 只拥有 `scripts/research_client_view.py`、
-  `tests/test_client_view_generation.py`、本文件。
+  `tests/test_delivery_client_view_generation.py`、本文件。
 - `scripts/build_client_bundles.py` 的脚本拷贝清单目前**没有**包含
   `research_client_view.py`；集成时必须由 Lane A/集成者在打包清单里补上，
   否则客户端包里没有这个 helper。本 Lane 不修改该文件。
@@ -129,5 +129,5 @@ XLSX 工作表名与状态标志；篡改任一文件会报 `MANIFEST_HASH_MISMA
   不要跳过正式过滤直接把 `build_delivery` 的九张表全量传入（其中
   `排除与待确认` 会含 HOLD/冲突标记，本 helper 会拒绝）。
 - 测试：
-  `python tests/test_client_view_generation.py -v`
+  `python tests/test_delivery_client_view_generation.py -v`
   （仅标准库 + `_xlsx`，离线，不依赖 MCP/Provider）。

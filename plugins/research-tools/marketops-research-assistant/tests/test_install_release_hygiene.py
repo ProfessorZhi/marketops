@@ -57,7 +57,7 @@ class ReleaseVersionTests(unittest.TestCase):
 
 
 class RedactionFixtureTests(unittest.TestCase):
-    FIXTURE = ROOT / "tests" / "test_client_view_generation.py"
+    FIXTURE = ROOT / "tests" / "test_delivery_client_view_generation.py"
     CONFIG = ROOT.parents[2] / ".gitleaks.toml"
 
     def test_private_key_header_is_inline_allowlisted_and_invalid(self):
@@ -77,13 +77,13 @@ class RedactionFixtureTests(unittest.TestCase):
     def test_gitleaks_allowlist_is_path_and_match_scoped(self):
         text = self.CONFIG.read_text(encoding="utf-8")
         block = re.search(
-            r"description = \"[^\"]*test_client_view_generation[^\"]*\"\n"
+            r"description = \"[^\"]*test_delivery_client_view_generation[^\"]*\"\n"
             r"paths = \[\'\'\'([^\']+)\'\'\'\]\n"
             r"regexTarget = \"line\"\n"
             r"regexes = \[\'\'\'([^\']+)\'\'\'\]",
             text)
         self.assertIsNotNone(block, "no path/match allowlist for the key fixture")
-        self.assertIn(r"test_client_view_generation\.py", block.group(1))
+        self.assertIn(r"test_delivery_client_view_generation\.py", block.group(1))
         self.assertIn("PRIVATE KEY", block.group(2))
         self.assertNotRegex(text, r"(?m)^paths = \[.*\*\*.*\]$",
                             "a repo-wide allowlist would weaken the scan")

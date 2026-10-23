@@ -2455,7 +2455,7 @@ def refusal_disposition(code: str) -> tuple[str, str]:
     arriving as ``ContractViolation: ... code outside the closed set: None`` because
     the ledger's vocabulary and the contract's were two different vocabularies that
     overlapped in one code. A caller that asks here gets one answer, and it cannot
-    drift from the codes the module actually raises (``test_wave1_ledger_refusals``
+    drift from the codes the module actually raises (``test_billing_ledger_refusals``
     pins the two together).
     """
     if not isinstance(code, str) or not code:

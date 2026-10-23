@@ -56,14 +56,14 @@ adapter 结果**必须支持属性访问**：gateway 用 `getattr(result,"outcom
 ```bash
 cd plugins/research-tools/marketops-research-assistant
 PY=/home/operator/toolchains/marketops-research-plugin-e2e/bin/python
-$PY -m unittest tests.test_wave6_adapter_conformance tests.test_wave3_sample_dataset \
+$PY -m unittest tests.test_gateway_adapter_conformance tests.test_wave3_sample_dataset \
                      tests.test_wave3_negative tests.test_wave3_e2e_audit \
-                     tests.test_wave2_ledger_bridge tests.test_wave2_quality_scorecard \
-                     tests.test_wave2_quality_recheck tests.test_wave2_jev_refusal_channel \
-                     tests.test_wave1_jev_adapter tests.test_wave1_evidence_provenance
+                     tests.test_billing_ledger_bridge tests.test_delivery_quality_scorecard \
+                     tests.test_delivery_quality_recheck tests.test_jev_refusal_channel \
+                     tests.test_jev_adapter tests.test_grading_evidence_provenance
 ```
 
-- **205 条**（2026-10-18 实测；命令里再加入 `tests.test_wave6_adapter_conformance`），
+- **205 条**（2026-10-18 实测；命令里再加入 `tests.test_gateway_adapter_conformance`），
   在 typesafe-sdk **0.7.1** 与 **0.7.5** 上均 `OK`（0.7.1 多一条 Box 的 skip）。
 - 判据要**绑 exact code SHA**：本轮为 `feat/marketops-capgateway-jev-evidence-20261017` 的提交，
   分支头请用 `git ls-remote --heads origin <branch>` 读。
@@ -104,7 +104,7 @@ baseline 两种拼写都认。
 
 **实测收据（在 `479f428` 的树里跑）：** `research_wiring.probe()` → `WORKERS_PRESENT`、
 `missing_by_owner {}`；`assemble_adapters()` 的 `failures {}` 且 **五家全部 built**，
-`typesafe_jev` 的 `provider == 'typesafe_jev'`；`tests.test_wave6_adapter_conformance` **20 条 OK**（零 skip）。
+`typesafe_jev` 的 `provider == 'typesafe_jev'`；`tests.test_gateway_adapter_conformance` **20 条 OK**（零 skip）。
 
 ## 7. 证据链工作簿（2026-10-18 新增，F 自有 `research_delivery.py`）
 
@@ -132,7 +132,7 @@ delivery.write_evidence_workbook(root, run_id, delivery_id,
 `project` 名；`reviews` 由人工复核步骤产生（默认空 = 全部 blocked）。
 
 **本轮实测（在集成产品码 `be7f3e8` 的树里，用真 B 账本）：**
-`tests.test_wave7_evidence_workbook` **20 条 OK**（三形状：默认/已批准/无支撑）。
+`tests.test_delivery_evidence_workbook` **20 条 OK**（三形状：默认/已批准/无支撑）。
 
 **仍然不是 LIVE：** 三个机构、三个页面、三个 claim 全部是合成的；无网络、无凭据、
 无厂商调用、无模型调用、无客户数据。它证明的是链路与闸门，不是调研质量。

@@ -566,7 +566,7 @@ class TestCrashSafety(LedgerCase):
             "import sys, os",
             f"sys.path.insert(0, {str(ROOT / 'scripts')!r})",
             f"sys.path.insert(0, {str(Path(__file__).resolve().parent)!r})",
-            "import test_research_usage_ledger as t",
+            "import test_billing_usage_ledger as t",
             f"ledger = t.open_ledger({str(self.path)!r}, t.Clock())",
             "ledger.set_cap('run', 'devon/run-01', ceiling_micros=2000000,"
             " ceiling_calls=10, ceiling_seconds=3600, source='test-operator')",

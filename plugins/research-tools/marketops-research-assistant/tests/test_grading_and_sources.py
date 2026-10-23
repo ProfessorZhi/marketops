@@ -339,7 +339,7 @@ class DeliveryGrades(unittest.TestCase):
     def test_the_workbook_shows_code_grades_and_the_kpi(self):
         import csv
         import json
-        import test_research_delivery as fixture
+        import test_delivery_research_delivery as fixture
         import research_delivery as delivery
         case = fixture.CandidateDeliveryE2E("test_delivers_real_xlsx_with_9_sheets_and_evidence")
         case.setUp()

@@ -96,9 +96,9 @@ RULE_CARRIER_FILES: frozenset[str] = frozenset(
         # 一个是 win32 分支的路径断言本身。它们必须写下盘符路径 —— 否则「Windows
         # 上配置放在哪」既没法举例也没法测，删掉它等于删掉这项支持。
         "plugins/research-tools/marketops-research-assistant/references/mcp.windows.example.json",
-        "plugins/research-tools/marketops-research-assistant/tests/test_research_config.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_install_config.py",
         # Native Windows containment/case-folding regression requires real drive paths.
-        "plugins/research-tools/marketops-research-assistant/tests/test_windows_config_contract.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_install_windows_config_contract.py",
     }
 )
 

@@ -49,7 +49,7 @@
 
 ## B-06 D 的测试尚未提交
 
-- Lane D 工作树已有未跟踪的 `tests/test_serpapi_cross_transport_no_double_charge.py`，
+- Lane D 工作树已有未跟踪的 `tests/test_billing_serpapi_no_double_charge.py`，
   但 HEAD 仍在基线，尚未提交。
 - 结论：`check_release_gate.py` 按意图自动发现 `test_*` 中含
   `transport` / `double_charge` / `dedup` / `reserve` 的文件；找不到即
@@ -79,7 +79,7 @@
 
 ## B-10 B 的测试夹具含合成私钥字符串（REVIEW，非泄露）
 
-- `tests/test_client_view_generation.py:205` 含一个 RSA 私钥头 + `MIIBsynthetic`
+- `tests/test_delivery_client_view_generation.py:205` 含一个 RSA 私钥头 + `MIIBsynthetic`
   的合成夹具字符串，用于测试 helper 拒绝私钥材料；本文档刻意不复制该密钥头原文。
 - 判定：路径在 `tests/` 且正文含 `synthetic`，门禁记为
   `PRIVATE_KEY_SYNTHETIC_TEST_FIXTURE`（REVIEW），不是 FAIL。正文不是可用密钥。

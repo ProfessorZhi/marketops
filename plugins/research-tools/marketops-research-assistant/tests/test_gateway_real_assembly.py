@@ -242,7 +242,7 @@ class ReviewedVocabularyTests(unittest.TestCase):
         could not be called as `execute(request)`. W-F fixed that (`9cb1ea4`), so
         the same rule now asserts the other branch: every reviewed provider is in
         the routing table and nothing is recorded as a failure. The exclusion
-        branch is still exercised by `test_wave1_integration_seam.py`, which
+        branch is still exercised by `test_gateway_integration_seam.py`, which
         branches on the measured conformance rather than on this provider.
         """
         built = wiring.assemble_adapters(registry=registry_module.DEFAULT_REGISTRY)

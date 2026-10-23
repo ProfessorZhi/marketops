@@ -15,7 +15,7 @@ RC3 base：`38dcef853f526f64f669c475c96ad9c3bad3ad47`（H）。
 | R1 | release manifest / hash 可复核，既有 0.5.5/rc1 zip 不被覆盖 | 集成 | G7：`build_source()` 到仓库外；逐文件哈希、`.sha256`、zip 哈希一致 | PASS（hygiene gate；version `0.5.6-rc5`；未覆盖任何旧 ZIP） |
 | R2 | 真正自动生成客户视图 | A+B+I | `write_delivery` 内部自动调用 `write_client_view`；顶 MANIFEST 收录 `client-view/*` 哈希 | PASS（hygiene H8：4 admitted / 4 held，8 文件） |
 | R3 | P0 伪造数据绝不进入业务表 | A+Q+I | A 的 admission 测试 + Q 的边界测试 + G6/P0 负例 | PASS（产品 P0 负例全绿；QA #15 冻结夹具 3 红，见 R15） |
-| R4 | 合格样本能进入，而不是被门禁一刀切 | A+I | A 的正例测试 + G6 正例 + 长页 4 条合法正向 | PASS（`test_rc3_evidence_p0.PositiveControls` 4/4） |
+| R4 | 合格样本能进入，而不是被门禁一刀切 | A+I | A 的正例测试 + G6 正例 + 长页 4 条合法正向 | PASS（`test_grading_evidence_p0.PositiveControls` 4/4） |
 | R5 | 安装明确 opt-in | C | G3：无 `--apply` 不落盘；非交互无 destination 被拒；全局 Codex 注册默认 no | PASS（Ran 21 OK） |
 | R6 | SerpApi 不重复 reserve | D | G4：REST 与 embedded 同 signature；同一 operation 只一条 reserve | PASS（Ran 23 OK） |
 | R7 | Jev evidence locator | E | G5：locator 2–60、未命中 `JEV_EVIDENCE_LOCATOR_NO_MATCH`、box 拒绝 | PASS（Ran 19 OK） |
@@ -24,18 +24,18 @@ RC3 base：`38dcef853f526f64f669c475c96ad9c3bad3ad47`（H）。
 | R10 | 不引入私有数据 / 密钥 | 集成 | G9：只扫本分支新增行；私钥/token 为 FAIL，个人邮箱/手机号为 REVIEW | PASS（0 secret-level，1 review-level：已 inline allowlist 的合成测试夹具）；**gitleaks CLI 缺失，不能宣称 gitleaks 通过** |
 | R11 | 基线红如实区分 | 集成 | G8 + `--baseline-failures N`；只有“总数等于声明基线”才记 `BASELINE_RED_NOT_NEW` | PASS（见 §4；23 条与 `main@63a5fe48`、`4f87bc33` 逐条相同） |
 | R12 | 不合并 main / 不发布 / 不付费 / 不外发 | 集成 | PR 保持 Draft；无 Provider key、无真实邮箱；gate 强制网络开关为 0 | 约束已生效（真实 Provider 调用 0） |
-| R13 | F：run/project 次数独立，USD 帽 fail-closed | F+I | `test_runtime_dollar_cap_contract.py` + `test_rc2_integration_seams.py` | PASS（16 + 12 tests） |
-| R14 | G：WebRTC/代理旗标覆盖所有可达 Crawl4AI 入口 | G+I | `test_crawl_browser_webrtc_egress.py` + RC2 接缝负例 | PASS（19 + 12 tests；`_crawl4ai_local` 已加固且无直连回退） |
+| R13 | F：run/project 次数独立，USD 帽 fail-closed | F+I | `test_billing_dollar_cap_contract.py` + `test_gateway_integration_seams_rc2.py` | PASS（16 + 12 tests） |
+| R14 | G：WebRTC/代理旗标覆盖所有可达 Crawl4AI 入口 | G+I | `test_reading_crawl_browser_webrtc_egress.py` + RC2 接缝负例 | PASS（19 + 12 tests；`_crawl4ai_local` 已加固且无直连回退） |
 | R15 | QA #15 在独立夹具升级后 9/9 绿 | Q | `tests/test_customer_delivery_boundary_qa.py`，`MARKETOPS_QA_PLUGIN_ROOT` 指向 RC 插件 | **BLOCKED**：冻结夹具的 venue/contact/person quote 不含组织名+值同跨度，3 个用例失败；未改 QA 工件、未放宽产品核验。需 QA 方升级夹具或提供具名关系 |
-| R16 | 字段级身份支持 | I | 组织/场地 name、人员/岗位每个展示字段必须出现在其 linked quote | PASS（`test_rc3_evidence_p0.FieldSupportTests` 7 tests） |
+| R16 | 字段级身份支持 | I | 组织/场地 name、人员/岗位每个展示字段必须出现在其 linked quote | PASS（`test_grading_evidence_p0.FieldSupportTests` 7 tests） |
 | R17 | 实体/关系级归属 | I | 同页两组织、错绑、共享 artifact、具名 relation | PASS（`BindingTests` 3 tests；长页正向 4/4） |
 | R18 | 自动 client-view + 完整 MANIFEST | I | `write_delivery` / `mcp.handoff` 产出 client-view 与哈希 | PASS（`AutomaticClientViewTests` 3 tests；hygiene H8/H10） |
-| R19 | 独立 QA 门禁（两个报告层） | I | `qa_verified=false` → BLOCKED/NOT_RELEASE_READY；gate `ok=false` | PASS（`test_rc3_release_qa.py` 6 + `test_rc3_release_gate_status.py` 8；hygiene H12 BLOCKED；gate G15 BLOCKED） |
+| R19 | 独立 QA 门禁（两个报告层） | I | `qa_verified=false` → BLOCKED/NOT_RELEASE_READY；gate `ok=false` | PASS（`test_install_release_qa.py` 6 + `test_install_release_gate_status.py` 8；hygiene H12 BLOCKED；gate G15 BLOCKED） |
 | R20 | live public E2E 归属 | I | 真实页面有 org+venue/email 局部跨度则写具名 relationship；否则诚实 HOLD | PASS（`_local_span` 合成单测 3；CI 以新 run 为准，不 skip/xfail） |
-| R21 | 写入时 supersedes 链校验 | I | kind/stage/entity_key/run/目标一致、父版本存在、无 fork/cycle | PASS（`test_rc4_supersedes_write_guard.py` 17 tests；Essex 7 错 key 形状入库即拒） |
-| R22 | 缺口驱动来源选择 | I | 离线 deterministic scorer；marketops_next 暴露；预算/blocked/共享目录 | PASS（`test_rc4_source_selection.py` 15 tests + workflow exposure） |
-| R23 | review supersedes 类型一致 | I | note 不能顶替 target_disposition；单条/batch 原子；合法三段修订 | PASS（`test_rc5_review_type_guard.py` 6 tests；held venue 始终 0） |
-| R24 | rate/phone/contact-binding 证据 | I | 需 linked field + quote 支持值 + 机构归属 | PASS（`test_rc5_source_evidence.py` 10 tests） |
+| R21 | 写入时 supersedes 链校验 | I | kind/stage/entity_key/run/目标一致、父版本存在、无 fork/cycle | PASS（`test_grading_supersedes_write_guard.py` 17 tests；Essex 7 错 key 形状入库即拒） |
+| R22 | 缺口驱动来源选择 | I | 离线 deterministic scorer；marketops_next 暴露；预算/blocked/共享目录 | PASS（`test_workflow_source_selection.py` 15 tests + workflow exposure） |
+| R23 | review supersedes 类型一致 | I | note 不能顶替 target_disposition；单条/batch 原子；合法三段修订 | PASS（`test_grading_review_type_guard.py` 6 tests；held venue 始终 0） |
+| R24 | rate/phone/contact-binding 证据 | I | 需 linked field + quote 支持值 + 机构归属 | PASS（`test_grading_source_evidence.py` 10 tests） |
 
 ## 2. 执行顺序
 

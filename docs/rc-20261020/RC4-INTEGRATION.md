@@ -48,7 +48,7 @@
 合法的同实体 append-only 更正继续通过；新实体应新建候选。
 历史已存在的 fork 不被改写；导出仍按原逻辑保留内审并拒绝选择分支。
 
-测试：`test_rc4_supersedes_write_guard.py` 17 条，覆盖 Essex 7 错 key 形状、
+测试：`test_grading_supersedes_write_guard.py` 17 条，覆盖 Essex 7 错 key 形状、
 review 错 entity_key、跨 run、未知父、kind/stage 不一致、review 换 target、
 无 supersedes 的重复 disposition、父版本非 tip、合法更正、review 更正、
 幂等、批量原子回滚、并发冲突、历史 fork 不改写。
@@ -85,7 +85,7 @@ review 错 entity_key、跨 run、未知父、kind/stage 不一致、review 换 
   `None`（未知），不会误报 0；
 - 预算紧张时先完成最接近完成的候选，不随机发现更多 hall。
 
-测试：`test_rc4_source_selection.py` 15 条（rates/contact/blocked/binding/
+测试：`test_workflow_source_selection.py` 15 条（rates/contact/blocked/binding/
 scarce budget/zero budget/fetch≠verified/unlinked quote/shared directory/
 third-party attribution/workflow 暴露）。
 

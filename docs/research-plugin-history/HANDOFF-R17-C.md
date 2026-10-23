@@ -2,7 +2,7 @@
 
 **From:** W-C · **Branch:** `feat/marketops-capgateway-tinyfish-20261017`
 **Authority used:** `research_capability_registry.py` @ `672447de` (transcribed into
-`tests/test_wave1_tinyfish_registry_alignment.py`, not inferred).
+`tests/test_reading_tinyfish_registry_alignment.py`, not inferred).
 **Q:** Round-17 file copied read-only from `4a5ef3c1`; Q's tests were not modified.
 
 ## R17-D1 — review labels now follow the registry

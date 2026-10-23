@@ -106,9 +106,9 @@ resource_operation_key(provider=, capability_id=, params=)   # 资源读取：ca
 ```bash
 cd plugins/research-tools/marketops-research-assistant
 PY=/home/operator/toolchains/marketops-research-plugin-e2e/bin/python
-$PY -m unittest tests.test_wave1_serp_adapter_contract \
-                  tests.test_wave1_serp_offline_upstreams \
-                  tests.test_wave1_serp_robustness
+$PY -m unittest tests.test_search_serp_adapter_contract \
+                  tests.test_search_serp_offline_upstreams \
+                  tests.test_search_serp_robustness
 ```
 
 **对着真实 Gateway 跑**（我本人跑过的方式；只读借用集成树，不修改）：
@@ -256,8 +256,8 @@ transport 不同不会分叉（CD-02a）；query / country / language / limit / 
 
 ```bash
 PY=/home/operator/toolchains/marketops-research-plugin-e2e/bin/python
-$PY -m unittest tests.test_wave1_serp_identity_contract          # 21 条，9 条在无账本时 skip
-PYTHONPATH=<integration>/scripts $PY -m unittest tests.test_wave1_serp_identity_contract  # 21 条，0 skip
+$PY -m unittest tests.test_search_serp_identity_contract          # 21 条，9 条在无账本时 skip
+PYTHONPATH=<integration>/scripts $PY -m unittest tests.test_search_serp_identity_contract  # 21 条，0 skip
 ```
 
 对着 **B 的真账本**（`UsageLedger` + `CapabilityRegistry` + `PricingCatalog`，临时 sqlite）验证：

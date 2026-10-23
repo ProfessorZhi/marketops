@@ -246,7 +246,7 @@ class CrawlPrimaryMaterialTests(unittest.TestCase):
         import research_adapter_crawl4ai as adapter
         import research_lite_store as store
         import research_delivery as delivery
-        from test_wave1_crawl4ai_adapter import StubEgress
+        from test_reading_crawl4ai_adapter import StubEgress
         from crawl4ai_fixtures import FakeCrawl4AI, FakeCrawlerResult, Request, limits
         html = "<html><body><h1>Public Venue</h1><p>Contact the venue at team@example.org</p></body></html>"
         with tempfile.TemporaryDirectory() as temp:
@@ -279,7 +279,7 @@ class JevDefaultFactoryTests(unittest.TestCase):
     def test_saved_source_to_jev_returns_only_run_owned_artifact_ids(self):
         import research_mcp as mcp
         import research_lite_store as store
-        from test_wave1_jev_adapter import FakeSDK
+        from test_jev_adapter import FakeSDK
         with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {
                 "MARKETOPS_RESEARCH_DATA_ROOT": temp, "MARKETOPS_RESEARCH_ALLOW_NETWORK": "1",
                 "TYPESAFE_API_KEY": "fixture-key"}):

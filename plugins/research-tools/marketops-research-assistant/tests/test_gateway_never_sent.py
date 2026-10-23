@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 import research_adapter_serper as serper  # noqa: E402
 import research_contract as contract  # noqa: E402
-from test_wave1_serp_adapter_contract import Request  # noqa: E402
+from test_search_serp_adapter_contract import Request  # noqa: E402
 
 
 def raising(exc):

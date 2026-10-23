@@ -61,7 +61,7 @@ class TestDualSearch(unittest.TestCase):
                 # These cases are about that path's key handling, budget cap and
                 # redaction once it *is* reachable, so they opt in. The default
                 # is asserted separately in
-                # test_dual_search_serper_contract.SerpApiRestAvailabilityTests.
+                # test_search_serper_contract.SerpApiRestAvailabilityTests.
                 "MARKETOPS_SERPAPI_REST_ENABLE": "1",
             },
         )

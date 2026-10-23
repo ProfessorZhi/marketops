@@ -647,7 +647,7 @@ def main(argv: list[str] | None = None) -> int:
         # two are the same command.
         print(f"prerequisites are met; the harness run itself needs "
               f"{LOCAL_CRAWL_E2E_ENV}=1 and lives in "
-              "tests/test_wave1_crawl4ai_live_local.py")
+              "tests/test_reading_crawl4ai_live_local.py")
     return 0
 
 

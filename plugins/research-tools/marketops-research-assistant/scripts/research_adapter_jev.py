@@ -121,7 +121,7 @@ MAX_LOCATOR_CHARS = 60
 NAME = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
 
 #: The contract's §5.3 closed set. `research_contract.py` (W-B) does not exist yet,
-#: so this is a transcription; `test_wave2_jev_refusal_channel` asserts it equals the
+#: so this is a transcription; `test_jev_refusal_channel` asserts it equals the
 #: integrator's `research_gateway.REASON_CODES` whenever that module is importable,
 #: so the two copies cannot drift silently.
 CONTRACT_REASON_CODES = frozenset({

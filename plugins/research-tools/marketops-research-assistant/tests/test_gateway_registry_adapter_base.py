@@ -163,7 +163,7 @@ class RealAdapterVocabularyTests(unittest.TestCase):
     The adapters are other lanes' modules and are not on this branch, so this
     compares against the vocabulary recorded from the integration tree rather than
     importing them; when they are present (integration scratch), the same check
-    runs against the modules themselves in `test_wave3_gateway_real_ledger`-style
+    runs against the modules themselves in `test_billing_gateway_real_ledger`-style
     probes owned by the integrator.
     """
 
