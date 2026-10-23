@@ -1,4 +1,4 @@
-# MarketOps Research Assistant 0.5.11-rc8
+# MarketOps Research Assistant 0.5.11-rc9
 
 **Release candidate — 不是正式发行版。** 本包只用于 RC 验收；不得覆盖或重命名既有的
 0.5.5 ZIP，不得据此宣布正式发布。正式发布前仍需完成真实供应商费用与客户授权验收。

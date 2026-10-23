@@ -14,7 +14,7 @@
 > **状态**：今天的 MarketOps 能跑完**一轮**完整研究——自己搜、自己读、自己取证、自己分级、
 > 自己出交付。还没有做完的是**下一轮由谁发起**。这一半正在建，逐项状态见
 > [`docs/AUTOMATION_WORKFLOW.md`](docs/AUTOMATION_WORKFLOW.md)。
-> 当前版本是 **0.5.11-rc8**（release candidate），不是正式发行版。
+> 当前版本是 **0.5.11-rc9**（release candidate），不是正式发行版。
 
 ![自动化工作流：已自动的六段与正在建设的无人值守部分](docs/assets/workflow.svg)
 

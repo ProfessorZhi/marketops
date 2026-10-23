@@ -6,7 +6,7 @@
 | | `marketops-plugin/` | `plugins/research-tools/marketops-research-assistant/` |
 |---|---|---|
 | 插件名（`plugin.json` 的 `name`） | `marketops` | `marketops-research-assistant` |
-| 当前版本 | `0.1.0` | `0.5.11-rc8`（release candidate） |
+| 当前版本 | `0.1.0` | `0.5.11-rc9`（release candidate） |
 | 是什么 | 主 Skill：把「找市场 / 看 pool / 跟进 / 起草」这类请求路由到 **MarketOps 业务 MCP** | 研究能力包：一个自带的研究 MCP + 一组 research Skill |
 | 自带 MCP 吗 | **不带**，必须连用户自己部署的业务服务 | **带**，装完即可本地起（stdio） |
 | 装完立刻能用吗 | 不能，先要有业务 MCP 端点与令牌 | 能，配好供应商 key 就能跑 |
