@@ -169,6 +169,15 @@ PROVIDER_KEYS = {"serper": "SERPER_API_KEY", "serpapi": "SERPAPI_API_KEY",
                  "tinyfish": "TINYFISH_API_KEY", "typesafe_jev": "TYPESAFE_API_KEY",
                  "deepseek": "DEEPSEEK_API_KEY"}
 
+#: Every provider this report has a line for. ``crawl4ai`` is the only one with no
+#: key (it is a local install); every other entry must also appear in
+#: ``PROVIDER_KEYS``. The two used to be maintained separately, and DeepSeek —
+#: added later as a search route — ended up in ``PROVIDER_KEYS`` but not here, so
+#: its key could be missing and the panel said nothing at all. A provider that is
+#: in one table and not the other is invisible, and invisible is not "fine".
+READINESS_PROVIDERS = ("serper", "deepseek", "serpapi", "tinyfish", "crawl4ai",
+                       "typesafe_jev")
+
 
 def provider_readiness() -> dict:
     """Per provider, what this machine can tell without spending a call.
@@ -193,7 +202,7 @@ def provider_readiness() -> dict:
     enabled = set(settings.get("providers", ())) if settings.get("network_enabled") else set()
     out = {}
     import research_accounts
-    for provider in ("serper", "serpapi", "tinyfish", "crawl4ai", "typesafe_jev"):
+    for provider in READINESS_PROVIDERS:
         if provider == "crawl4ai":
             import research_crawl_doctor
             checked = research_crawl_doctor.cached(data_root) if data_root is not None else None

@@ -392,9 +392,10 @@ class BundleTests(unittest.TestCase):
 
     def test_skill_count_matches_the_source_tree(self):
         import build_client_bundles as bundles
+        shipped = len([p for p in (ROOT / "skills").iterdir() if (p / "SKILL.md").is_file()])
         with tempfile.TemporaryDirectory() as tmp:
             receipt = bundles.build(Path(tmp) / "b", with_research_mcp=True)
-            self.assertEqual(13, receipt["skills"])
+            self.assertEqual(shipped, receipt["skills"])
 
 
 class PackagedProviderDocsTests(unittest.TestCase):

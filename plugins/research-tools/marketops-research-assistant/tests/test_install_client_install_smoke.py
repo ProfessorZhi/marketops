@@ -13,6 +13,16 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def source_skill_count() -> int:
+    """How many skills the source tree ships — read, not written down twice.
+
+    The number was a literal here and in two other files; adding a skill then
+    meant editing three assertions, and the one that got missed said "13" while
+    the bundle shipped 14. A count that is derived cannot disagree with itself.
+    """
+    return len([p for p in (ROOT / "skills").iterdir() if (p / "SKILL.md").is_file()])
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import build_client_bundles as bundles  # noqa: E402
@@ -302,7 +312,7 @@ class HostManifestTests(unittest.TestCase):
     def test_skills_are_well_formed_and_provider_detail_stays_in_references(self):
         report = probe.audit_skills(ROOT)
         self.assertTrue(report["ok"], report["findings"])
-        self.assertEqual(13, report["skill_count"])
+        self.assertEqual(source_skill_count(), report["skill_count"])
         for provider in ("tinyfish", "serpapi", "serper", "crawl4ai", "jev"):
             self.assertTrue((ROOT / "references" / "providers" / f"{provider}.md").is_file(),
                             provider)
@@ -311,7 +321,7 @@ class HostManifestTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             receipt = bundles.build(Path(tmp) / "bundle")
             self.assertEqual(0, receipt["mcp_servers_bundled"])
-            self.assertEqual(13, receipt["skills"])
+            self.assertEqual(source_skill_count(), receipt["skills"])
 
 
 if __name__ == "__main__":
