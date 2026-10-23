@@ -1,4 +1,4 @@
-# MarketOps Research Assistant 0.5.11-rc10
+# MarketOps Research Assistant 0.5.11-rc11
 
 **Release candidate — 不是正式发行版。** 本包只用于 RC 验收；不得覆盖或重命名既有的
 0.5.5 ZIP，不得据此宣布正式发布。正式发布前仍需完成真实供应商费用与客户授权验收。
@@ -20,6 +20,14 @@ Claude Code 也可以从仓库的 marketplace 装插件：
 ```
 
 市场版只拷贝插件、不带运行时：先跑一次上面的安装器（或设 `MARKETOPS_RESEARCH_PYTHON`），否则不会出现 `marketops_*` 工具，会话开始时插件会提示缺什么。Windows 上市场版不能单独使用（MCP 用 `sh` 启动）。
+
+### 本机环境体检（0.5.11-rc11 新增）
+
+"装好了却用不了"多数时候不是插件坏了，而是**跑服务的那个解释器**缺东西——工具起不来、
+读页降级到付费路、或者停在 HOLD。`marketops-doctor` 技能对应
+`scripts/research_doctor.py`：它从解释器外部探服务真正会用的那个，Key 只报名字不打印值，
+`--repair` 只做不丢数据的修复（建已配置的数据根、复位 crawl 缓存），`--install` 才装包且
+装进目标解释器。退出码 `20` 表示还有 blocker。详见 `skills/marketops-doctor/SKILL.md`。
 
 [账户指引](references/FOUR_ACCOUNT_START.md)提供注册、API Key、官方赠金及余额入口：Serper、SerpApi、TinyFish、TypeSafe。Crawl4AI 在本地运行，无需账户。**DeepSeek 是第五把可选的 Key**（`DEEPSEEK_API_KEY`），配了它就多一路搜索和一路读页（$0.75/1k 次，失败不计费）；不配只是这条路不出现，其余照常跑。Key 在本地隐藏输入、或由安装 agent 写进系统凭据库，重启后读取。
 
