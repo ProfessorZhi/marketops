@@ -30,9 +30,22 @@ import research_grading as grading
 import research_workflow as workflow
 
 __all__ = ["PARK_REASON", "settings", "graded", "yields", "park_stopped", "finished_targets",
-           "run_targets"]
+           "run_targets", "FAMILIES", "set_family", "families"]
 
 PARK_REASON = "SOURCE_YIELD_STOP"
+
+#: The kinds of organisation a contacts goal pilots, each as its own pool source. In the
+#: live Paris run only operators and towns were researched; the A and B came from club
+#: committee pages, a family the Run never imported.
+FAMILIES = {
+    "OPERATORS": "who owns or runs the targets: town or council departments, management "
+                 "companies, chains, trusts",
+    "CLUBS_ASSOCIATIONS": "clubs and associations based at the targets or in the area; their "
+                          "committee pages name officers with their own addresses",
+    "SCHOOLS_UNIVERSITIES": "schools, colleges and universities with sports facilities or a "
+                            "sports service",
+    "FEDERATION_LISTS": "each sport's federation or league list of clubs in the area",
+}
 DEFAULTS = {"pilot": 30, "promote": 0.10, "stop": 0.05}
 
 
@@ -112,6 +125,65 @@ def run_targets(root, run_id: str) -> list[dict]:
         rows = db.execute("SELECT name, website, address, status, reason, source_id "
                           "FROM pool_targets WHERE run_id=? ORDER BY source_id, name", (run_id,)).fetchall()
     return [dict(zip(("name", "website", "address", "status", "reason", "source_id"), r)) for r in rows]
+
+
+def _families_db(root, write: bool = False):
+    path = Path(root) / "state" / "research-pool.sqlite3"
+    if not write:
+        if not path.is_file():
+            return None
+        return sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    db = sqlite3.connect(path, timeout=30)
+    db.execute("CREATE TABLE IF NOT EXISTS source_families (pool_id TEXT NOT NULL, "
+               "source_id TEXT NOT NULL, family TEXT NOT NULL, PRIMARY KEY(pool_id, source_id))")
+    return db
+
+
+def set_family(root, pool_id: str, source_id: str, family: str) -> None:
+    """Record which kind of organisation a pool source lists."""
+    family = str(family or "").strip().upper()
+    if family not in FAMILIES:
+        raise ValueError("TARGET_FAMILY_INVALID: one of " + ", ".join(FAMILIES))
+    with closing(_families_db(root, write=True)) as db, db:
+        db.execute("INSERT OR REPLACE INTO source_families VALUES(?,?,?)", (pool_id, source_id, family))
+
+
+def families(root, run_id: str, *, brief: dict, sources: list[dict]) -> dict:
+    """Which organisation families a contacts goal still has to pilot.
+
+    A family is piloted once one of its sources has finished its pilot (or every target
+    it listed); the agent may also record a family as not applicable with a reason
+    (marketops_method(method=<family>, outcome='not_applicable', note=...)).
+    """
+    wanted = brief.get("target_families")
+    if not isinstance(wanted, list) or not wanted:
+        wanted = list(FAMILIES) if brief.get("goal") == "contacts" else []
+    wanted = [f for f in (str(x).upper() for x in wanted) if f in FAMILIES]
+    labels = {}
+    db = _families_db(root)
+    if db is not None:
+        with closing(db):
+            if db.execute("SELECT 1 FROM sqlite_master WHERE name='source_families'").fetchone():
+                labels = {(p, s): f for p, s, f in db.execute(
+                    "SELECT pool_id, source_id, family FROM source_families")}
+    gate = settings(brief) or DEFAULTS
+    piloted, started = set(), set()
+    for row in sources:
+        family = labels.get((row["pool_id"], row["source_id"]))
+        if not family:
+            continue
+        started.add(family)
+        if row["finished"] >= gate["pilot"] or (row["finished"] and not row["pending"]):
+            piloted.add(family)
+    import research_methods
+    skipped = {t["method"] for t in research_methods.status(root, run_id).get("families", {})
+               .get("tried", []) if t["outcome"] in {"not_applicable", "exhausted"}}
+    missing = [f for f in wanted if f not in piloted and f not in skipped]
+    nxt = next((f for f in missing if f not in started), missing[0] if missing else None)
+    return {"wanted": wanted, "piloted": sorted(piloted), "started": sorted(started),
+            "not_applicable": sorted(skipped & set(wanted)), "missing": missing,
+            "next_family": nxt, "next_family_how": FAMILIES.get(nxt, "")}
 
 
 def finished_targets(root, run_id: str) -> int:

@@ -370,3 +370,55 @@ class DeliveryGrades(unittest.TestCase):
         self.assertTrue(pack[0]["quote"] and pack[0]["source_sha256"])
         self.assertIn("contact-pack/A_B_named_role_emails.csv", manifest["files"])
         self.assertIn("Research_Result.xlsx", manifest["files"])
+
+
+class TargetFamilies(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+
+    def rows(self, **finished):
+        return [{"pool_id": "p", "source_id": s, "finished": n, "pending": 5} for s, n in finished.items()]
+
+    def test_a_contacts_goal_pilots_every_family(self):
+        import research_sources as sources
+        import research_methods as methods
+        brief = {"goal": "contacts"}
+        sources.set_family(self.root, "p", "towns", "OPERATORS")
+        sources.set_family(self.root, "p", "clubs", "CLUBS_ASSOCIATIONS")
+        state = sources.families(self.root, "r", brief=brief, sources=self.rows(towns=33, clubs=4))
+        self.assertEqual(["OPERATORS"], state["piloted"])
+        self.assertIn("CLUBS_ASSOCIATIONS", state["missing"])
+        self.assertEqual("SCHOOLS_UNIVERSITIES", state["next_family"])  # not even started yet
+        methods.record(self.root, "r", "SCHOOLS_UNIVERSITIES", "not_applicable", "no school facilities")
+        methods.record(self.root, "r", "FEDERATION_LISTS", "not_applicable", "no league lists online")
+        state = sources.families(self.root, "r", brief=brief, sources=self.rows(towns=33, clubs=30))
+        self.assertEqual([], state["missing"])
+        self.assertEqual([], sources.families(self.root, "r", brief={"goal": "pool"}, sources=[])["wanted"])
+        with self.assertRaisesRegex(ValueError, "TARGET_FAMILY_INVALID"):
+            sources.set_family(self.root, "p", "x", "SHOPS")
+
+
+class FamiliesKeepTheRunOpen(unittest.TestCase):
+    def test_methods_exhausted_but_clubs_never_tried_is_not_the_end(self):
+        import research_execution
+        import research_lite_store as store
+        import research_methods as methods
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store.start_run(root, "r", "scope", "objective", "v1")
+            store.put_candidate(root, "r", "brief-1", "qualification", "observation", "research-brief",
+                                {"record_type": "research_brief", "goal": "contacts",
+                                 "target_families": ["OPERATORS", "CLUBS_ASSOCIATIONS"]}, [])
+            with patch.object(methods, "effort", return_value={"enough": True}):
+                for name, _ in methods.LADDERS["contacts"]:
+                    methods.record(root, "r", name, "exhausted")
+            state = research_execution.assess(root, "r", goal={"goal_satisfied": False})
+            self.assertEqual("IMPORT_NEXT_TARGET_FAMILY", state["next_action"])
+            self.assertTrue(state["continuation_required"])
+            self.assertEqual("OPERATORS", state["target_families"]["next_family"])
+            for family in ("OPERATORS", "CLUBS_ASSOCIATIONS"):
+                methods.record(root, "r", family, "not_applicable", "none in this area")
+            state = research_execution.assess(root, "r", goal={"goal_satisfied": False})
+            self.assertEqual("FINAL_METHODS_EXHAUSTED", state["state"])

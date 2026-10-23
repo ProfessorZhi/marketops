@@ -47,6 +47,13 @@ LADDERS = {
         ("TINYFISH_AGENT", "TinyFish's paid browser agent for the hard pages that are left, "
                            "only if the user allowed it in the brief."),
     ),
+    "families": (
+        ("OPERATORS", "Operators and owners of the targets, as their own pool source."),
+        ("CLUBS_ASSOCIATIONS", "Clubs and associations at the targets or in the area, as their "
+                               "own pool source."),
+        ("SCHOOLS_UNIVERSITIES", "Schools and universities with facilities or a sports service."),
+        ("FEDERATION_LISTS", "Federation or league club lists for the area."),
+    ),
     "inventory": (
         ("OFFICIAL_DATASET", "Page through the official or open-data register to the end; "
                              "import every page with its listed count."),

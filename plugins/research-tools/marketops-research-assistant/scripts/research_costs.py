@@ -68,6 +68,11 @@ SERPER_RESULTS_PER_CREDIT = 10
 def billed_units(provider: str, capability: str, params: dict) -> int:
     """Vendor units one call consumes, before it is dispatched."""
     if provider == "serper" and capability == "search":
+        mode = str(params.get("mode") or "web")
+        if mode in {"maps", "places", "local"}:
+            # Map results come ten to a page whatever `num` asks for, one credit each:
+            # a live run's 66 map searches at limit=20 cost 66 credits, not 132.
+            return 1
         try:
             wanted = int(params.get("limit") or params.get("num") or 10)
         except (TypeError, ValueError):

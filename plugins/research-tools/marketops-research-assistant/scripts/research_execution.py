@@ -40,9 +40,10 @@ def assess(root, run_id, *, goal, budget=None):
         source_yield = sources.yields(base, run_id, grades=grades, brief=brief)
         kpi = {**grading.summary(grades, targets_finished=sources.finished_targets(base, run_id)),
                "rules_source": rules["source"]}
+        family_state = sources.families(base, run_id, brief=brief, sources=source_yield["sources"])
     except (sqlite3.Error, OSError, ValueError) as exc:
         parked, source_yield = {"parked": 0, "sources": []}, {"sources": [], "error": type(exc).__name__}
-        kpi = None
+        kpi, family_state = None, None
     pools = []
     path = base / "state/research-pool.sqlite3"
     if path.is_file():
@@ -101,6 +102,12 @@ def assess(root, run_id, *, goal, budget=None):
     if state == "CHECKPOINT_CONTINUE_RESEARCH" and not pending and ladder["all_exhausted"]:
         # Every method on the ladder was tried and said exhausted: a real stop.
         state, action, final = "FINAL_METHODS_EXHAUSTED", "REPORT_PARTIAL_GOAL_AND_METHODS_TRIED", True
+    # A contacts goal is not finished while a kind of organisation was never piloted: the
+    # live Paris run closed on operators and towns and never looked at clubs.
+    if (family_state and family_state["missing"] and not reached and remaining != 0
+            and state in {"FINAL_METHODS_EXHAUSTED", "FINAL_KNOWN_TARGETS_RESEARCHED",
+                          "CHECKPOINT_CONTINUE_RESEARCH"} and not pending):
+        state, action, final = ("CHECKPOINT_CONTINUE_RESEARCH", "IMPORT_NEXT_TARGET_FAMILY", False)
     out = {"state": state, "is_final": final, "continuation_required": not final,
             "next_action": action, "remaining_requests": remaining,
             "pending_pool_targets": pending, "running_batch_jobs": running,
@@ -111,9 +118,14 @@ def assess(root, run_id, *, goal, budget=None):
             "venue_operator_groups": None if groups is None else {
                 k: groups[k] for k in ("by", "venues_total", "groups_total", "groups_uncovered",
                                        "venues_in_uncovered_groups")},
-            "grading": kpi,
-            "source_gate": {"parked_now": parked, "gate": source_yield.get("gate"),
-                            "sources": source_yield["sources"]},
+            # Compact on purpose: marketops_next has to stay small in the agent's context.
+            "grading": None if kpi is None else {
+                k: kpi[k] for k in ("grades", "ab_people", "ab_per_100", "per_100_of", "rules_source")},
+            "target_families": None if not family_state or not family_state["wanted"] else {
+                k: family_state[k] for k in ("missing", "next_family")},
+            "source_gate": {"parked_now": parked.get("parked", 0), "sources": [
+                {k: r.get(k) for k in ("source_id", "finished", "with_ab", "pending", "verdict")}
+                for r in source_yield["sources"][:12]]},
             "next_method": None if final else ladder["next_method"],
             "next_method_how": "" if final else ladder["next_method_how"]}
     advice = []
@@ -126,6 +138,12 @@ def assess(root, run_id, *, goal, budget=None):
             advice.append(f"Source {row['source_id']} stopped at {row['with_ab']}/{row['finished']} "
                           "targets with A or B; its pending targets are parked. Find a better source "
                           "for this target type (see the scene's source order).")
+    if family_state and family_state["missing"] and not final:
+        nxt = family_state["next_family"]
+        advice.append(f"Target family {nxt} has not been piloted: {family_state['next_family_how']}. "
+                      f"Import 30 or more of them as their own source (marketops_pool_import("
+                      f"family='{nxt}', ...)) and harvest them; if none exist for this task, "
+                      f"record marketops_method(method='{nxt}', outcome='not_applicable', note=why).")
     if advice:
         out["source_advice"] = advice
     if not rules_ok(kpi) and not final:

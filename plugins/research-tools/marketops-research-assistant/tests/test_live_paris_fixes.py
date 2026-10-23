@@ -110,5 +110,12 @@ class TrackingParameters(unittest.TestCase):
         self.assertEqual("https://x.fr/p?id=3", research_pool._without_tracking("https://x.fr/p?id=3&gclid=9"))
 
 
+class SerperCredits(unittest.TestCase):
+    def test_map_searches_cost_one_credit_whatever_the_limit(self):
+        import research_costs
+        self.assertEqual(1, research_costs.billed_units("serper", "search", {"mode": "places", "limit": 20}))
+        self.assertEqual(2, research_costs.billed_units("serper", "search", {"mode": "web", "limit": 20}))
+
+
 if __name__ == "__main__":
     unittest.main()

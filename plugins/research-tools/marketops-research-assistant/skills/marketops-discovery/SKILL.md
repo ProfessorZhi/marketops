@@ -54,6 +54,11 @@ them after 30 targets each:
 - the federation or league's club list for each sport in the area.
 A venue inventory alone leads only to operators, and operators mostly publish service
 inboxes. Never spend the whole budget on one family before the others had their pilot.
+Tag each source: `marketops_pool_import(..., family='OPERATORS' | 'CLUBS_ASSOCIATIONS' |
+'SCHOOLS_UNIVERSITIES' | 'FEDERATION_LISTS')`. `marketops_next` keeps a contacts Run open
+(`IMPORT_NEXT_TARGET_FAMILY`) until each family finished its pilot or you recorded why it
+does not apply: `marketops_method(method=<family>, outcome='not_applicable', note=...)`.
+A brief can narrow the list with `target_families:[...]` when the user limited the scope.
 
 **Map who runs each venue.** When the source has operator/manager and owner fields, map
 them as `operator`, `operator_type` and `owner_type`.
