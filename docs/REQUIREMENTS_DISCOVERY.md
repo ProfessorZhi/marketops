@@ -49,7 +49,7 @@ Needs to:
 - receive exceptions and meaningful replies;
 - avoid supervising every research step.
 
-Does not need to understand Quay task internals or manage crawler processes.
+Does not need to understand dispatch task internals or manage crawler processes.
 
 ### Research Operator / Builder
 
@@ -209,7 +209,7 @@ A missing name on the latest page is a change signal, not proof of departure.
 
 The user configures a scene once.
 
-A scheduler triggers a lightweight “check due work” request. MarketOps computes what is actually due and Quay executes it.
+A scheduler triggers a lightweight “check due work” request. MarketOps computes what is actually due and the dispatch executor runs it.
 
 The daily result should be a business digest such as:
 
@@ -272,7 +272,7 @@ The following decisions were explicitly confirmed during architecture discovery 
 
 ### D1 — One Scene is one long-lived business task
 
-A Scene is not a single Quay primitive task. It is a durable market-research workspace such as:
+A Scene is not a single dispatch primitive task. It is a durable market-research workspace such as:
 
 ```text
 UK + AcmeCorp Pro + outdoor natural-grass sports venues
@@ -302,11 +302,11 @@ Scene
 
 **Acceptance:** pausing/resuming a Scene does not lose its mother pool, Account history, evidence or prior run state.
 
-### D2 — Quay executes a SceneRun
+### D2 — The dispatch executor runs a SceneRun
 
-MarketOps decides what work is due; Quay owns execution of that run.
+MarketOps decides what work is due; the dispatch executor owns execution of that run.
 
-A typical Quay compound graph may include:
+A typical dispatch graph may include:
 
 ```text
 SceneRun
@@ -320,7 +320,7 @@ SceneRun
   └── produce run digest
 ```
 
-Quay is therefore useful before, during and after contact research; it is not only a final validation step.
+The dispatch executor is therefore useful before, during and after contact research; it is not only a final validation step.
 
 ### D3 — Account-centric research, asset-aware evidence
 
@@ -377,7 +377,7 @@ For important assertions, MarketOps must distinguish at least:
 
 Official current staff pages may support currentness at fetch time. Old minutes, archived PDFs or dated news may support historical responsibility but need current corroboration before a current ContactRoute is treated as fresh.
 
-### D7 — Refresh is incremental and Quay-driven
+### D7 — Refresh is incremental and executor-driven
 
 The scheduler asks MarketOps to check a Scene.
 
@@ -390,7 +390,7 @@ MarketOps creates work only for:
 - bounce/reply/referral events;
 - manual priority overrides.
 
-Quay executes that due work and records its run/gates.
+The dispatch executor runs that due work and records its run/gates.
 
 ### D8 — Research budget and stop reasons are first-class data
 
@@ -472,9 +472,9 @@ Experience does not directly mutate production. Candidate improvements must pass
 Initial product architecture uses two intentionally different intelligent roles:
 
 1. **MUC/Hermes Scene Steward** — persistent, user-facing, uses memory/skills/knowledge/cron and controls the Scene through MarketOps MCP.
-2. **Quay-driven Claude Code Research Worker** — ephemeral, isolated, executes research/meta-improvement WorkItems with a frozen ScenePack and budgets.
+2. **Dispatched, restricted research worker** — ephemeral, isolated, executes research/meta-improvement WorkItems with a frozen ScenePack and budgets.
 
-Avoid a third permanent “self-improvement agent”. Scene improvement is another Quay work graph executed by the existing research runtime under a curator role.
+Avoid a third permanent “self-improvement agent”. Scene improvement is another dispatch work graph executed by the existing research runtime under a curator role.
 
 
 ---
@@ -490,7 +490,7 @@ The ledger must survive:
 - a new chat;
 - a different agent/model;
 - worker restart;
-- Quay restart;
+- executor restart;
 - memory reset.
 
 It owns accounts, evidence, routes, freshness, campaign/suppression/reply facts.
@@ -511,9 +511,9 @@ It submits “check/refresh scene” to MarketOps.
 
 MarketOps computes due work.
 
-Quay executes due work.
+The dispatch executor runs due work.
 
-Do not run independent duplicate full-refresh schedulers in MUC, MarketOps and Quay.
+Do not run independent duplicate full-refresh schedulers in MUC, MarketOps and the executor.
 
 ### R4 — Durable asynchronous jobs
 
@@ -565,7 +565,7 @@ Corrections append withdrawal/supersession records; they do not silently mutate 
 
 ### R10 — Authorization is not memory
 
-Neither Hermes memory, Jev confidence, an agent statement nor a Quay task status can constitute sending authorization.
+Neither Hermes memory, Jev confidence, an agent statement nor a dispatch task status can constitute sending authorization.
 
 ---
 
@@ -580,7 +580,7 @@ To avoid over-design:
 - no Kubernetes until measured need;
 - no custom web search engine;
 - no custom browser automation framework;
-- no custom generic task engine — reuse Quay;
+- no custom generic task engine — reuse the dispatch executor;
 - no requirement that every task use Claude/DSH;
 - no requirement that every decision use Jev/Laya;
 - no full UK re-crawl every day;
@@ -604,7 +604,7 @@ To avoid over-design:
                     └───────┬───────────┘
                             │ work graph
                             ▼
-                           Quay
+                    dispatch executor
                  ┌──────────┼──────────┐
                  ▼          ▼          ▼
               Python     Hermes      Claude/DSH
@@ -629,7 +629,7 @@ Only three conceptual persistent systems are mandatory:
 
 1. **MUC/Hermes** — user/agent interaction + small assistant memory + schedule trigger;
 2. **MarketOps ledger/service** — business truth and durable jobs;
-3. **Quay** — durable work/execution state.
+3. **Dispatch executor** — durable work/execution state.
 
 Everything else is a provider/capability or optional optimization.
 
@@ -681,7 +681,7 @@ Goal: prove the product behaves like a service, not a chat session.
 
 1. MUC/Hermes submits a research job through MarketOps MCP.
 2. Close/disconnect the chat client.
-3. Quay continues execution.
+3. The dispatch executor continues execution.
 4. Open a new session.
 5. Query the same job and account results.
 6. Re-trigger the same scheduled refresh.
@@ -778,7 +778,7 @@ Do not call the architecture “frozen” until the system has demonstrated:
 
 - at least two batch source methods;
 - one end-to-end mother-pool → Account → evidence-backed route flow;
-- Quay-owned execution without manual step-by-step dispatch;
+- Executor-owned execution without manual step-by-step dispatch;
 - durable jobs queryable from a new MUC/Hermes session;
 - second-refresh incremental behavior;
 - at least one decision benchmark if Jev/Laya is to enter the hot path;

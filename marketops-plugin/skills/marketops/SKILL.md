@@ -141,7 +141,7 @@ presentation choice — never a locally computed figure.
 
 ## 7. What this package will never do
 
-* It does not start a second database, a second Quay worker or a second
+* It does not start a second database, a second research worker or a second
   scheduler. The server owns those.
 * It does not carry an administrator credential, and it does not embed product or
   customer material.

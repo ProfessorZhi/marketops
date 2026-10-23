@@ -4,7 +4,7 @@ Updated 2026-09-27. The current release scope is R1/R2 in [the architecture](MEM
 
 Business policy remains the frozen SOP. Current mode is research-only with no sending or external form submission. See [Architecture](ARCHITECTURE.md) for the single-MCP product boundary and [2026-09-23 review](ARCHITECTURE_REVIEW_2026-09-23.md) for Member-C's requirements, source references and code-level gaps. No new runtime acceptance was performed by this documentation revision.
 
-**Current required research integrations: Serper, Crawl4AI, Jev, Quay and Claude Code. Laya is DEFERRED.** This explicitly supersedes the 2026-09-23 six-integration gate; it does not change old acceptance results. Docker, ServerOS integration and production outreach are deferred. Optional per-job invocation differs from implementation and release verification.
+**Current required research integrations: Serper, Crawl4AI, Jev and a deployment-provided research worker runtime. Laya is DEFERRED.** This explicitly supersedes the 2026-09-23 six-integration gate; it does not change old acceptance results. Docker, ServerOS integration and production outreach are deferred. Optional per-job invocation differs from implementation and release verification.
 
 ## Plugin, multi-session, scheduling and notification extensions (design, not registered tools)
 
@@ -27,7 +27,7 @@ Use the existing Serper/Jev adapters through MarketOps business use cases/Decisi
 ```text
 Claude Code control client (Hosting/Hermes later)
        -> MarketOps MCP / persistent job admission
-       -> actual Quay task dispatch
+       -> actual work item dispatch
        -> scoped Claude Code research workers
        -> MarketOps research tools
           Serper | HTTP/PDF + Crawl4AI | Jev (Laya deferred)
@@ -35,7 +35,7 @@ Claude Code control client (Hosting/Hermes later)
        -> persistent dossier, report and integration receipts
 ```
 
-The controller cannot substitute an outer-shell worker launch for Quay dispatch. The worker cannot recursively submit top-level jobs. One logical MCP service exposes two permission-filtered catalogs, not two products or two independent fact stores. Internal adapters use functions, SDKs or private APIs rather than one MCP server per module. A Skill teaches use or research methods; it is not the backend or the keeper of durable state.
+The controller cannot substitute an outer-shell worker launch for dispatch through the executor. The worker cannot recursively submit top-level jobs. One logical MCP service exposes two permission-filtered catalogs, not two products or two independent fact stores. Internal adapters use functions, SDKs or private APIs rather than one MCP server per module. A Skill teaches use or research methods; it is not the backend or the keeper of durable state.
 
 The baseline research catalogs below contain nine controller-visible and eight researcher-visible names, with `get_evidence` and `get_decision` shared: 15 unique tools. The section headings and first-column tool names in §2–3 are consumed by `tests/test_security_catalog.py`; future capabilities must not be inserted into those tables as if already approved and registered.
 
@@ -50,7 +50,7 @@ The following names are the current v1 catalog contract. Detailed behavior remai
 | `get_capabilities` | Report configured/runtime-ready/last-live-verification state for each integration, with versions, observed timestamps and sanitized blockers; no implicit paid probe |
 | `get_scene` | Read an authorized Scene's product/scope, effective policy/guidance version and summary |
 | `submit_research` | Admit a finite research/refresh request; return durable job id and truthful queued/blocked state |
-| `get_job` | Read actual Quay task/attempt links, progress, partial results, usage and capability/evaluation status |
+| `get_job` | Read actual dispatch task/attempt links, progress, partial results, usage and capability/evaluation status |
 | `get_account` | Read a bounded temporal dossier, routes, opportunities and evidence references |
 | `get_evidence` | Read an authorized stored artifact/block, provenance and transformations |
 | `get_decision` | Read back one persisted DecisionRecord by id: provider/model, spec version, answers, usage, latency and evidence references; never re-decides or re-bills |
@@ -80,9 +80,9 @@ Capability health is not proof that useful work happened. `get_capabilities` rep
 | `get_evidence` | evidence id + bounded locator | Reuse already acquired material without refetching |
 | `submit_findings` | attempt/result id, observations, candidates, gaps, stop reason, responsibility relations | Idempotent validation and ingestion receipt; no direct arbitrary DB edits. A relation row is a claim of fact, not a stored row on request: each one must name the DecisionRecord that concluded it, the venue is re-derived server-side from the work item's own source receipt rather than taken from the caller, and every referenced evidence id must resolve inside this work item's Scene and account — a settled judgement whose audit trail does not hold up refuses that row, and writes nothing. Contact routes and route opportunities are likewise **bound server-side** from the evidence this settlement cited: the subject comes from the work item's frozen dossier (never from the caller), a cited row that is a field-level reference or a non-eligible source is named as such instead of being bound, and on a replayed settlement nothing is re-bound — `routes` reports `null` there, because `settle` is content-keyed while the route tables are inserts |
 
-The five selectees of §B16 close condition 7 — Serper, the HTTP fetcher, Crawl4AI, Jev and Quay — each take one optional `source_method` cell and echo it into the receipt: which plan step this invocation served. Blank is a claim of its own ("this call serves no plan step"), never a default; a name that is not a registered source method, or one this Scene's declarations never opened this round, is refused **before** anything is spent, sent or handed out — and the refusal is at the door, so a rejected call leaves no job, no work item and no state write behind. The step is always compared against the **effective** Scene, which is what the tools hold; the frozen per-work-item version bounds what runs, not what a call may claim. The server hands the worker the values it may use (`get_assignment`'s `guidance.plan_steps`); the plan itself is composed server-side, and no tool accepts a caller-authored plan.
+The five selectees of §B16 close condition 7 — Serper, the HTTP fetcher, Crawl4AI, Jev and the dispatch executor — each take one optional `source_method` cell and echo it into the receipt: which plan step this invocation served. Blank is a claim of its own ("this call serves no plan step"), never a default; a name that is not a registered source method, or one this Scene's declarations never opened this round, is refused **before** anything is spent, sent or handed out — and the refusal is at the door, so a rejected call leaves no job, no work item and no state write behind. The step is always compared against the **effective** Scene, which is what the tools hold; the frozen per-work-item version bounds what runs, not what a call may claim. The server hands the worker the values it may use (`get_assignment`'s `guidance.plan_steps`); the plan itself is composed server-side, and no tool accepts a caller-authored plan.
 
-`crawl_site` is an acquisition operation subordinate to a Quay assignment, not another top-level research planner. It uses existing acquisition execution or the task runtime, not a new generic scheduler. Its status is discoverable through the parent job/assignment. It cannot create unbounded Account tasks.
+`crawl_site` is an acquisition operation subordinate to a dispatch assignment, not another top-level research planner. It uses existing acquisition execution or the task runtime, not a new generic scheduler. Its status is discoverable through the parent job/assignment. It cannot create unbounded Account tasks.
 
 Browser selection can be requested, not forced past policy. An already adequate HTTP result remains a valid fast path. Explicit access restrictions are not rendering failures. A browser test may deliberately exercise a permitted JS page without establishing that every research page should be rendered.
 
@@ -116,13 +116,13 @@ All URLs, redirects and browser subrequests are subject to network policy: rejec
 
 ## 6. Durable execution and permissions
 
-Use the existing Quay launch/profile/driver mechanisms with a documented research-completion adapter. Its software worktree/fan-in defaults do not prove correct research completion. Validate actual dependency blocking, effective prompts/config hashes, acceptance execution and real process/task ownership. A terminal task cannot certify itself. Do not fake commits or use test-only injection as production.
+Use the deployment's existing worker launch/profile/driver mechanisms with a documented research-completion adapter. Its software worktree/fan-in defaults do not prove correct research completion. Validate actual dependency blocking, effective prompts/config hashes, acceptance execution and real process/task ownership. A terminal task cannot certify itself. Do not fake commits or use test-only injection as production.
 
-SQLite plus evidence files is the recommended initial single-host state. Store admission and dispatch intent transactionally, reconcile Quay task mapping, use attempt/lease protection, and commit findings through one controlled writer. Workers do not share or mutate master CSV/JSON counters.
+SQLite plus evidence files is the recommended initial single-host state. Store admission and dispatch intent transactionally, reconcile the dispatch task mapping, use attempt/lease protection, and commit findings through one controlled writer. Workers do not share or mutate master CSV/JSON counters.
 
 Pause normally prevents new dispatch and lets accepted in-flight results settle. Cancel reports what actually stopped. Worker/provider failure preserves verified partial output. Same request/result retries are idempotent; stale attempts cannot overwrite later versions.
 
-Run MarketOps under a service owner separate from the Claude control session and use authenticated Streamable HTTP for persistence tests. Stdio alone is not proof of an independently durable job. Pin compatible SDK and CLI versions; discover the real tool set. Controller, Quay host and worker have different permissions; neither permissive prompt approval nor a caller-supplied tenant string establishes isolation.
+Run MarketOps under a service owner separate from the Claude control session and use authenticated Streamable HTTP for persistence tests. Stdio alone is not proof of an independently durable job. Pin compatible SDK and CLI versions; discover the real tool set. Controller, executor host and worker have different permissions; neither permissive prompt approval nor a caller-supplied tenant string establishes isolation.
 
 ### 6.1 Current authentication and workspace limitations
 
@@ -140,7 +140,7 @@ Supporting a client that performs a full OAuth discovery flow is **not** impleme
 
 Record the exact installed Python MCP SDK, negotiated/supported protocol version, transport/auth mode, client version and loaded build. The declared `mcp>=2.2,<3` dependency range does not prove compatibility with every protocol revision. Use the lifecycle semantics of the tested combination and treat a protocol upgrade as a separate compatibility change; see [primary-source review](research/MCP_RELIABILITY_REVIEW_2026-09-23.md).
 
-A business job id is not a JSON-RPC request id, protocol session, Quay task id or attempt. Disconnecting the client, canceling an individual MCP call or reopening a transport must not silently delete or duplicate admitted work. A durable cancellation requires `control_job` and an observed execution receipt. Protocol task extensions, Resources or Prompts may be added only as separately specified conveniences over the same business state; none is claimed as implemented by this revision.
+A business job id is not a JSON-RPC request id, protocol session, dispatch task id or attempt. Disconnecting the client, canceling an individual MCP call or reopening a transport must not silently delete or duplicate admitted work. A durable cancellation requires `control_job` and an observed execution receipt. Protocol task extensions, Resources or Prompts may be added only as separately specified conveniences over the same business state; none is claimed as implemented by this revision.
 
 ## 7. SOP acceptance remains independent
 
@@ -160,7 +160,7 @@ Use labeled synthetic fixtures/fake adapters to test schemas, isolation, unsafe 
 
 ### B. Real end-to-end research
 
-Use a small source-backed cohort, initially up to five candidates within a frozen approved scope and spend envelope. Claude Code submits through MCP; actual Quay workers research and submit results. Disconnect/reconnect the controller and query the same job. Demonstrate at least two independent workers overlapping and no duplicate expensive work.
+Use a small source-backed cohort, initially up to five candidates within a frozen approved scope and spend envelope. Claude Code submits through MCP; actual dispatched workers research and submit results. Disconnect/reconnect the controller and query the same job. Demonstrate at least two independent workers overlapping and no duplicate expensive work.
 
 No fixed positive A/B count is required: zero is an honest business outcome. Source discovery and the shortlist are the system's work, not a demand that the user invent Account records.
 
@@ -173,7 +173,7 @@ One release bundle verifies the currently required research paths below. Laya is
 3. Crawl4AI bounded multi-page traversal that respects scope/limits and records every page; no requirement for every advanced feature in the upstream project.
 4. Jev live inference on the frozen DecisionSpec/evidence cases.
 5. DEFERRED: Laya checkpoint inference and cross-provider comparison. Its absence is not a current failure or blocker.
-6. Quay-owned dispatch and Claude Code's actual scoped task/tool execution.
+6. Executor-owned dispatch and the worker's actual scoped task/tool execution.
 
 Real source-backed browser evidence is preferred. A controlled fixture proves integration behavior only and cannot count as market yield or real-site improvement. Both kinds must be labeled.
 
@@ -205,4 +205,4 @@ No Hosting source changes, new RuntimeBackend, broad national rollout, real exte
 
 ## References
 
-The project's frozen SOP defines business policy. Technical references: [MCP architecture](https://modelcontextprotocol.io/docs/learn/architecture), [Claude Code MCP](https://code.claude.com/docs/en/mcp), [Quay v0.11.0](https://github.com/yaleh/quay/tree/v0.11.0), [Crawl4AI self-hosting](https://docs.crawl4ai.com/core/self-hosting/), [Laya](https://github.com/NandhaKishorM/laya). Match examples to pinned versions before implementation; these are not deployment claims. Version-specific protocol and research evidence for this revision are recorded in [MCP reliability review](research/MCP_RELIABILITY_REVIEW_2026-09-23.md).
+The project's frozen SOP defines business policy. Technical references: [MCP architecture](https://modelcontextprotocol.io/docs/learn/architecture), [Claude Code MCP](https://code.claude.com/docs/en/mcp), [Crawl4AI self-hosting](https://docs.crawl4ai.com/core/self-hosting/), [Laya](https://github.com/NandhaKishorM/laya). Match examples to pinned versions before implementation; these are not deployment claims. Version-specific protocol and research evidence for this revision are recorded in [MCP reliability review](research/MCP_RELIABILITY_REVIEW_2026-09-23.md).

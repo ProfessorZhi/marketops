@@ -98,7 +98,7 @@ marketops/          唯一 Python 分发包
   domain/           纯领域：实体、值对象、业务不变量
   application/      用例：输入、发现、准入、预算、派发、证据与报告
   ports/            search / acquisition / documents / store / budget / jobs / dispatch / decisions
-  adapters/         Serper / HTTP / Crawl4AI / PDF / Jev / Laya / Quay / SQLite / JSONL / Feishu / MCP
+  adapters/         Serper / HTTP / Crawl4AI / PDF / Jev / Laya / local_board / SQLite / JSONL / Feishu / MCP
   interfaces/       CLI、MCP 入口与组合根；构造和注入具体依赖
   security/         tokens / catalog / network 等权限与访问边界
   config.py         唯一配置入口

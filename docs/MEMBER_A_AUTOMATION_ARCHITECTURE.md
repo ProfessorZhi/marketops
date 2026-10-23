@@ -36,7 +36,7 @@ flowchart TD
     A --> P[Scene 版本 / 有效策略 / Review Inbox]
     A --> D[资产 / 组织 / 关系 / 证据 / 路线 / 草稿]
     P --> R[持久运行控制器]
-    R --> Q[Quay：有界 Agent 工作]
+    R --> Q[派发执行器：有界 Agent 工作]
     Q --> W[独立受限 Claude workers]
     W --> M
     R --> F[确定性导入 / 复用 / 获取 / 重评 / 刷新]
@@ -47,7 +47,7 @@ flowchart TD
     D --> DB
 ```
 
-MCP 是客户端与服务器的接口协议，不是调度器、数据库或 CC 本身。控制端 CC 与 Quay 的研究 CC 是不同身份。长任务返回业务 run/job id，进度从服务端持久状态读取；不要求聊天连接一直在，也不依赖客户端临时提供推理。
+MCP 是客户端与服务器的接口协议，不是调度器、数据库或 CC 本身。控制端 CC 与研究 worker 的 CC 是不同身份。长任务返回业务 run/job id，进度从服务端持久状态读取；不要求聊天连接一直在，也不依赖客户端临时提供推理。
 
 现有 `domain/application/ports/adapters/interfaces/security` 不重构成新框架。业务逻辑只在 application/domain；MCP、CLI、时间触发器复用同一用例与授权。内部供应商不各造一个业务 MCP。健康检查不构成第二套产品 API。
 
@@ -92,7 +92,7 @@ RouteObservation -> CanonicalContactRoute -> Cohort -> Draft
 1. 从批准的现有名单、结构化公开端点和已知来源优先入池；开放搜索补缺，不默认每个 Scene 从零搜。
 2. 做地点/地区、组织类型、环境与产品场景相关事实补全。已知不合格直接排除；未知进入预算更小的身份/准入任务，不默认进入完整联系人深研。
 3. 建立可追踪组织与责任关系，在 Scene assessment 中记录 eligible / excluded / hold 的事实、规则版本和原因。
-4. 形成产品内 Cohort，再交 Quay 按 Account 做开放路径研究。研究完成受理 evidence、Jev 建议及 findings，驱动路线投影、结果回执和下一步工作。
+4. 形成产品内 Cohort，再交派发执行器按 Account 做开放路径研究。研究完成受理 evidence、Jev 建议及 findings，驱动路线投影、结果回执和下一步工作。
 
 **四个正交维度：**账号准入、路线等级、任务执行状态、草稿就绪状态。拥有一个 D 邮箱不能把异地或未确认场景的组织改成 eligible。A/B 未找到不等于任务失败；缺少证据也不等于符合条件。
 
@@ -136,9 +136,9 @@ SOP 允许 A→B→C→D 候选序列；不存在全局 A/B-only 首触达禁令
 
 运行中的语义判断固定原版本；立即停止、撤销权限、更新禁用边界在下一次受控动作前生效，不能被旧快照绕过。重评先用现有事实，证据不足才重抓。修正单个事实不等于发布全局规则。
 
-## 10. 真正持续运行：业务控制器，不是第二个 Quay
+## 10. 真正持续运行：业务控制器，不是第二个调度器
 
-MarketOps 负责“下一件业务工作是什么、允许花多少、结果怎样回池”；Quay 负责有界 Agent 的派发、租约与执行。已有 dispatch/reconcile/maintenance 不重写，增加缺失的持久 continuation 即可。
+MarketOps 负责“下一件业务工作是什么、允许花多少、结果怎样回池”；派发执行器负责有界 Agent 的派发、租约与执行。已有 dispatch/reconcile/maintenance 不重写，增加缺失的持久 continuation 即可。
 
 业务事件受理与 continuation intent 原子落账。控制器基于该事件生成下一批/投影/重评任务，按幂等键执行并保存 checkpoint。至少一次交付配合幂等效果，不承诺外部 API exactly-once。
 
@@ -146,7 +146,7 @@ MarketOps 负责“下一件业务工作是什么、允许花多少、结果怎�
 
 空队列不调用 LLM 写心跳。有工作却没有执行者时报告 capacity/auth/dependency/stall 原因。过程超时是观察，不等于外部请求未执行；不明计费或已受理结果先对账，不能盲重试。
 
-Quay 的软件 worktree/landing 失败不能触发已完成研究的重跑。保留外部原始结果，同时核验 driver 的实际重试/完成动作：只改看板显示不够。不要伪造提交满足软件门禁。
+执行器侧的软件 worktree/landing 失败不能触发已完成研究的重跑。保留外部原始结果，同时核验 driver 的实际重试/完成动作：只改看板显示不够。不要伪造提交满足软件门禁。
 
 暂停阻止新昂贵动作并有观测回执；在途合法结果结算保留。恢复从 checkpoint 继续。只阻塞依赖该缺口的对象；一条 ReviewCase 不冻结整个市场，除非是全局安全/授权问题。
 

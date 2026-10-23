@@ -118,13 +118,13 @@ These modes adjust due-work planning; they do not change safety/authorization ru
 
 ---
 
-## AD-04 — MarketOps globally schedules due work; Quay executes it
+## AD-04 — MarketOps globally schedules due work; an external execution surface runs it
 
 MUC/Hermes cron triggers a Scene check.
 
 MarketOps compares active Scenes, priorities, budgets and due items and produces SceneRuns / WorkItems.
 
-Quay should not independently decide which business Scene deserves budget.
+The execution surface should not independently decide which business Scene deserves budget.
 
 ```text
 Hermes Cron/manual request
@@ -135,7 +135,7 @@ priority + budget + due-state
        ↓
 SceneRun / WorkItems
        ↓
-Quay execution
+work item dispatch
 ```
 
 If multiple Scenes are active, MarketOps should support fairness and per-Scene caps so one huge mother pool cannot starve all other Scenes.
@@ -283,7 +283,7 @@ This reduces Skill/Memory synchronization problems across many Scenes.
 
 ## AD-11 — Claude workers receive frozen Scene context per WorkItem
 
-A Quay-launched Claude Code worker receives:
+A dispatched, restricted research worker receives:
 
 ```text
 BasePack version
@@ -331,7 +331,7 @@ agent had one experience
 → update permanent Skill immediately
 ```
 
-Generic Hermes skill curation may still help the Steward UX, but canonical ScenePack mutation flows through MarketOps + Quay evaluation.
+Generic Hermes skill curation may still help the Steward UX, but canonical ScenePack mutation flows through MarketOps evaluation plus a dispatched worker's findings.
 
 ---
 

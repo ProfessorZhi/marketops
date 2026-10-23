@@ -37,7 +37,7 @@ Shared Market Graph   Workstreams       Control Plane
        │                 │                 │
        └─────────────────┼─────────────────┘
                          ▼
-       SQLite/受管工件 + Quay/Claude + Serper/HTTP/Crawl4AI/Jev
+       SQLite/受管工件 + 派发执行器/受限 worker + Serper/HTTP/Crawl4AI/Jev
 ```
 
 关闭 Session A 不停止服务器已经受理的任务；Session B 改成法国不会改变 A 的上下文；明天新开 Session E 可以读取 A 的真实进度继续工作。**不再迁移聊天全文，不再把进度总结进 Skill 才能接班。**
@@ -417,9 +417,9 @@ DeliveryReceipt
 
 ## 12. 插件安装与服务器部署是两件事
 
-插件安装只完成：Skill/客户端投影、远程MCP profile、最小连接诊断。它不能启动另一套数据库/Quay/scheduler，不内嵌共享管理员token，不把产品/客户资料拷进本地Skill。
+插件安装只完成：Skill/客户端投影、远程MCP profile、最小连接诊断。它不能启动另一套数据库/派发执行器/scheduler，不内嵌共享管理员token，不把产品/客户资料拷进本地Skill。
 
-MarketOps server 独立部署/运行，有唯一数据库schema/迁移、后台控制器、schedule owner、Notification Outbox、Quay连接与provider凭据。升级客户端插件不能改变服务端policy；服务端API/catalog不兼容时客户端明确提示版本问题。
+MarketOps server 独立部署/运行，有唯一数据库schema/迁移、后台控制器、schedule owner、Notification Outbox、派发执行器与provider凭据。升级客户端插件不能改变服务端policy；服务端API/catalog不兼容时客户端明确提示版本问题。
 
 理想部署：Member-A所有设备/session连同一个受管endpoint。开发/测试另用隔离endpoint和workspace，不让测试session写生产市场池。
 

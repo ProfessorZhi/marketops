@@ -26,7 +26,7 @@ The existing Account / VenueAsset / ContactRoute / Evidence model remains the ce
 | `AssetCandidate` | raw/normalized candidate before eligibility is proven | MarketOps |
 | `ResearchJob` | durable user/business request | MarketOps |
 | `WorkItem` | executable unit compiled from a job/business event | MarketOps application layer |
-| `ExecutionRef` | mapping from WorkItem to Quay task/run/gate | MarketOps ↔ Quay adapter |
+| `ExecutionRef` | mapping from WorkItem to a dispatch task/run/gate | MarketOps ↔ executor adapter |
 | `DecisionRecord` | Jev/rules/LLM bounded decision with spec/version/confidence | MarketOps |
 | `TemporalAssertion` | time-aware derived assertion over immutable observations | MarketOps |
 | `ResearchPolicy` | sufficiency goals + hard query/fetch/token/time limits | MarketOps |
@@ -53,7 +53,7 @@ Scene / Workstream
   → EffectiveResearchPlan (frozen)
   → SceneRun
   → due WorkItem[]
-  → Quay execution
+  → dispatched execution
   → deterministic validation
   → RunDelta
   → validated merge into shared Market Graph
@@ -62,7 +62,7 @@ Scene / Workstream
      [bounded_auto/watch: only create next Run if the explicit authorization still permits it]
 ```
 
-A Scene/Workstream is the user's long-lived research objective. A SceneRun is one bounded execution cycle, not proof that a market is fully covered. Quay tasks are execution children of that run rather than the durable business identity of the Scene.
+A Scene/Workstream is the user's long-lived research objective. A SceneRun is one bounded execution cycle, not proof that a market is fully covered. Dispatch tasks are execution children of that run rather than the durable business identity of the Scene.
 
 `manual` is the default execution mode. Disconnecting the client must not cancel an admitted Run, but **finishing that Run does not authorize the service to invent the next Run**. `bounded_auto` and `watch` are separate explicit authorizations with cumulative budget/scope/time/stop conditions.
 
@@ -175,13 +175,13 @@ A source candidate is not automatically an eligible asset/account. Promotion req
 ```text
 ResearchJob
   → WorkItem[]
-  → ExecutionRef (Quay task/run)
+  → ExecutionRef (dispatch task/run)
   → artifacts
   → deterministic validation
   → business-state mutation
 ```
 
-Quay state is execution metadata, not business truth.
+Executor state is execution metadata, not business truth.
 
 ### Decision lineage
 

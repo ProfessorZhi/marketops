@@ -4,10 +4,10 @@ Deployment definitions belong here; host-specific roots, secrets and production 
 
 ## Required MVP bundle
 
-Serper, Crawl4AI, Jev, Laya, Quay and Claude Code must all have working integrations and actual-use receipts. They are not deferred options. Individual jobs may avoid unnecessary browser/decision calls; missing required live acceptance still prevents a complete MVP verdict.
+Serper, Crawl4AI, Jev, Laya and a research worker runtime must all have working integrations and actual-use receipts. They are not deferred options. Individual jobs may avoid unnecessary browser/decision calls; missing required live acceptance still prevents a complete MVP verdict.
 
 - `marketops`: one Python MCP application with Scene policy, SQLite ledger, evidence files, atomic admission/budgets and result ingestion.
-- Quay/Claude runtime: the existing supported manager/driver lifecycle, bounded research workers and verified research-completion integration.
+- Research worker runtime: a deployment-provided bounded worker, wired through `MARKETOPS_RESEARCH_DELEGATE`, with verified research-completion integration. The plugin does not bundle a worker.
 - Crawl4AI: a pinned isolated browser service on a private authenticated API, exercised for rendering and bounded multi-page acquisition.
 - Laya: a reusable supervised inference process, colocated initially or a private sidecar when dependencies/resources require it; actual pinned checkpoint inference is required.
 - Serper and Jev: authenticated external API adapters with per-call accounting.

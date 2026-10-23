@@ -11,7 +11,7 @@ MarketOps application/MCP ----+    one process / one resident checkpoint
        |
        +--> Jev hosted API when explicitly configured and data-safe
        +--> Serper URL discovery -> allowed HTTP/Crawl4AI -> evidence
-       +--> existing Quay / Claude research runtime
+       +--> deployment-provided research worker runtime
 ```
 
 MarketOps keeps its own DecisionProvider interface, authenticated single business MCP, ledger, Scene/SceneRun policy, budgets and result ingestion. It does not import ServerOS source, share Work Engine SQLite, or require ServerOS's daemon for every decision call. A stopped MCP client does not stop the shared Laya process.
@@ -58,12 +58,12 @@ If Laya is unavailable, shadow may be skipped with an explicit observation or an
 
 Keep control-client and task-scoped worker views inside the same business service as defined by MCP_SERVICE.md. Serper/Laya/Jev/Crawl4AI are adapters or internal calls; expose a bounded research tool only where a real worker needs it. Do not expose host vault paths, arbitrary model URLs, unrestricted shell or recursive dispatch to research workers.
 
-Quay acceptance must use actual research worker outcomes and domain validation. A task whose only command is a unit-test runner demonstrates a gate, not end-to-end autonomous Account research. One driver owner and scoped task/process mapping remain required.
+Dispatch acceptance must use actual research worker outcomes and domain validation. A task whose only command is a unit-test runner demonstrates a gate, not end-to-end autonomous Account research. One driver owner and scoped task/process mapping remain required.
 
 ## 7. Acceptance before any Docker work
 
 1. Configure MarketOps and a ServerOS client to call the same Laya service instance/model digest; inspect process count and bounded memory.
-2. Run a small real authorized research cohort through the business MCP and genuine Quay/Claude worker; Serper URL discovery, fetched evidence, validated route/opportunity and result receipt are traceable.
+2. Run a small real authorized research cohort through the business MCP and genuine deployment-provided research worker; Serper URL discovery, fetched evidence, validated route/opportunity and result receipt are traceable.
 3. Evaluate the same frozen evidence/DecisionSpec with local Laya and authorized Jev; if Jev is unbound, report that exact incomplete experiment rather than block all research.
 4. Check language mismatch, overlong input, malformed output, high-confidence errors, overloaded queue, service failure and no-private-data remote fallback.
 5. Repeat request/reconnect/service restart preserves job/result identity; two consumer workloads respect quota and namespace boundaries.

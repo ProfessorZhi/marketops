@@ -32,7 +32,7 @@ Product/Offer + GeoScope + Scenario + approved policies
 | HTTP / PDF acquisition | 批准 URL 与策略 → 原始字节/headers/hash + 解析来源链 | 从403猜IP封锁，猜测邮箱，擅自跨登录 | 安全入口/逐跳、type/size/time、解析失败、重试与复用都可测 |
 | Crawl4AI | 公开且允许的 JS-required/renderable 页面计划 → rendered artifact 与抓取回执 | 保证穿透 Cloudflare、破解 CAPTCHA、继承 Member-A 登录态 | 固定版本下真浏览器样本、拒绝/重定向/并发/关闭恢复/缓存行为测试 |
 | Jev DecisionProvider | 有出处的小段 state + 服务拥有的闭集 DecisionSpec → typed answers/probabilities + DecisionRecord | 搜索、事实补造、写邮件、提升权限、决定预算/禁用规则 | 真实适用判定被下游按 id 消费；校准与对照评价另报 |
-| Quay + Claude worker | 有界 WorkItem、角色与预算 → evidence/findings/合法终态 | 每URL一个Agent、无限重试、替代码作授权判断 | 独立真worker、断线续跑、租约恢复、受理驱动下游、不因软件landing重复 |
+| 派发执行器 + 受限 worker | 有界 WorkItem、角色与预算 → evidence/findings/合法终态 | 每URL一个Agent、无限重试、替代码作授权判断 | 独立真worker、断线续跑、租约恢复、受理驱动下游、不因软件landing重复 |
 | 普通应用代码 | 调用/结果/版本 → gates、事务、归并、状态、统计、恢复 | 自己发明业务真值 | MCP/CLI/controller用同一用例；重放与故障不丢失、不重复副作用 |
 
 这是职责分工，不要求每件研究调用全部组件。入口数据已经充分可以不搜索；HTTP内容完整不启动浏览器；确定性事实无需模型再投票。需要的集成未就绪就明确能力缺口，不能把 fixture、CLI旁路或目录里有工具名计为 live 产品接线。
@@ -102,7 +102,7 @@ SourceMethod 累积 eligible yield、useful-page precision、duplicate、access 
 
 每个 WorkItem 固定 exact plan/version/digest；运行到一半配置更新不改变已派发attempt。下一run按impact选择复用、重评或必要补抓，不因为策略版本变化全库重爬。
 
-**执行证明：**每次 Serper/HTTP/Crawl4AI/Jev/Quay 选择都应能反查对应 plan step 与理由；一个任务没有必要调用某 provider 时，零调用是正确结果，不为“工具都接了”制造无意义调用。
+**执行证明：**每次 Serper/HTTP/Crawl4AI/Jev/派发执行器 选择都应能反查对应 plan step 与理由；一个任务没有必要调用某 provider 时，零调用是正确结果，不为“工具都接了”制造无意义调用。
 
 ## 3. SourceMethod / AccessPolicy / Attempt：先区分三种权威
 
@@ -192,7 +192,7 @@ source/origin 级熔断在 workspace/适当范围内共享，阻止20个账号�
 
 ## 10. 单一运行清单和最小健康面
 
-部署清单记录 MarketOps代码SHA、数据库schema、Python、MCP协议/SDK、Quay/runtime、Claude模型、Crawl4AI/Playwright/浏览器版本、Jev模型/SDK、parser、effective policy hash与secret引用（不含值）。以实际运行版本为准，不用latest默认别名作可复现实验。
+部署清单记录 MarketOps代码SHA、数据库schema、Python、MCP协议/SDK、执行器、worker 运行时与模型、Crawl4AI/Playwright/浏览器版本、Jev模型/SDK、parser、effective policy hash与secret引用（不含值）。以实际运行版本为准，不用latest默认别名作可复现实验。
 
 `get_capabilities`区分installed/configured/wired/runtime_ready/last_live_verified与blocked原因；读取不主动收费。显示“可研究但JS来源覆盖不足”“Jev不可用、需人工持有的任务数”等业务影响，不把provider不活等于全部场景不可用。
 
