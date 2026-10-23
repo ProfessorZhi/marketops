@@ -1,6 +1,6 @@
 # MarketOps
 
-![version](https://img.shields.io/badge/version-0.5.11--rc6-blue)
+![version](https://img.shields.io/badge/version-0.5.11--rc8-blue)
 ![python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![status](https://img.shields.io/badge/status-release%20candidate-orange)
 
@@ -8,9 +8,10 @@
 并保留可回读的证据。真实外联、回复监控与销售交接在独立授权范围内，当前默认关闭
 （`research_only=true`、`send_authorized=false`）。
 
-> 本仓库现在是 **release candidate 0.5.11-rc6**。对外交付形态 = 一个可安装的
+> 本仓库现在是 **release candidate 0.5.11-rc8**。对外交付形态 = 一个可安装的
 > MarketOps 插件（主 Skill + MCP 连接配置）+ 一个持久化业务 MCP 服务。
-> 插件包的安装与验收见 [`plugins/research-tools/marketops-research-assistant`](plugins/research-tools/marketops-research-assistant/)。
+> 插件包的安装与验收见 [`plugins/research-tools/marketops-research-assistant`](plugins/research-tools/marketops-research-assistant/)，
+> 三端安装指引见 [`docs/CLIENT_INSTALL.md`](docs/CLIENT_INSTALL.md)。
 
 ---
 
@@ -70,8 +71,8 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    A["输入<br/>已知账户<br/>或已批准的公开范围"] --> B["发现<br/>Serper / SerpApi / TinyFish"]
-    B --> C["抓取<br/>HTTP 优先<br/>必要时 Crawl4AI"]
+    A["输入<br/>已知账户<br/>或已批准的公开范围"] --> B["发现<br/>四路并行<br/>Serper / DeepSeek / SerpApi / TinyFish"]
+    B --> C["读页<br/>Crawl4AI / TinyFish / DeepSeek Fetch<br/>前 12 页三路并读，之后按实测排序"]
     C --> D["解析<br/>HTML / PDF"]
     D --> E["字面提取<br/>Name / Role / Email"]
     E --> F["证据绑定<br/>同源引文 + hash"]
@@ -94,19 +95,54 @@ ContactRoute 轴： A / B / C / D / X
 两轴不可互换，也不可合并成一个分数。业务规则以 `sources/` 中冻结的 SOP 和
 `profiles/` 为准，不以历史试跑中临时使用的标签为准。
 
-## 供应商与降级
+## 供应商：谁干什么，按什么顺序
 
-| 项目 | 用途 | 连接 |
-|---|---|---|
-| Serper | 来源搜索 | 受管 REST |
-| SerpApi | 已审核搜索引擎 | 内嵌官方 MCP |
-| TinyFish | 搜索、网页提取 | 内嵌官方 MCP |
-| Crawl4AI | 本地浏览器抓取，保存渲染 HTML | SDK + Chromium + 受限出口 |
-| Jev / TypeSafe | 对已保存材料做有界语义判断 | SDK |
+| 任务 | 第 1 | 第 2 | 第 3 |
+|---|---|---|---|
+| 找目标（网页） | **四路同时** | — | — |
+| 找场所（地图） | Serper `maps` | SerpApi `google_maps` | — |
+| 读一个页面 / 一个机构的站 | Crawl4AI（本地，免费） | TinyFish fetch | DeepSeek Fetch |
+| 判断一批页面（在不在范围内、邮箱归谁） | Jev | 短摘录上由 agent 判断 | — |
+| 硬页面（点击展开、分页门户） | TinyFish 付费 Agent | — | 仅当用户在开始时明确同意 |
 
-`marketops_research_step` 只在已准入服务之间做**有限降级**，并记录原因与每次结果。
-最多三次尝试；未知消费、超时、预算耗尽和明确访问限制**不触发盲目重试**。
-语义服务不可用时保留待核实状态，而不是猜一个等级。
+Google 以外的引擎（Bing、百度、Yandex、Naver、Google Jobs）只在 SerpApi 里，按需少用。
+
+### 多路并行 = 各自的失败互不传染
+
+搜索是 **Serper、DeepSeek、SerpApi、TinyFish 同一条 query 一起发**。某一路没额度、
+超时或被拒，**只有它自己退出**，其余照常返回，Run 不中断。
+
+读页同理：一次 Run 的**前 12 页由 Crawl4AI、TinyFish、DeepSeek Fetch 三路同时读**，
+取信息最全的那份；之后读页顺序按各路**实际交付的效果**排，而不是按某一路的默认优先级。
+
+怎么知道哪一路在起作用：`marketops_search_routes` 给出每路贡献的独立页面数、
+A/B 站点数和 `page_readers` 的交付比例。**只有当某一路什么都没加时**才把它从
+setup 的 `search_routes` 里去掉——不是因为它慢就去掉。
+
+成本口径（现价，会变，以供应商后台为准）：DeepSeek 搜索/读页 $0.75 / 1k 次，
+失败不计费；SerpApi 每月 250 次免费；Crawl4AI 本地免费；Serper `limit` 超过 10
+会按第二次 credit 计费。
+
+**Serper 和 SerpApi 各有两个 key 槽位**（`SERPER_API_KEY` / `SERPER_API_KEY_2`，
+SerpApi 同理），仅在明确要求时切换，**不自动轮换**。
+
+### 有限降级，不盲目重试
+
+`marketops_research_step` 只在已准入服务之间降级，并记录原因与每次结果。最多三次
+尝试；**未知消费、超时、预算耗尽和明确访问限制不触发重试**。语义服务不可用时保留
+「待核实」，而不是猜一个等级。
+
+## 什么时候停
+
+跑够就停，跑不够就继续扩——但**只往会产出的方向扩**。
+
+- 目标数量写在 brief 里：`minimum_ab` 是想要的 A+B 人数（默认 50）。
+- 只要还有在出 A+B 的来源、而 A+B 又没达标，`marketops_next` 就返回
+  `EXPAND_PRODUCTIVE_SOURCE`，让 agent 沿**同一类来源**继续扩（换运动项目、换省份、
+  换联合会），而不是换一条没产出的线重来。
+- 反过来，某类来源一直被证明是 0，就不该再往里投预算。
+
+这条规则来自一次真实运行：上一次只拿到 12 个 A/B 就收工了，而产出的来源明明还没挖完。
 
 ## 开发入门
 
