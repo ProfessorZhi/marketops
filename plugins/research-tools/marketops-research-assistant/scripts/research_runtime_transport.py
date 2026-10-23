@@ -173,6 +173,20 @@ def serper_transport(request, timeout):
             yield response
 
 
+@contextmanager
+def deepseek_transport(request, timeout):
+    from research_egress import open_session
+    from research_adapter_deepseek import NoRedirect
+    host = urlsplit(request.full_url).hostname
+    if host != "api.deepseek.com":
+        raise ValueError("EGRESS_REFUSED")
+    with open_session(allowlist=frozenset({host})) as session:
+        opener = urllib.request.build_opener(NoRedirect(), urllib.request.ProxyHandler(
+            {"https": session.proxy.url, "http": session.proxy.url}))
+        with opener.open(request, timeout=timeout) as response:
+            yield response
+
+
 def allowlist_violations(domains: object) -> tuple[str, ...]:
     """批准域名清单的**启动前**形状判据。
 

@@ -166,7 +166,8 @@ def provider_events(run_id: str) -> dict:
 
 
 PROVIDER_KEYS = {"serper": "SERPER_API_KEY", "serpapi": "SERPAPI_API_KEY",
-                 "tinyfish": "TINYFISH_API_KEY", "typesafe_jev": "TYPESAFE_API_KEY"}
+                 "tinyfish": "TINYFISH_API_KEY", "typesafe_jev": "TYPESAFE_API_KEY",
+                 "deepseek": "DEEPSEEK_API_KEY"}
 
 
 def provider_readiness() -> dict:
@@ -690,7 +691,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         configured_root = None
     if configured_root is not None and runtime_setup.config(configured_root):
         from research_runtime_status import view
-        return {"product": "MarketOps Research MCP", "version": "0.5.11-rc6",
+        return {"product": "MarketOps Research MCP", "version": "0.5.11-rc8",
                 **view(configured_root, task_kind=task_kind),
                 "external_host": _external_inventory(host_observed_tools),
                 "embedded_official_mcp": provider_policy.embedded_official_mcp_capabilities(),
@@ -765,7 +766,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         if task_kind else None)
     return {
         "product": "MarketOps Lite Research MCP",
-        "version": "0.5.11-rc6",
+        "version": "0.5.11-rc8",
         "providers": {
             "serpapi": {"transport": "REST through local MCP", **search["serpapi"]},
             "serper": {"transport": "REST through local MCP", **search["serper"]},
@@ -953,7 +954,7 @@ def managed_call(capability_id, params, run_id, operation_id, account_ref="",
         raise ValueError("CAPABILITY_PARAM_NOT_ALLOWED: account alias is deployment-owned")
     if not isinstance(params, dict):
         raise ValueError("CAPABILITY_PARAM_NOT_ALLOWED")
-    if capability_id in {"serper.search", "serpapi.search"}:
+    if capability_id in {"serper.search", "serpapi.search", "deepseek.search"}:
         import research_locale
         params = {**params}
         for key, convert in (("country", research_locale.country_code),
@@ -1092,6 +1093,15 @@ def search(provider, query, country, language, run_id, operation_id, mode="web",
         return {**answer, **(answer.get("payload") or {}),
                 "invocation": provider_policy.invocation_receipt(
                     "tinyfish_mcp_search", reservation="ONE_ATTEMPT_RESERVED_NOT_BILL_VERIFIED")}
+    if provider == "deepseek":
+        answer = managed_call("deepseek.search", {"query": query, "country": country,
+                                                  "language": language, "limit": limit,
+                                                  "mode": mode}, run_id, operation_id)
+        if answer["status"] != "OK":
+            raise ValueError(_refusal_text(answer))
+        return {**answer, **(answer.get("payload") or {}),
+                "invocation": provider_policy.invocation_receipt(
+                    "deepseek", reservation="ONE_ATTEMPT_RESERVED_NOT_BILL_VERIFIED")}
     if provider not in {"serper", "serpapi"}:
         raise ValueError("CAPABILITY_UNKNOWN")
     if provider == "serpapi" and mode != "web":
@@ -1144,8 +1154,24 @@ def _simple_site_query(query: str) -> str:
     return " ".join(sites[:1] + words)
 
 
+#: Independent web indexes asked side by side by provider='all'. Each finds pages the
+#: others miss; one that fails, is out of money or at its red line drops out of that
+#: search only. Configurable per project: runtime setting search_routes.
+SEARCH_ROUTES = ("serper", "deepseek", "serpapi", "tinyfish")
+
+
+def _search_routes() -> tuple[str, ...]:
+    import research_runtime_setup as runtime
+    settings = runtime.config(root()) or {}
+    chosen = settings.get("search_routes")
+    enabled = set(settings.get("providers") or SEARCH_ROUTES)
+    routes = tuple(r for r in (chosen if isinstance(chosen, list) else SEARCH_ROUTES)
+                   if r in SEARCH_ROUTES and r in enabled)
+    return routes or ("serper", "tinyfish")
+
+
 def _search_all(query, country, language, run_id, operation_id, limit, _retried=False):
-    """Serper and TinyFish search on the same query at once; results merged by URL."""
+    """Every search route on the same query at once; results merged by URL."""
     from concurrent.futures import ThreadPoolExecutor
     def one(provider):
         try:
@@ -1153,7 +1179,7 @@ def _search_all(query, country, language, run_id, operation_id, limit, _retried=
                                     f"{operation_id}-{provider}", limit=limit)
         except ValueError as exc:
             import research_provider_health as health
-            if provider == "serper" and health.blocked(root(), "serper"):
+            if provider == "serper" and health.blocked(root(), "serper") and "serpapi" not in routes:
                 # Serper is out of credit: SerpApi answers the same Google query.
                 try:
                     return provider, {**search("serpapi", query, country, language, run_id,
@@ -1164,8 +1190,14 @@ def _search_all(query, country, language, run_id, operation_id, limit, _retried=
                                       "substitute_failed": "serpapi"}
             # The whole message: "IDENTITY_VALUE_INVALID" alone hid which field was wrong.
             return provider, {"error": str(exc)[:160]}
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        answers = dict(pool.map(one, ("serper", "tinyfish")))
+    routes = _search_routes()
+    with ThreadPoolExecutor(max_workers=len(routes)) as pool:
+        answers = dict(pool.map(one, routes))
+    try:
+        import research_search_routes
+        research_search_routes.record(root(), run_id, query, answers)
+    except Exception:  # noqa: BLE001 - the recall log never stops a search
+        pass
     merged, seen = [], set()
     for provider, answer in answers.items():
         for hit in _hits(answer):
@@ -1232,6 +1264,36 @@ def _hits(answer):
     return []
 
 
+def _jev_ask(run_id: str):
+    """``ask(artifact_id, locator, question, options) -> (choice, confidence)`` for
+    the harvest's page work; one Jev choice, read around ``locator`` when given."""
+    def ask(artifact_id, locator, question, options):
+        op = "jp-" + hashlib.sha256(json.dumps(
+            [run_id, artifact_id, locator, question, options]).encode()).hexdigest()[:24]
+        answer = invoke("jev_choice", run_id, op, document=artifact_id, question=question,
+                        options=options, primitive="choice", evidence_query=locator)
+        judgment = ((answer.get("payload") or {}).get("judgments") or {}).get("judgment") or {}
+        return judgment.get("choice"), judgment.get("confidence")
+    return ask
+
+
+def _screen_question(run_id: str) -> str:
+    """The brief's screening question, or "" when the brief switched screening off."""
+    import research_jev_pages
+    try:
+        snapshot = store.list_run(root(), run_id, limit=50)
+    except (ValueError, KeyError):
+        return ""
+    brief = {}
+    for record in snapshot["records"]:
+        data = record.get("data") or {}
+        if data.get("record_type") == "research_brief":
+            brief = data
+    if brief.get("screen") is False:
+        return ""
+    return research_jev_pages.screen_question(brief, str(snapshot.get("objective") or ""))
+
+
 def _brief_roles(run_id: str) -> str:
     """The brief's roles_wanted, so Jev tags routes without the Agent repeating them."""
     try:
@@ -1296,7 +1358,7 @@ def jev_triage(run_id, operation_id, artifact_ids, question, options, threshold=
 
 def invoke(action, run_id, operation_id, url="", query="", document="",
            question="", options=None, primitive="choice", mcp_params=None,
-           paid_limit_usd="", ledger_grant=""):
+           paid_limit_usd="", ledger_grant="", evidence_query=""):
     if action == "crawl4ai_local":
         capability, params = "crawl4ai.fetch_page", {"url": url}
     elif action == "tinyfish_mcp_search":
@@ -1323,6 +1385,9 @@ def invoke(action, run_id, operation_id, url="", query="", document="",
                                                  "question": question}
         if primitive == "choice":
             params["options"] = options
+            if evidence_query:
+                # Read the part of the page around this phrase, not the page head.
+                params["evidence_query"] = evidence_query[:60]
         elif primitive == "score":
             params["scale"] = options
     else:
@@ -1488,7 +1553,7 @@ def handoff(run_id, operation_id, mode="auto"):
     try:
         experience_result = draft_experience(
             r, run_id=run_id, scope=head["scope"],
-            rule_version=head["rule_version"], skill_version="0.5.11-rc6",
+            rule_version=head["rule_version"], skill_version="0.5.11-rc8",
             output=experience_path)
         result["experience_candidate"] = str(experience_path)
         result["experience_incidents"] = experience_result["incidents"]
@@ -1673,6 +1738,7 @@ PUBLIC_TOOLS = frozenset({
     "marketops_jev_triage", "marketops_suppression", "marketops_feedback_pack",
     "marketops_pool_reopen", "marketops_costs", "marketops_update_check", "marketops_accounts",
     "marketops_crawl4ai_check", "marketops_method", "marketops_venue_groups",
+    "marketops_search_routes",
 })
 
 
@@ -1702,6 +1768,11 @@ def _with_budget(fn):
 def build_server():
     from research_credentials import load_into_environment
     load_into_environment()
+    try:
+        import research_key_slots
+        research_key_slots.apply(root())
+    except (ValueError, OSError):
+        pass  # no data root yet: slot 1, as configured
     # Direct by default; only an explicitly configured proxy changes that.
     research_config.load_upstream_proxy_into_environment()
     _use_installed_browser()
@@ -1714,7 +1785,7 @@ def build_server():
         pass
     _ensure_repair_entrypoints()
     from mcp.server import MCPServer
-    mcp = MCPServer("MarketOps Lite Research", version="0.5.11-rc6")
+    mcp = MCPServer("MarketOps Lite Research", version="0.5.11-rc8")
     _quiet_http_logs()  # after the server set up its own logging
 
     def tool(fn):
@@ -1780,10 +1851,36 @@ def build_server():
     def marketops_search(provider: str, query: str, country: str, language: str,
                          run_id: str, operation_id: str, mode: str = "web",
                          limit: int = 10) -> dict:
-        """provider='all' (default choice for discovery) runs Serper and TinyFish search on
-        the same query and merges results with found_by; or one of serper, serpapi,
-        tinyfish. Snippets are leads, not facts."""
+        """provider='all' (default choice for discovery) runs every search route the
+        project enables (Serper, DeepSeek, SerpApi, TinyFish) on the same query at
+        once and merges results with found_by; a route with no money or a failure
+        only drops out. Or one of serper, deepseek, serpapi, tinyfish. Snippets are
+        leads, not facts. marketops_search_routes shows what each route adds."""
         return search(provider, query, country, language, run_id, operation_id, mode, limit)
+
+    @tool
+    def marketops_search_routes(run_id: str) -> dict:
+        """Recall per search route in this Run: pages found, pages only it found, and
+        which route found the sites the A/B routes came from; and per page reader
+        (Crawl4AI, TinyFish fetch, DeepSeek Fetch): pages read, failures by reason,
+        addresses found, pages only it read addresses from. Read-only; use it to
+        decide which routes to keep when money is short."""
+        import research_search_routes
+        import research_sources
+        grades, _, _ = research_sources.graded(root(), run_id)
+        _, records, artifacts = delivery._read_snapshot(root(), run_id)
+        urls = {a["artifact_id"]: a["url"] for a in artifacts}
+        by_id = {r["record_id"]: r for r in records}
+        hosts = set()
+        for record_id, grade in grades.items():
+            if grade["grade"] in {"A", "B"}:
+                for artifact in by_id.get(record_id, {}).get("artifact_ids") or ():
+                    host = (urlsplit(urls.get(artifact, "")).hostname or "").casefold()
+                    if host:
+                        hosts.add(host.removeprefix("www."))
+        import research_fetch_routes
+        return {**research_search_routes.report(root(), run_id, hosts),
+                "page_readers": research_fetch_routes.report(root(), run_id)}
 
     @tool
     def marketops_crawl(run_id: str, operation_id: str, url: str,
@@ -1900,13 +1997,19 @@ def build_server():
         return propose_batch(run_id, items)
 
     @tool
-    def marketops_material_excerpt(run_id: str, artifact_ids: list[str],
-                                   queries: list[str] | None = None) -> dict:
+    def marketops_material_excerpt(run_id: str, artifact_ids: list[str] | None = None,
+                                   queries: list[str] | None = None,
+                                   artifact_id: str = "") -> dict:
         """Get SHA-checked snippets: 1–3 artifact IDs and at most 3 query strings (2–60 chars each).
 
-        The total excerpt is capped at 1200 characters; make a separate focused
-        read if more evidence is needed, rather than requesting four queries.
+        artifact_id (one ID) is accepted in place of artifact_ids. The total excerpt
+        is capped at 1200 characters; make a separate focused read if more evidence
+        is needed, rather than requesting four queries.
         """
+        if artifact_id and not artifact_ids:
+            artifact_ids = [artifact_id]
+        if not artifact_ids:
+            raise ValueError("EXCERPT_ARTIFACT_LIMIT: pass artifact_ids=[...] (1-3 IDs)")
         return material_excerpt(run_id, artifact_ids, queries)
 
     @tool
@@ -1972,26 +2075,19 @@ def build_server():
         Jev tags each email with who it reaches (roles from roles_wanted or the
         brief's roles_wanted); read the page only for low-confidence tags.
         """
-        import research_fallback
-        import research_runtime_setup
         import research_site_harvest
         data_root = root()
         _require_brief_for_network(data_root, run_id)
 
-        def fetch(page_url, child):
-            return research_fallback.research_step(
-                data_root, run_id=run_id, operation_id=child, task_kind="known_public_url",
-                managed_call=managed_call,
-                admission=lambda capability: research_runtime_setup.admission(data_root, capability),
-                url=page_url, max_attempts=2)
-
+        fetch = _fetcher(data_root, run_id)
         return research_site_harvest.harvest(
             data_root, run_id=run_id, operation_id=operation_id,
             organization_name=organization_name, organization_key=organization_key,
             url=url, fetch=fetch, max_pages=max_pages, write=write,
             grade=_role_grader(run_id, roles_wanted),
             time_budget_seconds=HARVEST_TIME_BUDGET_SECONDS,
-            focus=roles_wanted.strip() or _brief_roles(run_id))
+            focus=roles_wanted.strip() or _brief_roles(run_id),
+            jev_ask=_jev_ask(run_id), screen_question=_screen_question(run_id))
 
     def _role_grader(run_id, roles_wanted):
         roles_wanted = roles_wanted.strip() or _brief_roles(run_id)
@@ -2005,7 +2101,9 @@ def build_server():
             answer = invoke("jev_choice", run_id, op, document=route["artifact_id"],
                             question=(f"Who does the contact {route['value']} on this page belong "
                                       f"to? Wanted roles: {roles_wanted.strip()[:200]}."),
-                            options=ROLE_OPTIONS, primitive="choice")
+                            options=ROLE_OPTIONS, primitive="choice",
+                            # Around the address: the page head may not even print it.
+                            evidence_query=route["value"] if len(route["value"]) <= 60 else "")
             judgment = ((answer.get("payload") or {}).get("judgments") or {}).get("judgment") or {}
             return {"role": judgment.get("choice") or "unclear",
                     "confidence": judgment.get("confidence")}
@@ -2013,14 +2111,18 @@ def build_server():
 
     def _fetcher(data_root, run_id):
         import research_fallback
+        import research_fetch_routes
         import research_runtime_setup
 
-        def fetch(page_url, child):
+        def step(page_url, child, routes=None):
             return research_fallback.research_step(
                 data_root, run_id=run_id, operation_id=child, task_kind="known_public_url",
                 managed_call=managed_call,
                 admission=lambda capability: research_runtime_setup.admission(data_root, capability),
-                url=page_url, max_attempts=2)
+                url=page_url, max_attempts=3, routes=routes)
+
+        def fetch(page_url, child):
+            return research_fetch_routes.fetch(data_root, run_id, page_url, child, step)
         return fetch
 
     @tool
@@ -2029,8 +2131,13 @@ def build_server():
                               objective: str = "", scene: str = "", run_id: str = "",
                               artifact_id: str = "", mapping: dict | None = None,
                               filters: dict | None = None, offset: int = 0,
-                              limit: int = 500, preview: bool = False) -> dict:
+                              limit: int = 500, preview: bool = False,
+                              family: str = "") -> dict:
         """Add one source's targets to the shared pool every window works from.
+
+        family: which kind of organisation this source lists (OPERATORS,
+        CLUBS_ASSOCIATIONS, SCHOOLS_UNIVERSITIES, FEDERATION_LISTS). A contacts goal
+        pilots every family before it may finish (marketops_next execution).
 
         targets: [{name, website?, address?, kind?, priority?}]. listed_count is how
         many entities the source itself listed; the reply says whether imported +
@@ -2041,6 +2148,9 @@ def build_server():
         provider requests; follow next_offset, then upstream_pagination_remaining.
         """
         import research_pool
+        import research_sources
+        if family:
+            research_sources.set_family(root(), pool_id, source_id, family)
         if artifact_id:
             if targets is not None:
                 raise ValueError("BULK_OR_EXPLICIT_TARGETS_NOT_BOTH")
@@ -2153,10 +2263,22 @@ def build_server():
         returns ask_now=true once per account; record the answer with marketops_costs
         set_balance, or continue with UNKNOWN if the user does not know. Account
         registration and key changes use the local research_accounts.py CLI (stdin).
+        action='slots' shows which Serper/SerpApi key slot is in use; action='use_slot',
+        account_ref='serper:2' switches to the second key. Switch only when the user
+        tells you to (a slot is one of their accounts); never to dodge a limit yourself.
         """
         import research_accounts
         if action == "status":
             return research_accounts.status(root())
+        if action in {"use_slot", "slots"}:
+            # Serper/SerpApi second key: switched only on the user's word.
+            import research_key_slots
+            if action == "slots":
+                return research_key_slots.status(root())
+            provider, _, slot = account_ref.partition(":")
+            if not slot.isdigit():
+                raise ValueError("KEY_SLOT_INVALID: account_ref='serper:2' or 'serpapi:1'")
+            return research_key_slots.use(root(), provider, int(slot))
         if action == "ask_balance":
             accounts = research_accounts.status(root())["accounts"]
             if account_ref not in {a["account_ref"] for a in accounts}:
@@ -2299,7 +2421,8 @@ def build_server():
             max_pages=max_pages, grade=_role_grader(run_id, roles_wanted),
             find_site=lambda target, op: find_official_site(run_id, op, target,
                                                             country, language),
-            focus=roles_wanted.strip() or _brief_roles(run_id))
+            focus=roles_wanted.strip() or _brief_roles(run_id),
+            jev_ask=_jev_ask(run_id), screen_question=_screen_question(run_id))
         if parked["parked"]:
             result["source_gate_parked"] = parked
         return result
@@ -2457,7 +2580,7 @@ def build_server():
             raise ValueError("EXPERIENCE_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT")
         output.parent.mkdir(parents=True, exist_ok=True)
         return draft_experience(r, run_id=run_id, scope=scope,
-                                rule_version=rule_version, skill_version="0.5.11-rc6",
+                                rule_version=rule_version, skill_version="0.5.11-rc8",
                                 output=output)
 
     @tool

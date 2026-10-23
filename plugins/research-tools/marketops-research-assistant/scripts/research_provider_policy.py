@@ -83,6 +83,7 @@ def tinyfish_wallet_observation(wallet: dict | None) -> dict:
 LITE_OPERATION_CHANNELS = {
     "serper": ("serper", "REST_HTTPS", "API_KEY_ENV", "SERPER_API_KEY", "SEARCH_QUERY_OR_ACCOUNT_CREDIT"),
     "serpapi": ("serpapi", "REST_HTTPS", "API_KEY_ENV", "SERPAPI_API_KEY", "SEARCH_QUERY_OR_ACCOUNT_CREDIT"),
+    "deepseek": ("deepseek", "REST_HTTPS", "API_KEY_ENV", "DEEPSEEK_API_KEY", "SEARCH_QUERY_ACCOUNT_RATE"),
     "tinyfish_search": ("tinyfish", "REST_HTTPS", "API_KEY_ENV", "TINYFISH_API_KEY", "SEARCH_QUERY_ACCOUNT_RATE"),
     "tinyfish_fetch": ("tinyfish", "REST_HTTPS", "API_KEY_ENV", "TINYFISH_API_KEY", "FETCH_URL_ACCOUNT_RATE"),
     "crawl4ai_local": ("crawl4ai", "LOCAL_PYTHON_SDK", "LOCAL_POLICY_NO_PROVIDER_KEY", None, "LOCAL_COMPUTE_AND_BROWSER"),
@@ -111,6 +112,7 @@ OFFICIAL_MCP_AUTH_HINTS = {
 _CREDENTIAL_WIRE = {
     "serper": "X_API_KEY_HTTP_HEADER",
     "serpapi": "API_KEY_HTTPS_QUERY_PARAMETER",
+    "deepseek": "BEARER_HTTP_HEADER",
     "tinyfish_search": "X_API_KEY_HTTP_HEADER",
     "tinyfish_fetch": "X_API_KEY_HTTP_HEADER",
     "crawl4ai_local": "NO_PROVIDER_CREDENTIAL",

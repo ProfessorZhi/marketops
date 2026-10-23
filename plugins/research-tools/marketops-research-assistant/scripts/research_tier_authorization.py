@@ -131,6 +131,7 @@ TIER_BY_OPERATION: dict[str, str] = {
     "crawl4ai.selfhosted": "T1",
     "serper": "T2",
     "serpapi": "T2",
+    "deepseek": "T2",
     "tinyfish_search": "T2",
     "tinyfish_fetch": "T2",
     "tinyfish.host_search": "T2",

@@ -1238,6 +1238,18 @@ DEFAULT_REGISTRY = CapabilityRegistry((
             "language": "string", "page": "integer"},
            "search", description="Metered Google SERP; num>10 costs a second credit."),
 
+    # -- DeepSeek: REST search ----------------------------------------------
+    build_entry("deepseek.search", "deepseek", "search", "rest", EffectClass.BILLABLE_READ, Tier.T2,
+           "deepseek:search", "search_query",
+           {"query": "string", "mode": "string", "limit": "integer", "country": "string",
+            "language": "string"},
+           "search", description="DeepSeek's own web index; up to 50 results per billed request, "
+                                 "empty searches not billed."),
+    build_entry("deepseek.fetch_page", "deepseek", "fetch", "rest", EffectClass.BILLABLE_READ,
+           Tier.T2, "deepseek:fetch", "fetch_url", {"url": "string"},
+           "fetch", description="DeepSeek reads one page from its own servers and returns "
+                                "Markdown; billed only when content comes back."),
+
     # -- Crawl4AI: local SDK, through the egress proxy ----------------------
     build_entry("crawl4ai.fetch_page", "crawl4ai", "fetch_page", "local_sdk",
            EffectClass.READ_ONLY, Tier.T1, "crawl4ai:local", "local_page",
@@ -1265,7 +1277,8 @@ DEFAULT_REGISTRY = CapabilityRegistry((
     # -- TypeSafe Jev: Python SDK ------------------------------------------
     build_entry("jev.choice", "typesafe_jev", "choice", "python_sdk", EffectClass.BILLABLE_READ,
            Tier.T2, "typesafe_jev:judge", "request",
-           {"artifact_id": "string", "question": "string", "options": "array"},
+           {"artifact_id": "string", "question": "string", "options": "array",
+            "evidence_query": "string"},
            "judge", description="Typed choice over server-held evidence; input pinned to an "
                                 "artifact, never to Agent-supplied text."),
     build_entry("jev.noul", "typesafe_jev", "noul", "python_sdk", EffectClass.BILLABLE_READ,

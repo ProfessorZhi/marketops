@@ -35,6 +35,14 @@ DEFAULT_RATES: dict[tuple[str, str], dict] = {
     ("serper", "search"): {
         "unit": "credit", "usd_per_unit": "0.001", "free_units": 2500, "free_period": "once",
         "plan": "pay-as-you-go", "source": "https://serper.dev/"},
+    ("deepseek", "search"): {
+        "unit": "request", "usd_per_unit": "0.00075", "free_units": None, "free_period": None,
+        "plan": "pay-as-you-go; empty results not billed",
+        "source": "https://api-docs.deepseek.com/guides/search/"},
+    ("deepseek", "fetch"): {
+        "unit": "request", "usd_per_unit": "0.00075", "free_units": None, "free_period": None,
+        "plan": "pay-as-you-go; failed fetches not billed",
+        "source": "https://api-docs.deepseek.com/guides/search/"},
     ("serpapi", "search"): {
         "unit": "search", "usd_per_unit": "0", "free_units": 250, "free_period": "month",
         "plan": "free", "source": "https://serpapi.com/pricing"},
@@ -68,6 +76,11 @@ SERPER_RESULTS_PER_CREDIT = 10
 def billed_units(provider: str, capability: str, params: dict) -> int:
     """Vendor units one call consumes, before it is dispatched."""
     if provider == "serper" and capability == "search":
+        mode = str(params.get("mode") or "web")
+        if mode in {"maps", "places", "local"}:
+            # Map results come ten to a page whatever `num` asks for, one credit each:
+            # a live run's 66 map searches at limit=20 cost 66 credits, not 132.
+            return 1
         try:
             wanted = int(params.get("limit") or params.get("num") or 10)
         except (TypeError, ValueError):

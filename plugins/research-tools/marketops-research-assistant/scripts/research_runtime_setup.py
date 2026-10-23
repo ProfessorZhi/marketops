@@ -34,11 +34,12 @@ CONFIG_NAME = "runtime-config.json"
 #: Large pools need tens of thousands of requests; the cap stays explicit and user-set.
 MAX_CALLS_CEILING = 100_000
 KEYS = {"serper": "SERPER_API_KEY", "serpapi": "SERPAPI_API_KEY",
-        "tinyfish": "TINYFISH_API_KEY", "typesafe_jev": "TYPESAFE_API_KEY"}
+        "tinyfish": "TINYFISH_API_KEY", "typesafe_jev": "TYPESAFE_API_KEY",
+        "deepseek": "DEEPSEEK_API_KEY"}
 PROVIDERS = (*KEYS, "crawl4ai")
 ENDPOINTS = {"tinyfish": "https://agent.tinyfish.ai/mcp",
              "serpapi": "https://mcp.serpapi.com/mcp"}
-CORE = {"serper.search", "serpapi.search", "tinyfish.search", "tinyfish.fetch_content",
+CORE = {"serper.search", "serpapi.search", "deepseek.search", "deepseek.fetch_page", "tinyfish.search", "tinyfish.fetch_content",
         "crawl4ai.fetch_page", "crawl4ai.extract", "jev.choice", "jev.noul", "jev.score"}
 
 
@@ -780,7 +781,7 @@ read. The existing ledger enforces the floor in the observed unit and refuses
 unknown USD conversion or mismatched meters.
 """
     from urllib.parse import urlsplit
-    official = {"serper": "serper.dev", "serpapi": "serpapi.com",
+    official = {"serper": "serper.dev", "serpapi": "serpapi.com", "deepseek": "deepseek.com",
                 "tinyfish": "tinyfish.ai", "typesafe_jev": "typesafe.ai"}
     if (confirm is not True or provider not in official or type(units) is not int
             or units < 0 or (not refresh and units == 0)):

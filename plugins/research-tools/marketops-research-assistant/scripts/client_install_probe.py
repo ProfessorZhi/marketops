@@ -58,7 +58,8 @@ SAFE_ENV_PASSTHROUGH = frozenset({
     "MARKETOPS_SEARCH_ALLOW_NETWORK", "MARKETOPS_SEARCH_MAX_CALLS",
     "MARKETOPS_TINYFISH_AGENT_ALLOW_PAID", "MARKETOPS_TINYFISH_ACCOUNT_ALIAS",
     "SERPAPI_API_KEY", "SERPER_API_KEY", "CRAWL4AI_API_KEY",
-    "TINYFISH_API_KEY", "TINYFISH_MCP_ACCESS_TOKEN", "TYPESAFE_API_KEY",
+    "TINYFISH_API_KEY", "TINYFISH_MCP_ACCESS_TOKEN", "TYPESAFE_API_KEY", "DEEPSEEK_API_KEY",
+    "SERPER_API_KEY_2", "SERPAPI_API_KEY_2",
 })
 
 #: A vendor MCP endpoint. A shipped config that declares one of these as an
@@ -285,7 +286,8 @@ def probe_stdio_tools(python: str, entry: Path, *, data_root: Path,
         "MARKETOPS_TINYFISH_AGENT_ALLOW_PAID": "0",
     })
     for name in ("SERPAPI_API_KEY", "SERPER_API_KEY", "CRAWL4AI_API_KEY",
-                 "TINYFISH_API_KEY", "TYPESAFE_API_KEY", "TINYFISH_MCP_ACCESS_TOKEN"):
+                 "TINYFISH_API_KEY", "TYPESAFE_API_KEY", "TINYFISH_MCP_ACCESS_TOKEN",
+                 "DEEPSEEK_API_KEY", "SERPER_API_KEY_2", "SERPAPI_API_KEY_2"):
         env.pop(name, None)
 
     async def run() -> dict:

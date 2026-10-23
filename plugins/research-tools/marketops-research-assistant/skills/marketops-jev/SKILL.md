@@ -27,6 +27,15 @@ labels; always include `unknown`.
 
 `primitive='noul'` for a yes/no probability (near 0.5 = unsure), `'score'` for ordered levels.
 
+**Automatic in every harvest** (no call from you): code reads each page first, and Jev is asked
+only where code finds several literal candidates and cannot choose:
+- *directory pages* (a town's or federation's list of clubs): which club printed before an
+  address owns it; each club becomes its own organisation, quoted from its list entry;
+- *names*: which printed name an address belongs to when the address does not spell it;
+- *screening*: whether the target's own site is in scope (see the brief's `screen_*` fields).
+Each pick is checked literally against the page; grading stays in code. Role tags read the
+text around the address, not the page head.
+
 **Rules**: Jev ranks and filters; it never establishes a fact, a final grade or a merge. Facts come
 only from quotes. At ≥0.85 confidence its answer is a candidate; below, you check the source.
 

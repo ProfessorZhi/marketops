@@ -115,7 +115,7 @@ class MetadataTests(unittest.TestCase):
         self.assertIsNone(reg.vendor_schema_sha256)
         self.assertEqual(
             set(reg.vendor_schema_statuses()),
-            {"tinyfish", "serpapi", "serper", "crawl4ai", "typesafe_jev"})
+            {"tinyfish", "serpapi", "serper", "crawl4ai", "typesafe_jev", "deepseek"})
         for provider in reg.vendor_schema_statuses():
             with self.subTest(provider=provider):
                 self.assertIs(reg.authoritative_status(provider),
@@ -139,11 +139,12 @@ class MetadataTests(unittest.TestCase):
 
     def test_the_reviewed_table_is_28_with_no_live_claim(self):
         # 25 before the documented TinyFish account-read review, plus the three
-        # reviewed reads (get_monitor / list_monitors / list_browser_sessions).
+        # reviewed reads (get_monitor / list_monitors / list_browser_sessions), plus
+        # DeepSeek Search and Fetch.
         reg = registry_module.DEFAULT_REGISTRY
-        self.assertEqual(len(reg), 28)
+        self.assertEqual(len(reg), 30)
         statuses = [(entry.readiness, entry.availability.value) for entry in reg]
-        self.assertEqual(statuses.count(("OFFLINE_TESTED", "ENABLED")), 23)
+        self.assertEqual(statuses.count(("OFFLINE_TESTED", "ENABLED")), 25)
         self.assertEqual(statuses.count(("CODED", "ENABLED")), 1)
         self.assertEqual(statuses.count(("DEFERRED", "DISABLED")), 4)
         self.assertNotIn("READY", " ".join(entry.readiness for entry in reg))

@@ -44,6 +44,22 @@ Opendatasoft example:
   count against it.
 - Field names differ between datasets: preview the schema first.
 
+**A contacts goal researches every kind of organisation tied to the targets, not one.**
+Unless the brief limits it, build one pool source per family and let the source gate compare
+them after 30 targets each:
+- operators and owners (town sports departments, management companies, chains);
+- clubs and associations based at the venues or in the area (committee pages name officers
+  with their own addresses: in the live Paris run they gave most of the A and B);
+- schools, universities and their sports services;
+- the federation or league's club list for each sport in the area.
+A venue inventory alone leads only to operators, and operators mostly publish service
+inboxes. Never spend the whole budget on one family before the others had their pilot.
+Tag each source: `marketops_pool_import(..., family='OPERATORS' | 'CLUBS_ASSOCIATIONS' |
+'SCHOOLS_UNIVERSITIES' | 'FEDERATION_LISTS')`. `marketops_next` keeps a contacts Run open
+(`IMPORT_NEXT_TARGET_FAMILY`) until each family finished its pilot or you recorded why it
+does not apply: `marketops_method(method=<family>, outcome='not_applicable', note=...)`.
+A brief can narrow the list with `target_families:[...]` when the user limited the scope.
+
 **Map who runs each venue.** When the source has operator/manager and owner fields, map
 them as `operator`, `operator_type` and `owner_type`.
 - Contacts sit with the operator: the municipality's sports department for public
@@ -79,6 +95,11 @@ Save it with `marketops_start(..., brief=...)`. Fields:
 - `source_gate`: leave it out. By default each source's first 30 finished targets decide whether
   the rest of that source is researched (A+B accounts ≥10% go on, 5–10% change approach once,
   <5% parked). `{pilot:20}` for small pools; `false` only if the user asks for every target.
+- Screening (Jev, one question on each target's first page): give `screen_in_scope` (who is a
+  target, one line), `screen_competitors` (who sells what the user sells) and
+  `screen_out_of_scope` (kinds of body to skip). A site Jev is sure (≥0.9) is a competitor or
+  out of scope is not crawled or staged; it holds with `SCREENED_OUT` and can be reopened.
+  Without these the objective is used; `screen:false` switches screening off.
 - Changing the goal later: a new brief record with `facts.supersedes`; never lower a goal to pass.
 
 ## Source pool: find the whole list first

@@ -16,9 +16,11 @@ def known_provider_reason_codes():
     import research_adapter_serpapi as serpapi
     import research_adapter_tinyfish as tinyfish
     import research_adapter_jev as jev
+    import research_adapter_deepseek as deepseek
     from research_runtime_transport import CRAWL_CACHE_REASONS
     return (set(REASON_CODES) | set(crawl.ALL_REASON_CODES) | set(serper.ADAPTER_LOCAL_REASONS)
             | set(serpapi.ADAPTER_LOCAL_REASONS) | set(tinyfish._KNOWN_BRIDGE_CODES)
+            | set(deepseek.ADAPTER_LOCAL_REASONS)
             | set(jev.JEV_REASON_CODES) | set(CRAWL_CACHE_REASONS) | (set(jev.NOTES) & {
                 "UPSTREAM_QUOTA_OR_PAYMENT", "UPSTREAM_RATE_LIMITED"})
             | {"PROVIDER_HTML_URL_INVALID", "PROVIDER_HTML_INVALID_CONTENT",
@@ -61,7 +63,7 @@ def normalize_params(capability, params):
             if type(value) is not int or not 0 <= value <= bounds[key]:
                 raise ValueError("BUDGET_OPERATION_CEILING: crawl limit exceeds product bound")
         values["limits"] = {**bounds, **supplied}
-    if capability in {"serper.search", "serpapi.search"}:
+    if capability in {"serper.search", "serpapi.search", "deepseek.search"}:
         for old, new in (("q", "query"), ("gl", "country"), ("hl", "language"), ("num", "limit")):
             if old in values:
                 incoming = values.pop(old)
@@ -135,6 +137,7 @@ def persist(root, run_id, operation_id, guarded, *, params):
     status, reason_code = guarded.status, guarded.reason_code
     source_materials = []
     route = {"serper.search": "serper", "serpapi.search": "serpapi_mcp_search",
+             "deepseek.search": "deepseek", "deepseek.fetch_page": "deepseek",
              "tinyfish.search": "tinyfish_mcp_search", "tinyfish.fetch_content": "tinyfish_mcp_fetch",
              "crawl4ai.fetch_page": "crawl4ai_local", "crawl4ai.extract": "crawl4ai_local",
              "jev.choice": "jev_choice", "jev.noul": "jev_choice", "jev.score": "jev_choice"

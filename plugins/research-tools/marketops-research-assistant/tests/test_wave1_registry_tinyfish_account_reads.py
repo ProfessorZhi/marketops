@@ -161,7 +161,7 @@ class ReviewedEntryTests(unittest.TestCase):
 
     def test_the_original_25_capabilities_are_unchanged(self):
         reg = registry_module.DEFAULT_REGISTRY
-        self.assertEqual(len(reg), 28)
+        self.assertEqual(len(reg), 30)  # + deepseek.search, deepseek.fetch_page
         for capability_id, expected in BASELINE_25.items():
             with self.subTest(capability_id=capability_id):
                 entry = reg.get(capability_id)
@@ -295,7 +295,7 @@ class ImmutabilityTests(unittest.TestCase):
 
     def test_adding_entries_did_not_create_a_vendor_digest(self):
         default = registry_module.DEFAULT_REGISTRY
-        self.assertEqual(len(default.vendor_schema_statuses()), 5)
+        self.assertEqual(len(default.vendor_schema_statuses()), 6)
         for provider, status in default.vendor_schema_statuses().items():
             with self.subTest(provider=provider):
                 self.assertIs(status, registry_module.VendorSchemaStatus.NOT_CAPTURED)

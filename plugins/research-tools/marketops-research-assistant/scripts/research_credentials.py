@@ -26,7 +26,12 @@ PROVIDER_KEYS = {
     "serpapi": "SERPAPI_API_KEY",
     "tinyfish": "TINYFISH_API_KEY",
     "typesafe": "TYPESAFE_API_KEY",
+    "deepseek": "DEEPSEEK_API_KEY",
 }
+#: Second keys for the searches that run out first; chosen by the user, never
+#: rotated by the plugin (research_key_slots). Only stored when named.
+SLOT_KEYS = {"serper_2": "SERPER_API_KEY_2", "serpapi_2": "SERPAPI_API_KEY_2"}
+ALL_KEYS = {**PROVIDER_KEYS, **SLOT_KEYS}
 
 
 def _backend():
@@ -43,7 +48,7 @@ def _present(value: str | None) -> bool:
 
 def _selected(providers) -> list[str]:
     chosen = list(PROVIDER_KEYS) if providers is None else list(providers)
-    if not chosen or any(p not in PROVIDER_KEYS for p in chosen):
+    if not chosen or any(p not in ALL_KEYS for p in chosen):
         raise ValueError("UNKNOWN_PROVIDER")
     return chosen
 
@@ -52,7 +57,7 @@ def _save(backend, provider: str, value: str) -> str:
     if not _present(value) or any(ch in value for ch in "\r\n\x00"):
         raise ValueError("INVALID_API_KEY_INPUT")
     try:
-        backend.set_password(KEYRING_SERVICE, PROVIDER_KEYS[provider], value)
+        backend.set_password(KEYRING_SERVICE, ALL_KEYS[provider], value)
     except Exception:
         raise ValueError("OS_KEYRING_WRITE_FAILED") from None
     return "SAVED_NOT_AUTHENTICATED"
@@ -84,6 +89,9 @@ def configure_keys_from_values(values, providers=None) -> dict:
     An absent or empty entry leaves that provider untouched, so a user who has
     only three of the four services can still finish setup.
     """
+    if providers is None and isinstance(values, dict):
+        # A second key handed over with the first ones is stored too.
+        providers = list(PROVIDER_KEYS) + [slot for slot in SLOT_KEYS if values.get(slot)]
     selected = _selected(providers)
     if not isinstance(values, dict):
         raise ValueError("INVALID_API_KEY_INPUT")
@@ -113,8 +121,8 @@ def _read_stdin_values() -> dict:
 def load_into_environment(environ=None) -> dict:
     env = os.environ if environ is None else environ
     loaded = {}
-    existing = [name for name in PROVIDER_KEYS.values() if _present(env.get(name))]
-    missing = [name for name in PROVIDER_KEYS.values() if name not in existing]
+    existing = [name for name in ALL_KEYS.values() if _present(env.get(name))]
+    missing = [name for name in ALL_KEYS.values() if name not in existing]
     if not missing:
         return {"loaded": loaded, "environment": existing, "keyring": "NOT_NEEDED"}
     # Literal host placeholders are never sent to a provider as credentials.

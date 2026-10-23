@@ -95,7 +95,9 @@ class Chain(unittest.TestCase):
                     raise ValueError("BUDGET_PROVIDER_CEILING")
                 return {"results": [{"url": f"https://{provider}.example/"}]}
 
+            # SerpApi stands in for Serper only where it is not a route of its own.
             with patch.object(mcp, "root", return_value=root), \
+                    patch.object(mcp, "_search_routes", return_value=("serper", "tinyfish")), \
                     patch.object(mcp, "search", side_effect=search) as called:
                 answer = mcp._search_all("clubs", "us", "en", "r", "op", 10)
             self.assertEqual({"serper", "serpapi", "tinyfish"},

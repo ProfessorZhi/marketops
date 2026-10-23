@@ -101,6 +101,7 @@ PROVIDER_ADAPTERS: dict[str, tuple[str, str]] = {
     "tinyfish": ("research_adapter_tinyfish", "TinyFishAdapter"),
     "serpapi": ("research_adapter_serpapi", "SerpApiAdapter"),
     "serper": ("research_adapter_serper", "SerperAdapter"),
+    "deepseek": ("research_adapter_deepseek", "DeepSeekAdapter"),
     "crawl4ai": ("research_adapter_crawl4ai", "Crawl4AIAdapter"),
     "typesafe_jev": ("research_adapter_jev", "JevAdapter"),
 }
@@ -181,6 +182,9 @@ def _construct_adapter(adapter_class, root, *, api_key=None):
     if name == "SerperAdapter":
         return adapter_class(api_key=api_key or os.environ.get("SERPER_API_KEY"),
                              transport=transport.serper_transport)
+    if name == "DeepSeekAdapter":
+        return adapter_class(api_key=api_key or os.environ.get("DEEPSEEK_API_KEY"),
+                             transport=transport.deepseek_transport)
     if name == "JevAdapter":
         return adapter_class(root=root, api_key=api_key or os.environ.get("TYPESAFE_API_KEY")
                              or os.environ.get("JEV_API_KEY"))
@@ -537,6 +541,12 @@ class _GatewayAfterTheGate:
             if not self._built.ledger.usage("provider_account", aggregate_key, window="total"):
                 money, enforced, seconds = runtime._existing_cap(
                     self._built.ledger, "provider_account", f"{project}/{provider}/{provider}")
+                if plan["budget_mode"] == "MONEY" and money is None and provider_ceiling is None:
+                    # A provider enabled after the money policy was set up had no row
+                    # to inherit from; its ceiling is the total red line like the others.
+                    envelope = settings["spending"]
+                    money = envelope["ledger_money_baseline"] + envelope["total_budget_micros"]
+                    enforced = True
                 self._built.ledger.set_cap("provider_account", aggregate_key,
                     ceiling_calls=provider_ceiling, ceiling_micros=money,
                     usd_enforced=enforced, ceiling_seconds=seconds, source="LOCAL_CONSENT",

@@ -243,6 +243,8 @@ class Grades(unittest.TestCase):
 
 
 class SourceGate(unittest.TestCase):
+    BRIEF = PARIS
+
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -255,7 +257,7 @@ class SourceGate(unittest.TestCase):
         self.store, self.pool = store, pool
         store.start_run(self.root, "run-g", "FR-Paris", "Paris sports venues", "v1")
         store.put_candidate(self.root, "run-g", "brief-1", "qualification", "observation",
-                            "research-brief", PARIS, [])
+                            "research-brief", self.BRIEF, [])
 
     def source(self, source_id, total, with_ab, finished):
         targets = [{"name": f"{source_id} venue {i}", "address": f"7500{i % 10} Paris {i}"}
@@ -370,3 +372,89 @@ class DeliveryGrades(unittest.TestCase):
         self.assertTrue(pack[0]["quote"] and pack[0]["source_sha256"])
         self.assertIn("contact-pack/A_B_named_role_emails.csv", manifest["files"])
         self.assertIn("Research_Result.xlsx", manifest["files"])
+
+
+class TargetFamilies(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+
+    def rows(self, **finished):
+        return [{"pool_id": "p", "source_id": s, "finished": n, "pending": 5} for s, n in finished.items()]
+
+    def test_a_contacts_goal_pilots_every_family(self):
+        import research_sources as sources
+        import research_methods as methods
+        brief = {"goal": "contacts"}
+        sources.set_family(self.root, "p", "towns", "OPERATORS")
+        sources.set_family(self.root, "p", "clubs", "CLUBS_ASSOCIATIONS")
+        state = sources.families(self.root, "r", brief=brief, sources=self.rows(towns=33, clubs=4))
+        self.assertEqual(["OPERATORS"], state["piloted"])
+        self.assertIn("CLUBS_ASSOCIATIONS", state["missing"])
+        self.assertEqual("SCHOOLS_UNIVERSITIES", state["next_family"])  # not even started yet
+        methods.record(self.root, "r", "SCHOOLS_UNIVERSITIES", "not_applicable", "no school facilities")
+        methods.record(self.root, "r", "FEDERATION_LISTS", "not_applicable", "no league lists online")
+        state = sources.families(self.root, "r", brief=brief, sources=self.rows(towns=33, clubs=30))
+        self.assertEqual([], state["missing"])
+        self.assertEqual([], sources.families(self.root, "r", brief={"goal": "pool"}, sources=[])["wanted"])
+        with self.assertRaisesRegex(ValueError, "TARGET_FAMILY_INVALID"):
+            sources.set_family(self.root, "p", "x", "SHOPS")
+
+
+class FamiliesKeepTheRunOpen(unittest.TestCase):
+    def test_methods_exhausted_but_clubs_never_tried_is_not_the_end(self):
+        import research_execution
+        import research_lite_store as store
+        import research_methods as methods
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store.start_run(root, "r", "scope", "objective", "v1")
+            store.put_candidate(root, "r", "brief-1", "qualification", "observation", "research-brief",
+                                {"record_type": "research_brief", "goal": "contacts",
+                                 "target_families": ["OPERATORS", "CLUBS_ASSOCIATIONS"]}, [])
+            with patch.object(methods, "effort", return_value={"enough": True}):
+                for name, _ in methods.LADDERS["contacts"]:
+                    methods.record(root, "r", name, "exhausted")
+            state = research_execution.assess(root, "r", goal={"goal_satisfied": False})
+            self.assertEqual("IMPORT_NEXT_TARGET_FAMILY", state["next_action"])
+            self.assertTrue(state["continuation_required"])
+            self.assertEqual("OPERATORS", state["target_families"]["next_family"])
+            for family in ("OPERATORS", "CLUBS_ASSOCIATIONS"):
+                methods.record(root, "r", family, "not_applicable", "none in this area")
+            state = research_execution.assess(root, "r", goal={"goal_satisfied": False})
+            self.assertEqual("FINAL_METHODS_EXHAUSTED", state["state"])
+
+
+class ProductiveSourcesAreWidened(SourceGate):
+    """The first live Claude Code run: committee pages gave the A/B, it said so, and
+    stopped at 12 people. A paying source is widened before the Run can close."""
+
+    BRIEF = {**PARIS, "goal": "contacts"}
+
+    def test_a_short_list_that_is_done_is_judged_not_left_in_pilot(self):
+        import research_sources as sources
+        self.source("committees", 8, with_ab=4, finished=8)
+        self.source("towns", 6, with_ab=0, finished=6)
+        report = {r["source_id"]: r for r in sources.yields(self.root, "run-g")["sources"]}
+        self.assertEqual("PROMOTE", report["committees"]["verdict"])
+        self.assertEqual("SMALL_DONE", report["towns"]["verdict"])
+
+    def test_next_says_expand_until_the_goal_or_new_lists_stop_paying(self):
+        import research_execution
+        import research_methods as methods
+        self.source("committees", 8, with_ab=4, finished=8)
+        with patch.object(methods, "effort", return_value={"enough": True}):
+            for name, _ in methods.LADDERS["contacts"]:
+                if name != "EXPAND_SOURCE":
+                    methods.record(self.root, "run-g", name, "exhausted")
+            for name, _ in methods.LADDERS["families"]:
+                methods.record(self.root, "run-g", name, "not_applicable")
+            state = research_execution.assess(self.root, "run-g", goal={"goal_satisfied": False})
+            self.assertEqual("EXPAND_PRODUCTIVE_SOURCE", state["next_action"])
+            self.assertTrue(state["continuation_required"])
+            self.assertEqual(50, state["ab_goal"])
+            self.assertIn("committees (4/8", state["source_advice"][0])
+            methods.record(self.root, "run-g", "EXPAND_SOURCE", "exhausted", "10 new lists, none paid")
+            state = research_execution.assess(self.root, "run-g", goal={"goal_satisfied": False})
+            self.assertEqual("FINAL_METHODS_EXHAUSTED", state["state"])

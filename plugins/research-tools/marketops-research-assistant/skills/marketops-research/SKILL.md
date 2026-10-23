@@ -80,7 +80,9 @@ the explicitly cumulative `run_cost`. A new context window keeps that checkpoint
 - `marketops_start(run_id, scope, objective, rule_version, brief={record_type:'research_brief',
   target_kind:'venue'|'organization', goal:'pool'|'contacts', require_named_person:false,
   roles_wanted:[<the roles the user named>], hard_case:{allowed:<the user's answer, default false>},
-  minimum_targets:<the user's number or null>, evidence_requirements:{organization:['identity']},
+  minimum_targets:<the user's number or null>, minimum_ab:<A+B people wanted: the user's
+  number, "几十到上百"/"dozens to hundreds" = 50; leave out for the default 50>,
+  evidence_requirements:{organization:['identity']},
   scene:'<shipped pack id>' or scene_rules:{decision:[...], operational:[...], entry:[...],
   excluded:[...]}})`. A market with no shipped pack is normal: write `scene_rules` in the local
   language (Paris sports venues: decision `directeur des sports`, `responsable des équipements
@@ -102,6 +104,13 @@ the explicitly cumulative `run_cost`. A new context window keeps that checkpoint
    in scope.
 2. Run accounts on those to delivery, so the user gets usable people and emails early.
 3. Only then widen the pool.
+
+**Widen what pays.** When `marketops_next` says `EXPAND_PRODUCTIVE_SOURCE`, a kind of list
+gave A/B (in Paris: committee and federation officer pages, never town or university sites).
+Do the same search for the next sport, département, town or federation, import each new list
+as its own source and harvest it, round after round, until the A+B goal is met or a round of
+10 new lists gives none. This is the work, not an option to offer the user: the first live
+Claude Code run named this route, wrote "much room left", and stopped at 12 people.
 
 A pool of 300 names with no contacts does not meet a contacts goal. The Paris run did
 exactly that: 0 venues and 0 people delivered.
@@ -198,6 +207,9 @@ The research ends only when one of these holds:
 - the goal is met;
 - `execution.state` is `FINAL_METHODS_EXHAUSTED` (every method recorded as exhausted);
 - one of the reasons below for asking the user.
+
+Never end with a list of "next options" the tools already tell you to do; do them. A finding
+like "this source works, there is much room left" is a reason to continue, not a report.
 
 When it does end, say which of these it was.
 

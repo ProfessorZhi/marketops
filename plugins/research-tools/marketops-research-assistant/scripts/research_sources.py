@@ -30,9 +30,22 @@ import research_grading as grading
 import research_workflow as workflow
 
 __all__ = ["PARK_REASON", "settings", "graded", "yields", "park_stopped", "finished_targets",
-           "run_targets"]
+           "run_targets", "FAMILIES", "set_family", "families"]
 
 PARK_REASON = "SOURCE_YIELD_STOP"
+
+#: The kinds of organisation a contacts goal pilots, each as its own pool source. In the
+#: live Paris run only operators and towns were researched; the A and B came from club
+#: committee pages, a family the Run never imported.
+FAMILIES = {
+    "OPERATORS": "who owns or runs the targets: town or council departments, management "
+                 "companies, chains, trusts",
+    "CLUBS_ASSOCIATIONS": "clubs and associations based at the targets or in the area; their "
+                          "committee pages name officers with their own addresses",
+    "SCHOOLS_UNIVERSITIES": "schools, colleges and universities with sports facilities or a "
+                            "sports service",
+    "FEDERATION_LISTS": "each sport's federation or league list of clubs in the area",
+}
 DEFAULTS = {"pilot": 30, "promote": 0.10, "stop": 0.05}
 
 
@@ -114,6 +127,65 @@ def run_targets(root, run_id: str) -> list[dict]:
     return [dict(zip(("name", "website", "address", "status", "reason", "source_id"), r)) for r in rows]
 
 
+def _families_db(root, write: bool = False):
+    path = Path(root) / "state" / "research-pool.sqlite3"
+    if not write:
+        if not path.is_file():
+            return None
+        return sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    db = sqlite3.connect(path, timeout=30)
+    db.execute("CREATE TABLE IF NOT EXISTS source_families (pool_id TEXT NOT NULL, "
+               "source_id TEXT NOT NULL, family TEXT NOT NULL, PRIMARY KEY(pool_id, source_id))")
+    return db
+
+
+def set_family(root, pool_id: str, source_id: str, family: str) -> None:
+    """Record which kind of organisation a pool source lists."""
+    family = str(family or "").strip().upper()
+    if family not in FAMILIES:
+        raise ValueError("TARGET_FAMILY_INVALID: one of " + ", ".join(FAMILIES))
+    with closing(_families_db(root, write=True)) as db, db:
+        db.execute("INSERT OR REPLACE INTO source_families VALUES(?,?,?)", (pool_id, source_id, family))
+
+
+def families(root, run_id: str, *, brief: dict, sources: list[dict]) -> dict:
+    """Which organisation families a contacts goal still has to pilot.
+
+    A family is piloted once one of its sources has finished its pilot (or every target
+    it listed); the agent may also record a family as not applicable with a reason
+    (marketops_method(method=<family>, outcome='not_applicable', note=...)).
+    """
+    wanted = brief.get("target_families")
+    if not isinstance(wanted, list) or not wanted:
+        wanted = list(FAMILIES) if brief.get("goal") == "contacts" else []
+    wanted = [f for f in (str(x).upper() for x in wanted) if f in FAMILIES]
+    labels = {}
+    db = _families_db(root)
+    if db is not None:
+        with closing(db):
+            if db.execute("SELECT 1 FROM sqlite_master WHERE name='source_families'").fetchone():
+                labels = {(p, s): f for p, s, f in db.execute(
+                    "SELECT pool_id, source_id, family FROM source_families")}
+    gate = settings(brief) or DEFAULTS
+    piloted, started = set(), set()
+    for row in sources:
+        family = labels.get((row["pool_id"], row["source_id"]))
+        if not family:
+            continue
+        started.add(family)
+        if row["finished"] >= gate["pilot"] or (row["finished"] and not row["pending"]):
+            piloted.add(family)
+    import research_methods
+    skipped = {t["method"] for t in research_methods.status(root, run_id).get("families", {})
+               .get("tried", []) if t["outcome"] in {"not_applicable", "exhausted"}}
+    missing = [f for f in wanted if f not in piloted and f not in skipped]
+    nxt = next((f for f in missing if f not in started), missing[0] if missing else None)
+    return {"wanted": wanted, "piloted": sorted(piloted), "started": sorted(started),
+            "not_applicable": sorted(skipped & set(wanted)), "missing": missing,
+            "next_family": nxt, "next_family_how": FAMILIES.get(nxt, "")}
+
+
 def finished_targets(root, run_id: str) -> int:
     """Pool targets this Run actually finished (parked ones are not work done)."""
     return sum(1 for _, _, status, rid, _, reason in _pool_rows(root, run_id)
@@ -127,6 +199,13 @@ def yields(root, run_id: str, *, grades: dict | None = None, brief: dict | None 
     gate = settings(brief or {})
     ab_orgs = {g["organization_id"] for g in grades.values()
                if g["grade"] in {"A", "B"} and g["organization_id"]}
+    # A club split from a target's list page earns its A/B for that target's source:
+    # the list is what the source delivered.
+    for record in _records(root, run_id):
+        data = record.get("data") or {}
+        if (record["kind"] == "organization" and record["entity_key"] in ab_orgs
+                and data.get("listed_by_organization_id")):
+            ab_orgs.add(data["listed_by_organization_id"])
     table: dict[tuple[str, str], dict] = {}
     for pool_id, source_id, status, rid, org, reason in _pool_rows(root, run_id):
         row = table.setdefault((pool_id, source_id), {
@@ -144,9 +223,12 @@ def yields(root, run_id: str, *, grades: dict | None = None, brief: dict | None 
         row["ab_rate"] = round(row["with_ab"] / n, 3) if n else None
         if gate is None:
             row["verdict"] = "GATE_OFF"
-        elif n < gate["pilot"]:
+        elif n < gate["pilot"] and row["pending"]:
             row["verdict"] = "PILOT"
             row["needs"] = gate["pilot"] - n
+        elif n < gate["pilot"]:
+            # A short list, all done: judged on what it gave, never left in pilot.
+            row["verdict"] = "PROMOTE" if n and row["ab_rate"] >= gate["promote"] else "SMALL_DONE"
         elif row["ab_rate"] >= gate["promote"]:
             row["verdict"] = "PROMOTE"
         elif n >= 2 * gate["pilot"] or row["ab_rate"] < gate["stop"]:

@@ -26,7 +26,10 @@ __all__ = ["read_all", "record_manual", "readings"]
 
 SERPAPI_ACCOUNT = "https://serpapi.com/account.json"
 SERPER_ACCOUNT = "https://google.serper.dev/account"
-AUTOMATIC = ("serpapi", "serper", "tinyfish")
+DEEPSEEK_BALANCE = "https://api.deepseek.com/user/balance"
+#: DeepSeek's list price per search or fetch request, by the account's currency.
+DEEPSEEK_PRICE = {"USD": Decimal("0.00075"), "CNY": Decimal("0.005")}
+AUTOMATIC = ("serpapi", "serper", "tinyfish", "deepseek")
 MANUAL = ("typesafe_jev",)
 
 
@@ -91,7 +94,7 @@ def _enabled(root: Path, provider: str) -> str:
     if provider not in settings.get("providers", ()):
         return "PROVIDER_NOT_ENABLED"
     key = {"serpapi": "SERPAPI_API_KEY", "serper": "SERPER_API_KEY",
-           "tinyfish": "TINYFISH_API_KEY"}[provider]
+           "tinyfish": "TINYFISH_API_KEY", "deepseek": "DEEPSEEK_API_KEY"}[provider]
     if not os.environ.get(key, "").strip():
         return "KEY_MISSING"
     return ""
@@ -134,6 +137,41 @@ def read_serper(root: Path) -> dict:
             "rate_limit_per_second": data.get("rateLimit"), "evidence": "PROVIDER_ACCOUNT_API"}
 
 
+def read_deepseek(root: Path) -> dict:
+    """The account balance, expressed as search/fetch requests at list price.
+
+    The balance is money (USD or CNY) and also pays for model tokens; MarketOps
+    only spends it on search and fetch, so it is shown as how many of those
+    requests it would buy.
+    """
+    import httpx2
+    from research_egress import open_session
+    with open_session(allowlist=frozenset({"api.deepseek.com"})) as connection:
+        with httpx2.Client(proxy=connection.proxy.url, trust_env=False, follow_redirects=False,
+                           timeout=httpx2.Timeout(20, connect=10)) as http:
+            answer = http.get(DEEPSEEK_BALANCE, headers={
+                "Authorization": "Bearer " + os.environ["DEEPSEEK_API_KEY"].strip()})
+    if answer.status_code != 200:
+        return {"status": "READ_FAILED", "http_status": answer.status_code}
+    data = answer.json()
+    infos = data.get("balance_infos") if isinstance(data, dict) else None
+    requests, money = Decimal(0), []
+    for info in infos if isinstance(infos, list) else ():
+        currency = str(info.get("currency") or "")
+        try:
+            total = Decimal(str(info.get("total_balance")))
+        except (InvalidOperation, ValueError):
+            continue
+        if currency in DEEPSEEK_PRICE and total.is_finite() and total >= 0:
+            requests += (total / DEEPSEEK_PRICE[currency]).to_integral_value()
+            money.append(f"{total} {currency}")
+    if not money:
+        return {"status": "READ_UNRECOGNISED"}
+    return {"status": "READ", "unit": "request", "left": int(requests),
+            "account_balance": ", ".join(money), "is_available": data.get("is_available"),
+            "basis": "requests at list price", "evidence": "PROVIDER_ACCOUNT_API"}
+
+
 def read_tinyfish(root: Path) -> dict:
     from research_adapter_tinyfish import wallet_observation
     from research_official_mcp import _extract
@@ -167,7 +205,7 @@ def read_all(root: Path) -> dict:
     """Read every account that can be read; keep the last reading of each."""
     out = {}
     for provider, reader in (("serpapi", read_serpapi), ("serper", read_serper),
-                             ("tinyfish", read_tinyfish)):
+                             ("tinyfish", read_tinyfish), ("deepseek", read_deepseek)):
         refused = _enabled(root, provider)
         if refused:
             out[provider] = {"status": refused}
@@ -182,6 +220,11 @@ def read_all(root: Path) -> dict:
             _save(root, provider, reading)
             _refresh_health(root, provider, reading)
         out[provider] = readings(root).get(provider, reading) if reading["status"] == "READ" else reading
+    try:
+        from research_spending import adopt_new_providers
+        adopt_new_providers(root)
+    except (ValueError, OSError):
+        pass  # a policy that cannot take the reading keeps refusing; never raise here
     stored = readings(root)
     for provider in MANUAL:
         out[provider] = stored.get(provider) or {

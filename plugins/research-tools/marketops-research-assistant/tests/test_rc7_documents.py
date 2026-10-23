@@ -99,6 +99,7 @@ class AllFiveTakePartTests(unittest.TestCase):
         real = mcp.search
         with tempfile.TemporaryDirectory() as tmp, \
                 mock.patch.object(mcp, "root", return_value=Path(tmp)), \
+                mock.patch.object(mcp, "_search_routes", return_value=("serper", "tinyfish")), \
                 mock.patch.object(mcp, "search", side_effect=fake):
             out = mcp.search("all", "coworking Austin", "us", "en", "r", "s1")
         self.assertEqual(["https://a.example/", "https://b.example/", "https://c.example/"],
@@ -156,6 +157,31 @@ class PublishedNameTests(unittest.TestCase):
                                      fetch=fetch, max_pages=1)
         self.assertEqual(["https://harlowcc.example/", "https://www.harlowcc.example/"], asked)
         self.assertEqual("Harlow Cricket Club", result["identity"]["published_name"])
+
+    def test_a_refused_redirect_to_another_host_asks_for_that_page_once(self):
+        import tempfile
+        import research_lite_store as store
+        import research_site_harvest as harvest
+        asked = []
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store.start_run(root, "r", "towns", "objective", "v1")
+
+            def fetch(url, op):
+                asked.append(url)
+                if url == "https://ville-chatou.example/":
+                    return {"status": "HOLD", "attempts": [
+                        {"primary_reason_code": "CRAWL_REDIRECT_REFUSED",
+                         "redirect_to": "http://www.chatou.example/accueil"}]}
+                store.save_artifact(root, "r", "a-" + op, "crawl4ai", url,
+                                    b"<p>Ville de Chatou - service des sports: sports@chatou.example</p>",
+                                    "rendered_html")
+                return {"status": "SUCCESS_CANDIDATE", "artifact_ids": ["a-" + op]}
+            result = harvest.harvest(root, run_id="r", operation_id="h", organization_name="Ville de Chatou",
+                                     organization_key="org-c", url="https://ville-chatou.example/",
+                                     fetch=fetch, max_pages=1)
+        self.assertEqual(["https://ville-chatou.example/", "https://www.chatou.example/accueil"], asked)
+        self.assertEqual("Ville de Chatou", result["identity"]["published_name"])
 
     def test_naming_habits_are_general_not_one_market(self):
         import research_site_harvest as harvest

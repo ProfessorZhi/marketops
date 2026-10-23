@@ -2542,6 +2542,8 @@ def project_for_root(root: str | Path | None = None, environ: Mapping[str, str] 
 DOCUMENTED_CREDIT_RATES = (
     ("serper", "search", "credits"),
     ("serpapi", "search", "searches"),
+    ("deepseek", "search", "requests"),
+    ("deepseek", "fetch", "requests"),
     ("tinyfish", "search", "searches"),
     ("tinyfish", "fetch", "urls"),
     ("tinyfish", "agent_run", "steps"),
