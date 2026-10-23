@@ -24,12 +24,70 @@ permissions:
   contents: read
 
 jobs:
+  # Lint and the few tests that look at the whole repository (stale machine
+  # paths, the plugin's egress bundle, plugin manifests). Fast; runs on every PR,
+  # including PRs that only touch the research plugin.
+  repo-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: Lint
+        # ruff 来自 dev extra（版本范围在 pyproject.toml 里锁着），
+        # 不在这里单独装：两个地方写版本就等于两处会漂。
+        run: python -m ruff check .
+      - name: Repository-wide checks
+        run: >-
+          python -m pytest
+          tests/test_no_stale_assumptions.py
+          tests/test_portability.py
+          tests/test_wave1_egress_bundle.py
+          tests/test_plugin_manifests_cover_both_hosts.py
+          tests/test_plugin_skill_has_no_authority.py
+
+  # Does this PR touch the business service at all? The research plugin has its
+  # own suite (research-plugin-e2e.yml) and does not import the marketops package.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      service: ${{ steps.diff.outputs.service }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$EVENT" != "pull_request" ]; then
+            echo "service=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          # Skip the service suite only when every changed file belongs to the
+          # research plugin or its own workflows; docs and README still run it.
+          if git diff --name-only "$BASE"...HEAD \
+              | grep -qvE '^(plugins/research-tools/|\.github/workflows/research-plugin-)'; then
+            echo "service=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "service=false" >> "$GITHUB_OUTPUT"
+          fi
+
   test:
+    needs: changes
+    if: needs.changes.outputs.service == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
+        # PRs run the supported minimum's successor only; main runs both, so
+        # requires-python >=3.11 keeps its coverage.
+        python-version: ${{ fromJSON(github.event_name == 'pull_request' && '["3.12"]' || '["3.11", "3.12"]') }}
 
     steps:
       - uses: actions/checkout@v4
@@ -52,9 +110,5 @@ jobs:
           test ! -d ../upstream-records || (echo "CI 里出现了 upstream-records 检出 —— 本 job 必须独立" && exit 1)
 
       - name: Test
-        run: python -m pytest
-
-      - name: Lint
-        # ruff 来自 dev extra（版本范围在 pyproject.toml 里锁着），
-        # 不在这里单独装：两个地方写版本就等于两处会漂。
-        run: python -m ruff check .
+        # Parallel across the runner's cores (pytest-xdist, from the dev extra).
+        run: python -m pytest -n auto

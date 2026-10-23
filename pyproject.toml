@@ -49,7 +49,7 @@ decisions-laya = ["laya>=0.3"]
 decisions-jev = ["typesafe-sdk>=0.7"]
 # ruff 带上限：lint 规则集随版本变化，一个不锁版本的 lint 步骤会在某个
 # 无关的周二把 CI 变红，而那次红与这次改动无关 —— 那种红最后总是被忽略。
-dev = ["pytest>=8.0", "jsonschema>=4.22", "ruff>=0.15,<0.16"]
+dev = ["pytest>=8.0", "pytest-xdist>=3.6", "jsonschema>=4.22", "ruff>=0.15,<0.16"]
 
 [project.scripts]
 marketops = "marketops.interfaces.cli:main"
