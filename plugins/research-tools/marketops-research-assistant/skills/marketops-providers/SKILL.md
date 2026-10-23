@@ -1,6 +1,6 @@
 ---
 name: marketops-providers
-description: Router for the five research providers (Serper, SerpApi, Crawl4AI, TinyFish, Jev) behind the MarketOps MCP - which one each job uses and in what order, how to spend as little as possible, how to check balances and spend, and what to do when a provider runs out. Load at the start of every research task; load a single provider's skill only when you call it.
+description: Router for the research providers (Serper, SerpApi, DeepSeek, Crawl4AI, TinyFish, Jev) behind the MarketOps MCP - which one each job uses and in what order, how to spend as little as possible, how to check balances and spend, and what to do when a provider runs out. Load at the start of every research task; load a single provider's skill only when you call it.
 ---
 
 # Five providers: right job, cheapest first, never stuck
@@ -41,9 +41,9 @@ and deduplicated across windows. Each call takes `run_id` and a fresh `operation
 
 | Job | 1st | 2nd | 3rd | Notes |
 |---|---|---|---|---|
-| Find targets (web) | **Serper** `web` | TinyFish search (free) | SerpApi `google` | `marketops_search(provider='all')` runs Serper + TinyFish together; SerpApi steps in by itself when Serper is out |
+| Find targets (web) | **all routes at once** | — | — | `marketops_search(provider='all')` runs Serper, DeepSeek ($0.75/1k), SerpApi and TinyFish on the same query; each finds pages the others miss, and a route with no money just drops out. `marketops_search_routes` shows what each adds (unique pages, A/B sites); drop a route from `search_routes` in setup only when it adds nothing |
 | List places in an area | **Serper** `maps` | SerpApi `google_maps` | — | SerpApi only where Serper's places are incomplete (it is 250 free searches a month) |
-| Read a page / an organisation's site | **Crawl4AI** (local, free) | TinyFish fetch (free) | — | inside `marketops_research_step`, `site_harvest`, `harvest_batch`; you rarely choose |
+| Read a page / an organisation's site | **Crawl4AI** (local, free) | TinyFish fetch (free) | DeepSeek Fetch ($0.75/1k, failures free) | inside `site_harvest` / `harvest_batch`: the first 12 pages of a Run are read by all three at once (the richest reading is used), then the order follows what each delivered; DeepSeek reaches sites this machine cannot. Report: `marketops_search_routes` → `page_readers` |
 | Judge many pages (in scope? whose email?) | **Jev** | you, on the short excerpt | — | `marketops_jev_triage`, `harvest_batch(roles_wanted=...)` |
 | Hard pages (click-to-reveal, paginated portals) | TinyFish paid Agent | — | — | only if this user said yes at the start (see below) |
 

@@ -137,7 +137,7 @@ def persist(root, run_id, operation_id, guarded, *, params):
     status, reason_code = guarded.status, guarded.reason_code
     source_materials = []
     route = {"serper.search": "serper", "serpapi.search": "serpapi_mcp_search",
-             "deepseek.search": "deepseek",
+             "deepseek.search": "deepseek", "deepseek.fetch_page": "deepseek",
              "tinyfish.search": "tinyfish_mcp_search", "tinyfish.fetch_content": "tinyfish_mcp_fetch",
              "crawl4ai.fetch_page": "crawl4ai_local", "crawl4ai.extract": "crawl4ai_local",
              "jev.choice": "jev_choice", "jev.noul": "jev_choice", "jev.score": "jev_choice"

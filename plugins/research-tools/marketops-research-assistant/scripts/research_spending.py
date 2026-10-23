@@ -165,6 +165,7 @@ def pricing_entries():
     pairs += [("serper", "search", 1000, False, "https://serper.dev/"),
               ("serpapi", "search", 0, True, "observed_free_search_quota"),
               ("deepseek", "search", 750, False, "https://api-docs.deepseek.com/guides/search/"),
+              ("deepseek", "fetch", 750, False, "https://api-docs.deepseek.com/guides/search/"),
               ("typesafe_jev", "judge", 200000, False, "https://typesafe.ai/")]
     return [{"provider": p, "capability": c, "unit_micros": amount,
              "free_tier": free, "quota_unit": "requests", "quota_per_call": 1,

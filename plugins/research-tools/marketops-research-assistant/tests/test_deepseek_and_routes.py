@@ -119,5 +119,70 @@ class MultiRoute(unittest.TestCase):
             self.assertEqual(("serper", "deepseek"), mcp._search_routes())
 
 
+class Fetch(unittest.TestCase):
+    def test_markdown_is_unescaped_and_a_missing_page_costs_nothing(self):
+        sent = []
+
+        def transport(req, timeout):
+            sent.append(req.full_url)
+            return Response(json.dumps({"title": "Bureau", "content":
+                "Président \\: Jean DUPONT \\- jean\\.dupont@club\\.fr"}).encode())
+        adapter = deepseek.DeepSeekAdapter(api_key="k", transport=transport)
+        req = types.SimpleNamespace(capability_id="deepseek.fetch_page", run_id="r", operation_id="o",
+                                    account_ref="deepseek", params={"url": "https://club.fr/bureau"})
+        result = adapter.execute(req)
+        self.assertEqual("OK", result.outcome)
+        self.assertIn("jean.dupont@club.fr", result.payload["markdown"])
+        self.assertEqual([deepseek.FETCH_ENDPOINT], sent)
+
+        def missing(req, timeout):
+            raise urllib.error.HTTPError(deepseek.FETCH_ENDPOINT, 404, "Not Found", {}, None)
+        result = deepseek.DeepSeekAdapter(api_key="k", transport=missing).execute(req)
+        self.assertEqual(("FAILED", "DEEPSEEK_FETCH_NO_CONTENT"), (result.outcome, result.payload["reason"]))
+
+
+class Readers(unittest.TestCase):
+    def setUp(self):
+        import research_lite_store as store
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+        self.store = store
+        store.start_run(self.root, "run-r", "synthetic", "clubs", "rules")
+        self.pages = {"crawl4ai.fetch_page": None,  # this machine cannot reach the site
+                      "tinyfish.fetch_content": "<p>Contact: info@club.fr</p>",
+                      "deepseek.fetch_page": "<p>info@club.fr, president@club.fr</p>"}
+
+    def step(self, url, op, routes):
+        reader = routes[0]
+        body = self.pages[reader]
+        if body is None:
+            return {"status": "HOLD", "reason_code": "LOCAL_CRAWL_FAILED", "replayed": False,
+                    "attempts": [{"capability_id": reader, "status": "FAILED",
+                                  "reason_code": "LOCAL_CRAWL_FAILED"}]}
+        artifact = "a-" + op
+        self.store.save_artifact(self.root, "run-r", artifact, reader.split(".")[0], url,
+                                 body.encode(), "rendered_html")
+        return {"status": "SUCCESS_CANDIDATE", "artifact_ids": [artifact],
+                "primary_artifact_ids": [artifact], "selected_capability": reader,
+                "attempts": [{"capability_id": reader, "status": "OK"}]}
+
+    def test_probe_reads_with_all_and_keeps_the_richest_then_orders_by_yield(self):
+        import research_fetch_routes as readers
+        receipt = readers.fetch(self.root, "run-r", "https://club.fr/", "p1", self.step)
+        self.assertEqual("deepseek.fetch_page", receipt["selected_capability"])
+        self.assertEqual(2, receipt["reader_probe"]["deepseek.fetch_page"]["emails"])
+        report = readers.report(self.root, "run-r")
+        self.assertEqual({"LOCAL_CRAWL_FAILED": 1}, report["readers"]["crawl4ai.fetch_page"]["failed"])
+        self.assertEqual(("deepseek.fetch_page", "tinyfish.fetch_content", "crawl4ai.fetch_page"),
+                         readers.order(self.root, "run-r"))
+        # After the probe window the chain gets the measured order.
+        seen = []
+        with patch.object(readers, "PROBE_PAGES", 1):
+            readers.fetch(self.root, "run-r", "https://other.fr/", "p2",
+                          lambda url, op, routes: seen.append(routes) or self.step(url, op, routes))
+        self.assertEqual([("deepseek.fetch_page", "tinyfish.fetch_content", "crawl4ai.fetch_page")], seen)
+
+
 if __name__ == "__main__":
     unittest.main()

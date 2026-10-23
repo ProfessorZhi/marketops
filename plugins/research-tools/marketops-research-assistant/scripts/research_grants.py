@@ -157,6 +157,7 @@ DEFAULT_REGISTRY = CapabilityRegistry((
     Capability("search", "serper", Tier.T2, "search_query", "read_only"),
     Capability("search", "serpapi", Tier.T2, "search_query", "read_only"),
     Capability("search", "deepseek", Tier.T2, "search_query", "read_only"),
+    Capability("fetch", "deepseek", Tier.T2, "fetch_url", "read_only"),
     Capability("search", "tinyfish", Tier.T1, "search_query", "read_only"),
     Capability("fetch", "tinyfish", Tier.T1, "fetch_url", "read_only"),
     Capability("render", "crawl4ai", Tier.T1, "local_page", "local_compute"),

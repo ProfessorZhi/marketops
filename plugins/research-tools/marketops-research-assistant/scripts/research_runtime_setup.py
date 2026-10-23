@@ -39,7 +39,7 @@ KEYS = {"serper": "SERPER_API_KEY", "serpapi": "SERPAPI_API_KEY",
 PROVIDERS = (*KEYS, "crawl4ai")
 ENDPOINTS = {"tinyfish": "https://agent.tinyfish.ai/mcp",
              "serpapi": "https://mcp.serpapi.com/mcp"}
-CORE = {"serper.search", "serpapi.search", "deepseek.search", "tinyfish.search", "tinyfish.fetch_content",
+CORE = {"serper.search", "serpapi.search", "deepseek.search", "deepseek.fetch_page", "tinyfish.search", "tinyfish.fetch_content",
         "crawl4ai.fetch_page", "crawl4ai.extract", "jev.choice", "jev.noul", "jev.score"}
 
 

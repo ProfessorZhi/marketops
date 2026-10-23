@@ -39,6 +39,10 @@ DEFAULT_RATES: dict[tuple[str, str], dict] = {
         "unit": "request", "usd_per_unit": "0.00075", "free_units": None, "free_period": None,
         "plan": "pay-as-you-go; empty results not billed",
         "source": "https://api-docs.deepseek.com/guides/search/"},
+    ("deepseek", "fetch"): {
+        "unit": "request", "usd_per_unit": "0.00075", "free_units": None, "free_period": None,
+        "plan": "pay-as-you-go; failed fetches not billed",
+        "source": "https://api-docs.deepseek.com/guides/search/"},
     ("serpapi", "search"): {
         "unit": "search", "usd_per_unit": "0", "free_units": 250, "free_period": "month",
         "plan": "free", "source": "https://serpapi.com/pricing"},

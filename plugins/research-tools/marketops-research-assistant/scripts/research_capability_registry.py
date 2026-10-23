@@ -1245,6 +1245,10 @@ DEFAULT_REGISTRY = CapabilityRegistry((
             "language": "string"},
            "search", description="DeepSeek's own web index; up to 50 results per billed request, "
                                  "empty searches not billed."),
+    build_entry("deepseek.fetch_page", "deepseek", "fetch", "rest", EffectClass.BILLABLE_READ,
+           Tier.T2, "deepseek:fetch", "fetch_url", {"url": "string"},
+           "fetch", description="DeepSeek reads one page from its own servers and returns "
+                                "Markdown; billed only when content comes back."),
 
     # -- Crawl4AI: local SDK, through the egress proxy ----------------------
     build_entry("crawl4ai.fetch_page", "crawl4ai", "fetch_page", "local_sdk",

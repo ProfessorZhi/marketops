@@ -140,11 +140,11 @@ class MetadataTests(unittest.TestCase):
     def test_the_reviewed_table_is_28_with_no_live_claim(self):
         # 25 before the documented TinyFish account-read review, plus the three
         # reviewed reads (get_monitor / list_monitors / list_browser_sessions), plus
-        # DeepSeek Search as a route of its own.
+        # DeepSeek Search and Fetch.
         reg = registry_module.DEFAULT_REGISTRY
-        self.assertEqual(len(reg), 29)
+        self.assertEqual(len(reg), 30)
         statuses = [(entry.readiness, entry.availability.value) for entry in reg]
-        self.assertEqual(statuses.count(("OFFLINE_TESTED", "ENABLED")), 24)
+        self.assertEqual(statuses.count(("OFFLINE_TESTED", "ENABLED")), 25)
         self.assertEqual(statuses.count(("CODED", "ENABLED")), 1)
         self.assertEqual(statuses.count(("DEFERRED", "DISABLED")), 4)
         self.assertNotIn("READY", " ".join(entry.readiness for entry in reg))

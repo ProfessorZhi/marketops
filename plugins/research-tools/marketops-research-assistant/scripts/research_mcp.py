@@ -1851,15 +1851,19 @@ def build_server():
     def marketops_search(provider: str, query: str, country: str, language: str,
                          run_id: str, operation_id: str, mode: str = "web",
                          limit: int = 10) -> dict:
-        """provider='all' (default choice for discovery) runs Serper and TinyFish search on
-        the same query and merges results with found_by; or one of serper, serpapi,
-        tinyfish. Snippets are leads, not facts."""
+        """provider='all' (default choice for discovery) runs every search route the
+        project enables (Serper, DeepSeek, SerpApi, TinyFish) on the same query at
+        once and merges results with found_by; a route with no money or a failure
+        only drops out. Or one of serper, deepseek, serpapi, tinyfish. Snippets are
+        leads, not facts. marketops_search_routes shows what each route adds."""
         return search(provider, query, country, language, run_id, operation_id, mode, limit)
 
     @tool
     def marketops_search_routes(run_id: str) -> dict:
         """Recall per search route in this Run: pages found, pages only it found, and
-        which route found the sites the A/B routes came from. Read-only; use it to
+        which route found the sites the A/B routes came from; and per page reader
+        (Crawl4AI, TinyFish fetch, DeepSeek Fetch): pages read, failures by reason,
+        addresses found, pages only it read addresses from. Read-only; use it to
         decide which routes to keep when money is short."""
         import research_search_routes
         import research_sources
@@ -1874,7 +1878,9 @@ def build_server():
                     host = (urlsplit(urls.get(artifact, "")).hostname or "").casefold()
                     if host:
                         hosts.add(host.removeprefix("www."))
-        return research_search_routes.report(root(), run_id, hosts)
+        import research_fetch_routes
+        return {**research_search_routes.report(root(), run_id, hosts),
+                "page_readers": research_fetch_routes.report(root(), run_id)}
 
     @tool
     def marketops_crawl(run_id: str, operation_id: str, url: str,
@@ -2069,13 +2075,7 @@ def build_server():
         data_root = root()
         _require_brief_for_network(data_root, run_id)
 
-        def fetch(page_url, child):
-            return research_fallback.research_step(
-                data_root, run_id=run_id, operation_id=child, task_kind="known_public_url",
-                managed_call=managed_call,
-                admission=lambda capability: research_runtime_setup.admission(data_root, capability),
-                url=page_url, max_attempts=2)
-
+        fetch = _fetcher(data_root, run_id)
         return research_site_harvest.harvest(
             data_root, run_id=run_id, operation_id=operation_id,
             organization_name=organization_name, organization_key=organization_key,
@@ -2107,14 +2107,18 @@ def build_server():
 
     def _fetcher(data_root, run_id):
         import research_fallback
+        import research_fetch_routes
         import research_runtime_setup
 
-        def fetch(page_url, child):
+        def step(page_url, child, routes=None):
             return research_fallback.research_step(
                 data_root, run_id=run_id, operation_id=child, task_kind="known_public_url",
                 managed_call=managed_call,
                 admission=lambda capability: research_runtime_setup.admission(data_root, capability),
-                url=page_url, max_attempts=2)
+                url=page_url, max_attempts=3, routes=routes)
+
+        def fetch(page_url, child):
+            return research_fetch_routes.fetch(data_root, run_id, page_url, child, step)
         return fetch
 
     @tool

@@ -22,8 +22,9 @@ import research_lite_store as store
 
 ROUTES = {
     "source_discovery": ("serper.search", "serpapi.search", "tinyfish.search"),
-    "known_public_url": ("crawl4ai.fetch_page", "tinyfish.fetch_content"),
-    "batch_public_pages": ("crawl4ai.fetch_page", "tinyfish.fetch_content"),
+    # DeepSeek reads from its own servers: it reaches sites this machine cannot.
+    "known_public_url": ("crawl4ai.fetch_page", "tinyfish.fetch_content", "deepseek.fetch_page"),
+    "batch_public_pages": ("crawl4ai.fetch_page", "tinyfish.fetch_content", "deepseek.fetch_page"),
     "semantic_choice": ("jev.choice",),
 }
 SKIPPABLE = frozenset({"CAPABILITY_NOT_AVAILABLE", "CAPABILITY_SCHEMA_DRIFT",
@@ -44,7 +45,9 @@ SHARED_STOPS = frozenset({"BUDGET_RUN_CEILING", "BUDGET_PROJECT_CEILING", "BUDGE
 TECHNICAL = frozenset({"LOCAL_CRAWL_RUNTIME_FAILED", "LOCAL_CRAWL_FAILED", "SOURCE_EMPTY_EXTRACT",
     "SOURCE_ANTIBOT_HEURISTIC",
     "UPSTREAM_MCP_EMPTY_RESULT", "UPSTREAM_MCP_TOOL_FAILED", "SERPER_HTTP_ERROR",
-    "SERPER_UPSTREAM_ERROR", "SERPAPI_UPSTREAM_FAILED", "SERPAPI_DECLARED_ERROR"})
+    "SERPER_UPSTREAM_ERROR", "SERPAPI_UPSTREAM_FAILED", "SERPAPI_DECLARED_ERROR",
+    "DEEPSEEK_FETCH_NO_CONTENT", "DEEPSEEK_FETCH_REFUSED", "DEEPSEEK_FETCH_TIMEOUT",
+    "DEEPSEEK_UPSTREAM_FAILED", "DEEPSEEK_RATE_LIMITED", "DEEPSEEK_NO_BALANCE"})
 MAX_BYTES = 4_000_000
 #: Capabilities executed on this machine with no provider account behind them.
 LOCAL_CAPABILITIES = frozenset({"crawl4ai.fetch_page"})
@@ -165,6 +168,8 @@ def _params(capability, request):
     if capability == "tinyfish.search":
         return {"query": request["query"], "location": request["country"], "language": request["language"]}
     if capability == "crawl4ai.fetch_page":
+        return {"url": request["url"]}
+    if capability == "deepseek.fetch_page":
         return {"url": request["url"]}
     if capability == "tinyfish.fetch_content":
         return {"urls": [request["url"]], "format": "html", "links": True,
@@ -301,7 +306,7 @@ def _reader_health(attempts):
 
 def research_step(data_root, *, run_id, operation_id, task_kind, managed_call, admission,
                   query="", url="", artifact_id="", question="", options=None,
-                  country="", language="", limit=5, max_attempts=3):
+                  country="", language="", limit=5, max_attempts=3, routes=None):
     """Execute one explicitly requested fallback chain within existing consent.
 
     Exceptions after recording attempt intent are ambiguous: stop, retain the
@@ -349,7 +354,11 @@ def research_step(data_root, *, run_id, operation_id, task_kind, managed_call, a
     free_routes = {"crawl4ai.fetch_page", "tinyfish.search", "tinyfish.fetch_content"}
     import research_walls
     route = ROUTES[task_kind]
-    if task_kind in {"known_public_url", "batch_public_pages"}:
+    if routes:
+        # The caller's order (a single reader in a probe, or the Run's measured
+        # order); only reviewed routes of this task kind.
+        route = tuple(r for r in routes if r in ROUTES[task_kind]) or route
+    if task_kind in {"known_public_url", "batch_public_pages"} and not (routes and len(routes) == 1):
         route = research_walls.preferred_route(root, request["url"], route)
     for ordinal, capability in enumerate(route, 1):
         if calls >= max_attempts:

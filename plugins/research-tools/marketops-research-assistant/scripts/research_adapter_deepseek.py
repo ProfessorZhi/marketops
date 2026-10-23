@@ -34,10 +34,15 @@ import research_contract
 PROVIDER = "deepseek"
 TRANSPORT = "rest"
 ENDPOINT = "https://api.deepseek.com/v1/tools/search"
-CAPABILITIES: tuple[str, ...] = ("deepseek.search",)
+FETCH_ENDPOINT = "https://api.deepseek.com/v1/tools/fetch"
+CAPABILITIES: tuple[str, ...] = ("deepseek.search", "deepseek.fetch_page")
 ALLOWED_PARAMS: Mapping[str, frozenset[str]] = {
     "deepseek.search": frozenset({"query", "limit", "country", "language", "mode"}),
+    "deepseek.fetch_page": frozenset({"url"}),
 }
+#: Fetch returns Markdown with punctuation escaped ("jean\\.dupont@club\\.fr");
+#: the page text is kept as the reader would see it.
+_MD_ESCAPE = re.compile(r"\\([\\`*_{}\[\]()#+\-.!|<>~;,:@&=/'\"%$?])")
 MAX_BODY = 8 * 1024 * 1024
 TIMEOUT_SECONDS = 30.0
 MAX_QUERY_CHARS = 128   # the API's own limit
@@ -57,6 +62,8 @@ CONTRACT_ANALOGUE: Mapping[str, str] = {
 POST_DISPATCH_CODES: frozenset[str] = frozenset({
     "DEEPSEEK_UPSTREAM_FAILED", "DEEPSEEK_AMBIGUOUS_TIMEOUT", "DEEPSEEK_BODY_INVALID",
     "DEEPSEEK_BODY_TOO_LARGE", "DEEPSEEK_NO_BALANCE",
+    "DEEPSEEK_FETCH_NO_CONTENT", "DEEPSEEK_FETCH_REFUSED", "DEEPSEEK_FETCH_TIMEOUT",
+    "DEEPSEEK_RATE_LIMITED",
 })
 ADAPTER_LOCAL_REASONS: frozenset[str] = frozenset(CONTRACT_ANALOGUE) | POST_DISPATCH_CODES
 
@@ -129,6 +136,8 @@ class DeepSeekAdapter:
         if not isinstance(params, Mapping) or set(map(str, params)) - ALLOWED_PARAMS[capability_id]:
             return self._refusal("DEEPSEEK_PARAMS_INVALID", "unexpected parameters",
                                  capability_id=capability_id)
+        if capability_id == "deepseek.fetch_page":
+            return self._fetch(params, capability_id, req)
         if str(params.get("mode") or "web") != "web":
             # No maps or news vertical: build venue lists from Serper's maps.
             return self._refusal("DEEPSEEK_MODE_UNSUPPORTED", "DeepSeek Search is web only",
@@ -210,6 +219,59 @@ class DeepSeekAdapter:
                               quota_units_used=Decimal(1 if hits else 0),
                               caveats=("DISCOVERY_CANDIDATES_NOT_VERIFIED_BUSINESS_EVIDENCE",))
 
+    def _fetch(self, params, capability_id, req) -> DeepSeekResult:
+        """One page as Markdown. Billed only when content comes back: a page DeepSeek
+        cannot read (404), refuses (403) or a timeout costs nothing and is FAILED,
+        so the fallback chain moves on."""
+        url = str(params.get("url") or "")
+        if not re.match(r"^https?://[^/\s@]+", url) or len(url) > 8192:
+            return self._refusal("DEEPSEEK_PARAMS_INVALID", "an http(s) URL", capability_id=capability_id)
+        if self._transport is None:
+            return self._refusal("DEEPSEEK_TRANSPORT_UNBOUND", "no egress bound", capability_id=capability_id)
+        if self._api_key is None:
+            return self._refusal("DEEPSEEK_CREDENTIAL_ABSENT", "no key", capability_id=capability_id)
+        request = urllib.request.Request(FETCH_ENDPOINT, data=json.dumps({"url": url}).encode(),
+                                         method="POST", headers={
+            "Authorization": "Bearer " + self._api_key, "Content-Type": "application/json"})
+        try:
+            response = self._transport(request, 90.0)
+            with response as handle:
+                raw = handle.read(MAX_BODY + 1)
+        except urllib.error.HTTPError as exc:
+            code = {402: "DEEPSEEK_NO_BALANCE", 403: "DEEPSEEK_FETCH_REFUSED",
+                    404: "DEEPSEEK_FETCH_NO_CONTENT", 429: "DEEPSEEK_RATE_LIMITED",
+                    504: "DEEPSEEK_FETCH_TIMEOUT"}.get(exc.code, "DEEPSEEK_UPSTREAM_FAILED")
+            return self._failure(code, f"HTTP {exc.code}", capability_id=capability_id)
+        except TimeoutError:
+            # DeepSeek bills no timeout: FAILED, not an unknown charge.
+            return self._failure("DEEPSEEK_FETCH_TIMEOUT", "no answer", capability_id=capability_id)
+        except urllib.error.URLError as exc:
+            if research_contract.never_sent(exc):
+                return self._refusal("DEEPSEEK_TRANSPORT_UNBOUND", "connection never established",
+                                     capability_id=capability_id, contract="EGRESS_REFUSED")
+            return self._failure("DEEPSEEK_UPSTREAM_FAILED", "connection failed",
+                                 capability_id=capability_id)
+        if len(raw) > MAX_BODY:
+            return self._failure("DEEPSEEK_BODY_TOO_LARGE", f"{len(raw)} bytes", capability_id=capability_id)
+        try:
+            data = json.loads(raw)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return self._failure("DEEPSEEK_BODY_INVALID", "not JSON", capability_id=capability_id)
+        content = data.get("content") if isinstance(data, dict) else None
+        if not isinstance(content, str) or not content.strip():
+            return self._failure("DEEPSEEK_FETCH_NO_CONTENT", "empty page", capability_id=capability_id)
+        payload = {
+            "schema": "marketops.deepseek.fetch.v1", "provider": PROVIDER, "transport": TRANSPORT,
+            "capability_id": capability_id, "url": url, "title": str(data.get("title") or "")[:500],
+            # The evidence reader takes "markdown" as the page text.
+            "markdown": _MD_ESCAPE.sub(r"\1", content),
+            "run_id": str(getattr(req, "run_id", "") or ""),
+            "operation_id": str(getattr(req, "operation_id", "") or ""),
+            "source_status": "vendor_extracted_markdown", "business_evidence": False,
+            "billable": True, "raw_response_sha256": hashlib.sha256(raw).hexdigest()}
+        return DeepSeekResult(outcome=OUTCOME_OK, payload=payload, quota_units_used=Decimal(1),
+                              caveats=("VENDOR_EXTRACTED_MARKDOWN_NOT_RAW_HTML",))
+
     def _refusal(self, code, detail, *, capability_id="", contract=None) -> DeepSeekResult:
         contract_code = contract or CONTRACT_ANALOGUE.get(code, "CAPABILITY_PARAM_NOT_ALLOWED")
         return DeepSeekResult(outcome=OUTCOME_BLOCKED,
@@ -227,4 +289,4 @@ class DeepSeekAdapter:
 
 
 __all__ = ["ADAPTER_LOCAL_REASONS", "CAPABILITIES", "DeepSeekAdapter", "DeepSeekResult",
-           "ENDPOINT", "PROVIDER", "POST_DISPATCH_CODES", "capabilities"]
+           "ENDPOINT", "FETCH_ENDPOINT", "PROVIDER", "POST_DISPATCH_CODES", "capabilities"]

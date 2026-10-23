@@ -177,7 +177,7 @@ class RealAdapterVocabularyTests(unittest.TestCase):
                      "tinyfish.batch_cancel"),
         "serpapi": ("serpapi.engine_catalog", "serpapi.engine_schema", "serpapi.search"),
         "serper": ("serper.search",),
-        "deepseek": ("deepseek.search",),
+        "deepseek": ("deepseek.search", "deepseek.fetch_page"),
         "crawl4ai": ("crawl4ai.fetch_page", "crawl4ai.extract", "crawl4ai.deep_crawl",
                      "crawl4ai.sitemap_seed", "crawl4ai.screenshot", "crawl4ai.pdf"),
         "typesafe_jev": ("jev.choice", "jev.noul", "jev.score", "jev.box"),

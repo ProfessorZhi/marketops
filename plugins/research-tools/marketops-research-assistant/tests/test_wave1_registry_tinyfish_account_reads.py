@@ -161,7 +161,7 @@ class ReviewedEntryTests(unittest.TestCase):
 
     def test_the_original_25_capabilities_are_unchanged(self):
         reg = registry_module.DEFAULT_REGISTRY
-        self.assertEqual(len(reg), 29)  # + deepseek.search
+        self.assertEqual(len(reg), 30)  # + deepseek.search, deepseek.fetch_page
         for capability_id, expected in BASELINE_25.items():
             with self.subTest(capability_id=capability_id):
                 entry = reg.get(capability_id)
