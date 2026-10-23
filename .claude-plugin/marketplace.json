@@ -1,0 +1,23 @@
+{
+  "name": "marketops",
+  "owner": {
+    "name": "ProfessorZhi"
+  },
+  "metadata": {
+    "description": "MarketOps plugin marketplace: install the research plugin directly from this repository.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "marketops-research-assistant",
+      "source": "./plugins/research-tools/marketops-research-assistant",
+      "description": "Evidence-first market research: one managed MarketOps research MCP plus the skills that tell an agent how to search, read pages, bind evidence and grade contact routes.",
+      "category": "productivity",
+      "tags": [
+        "market-research",
+        "mcp",
+        "evidence"
+      ]
+    }
+  ]
+}
