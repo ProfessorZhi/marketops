@@ -98,6 +98,47 @@ class ExtractPageTests(unittest.TestCase):
             extract.extract(page_text(), labels=["kind"])
 
 
+class CorrespondentLayoutTests(unittest.TestCase):
+    """A club finder that prints "Correspondant :" and "Lieu des cours :".
+
+    The mairie 14 annuaire names the club on its own line, then the venue it
+    uses, then the person to write to. Read as an address-first page, the club
+    name came out as "rue du Moulin Vert".
+    """
+
+    PAGE = """<html><body>
+<p>ARMORIQUE</p><p>Lieu des cours : 5, rue du Moulin Vert</p>
+<p>Correspondant : Jacqueline GOUJON</p><p>Adresse postale : 5, rue du Moulin Vert</p>
+<p>Tél : 01 45 40 43 90</p><p>Adresse du site : www.armoriquesports.free.fr</p>
+<p>COEGF</p><p>Lieu des cours : Institut du Judo 21-23 avenue Porte de Châtillon</p>
+<p>Correspondant : Florian Mégard</p><p>Adresse postale : 3 rue des jonquilles 75014 PARIS</p>
+<p>Tél : 06 61 66 66 17</p><p>Adresse du site : www.coegf.fr</p>
+<p>WTEO PARIS 14</p><p>Lieu des cours : Centres Paris Anim’ Vercingétorix</p>
+<p>Correspondant : Olivier Rullé</p><p>Adresse postale : 20, avenue Marc Sangnier</p>
+<p>Tél : 01 45 41 00 96</p><p>Adresse du site : www.wteoparis14.org</p>
+</body></html>""".encode("utf-8")
+
+    def records(self):
+        return extract.extract(extract.page_text("rendered_html", self.PAGE))["records"]
+
+    def test_the_club_name_excludes_the_address_of_the_person(self):
+        self.assertEqual(["ARMORIQUE", "COEGF", "WTEO PARIS 14"],
+                         [record["organization"] for record in self.records()])
+
+    def test_the_person_venue_and_website_are_read_from_their_own_labels(self):
+        first = self.records()[0]
+        self.assertEqual("Jacqueline GOUJON", first["person"])
+        self.assertEqual("5, rue du Moulin Vert", first["venue"])
+        self.assertEqual("5, rue du Moulin Vert", first["address"])
+        self.assertEqual("www.armoriquesports.free.fr", first["website"])
+        self.assertEqual("01 45 40 43 90", first["phone"])
+
+    def test_a_street_is_never_taken_for_a_name(self):
+        for record in self.records():
+            self.assertFalse(record["organization"].lower().startswith(
+                ("rue", "avenue", "place", "boulevard", "chemin")), record)
+
+
 class DirectoryToolTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

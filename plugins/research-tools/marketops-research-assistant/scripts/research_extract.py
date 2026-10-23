@@ -42,18 +42,21 @@ FIELDS = ("organization", "person", "role", "email", "phone", "website",
 _LABEL_GROUPS = (
     ("person", r"nom de la personne (?:à|a) contacter|personne (?:à|a) contacter|"
                r"personne de contact|contact person|name of (?:the )?contact|"
-               r"ansprechpartner(?:in)?|contact|responsable"),
+               r"ansprechpartner(?:in)?|correspondant(?:e)?|contact|responsable"),
     ("email", r"adresse (?:mail|e-?mail|électronique)|e-?mail|courriel|mél|mail"),
     ("phone", r"num[ée]ros? de t[ée]l[ée]phone|t[ée]l[ée]phone|t[ée]l\.?|phone|"
               r"telefon(?:nummer)?"),
-    ("website", r"site (?:internet|web)|website|webseite|site"),
+    # "Adresse du site" is a website, not a postal address: the website group
+    # precedes address in the alternation so it wins at the same position.
+    ("website", r"adresse (?:du |de )?site|site (?:internet|web)|website|webseite|site"),
     ("address", r"adresse postale|adresse|address|anschrift"),
     ("role", r"fonction|qualité|poste|rôle|position|title"),
     ("discipline", r"disciplines? pratiquées?|discipline\(s\) pratiquée\(s\)|"
                    r"disciplines?|activités?"),
     ("venue", r"[ée]quipements?(?: sportifs?)? utilis[ée]s?|"
               r"[ée]quipement\(s\) (?:sportif\(s\) )?utilis[ée]\(s\)|"
-              r"[ée]quipements? sportifs?|[ée]quipement|installations?|lieu"),
+              r"[ée]quipements? sportifs?|[ée]quipement|installations?|"
+              r"lieux? (?:des? )?cours|lieu"),
 )
 _LABEL_RE = re.compile(
     r"(?<![\w])(?:" + "|".join("(?P<%s>%s)" % (field, pattern)
@@ -196,7 +199,20 @@ def _name_tail(gap: str) -> tuple[str, int] | None:
         return None
     if len(words) < 2 and not (letters.isupper() or any(c.isdigit() for c in letters)):
         return None
+    # An address or a schedule also ends in capitals and would otherwise be read
+    # as the next record's name ("5, rue du Moulin Vert" -> "rue du Moulin Vert").
+    if _ADDRESS_WORD.match(words[0]) or any(_CLOCK_WORD.match(word) for word in words):
+        return None
     return name, offset + begin
+
+
+#: A run of words can end in capitals and still be a street, not a club: pages
+#: that print "Lieu des cours : ..." put the address where the name would sit.
+_ADDRESS_WORD = re.compile(
+    r"^(?:rue|avenue|av\.?|boulevard|bd|place|chemin|impasse|quai|all[ée]e|square|"
+    r"route|cours|villa|passage|esplanade|mail|sentier|ruelle|voie|porte)$",
+    re.IGNORECASE)
+_CLOCK_WORD = re.compile(r"^\d{1,2}\s?h\s?\d{0,2}$", re.IGNORECASE)
 
 
 def _line_of(text: str, position: int) -> int:
@@ -336,6 +352,19 @@ def _single_line(field: str, value: str) -> str:
             if _EMAIL_TOKEN.fullmatch(token):
                 return token
         return line.split()[0]
+    if field == "phone":
+        # A page that glues a number to the next field prints
+        # "06 01 86 94 64aymeric@example.org www.club.fr" in one run: the
+        # number ends where an address starts.
+        kept = []
+        for token in line.split():
+            if "@" in token:
+                digits = re.match(r"\d+", token.split("@", 1)[0])
+                if digits:
+                    kept.append(digits.group(0))
+                break
+            kept.append(token)
+        return " ".join(kept)
     return line
 
 

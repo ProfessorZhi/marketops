@@ -497,6 +497,28 @@ def _unknown_held(run_id: str) -> int | None:
         return None
 
 
+def _money_remaining(money: dict):
+    """Headroom under the active money policy, in whichever shape it reports.
+
+    An envelope policy reports ``remaining_usd`` directly. A red-line policy
+    states an amount to keep instead, so its headroom is the distance between
+    that line and what has been spent since the policy began. A policy that
+    reports neither is unknown, not zero — and reading a key the red-line shape
+    does not carry raises, which used to drop the whole managed budget to the
+    environment view and report a run with plenty of money as exhausted.
+    """
+    if "remaining_usd" in money:
+        return money["remaining_usd"]
+    line, spent = money.get("total_red_line_usd"), money.get("spent_since_policy_usd")
+    if line is None or spent is None:
+        return None
+    from decimal import Decimal, InvalidOperation
+    try:
+        return str(Decimal(str(line)) - Decimal(str(spent)))
+    except (InvalidOperation, ValueError):
+        return None
+
+
 def _source_selection_budget(run_id: str) -> dict:
     """Local budget facts for the advisory; a missing value stays None, never 0.
 
@@ -521,7 +543,8 @@ def _source_selection_budget(run_id: str) -> dict:
                 import research_spending
                 money = research_spending.status(data_root)
                 monetary = {"budget_mode": "MONEY", "request_limit_active": False,
-                            "remaining_usd": money["remaining_usd"], "free_page_reads_available": True}
+                            "remaining_usd": _money_remaining(money),
+                            "free_page_reads_available": True}
             return {**monetary, "search_remaining": snapshot["remaining"],
                     "provider_remaining": snapshot["remaining"],
                     "unknown_held": snapshot.get("ambiguous_outcome_operations",
@@ -532,17 +555,23 @@ def _source_selection_budget(run_id: str) -> dict:
         except Exception:  # noqa: BLE001 - fall through to the env view
             pass
     try:
-        search = dual_search_mcp._configuration()
-        search_remaining = _capacity(
-            search["max_total_reserved_calls"],
-            _ledger_usage("dual-search-ledger.sqlite3", "search_attempts"))["remaining"]
+        ceiling = dual_search_mcp._configuration()["max_total_reserved_calls"]
+        # The adapters read an unset ceiling variable as 0. A ceiling of zero can
+        # never be approved — every caller refuses one below 1 — so 0 means "the
+        # environment stated no ceiling", which is unknown. Reporting that as 0
+        # made every advisory on a managed deployment say BUDGET_EXHAUSTED.
+        search_remaining = (
+            _capacity(ceiling, _ledger_usage("dual-search-ledger.sqlite3",
+                                             "search_attempts"))["remaining"]
+            if ceiling and ceiling > 0 else None)
     except Exception:  # noqa: BLE001 - an unavailable budget is unknown, not zero
         search_remaining = None
     try:
-        provider_remaining = _capacity(
-            extra._limit(),
-            _ledger_usage("provider-reservations.sqlite3",
-                          "provider_reservations"))["remaining"]
+        ceiling = extra._limit()
+        provider_remaining = (
+            _capacity(ceiling, _ledger_usage("provider-reservations.sqlite3",
+                                             "provider_reservations"))["remaining"]
+            if ceiling and ceiling > 0 else None)
     except Exception:  # noqa: BLE001
         provider_remaining = None
     return {"search_remaining": search_remaining,
