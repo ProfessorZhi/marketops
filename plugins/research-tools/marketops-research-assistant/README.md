@@ -1,12 +1,22 @@
-# MarketOps Research Assistant 0.5.9
+# MarketOps Research Assistant 0.5.11-rc8
 
-**Release candidate — 不是 0.5.5，也不是正式发行版。** 本包只用于 RC 验收；不得覆盖或重命名既有的 0.5.5 ZIP，不得据此宣布正式发布。正式发布前仍需完成真实供应商费用与客户授权验收。
+**Release candidate — 不是正式发行版。** 本包只用于 RC 验收；不得覆盖或重命名既有的
+0.5.5 ZIP，不得据此宣布正式发布。正式发布前仍需完成真实供应商费用与客户授权验收。
+
+版本号以 `.claude-plugin/plugin.json` 为唯一权威（Claude Code 读取它，而不是 git tag）。
+每次发版必须递增该字段，否则 `claude plugin update` 会判定「已是最新」而静默不更新。
 
 把市场研究方法、五个项目的使用经验、集中证据与交付放在同一个插件中。人确定目标和有限额度，Agent 连续研究、保存证据、交付结果，再将方法和反馈用于后续任务。
 
 ## 安装和首次启动
 
-从 [START_HERE](START_HERE.md) 开始。Windows x64 双击 `Install.cmd`；Linux x64 使用 `install.sh`。运行时为 Python 3.12。安装器在目标电脑生成 Codex、Claude Code 或 WorkBuddy 配置；WorkBuddy 导入须在客户端完成。
+Claude Code 一行装（仓库根已带 marketplace 清单）：
+
+```bash
+/plugin install marketops-research-assistant --marketplace ProfessorZhi/marketops
+```
+
+其余安装方式从 [START_HERE](START_HERE.md) 开始。Windows x64 双击 `Install.cmd`；Linux x64 使用 `install.sh`。运行时为 Python 3.12。安装器在目标电脑生成 Codex、Claude Code 或 WorkBuddy 配置；WorkBuddy 导入须在客户端完成。
 
 [四账户指引](references/FOUR_ACCOUNT_START.md)提供注册、API Key、官方赠金及余额入口：Serper、SerpApi、TinyFish、TypeSafe。Crawl4AI 在本地运行，无需第五个账户。Key 在本地隐藏输入、或由安装 agent 写进系统凭据库，重启后读取。
 
