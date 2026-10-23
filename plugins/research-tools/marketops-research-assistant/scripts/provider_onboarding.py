@@ -17,7 +17,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "references" / "PROVIDER_CONNECTIONS.json"
 SUPPORTED_CLIENTS = ("claude", "codex", "workbuddy")
-EXPECTED_IDS = frozenset({"tinyfish", "serpapi", "serper", "crawl4ai", "jev"})
+#: The five providers every install ships with. An entry may also be marked
+#: ``optional``; it is offered by the guide but its absence is not an error.
+REQUIRED_IDS = frozenset({"tinyfish", "serpapi", "serper", "crawl4ai", "jev"})
 
 
 def read_catalog(path: Path = CATALOG) -> dict:
@@ -25,10 +27,16 @@ def read_catalog(path: Path = CATALOG) -> dict:
     if data.get("schema") != "marketops.provider-setup.v1":
         raise ValueError("UNSUPPORTED_PROVIDER_SETUP_SCHEMA")
     providers = data.get("providers")
-    if not isinstance(providers, list) or {p.get("id") for p in providers
-                                            if isinstance(p, dict)} != EXPECTED_IDS:
+    if not isinstance(providers, list) or not all(isinstance(p, dict) for p in providers):
         raise ValueError("INVALID_PROVIDER_SETUP_CATALOG")
-    if len(providers) != len(EXPECTED_IDS):
+    ids = {p.get("id") for p in providers}
+    if not all(isinstance(i, str) and i for i in ids):
+        raise ValueError("INVALID_PROVIDER_SETUP_CATALOG")
+    extra = ids - REQUIRED_IDS
+    if not REQUIRED_IDS.issubset(ids) or not all(
+            p.get("optional") is True for p in providers if p.get("id") in extra):
+        raise ValueError("INVALID_PROVIDER_SETUP_CATALOG")
+    if len(providers) != len(ids):
         raise ValueError("DUPLICATE_PROVIDER_SETUP_ID")
     for provider in providers:
         if not isinstance(provider.get("lite_credential_env"), str):
@@ -61,7 +69,8 @@ def report(*, provider: str = "all", client: str = "claude",
     if client not in SUPPORTED_CLIENTS:
         raise ValueError("UNSUPPORTED_SETUP_CLIENT")
     data = read_catalog(path)
-    if provider != "all" and provider not in EXPECTED_IDS:
+    known = {p["id"] for p in data["providers"]}
+    if provider != "all" and provider not in known:
         raise ValueError("UNKNOWN_PROVIDER")
     env = dict(os.environ) if environ is None else environ
     if environ is None:
@@ -99,6 +108,7 @@ def report(*, provider: str = "all", client: str = "claude",
             },
             "capabilities": entry["capabilities"],
             "separate_site_login": entry["separate_site_login"],
+            "optional": entry.get("optional") is True,
             "account_required": entry.get("account_required", entry["id"] != "crawl4ai"),
             "trial_offer": entry.get("trial_offer"),
             "os_keyring_oauth_tokens_present": (has_saved_tokens() if
@@ -107,7 +117,9 @@ def report(*, provider: str = "all", client: str = "claude",
     return {
         "status": "GUIDE_ONLY_NO_NETWORK_OR_AUTH", "schema": data["schema"],
         "client": client, "provider_count": len(rows), "local_runtime": package,
-        "cloud_account_count": sum(p["account_required"] for p in rows),
+        "cloud_account_count": sum(p["account_required"] and not p["optional"]
+                                   for p in rows),
+        "optional_provider_ids": [p["id"] for p in rows if p["optional"]],
         "providers": rows,
         "paid_calls_enabled": False,
         "host_mcp_registration_performed": False,
@@ -132,10 +144,12 @@ def format_text(data: dict) -> str:
         out.append(f"- {key}: {'已发现' if installed[key] else '未发现（可选择安装）'}")
     out.append("- Chromium 启动状态：未在此工具验证")
     out.append("- 需要四个云服务账户：Serper、SerpApi、TinyFish、TypeSafe；Crawl4AI 本地无需账户。")
+    out.append("- 可选第五家：DeepSeek（`DEEPSEEK_API_KEY`）。配了就多一路搜索和一路读页，"
+               "不配只是这两条路不出现，其余照常。")
     for p in data["providers"]:
         out.extend([
             "",
-            f"## {p['name']}",
+            f"## {p['name']}" + ("（可选）" if p["optional"] else ""),
             f"- 注册/账户入口：{p['account_url']}",
             f"- 官方安装/说明：{p['docs_url']}",
             f"- 推荐接入：{p['preferred']}",
@@ -157,6 +171,9 @@ def format_text(data: dict) -> str:
             out.append("- TinyFish Agent收费功能默认禁用，不会因为OAuth成功自动开启。")
         if p["id"] == "crawl4ai":
             out.append("- 本地 SDK 不需要云端 API Key；安装浏览器需要另行明确授权，云端和Docker可选。")
+        if p["id"] == "deepseek":
+            out.append("- 搜索与读页按成功且非空的结果计费（$0.75 / 1,000 次），失败不计费；"
+                       "余额由 MarketOps 直接读取账户，折算成还能买多少次搜索/读页。")
         if p["separate_site_login"]:
             out.append("- 平台登录和目标网站 Profile 登录分开；用户自行授权指定站点，勿复制Cookie。")
     out.extend([
@@ -174,7 +191,7 @@ def format_text(data: dict) -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--provider", choices=("all", "tinyfish", "serpapi", "serper",
-                                               "crawl4ai", "jev"), default="all")
+                                               "deepseek", "crawl4ai", "jev"), default="all")
     parser.add_argument("--client", choices=SUPPORTED_CLIENTS, default="claude")
     parser.add_argument("--json", action="store_true", help="machine-readable safe local report")
     args = parser.parse_args(argv)

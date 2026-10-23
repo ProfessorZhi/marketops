@@ -11,6 +11,8 @@ flowchart TD
     ROOT["根 README<br/>当前事实 · 安装 · 架构图"]
 
     subgraph NOW["当前事实"]
+        A0["AUTOMATION_WORKFLOW.md<br/>自动化工作流：已建 vs 在建"]
+        A5["CLIENT_INSTALL.md<br/>三端安装索引"]
         A1["ARCHITECTURE.md<br/>主架构与边界"]
         A2["MCP_SERVICE.md<br/>工具目录与合同"]
         A3["DATA_MODEL.md / SOP_MAPPING.md<br/>数据契约与业务规则"]
@@ -52,6 +54,10 @@ Jev 仍为 required，Laya/ServerOS/Docker/生产外联仍为 deferred。
 以下保留专题导航；其中 2026-09-23 盘点只在原 revision 上成立。当前工具是核心研究目录与产品环目录的并集，不是总计只有 15 个。
 
 ## 1. 推荐阅读顺序
+
+先读 [AUTOMATION_WORKFLOW.md](AUTOMATION_WORKFLOW.md)：它用一页说清「这条工作流今天能自动跑完
+哪一段、还在建哪一段」，并指向每一项的关闭条件。**它不给完成百分比**，状态以本节 §B17/§B24/§B25
+的关闭条件和 `B17_ACCEPTANCE_MATRIX_2026-09-28.md` 的逐行裁决为准。
 
 1. [SOURCES.md](SOURCES.md)：原始档案、冻结快照与派生规格的权威关系。`upstream-records` 是长期档案；`sources/` 不改写历史字节。
 2. [ARCHITECTURE.md](ARCHITECTURE.md)：**当前主架构入口**。一个 MCP、两类调用角色、资产/责任主体/联系人关系、Agent 与确定性程序分工、持久化和授权边界。

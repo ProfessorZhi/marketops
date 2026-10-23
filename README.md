@@ -2,28 +2,66 @@
 
 ![version](https://img.shields.io/badge/version-0.5.11--rc8-blue)
 ![python](https://img.shields.io/badge/python-3.11%2B-blue)
-![status](https://img.shields.io/badge/status-release%20candidate-orange)
+![license](https://img.shields.io/badge/license-MIT-green)
+![workflow](https://img.shields.io/badge/自动化工作流-正在建设-orange)
 
-持续维护场地/资产母池，核实责任实体，研究**有证据且有时效性**的联系人和公开邮箱，
-并保留可回读的证据。真实外联、回复监控与销售交接在独立授权范围内，当前默认关闭
-（`research_only=true`、`send_authorized=false`）。
+**把市场研究里那些有固定动作的环节交给机器跑完，只把该由人决定的部分留给人。**
 
-> 本仓库现在是 **release candidate 0.5.11-rc8**。对外交付形态 = 一个可安装的
-> MarketOps 插件（主 Skill + MCP 连接配置）+ 一个持久化业务 MCP 服务。
-> 插件包的安装与验收见 [`plugins/research-tools/marketops-research-assistant`](plugins/research-tools/marketops-research-assistant/)，
-> 三端安装指引见 [`docs/CLIENT_INSTALL.md`](docs/CLIENT_INSTALL.md)。
+具体做的是：持续维护场地/资产母池，核实责任实体，研究**有证据且有时效性**的联系人和
+公开邮箱，并保留可回读的证据。真实外联、回复监控与销售交接在独立授权范围内，当前默认
+关闭（`research_only=true`、`send_authorized=false`）。
+
+> **状态**：今天的 MarketOps 能跑完**一轮**完整研究——自己搜、自己读、自己取证、自己分级、
+> 自己出交付。还没有做完的是**下一轮由谁发起**。这一半正在建，逐项状态见
+> [`docs/AUTOMATION_WORKFLOW.md`](docs/AUTOMATION_WORKFLOW.md)。
+> 当前版本是 **0.5.11-rc8**（release candidate），不是正式发行版。
+
+![自动化工作流：已自动的六段与正在建设的无人值守部分](docs/assets/workflow.svg)
 
 ---
+
+## 我们提供什么
+
+| | 今天就能用 | 正在建设 |
+|---|---|---|
+| **研究** | 一轮完整研究：四路并搜 → 三路并读 → 证据绑定 → 双轴分级 → 九表交付 | — |
+| **无人值守** | — | Watch（到期/变化才工作）、Schedule（定时唤醒、幂等）、ActionItem（跟进池）、Notification（一次落账、按订阅投影） |
+| **动态研究** | Quay 适配器已就位，需要外部 Quay 部署 | 把「不点开就看不到」的站点交给受限 worker 的完整验收 |
+| **外联** | 默认关闭 | 真实外联、回复监控、销售交接（各自独立授权） |
+
+每一项「正在建设」都有一个**可测的关闭条件**，不是一句「做完了」。写法和今天到哪一步，
+逐条列在 [`docs/AUTOMATION_WORKFLOW.md`](docs/AUTOMATION_WORKFLOW.md)。
+
+## 一个插件，融合多个项目
+
+宿主只连**一个** MarketOps MCP；供应商之间的差别由插件内部的适配器承担，用户不必分别
+安装七家厂商的客户端。
+
+![一个插件融合七个上游项目](docs/assets/plugin-fusion.svg)
+
+| 项目 | 在这条链里干什么 | 计费口径 |
+|---|---|---|
+| **Serper** | 搜索、地图 | 按 credit |
+| **SerpApi** | 非 Google 引擎（Bing / 百度 / Yandex / Naver / Google Jobs）、地图 | 每月 250 次免费 |
+| **TinyFish** | 搜索、页面提取 | 搜索/提取免费；付费 Agent 默认关 |
+| **DeepSeek** | 搜索、读页 | $0.75 / 1k 次，失败不计费 |
+| **Crawl4AI** | 本地浏览器，保存渲染 HTML | 本地运行，免费 |
+| **Jev / TypeSafe** | 对保存的材料做有界语义判断 | 按次 |
+| **Quay** | 需要动态判断的研究调度（受限 Claude worker） | 由外部部署决定 |
+
+它们**不是**七个后端：口径、预算、证据只留在 MarketOps 这一层。搜索摘要只用于发现；
+抓取成功、文本匹配、模型判断都不自动证明业务事实。
 
 ## 三种用法
 
 | 你是 | 用什么 | 入口 |
 |---|---|---|
-| 业务用户（Claude Code / Codex / WorkBuddy） | **插件**：主 Skill 带研究方法与流程，连一个 MarketOps MCP | 本仓库 [Release](https://github.com/ProfessorZhi/marketops/releases) 的安装包 |
-| 系统集成方 | **MCP 服务**：一个 Streamable HTTP 业务接口，不要求用户分别接各家供应商 | `python -m marketops.interfaces.mcp` |
+| 业务用户（Claude Code / Codex / WorkBuddy） | **插件**：主 Skill 带研究方法与流程，连一个 MarketOps MCP | `/plugin install marketops-research-assistant --marketplace ProfessorZhi/marketops` |
+| 系统集成方 | **MCP 服务**：一个 Streamable HTTP 业务接口 | `python -m marketops.interfaces.mcp` |
 | 开发者 | **CLI + Python 包**：`marketops` 是唯一会被装出去的包 | `python -m marketops.interfaces.cli` |
 
-三者是同一套业务代码的三个面，不是三个产品。
+三者是同一套业务代码的三个面，不是三个产品。三端安装的权威步骤见
+[`docs/CLIENT_INSTALL.md`](docs/CLIENT_INSTALL.md)（WorkBuddy 那一端仍未验证，文档里如实标着）。
 
 ## 架构
 
@@ -38,19 +76,21 @@ flowchart TB
     PLUGIN["MarketOps 插件<br/>主 Skill + MCP 连接配置<br/>不含业务事实"]
 
     subgraph SVC["MarketOps 服务"]
-        MCP["MCP 面<br/>Streamable HTTP · 127.0.0.1:8787/mcp"]
+        MCP["MCP 面<br/>Streamable HTTP / stdio"]
         ENG["研究编排<br/>发现 → 抓取 → 证据 → 分级"]
         LEDGER[("业务台账<br/>SQLite / JSONL<br/>可回读、可复现")]
         MCP --> ENG
         ENG <--> LEDGER
     end
 
-    subgraph PROV["供应商"]
-        SR["Serper<br/>搜索"]
-        SA["SerpApi<br/>已审核引擎"]
-        TF["TinyFish<br/>搜索 / 提取"]
-        CR["Crawl4AI<br/>本地浏览器"]
-        JV["Jev / TypeSafe<br/>有界语义判断"]
+    subgraph PROV["供应商与执行面"]
+        SR["Serper"]
+        SA["SerpApi"]
+        TF["TinyFish"]
+        DS["DeepSeek"]
+        CR["Crawl4AI"]
+        JV["Jev / TypeSafe"]
+        QY["Quay<br/>受限 Claude worker"]
     end
 
     CC --> PLUGIN
@@ -60,8 +100,10 @@ flowchart TB
     ENG --> SR
     ENG --> SA
     ENG --> TF
+    ENG --> DS
     ENG --> CR
     ENG --> JV
+    ENG --> QY
 ```
 
 分工是固定的：**Skill 给方法，MCP 给事实，供应商只被调用**。客户端不持有业务规则，
@@ -83,8 +125,6 @@ flowchart LR
 一条**联系路线（ContactRoute）** = 账户 + 人/部门 + 岗位/业务职能 + 字面公开邮箱 + 证据。
 没有字面邮箱时，它是 RouteOpportunity 或 ContactSignal——**不能把电话或表单当 D**。
 
-搜索摘要只用于发现；抓取成功、文本匹配、模型判断都不自动证明业务事实。
-
 ## 分级：两条独立的轴
 
 ```text
@@ -104,8 +144,7 @@ ContactRoute 轴： A / B / C / D / X
 | 读一个页面 / 一个机构的站 | Crawl4AI（本地，免费） | TinyFish fetch | DeepSeek Fetch |
 | 判断一批页面（在不在范围内、邮箱归谁） | Jev | 短摘录上由 agent 判断 | — |
 | 硬页面（点击展开、分页门户） | TinyFish 付费 Agent | — | 仅当用户在开始时明确同意 |
-
-Google 以外的引擎（Bing、百度、Yandex、Naver、Google Jobs）只在 SerpApi 里，按需少用。
+| 需要动态判断的开放路径 | Quay → 受限 Claude worker | — | — |
 
 ### 多路并行 = 各自的失败互不传染
 
@@ -144,40 +183,39 @@ SerpApi 同理），仅在明确要求时切换，**不自动轮换**。
 
 这条规则来自一次真实运行：上一次只拿到 12 个 A/B 就收工了，而产出的来源明明还没挖完。
 
-## 开发入门
+## 安装
+
+Claude Code 一行装：
+
+```bash
+/plugin install marketops-research-assistant --marketplace ProfessorZhi/marketops
+```
+
+Codex / WorkBuddy / 离线安装包见 [`docs/CLIENT_INSTALL.md`](docs/CLIENT_INSTALL.md)。
+仓库里其实有**两个**插件包（一个业务 Skill、一个研究插件），装之前先看
+[`plugins/README.md`](plugins/README.md)。
+
+<details>
+<summary><b>开发入门</b>（clone、隔离 venv、跑测试、本地启动）</summary>
 
 以下命令在一个全新 clone + 隔离 venv 中实测通过（Linux，Python 3.12）。venv 建在仓库
 之外，因为 `tests/test_no_stale_assumptions.py` 会扫描整个仓库树。`MARKETOPS_DATA_ROOT`
 必须是仓库之外的显式运行目录。
 
-### Clone
-
 ```bash
 git clone https://github.com/ProfessorZhi/marketops.git
 cd marketops
-```
 
-### 装依赖
-
-```bash
 python3.12 -m venv ~/.venvs/marketops
 . ~/.venvs/marketops/bin/activate
 python -m pip install -e ".[dev]" pytest-timeout
-```
 
-### 跑测试
-
-```bash
 CUDA_VISIBLE_DEVICES="" nice -n 10 python -m pytest -q --timeout=300
 ```
 
 根套件不再排除快照、排序/折叠、slugify 或邮箱归一化测试。公开快照分别校验
 脱敏文件的 `public_snapshot_sha256` 与原始历史 pin 的格式，未改写原始 pin。
-排序与折叠断言遵循存储接口的既定契约。
-
 根套件包含 Linux 专用的 `fcntl` 身份锁模块，全量结果以 GitHub Linux CI 为准。
-Windows 安装流程由 `research-plugin-e2e` 的 Windows job 验证；Windows 上直接跑完整
-离线测试还会遇到既有夹具对 HOME、文件权限、短路径别名和 SQLite 句柄清理的假设。
 
 插件测试单独跑：
 
@@ -187,11 +225,10 @@ python -m pip install -r requirements-lite.txt
 CUDA_VISIBLE_DEVICES="" nice -n 10 python -m unittest discover -s tests -v
 ```
 
-完整插件套件的当前数量与结果见 `research-plugin-e2e` 的 `offline-3.12` 日志。
 `requirements-lite.txt` 里没有 pytest，用的是 `unittest discover`，但 `mcp` 与
 `typesafe-sdk` 必须装上，否则相关用例走的是「SDK 未安装」的阻断分支。
 
-### 本地启动
+本地启动：
 
 ```bash
 export MARKETOPS_DATA_ROOT=/tmp/marketops-dev
@@ -207,40 +244,40 @@ python -m marketops.interfaces.mcp
 缺少哪一项；`python -m marketops.interfaces.mcp` 绑定 `127.0.0.1:8787/mcp`
 （Streamable HTTP）。
 
-## 目录
+</details>
 
-**这一节描述的是当前实际的布局。** 迁移已经走完（`docs/MVP_MIGRATION_PLAN.md`
-的 B1–B7 与 Phase C–H 全部落地），所以这里不再是「一份追赶中的清单」。
-`docs/MVP_MIGRATION_PLAN.md` §1 也画了一棵树，但那是 **Phase A 定的目标树** ——
-拿它对照「还差什么」，不要拿它查文件在哪。想知道哪份文档是当前事实、哪份是被冻结的
-盘点，读 `docs/README.md`。
+<details>
+<summary><b>目录</b>（当前实际布局）</summary>
+
+迁移已经走完（`docs/MVP_MIGRATION_PLAN.md` 的 B1–B7 与 Phase C–H 全部落地），
+所以这里不再是「一份追赶中的清单」。想知道哪份文档是当前事实、哪份是被冻结的盘点，
+读 [`docs/README.md`](docs/README.md)。
 
 ```text
 marketops/          Python 包 —— 唯一会被装出去的东西（pyproject 的 packages 只有它）
   domain/           纯领域：实体、值对象、规则。不碰网络 / 磁盘 / 厂商
   application/      用例编排：发现、准入定级、预算与上限、派发、证据、运行报告
   ports/            契约：search / acquisition / documents / store / budget / jobs / dispatch / decisions
-  adapters/         实现：serper / http / crawl4ai / pypdf / mineru / jev / laya
+  adapters/         实现：serper / http / crawl4ai / pypdf / mineru / jev / laya / quay
                      / sqlite / jsonl / feishu / mcp_server（绑 MCP SDK 的那几个模块 ——
                      不是端口，是入口）
   interfaces/       入口与**组合根**：cli.py + composition.py
-                     （唯一允许点名具体厂商 adapter 的两个落点）
-  security/         权限与合规边界：tokens（主体从哪来）/ catalog（判什么）
-                     / network（允许去哪、允许绑哪）
-  config.py         唯一配置入口 —— 模块不是包，理由写在它的 docstring 里
-  schema.py         contracts 的导出者 —— 留在顶层，理由同上
-contracts/          由模型导出的 JSON Schema（**单向：代码 → 契约**，不可手写）
+  security/         权限与合规边界：tokens / catalog / network
+  config.py         唯一配置入口
+  schema.py         contracts 的导出者
+contracts/          由模型导出的 JSON Schema（单向：代码 → 契约，不可手写）
 profiles/<scene>/   业务规则：profile / grading / role-matrix
-sources/            业务原始材料的**逐字节冻结快照**（不扫、不改，只追加）
-tests/              自动验证（unit / contract / integration 的拆分见
-                     docs/MVP_MIGRATION_PLAN.md，尚未执行）
+sources/            业务原始材料的逐字节冻结快照（不扫、不改，只追加）
+tests/              自动验证
 deploy/             部署说明：只有文档，没有部署产物
 docs/               架构、契约、SOP、来源与验收 —— 索引在 docs/README.md
 ```
 
-`services/` 已经不存在。它最后剩下的是 `api/` 与 `feishu_bot/` 两个**只有 README
-的占位目录**，本轮按 `marketops/interfaces/__init__.py` 里写下的处置删掉了 ——
-留下的推理搬进了 `docs/NOT_BUILT.md`（为什么现在不建，以及真要建时哪些约束已经被固定）。
+`services/` 已经不存在。它最后剩下的是 `api/` 与 `feishu_bot/` 两个只有 README
+的占位目录，本轮按 `marketops/interfaces/__init__.py` 里写下的处置删掉了 ——
+留下的推理搬进了 `docs/NOT_BUILT.md`。
+
+</details>
 
 ## 数据、凭据和跨平台
 
@@ -251,32 +288,19 @@ benchmarks 等位置；凭据使用部署允许的 secret 机制。目标机器�
 原始网页/PDF、渲染 DOM、解析文本和派生摘要分别标注来源与变换，不互相冒充。并发写入
 走服务端事务/受控入库，JSONL 用于审计和导出，而不是无锁预算状态。
 
-路径遵循既有 `pathlib` 和显式配置方式；第三方包/模型/浏览器版本固定并记录；不要为了
-演示复制源码、凭据或大模型缓存到不合规目录。
-
-## 实现状态
-
-当前 `main` 的研究引擎、开发机上的实验 worktree 与目标 MCP MVP 不应混称同一个完成
-状态。上一轮只读核查中报告了未实现的 API、旧 canonical remote、试跑预算计数竞争、
-研究 gate 与 SOP 口径差异。它们是当时的事实，不是本 README 对生产的实时检查。
-
-本轮实现前核实活跃分支与当前代码，保留旧证据，另做版本化纠正。MVP 不应要求用户凭空
-编造 Account 清单；支持已存在来源 receipt、已知账户或批准的公开发现范围。
-
-Crawl4AI、Jev、Laya 已升级为本轮必需集成，而不是后续选做；MinerU 等重型解析器、生产
-飞书/Hosting 接线和真实外联仍在各自独立范围。完整验收以 `docs/MCP_SERVICE.md` 的逐项
-真实凭证为准。
-
 ## 文档导航
 
 | 想了解 | 读 |
 |---|---|
+| 自动化工作流建成什么样、现在到哪一步 | [`docs/AUTOMATION_WORKFLOW.md`](docs/AUTOMATION_WORKFLOW.md) |
+| 三端安装（Claude Code / Codex / WorkBuddy） | [`docs/CLIENT_INSTALL.md`](docs/CLIENT_INSTALL.md) |
+| 两个插件包分别是什么 | [`plugins/README.md`](plugins/README.md) |
 | 整体架构与边界 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | MCP 工具目录与行为合同 | [`docs/MCP_SERVICE.md`](docs/MCP_SERVICE.md) |
 | 数据契约与 SOP 映射 | [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md)、[`docs/SOP_MAPPING.md`](docs/SOP_MAPPING.md) |
 | 部署与供应商拓扑 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)、[`docs/DEVELOPMENT_INFRASTRUCTURE.md`](docs/DEVELOPMENT_INFRASTRUCTURE.md) |
 | 文档的时效分级与冲突处理 | [`docs/README.md`](docs/README.md) |
 
-**文档分三种，不要混读**：当前事实（`ARCHITECTURE.md`、根 README）、冻结的历史盘点
-（`docs/CURRENT_STATE.md`，只在原 revision 上成立）、某次构建的运行回执
-（`MVP_ACCEPTANCE_REPORT*.md`）。历史盘点不改写，新事实另行追加。
+**文档分三种，不要混读**：当前事实（根 README、`ARCHITECTURE.md`、`AUTOMATION_WORKFLOW.md`）、
+冻结的历史盘点（`docs/CURRENT_STATE.md`，只在原 revision 上成立）、某次构建的运行回执
+（`MVP_ACCEPTANCE_REPORT*.md`、`B17_*_RUN_*.md`）。历史盘点不改写，新事实另行追加。

@@ -34,9 +34,9 @@ Windows 与 Unix 的绝对路径都支持，不要写死任何一台机器的路
 `MARKETOPS_RESEARCH_CONFIG` 可以指向另一份配置文件。优先级顺序是
 环境变量 → 配置文件 → 结构化 `CONFIG_REQUIRED`。
 
-## 五个上游服务与安装
+## 六个上游服务与安装
 
-The five upstream services are SerpApi, Serper, Crawl4AI, TinyFish and Jev/TypeSafe. Users may configure a subset. Missing provider access is UNAVAILABLE, not successful authentication. SerpApi and Serper require separate credentials. Crawl4AI can be local OSS or optional Cloud. LiteLLM or company model gateway does not replace the crawler; optional LLM extraction needs a distinct approved model API configuration.
+The six upstream services are SerpApi, Serper, DeepSeek (optional), Crawl4AI, TinyFish and Jev/TypeSafe. Users may configure a subset. Missing provider access is UNAVAILABLE, not successful authentication. SerpApi, Serper and DeepSeek require separate credentials. `marketops_search(provider='all')` asks Serper, DeepSeek, SerpApi and TinyFish in parallel and merges by URL; a route without a key simply drops out of that search, so omitting `DEEPSEEK_API_KEY` costs one search route and one page reader, not the run. Crawl4AI can be local OSS or optional Cloud. LiteLLM or company model gateway does not replace the crawler; optional LLM extraction needs a distinct approved model API configuration.
 
 Default networking is disabled for every provider. All provider call limits default to 0. Explain this before installing any package. If the user approves changing this computer, run:
 
@@ -50,7 +50,7 @@ Run a no-network capabilities check before requesting user approval for any live
 
 Do not submit forms, send messages, subscribe to plans, top up credits or access secrets. Preserve user data outside Git.
 
-## 五家可选 Provider：用户自己开通，不默认已登录
+## 可选 Provider：用户自己开通，不默认已登录
 
 账户与 Key 分开登记：同一供应商的一个计费账户共用余额，多把 Key 不代表多份额度。
 现有 Key 可通过本地账户 CLI 只登记归属，不读取或改写 Key；新增 Key 仅经本机隐藏输入
@@ -58,7 +58,7 @@ Do not submit forms, send messages, subscribe to plans, top up credits or access
 合法已有 Jev 账户可明确启用配额切换；Serper 保持单账户；换账户不重置总预算。
 命令和限制见 [账户与余额](../../references/ACCOUNT_BALANCES.md)。
 
-首次双路径配置完成后，调用 `marketops_setup_status` 读取 `provider_readiness`（各服务 READY 或需要的修复），按 [官方申请/API Key/MCP/登录态与费用指南](../../references/PROVIDER_ONBOARDING.md) 引导 Member-A **自行**决定启用哪些供应商。绝不要求一次填五个Key、不得自动注册、充值、下载或启用付费网络。每个项目的 provider 认证/配额/域名允许名单和TinyFish Browser Context Profile都需单独确认。
+首次双路径配置完成后，调用 `marketops_setup_status` 读取 `provider_readiness`（各服务 READY 或需要的修复），按 [官方申请/API Key/MCP/登录态与费用指南](../../references/PROVIDER_ONBOARDING.md) 引导 Member-A **自行**决定启用哪些供应商。绝不要求一次填全部 Key（含可选的 `DEEPSEEK_API_KEY`）、不得自动注册、充值、下载或启用付费网络。每个项目的 provider 认证/配额/域名允许名单和TinyFish Browser Context Profile都需单独确认。
 
 Claude Code 源码预览可用 `scripts/launch_research_mcp.sh`，缺 MCP SDK 就短码提示配置项目私有虚拟环境；安装程序生成可移植包时绑定绝对 venv Python。首用失败后须人工核对宿主 MCP连接状态和缓存，不得默默恢复为有权限的连接。
 

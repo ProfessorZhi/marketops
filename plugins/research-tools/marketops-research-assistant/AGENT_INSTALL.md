@@ -6,7 +6,7 @@ commands in PowerShell.
 
 ## Rules
 
-- **The user may send you the four API keys here. They belong in Windows Credential Manager and
+- **The user may send you the API keys here. They belong in Windows Credential Manager and
   nowhere else.** Pass them to `research_credentials.py configure --stdin` (step 4) and never to a
   file, a command argument, a URL, a log line, a commit or a message back to the user. Do not repeat
   a key in your reply; say which providers were stored instead. When step 4 has succeeded, suggest
@@ -27,7 +27,7 @@ commands in PowerShell.
    $src = (Get-ChildItem $pkg -Recurse -Filter Install.cmd | Select-Object -First 1).DirectoryName
    ```
 
-2. **Collect the four keys.** Show this table so the user can sign up for anything they are missing,
+2. **Collect the keys.** Show this table so the user can sign up for anything they are missing,
    then ask them to send the keys here (or name the ones they want to leave off; those providers
    stay unavailable and everything else still works):
 
@@ -37,6 +37,10 @@ commands in PowerShell.
    | SerpApi | https://serpapi.com/users/sign_up then https://serpapi.com/manage-api-key | 250 searches / month |
    | TinyFish | https://agent.tinyfish.ai/sign-up then https://agent.tinyfish.ai/api-keys | search and fetch free |
    | TypeSafe (Jev) | https://console.typesafe.ai/ (create an API key) | see Settings → Billing |
+   | DeepSeek (optional) | https://platform.deepseek.com/ then https://platform.deepseek.com/api_keys | pay as you go, $0.75 / 1,000 successful requests, failures free |
+
+   DeepSeek is optional: without it the run has three search routes and two page readers instead of
+   four and three.
 
    Crawl4AI runs locally and needs no account. Do not register, pay for or upgrade anything on the
    user's behalf.

@@ -2,7 +2,8 @@
 
 Balances belong to a billing account, not an API key. Different providers remain
 separate even when the login email is identical. Existing accounts keep refs
-`serper`, `serpapi`, `tinyfish`, `typesafe_jev`; historical usage stays attached.
+`serper`, `serpapi`, `tinyfish`, `typesafe_jev`, and `deepseek` when that optional
+route is configured; historical usage stays attached.
 Metadata lives in the customer's data root. Key values stay in the OS keyring.
 No owner email or key value is exposed by `marketops_accounts`.
 
@@ -19,8 +20,10 @@ No owner email or key value is exposed by `marketops_accounts`.
    repeat the question in later conversations. The user can report a new reading
    at any time, including after a top-up, without another setup cycle.
 
-SerpApi and TinyFish retain their existing free balance reads. Serper and Jev
+SerpApi, TinyFish and DeepSeek retain their existing free balance reads. Serper and Jev
 use operator reports because no documented public balance endpoint is integrated.
+DeepSeek's balance is money (it also pays for model tokens), so it is shown as how many
+search/fetch requests at list price ($0.75/1k, failures free) that money would buy.
 A reading has an observation time and completed-usage baseline. Estimate remaining
 from the matching account's later ledger usage, while retaining unresolved older
 exposure. Never subtract a last-30-days dashboard total from a current balance.

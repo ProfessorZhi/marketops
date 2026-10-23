@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 580" width="1000" height="580"
+     role="img" aria-label="MarketOps 自动化工作流：已自动的六段与仍在建设中的无人值守部分">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+    <style>
+      .box { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1.5; }
+      .step { font: 600 15px system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; fill: #0f172a; }
+      .num  { font: 700 11px system-ui, sans-serif; fill: #94a3b8; letter-spacing: .08em; }
+      .descS { font: 11px system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; fill: #475569; }
+      .desc { font: 12.5px system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; fill: #475569; }
+      .pill { font: 600 11px system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+      .band { fill: #f8fafc; stroke: #94a3b8; stroke-width: 1.5; stroke-dasharray: 7 5; }
+      .bandtitle { font: 700 13px system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; fill: #334155; }
+      .chip { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1.2; }
+      .chipt { font: 600 12px system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; fill: #334155; }
+      .chips { font: 11.5px system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; fill: #64748b; }
+    </style>
+  </defs>
+
+  <rect width="1000" height="580" fill="#f1f5f9"/>
+
+  <!-- 状态胶囊 -->
+  <g>
+    <rect x="30"  y="30" width="130" height="22" rx="11" fill="#dbeafe"/>
+    <text class="pill" x="95"  y="45" text-anchor="middle" fill="#1d4ed8">人给目标</text>
+
+    <rect x="190" y="30" width="130" height="22" rx="11" fill="#dcfce7"/>
+    <text class="pill" x="255" y="45" text-anchor="middle" fill="#15803d">自动</text>
+
+    <rect x="350" y="30" width="130" height="22" rx="11" fill="#dcfce7"/>
+    <text class="pill" x="415" y="45" text-anchor="middle" fill="#15803d">自动</text>
+
+    <rect x="510" y="30" width="130" height="22" rx="11" fill="#dcfce7"/>
+    <text class="pill" x="575" y="45" text-anchor="middle" fill="#15803d">自动</text>
+
+    <rect x="670" y="30" width="130" height="22" rx="11" fill="#fef3c7"/>
+    <text class="pill" x="735" y="45" text-anchor="middle" fill="#b45309">自动 + 人复核</text>
+
+    <rect x="830" y="30" width="130" height="22" rx="11" fill="#dcfce7"/>
+    <text class="pill" x="895" y="45" text-anchor="middle" fill="#15803d">自动</text>
+  </g>
+
+  <!-- 六个阶段 -->
+  <g>
+    <rect class="box" x="30" y="70" width="130" height="150" rx="14"/>
+    <text class="num" x="44" y="92">01</text>
+    <text class="step" x="44" y="116">输入</text>
+    <text class="desc" x="44" y="140">地区 / 对象 / 角色</text>
+    <text class="desc" x="44" y="159">数量 / 证据要求</text>
+    <text class="desc" x="44" y="178">写成 Brief</text>
+
+    <rect class="box" x="190" y="70" width="130" height="150" rx="14"/>
+    <text class="num" x="204" y="92">02</text>
+    <text class="step" x="204" y="116">发现</text>
+    <text class="descS" x="204" y="140">四路同时发</text>
+    <text class="descS" x="204" y="159">Serper · DeepSeek</text>
+    <text class="descS" x="204" y="178">SerpApi · TinyFish</text>
+
+    <rect class="box" x="350" y="70" width="130" height="150" rx="14"/>
+    <text class="num" x="364" y="92">03</text>
+    <text class="step" x="364" y="116">读页</text>
+    <text class="descS" x="364" y="140">前 12 页三路并读</text>
+    <text class="descS" x="364" y="159">Crawl4AI / TinyFish</text>
+    <text class="descS" x="364" y="178">/ DeepSeek Fetch</text>
+
+    <rect class="box" x="510" y="70" width="130" height="150" rx="14"/>
+    <text class="num" x="524" y="92">04</text>
+    <text class="step" x="524" y="116">证据</text>
+    <text class="desc" x="524" y="140">同源引文 + hash</text>
+    <text class="desc" x="524" y="159">字面提取姓名/岗位</text>
+    <text class="desc" x="524" y="178">邮箱，不猜不补</text>
+
+    <rect class="box" x="670" y="70" width="130" height="150" rx="14"/>
+    <text class="num" x="684" y="92">05</text>
+    <text class="step" x="684" y="116">分级</text>
+    <text class="desc" x="684" y="140">Account 轴</text>
+    <text class="desc" x="684" y="159">∥ ContactRoute 轴</text>
+    <text class="desc" x="684" y="178">A / B / C / D / X</text>
+
+    <rect class="box" x="830" y="70" width="130" height="150" rx="14"/>
+    <text class="num" x="844" y="92">06</text>
+    <text class="step" x="844" y="116">交付</text>
+    <text class="desc" x="844" y="140">九表 XLSX / CSV</text>
+    <text class="desc" x="844" y="159">来源与 hash 清单</text>
+    <text class="desc" x="844" y="178">台账可回读</text>
+  </g>
+
+  <!-- 阶段间箭头 -->
+  <g stroke="#64748b" stroke-width="1.8" marker-end="url(#arrow)">
+    <line x1="162" y1="145" x2="184" y2="145"/>
+    <line x1="322" y1="145" x2="344" y2="145"/>
+    <line x1="482" y1="145" x2="504" y2="145"/>
+    <line x1="642" y1="145" x2="664" y2="145"/>
+    <line x1="802" y1="145" x2="824" y2="145"/>
+  </g>
+
+  <!-- 建设中：无人值守部分 -->
+  <rect class="band" x="30" y="270" width="930" height="270" rx="18"/>
+  <text class="bandtitle" x="54" y="300">正在建设：把上面这条链变成无人值守</text>
+  <text class="desc" x="54" y="322">今天的六段能跑完一次研究，但「什么时候该再跑一次」仍然靠人开新任务。下面五项是把这件事接过去的部分。</text>
+
+  <g>
+    <rect class="chip" x="54"  y="344" width="168" height="70" rx="12"/>
+    <text class="chipt" x="70" y="370">Watch</text>
+    <text class="chips" x="70" y="391">到期 / 变化才工作</text>
+
+    <rect class="chip" x="238" y="344" width="168" height="70" rx="12"/>
+    <text class="chipt" x="254" y="370">Schedule</text>
+    <text class="chips" x="254" y="391">定时唤醒，幂等</text>
+
+    <rect class="chip" x="422" y="344" width="168" height="70" rx="12"/>
+    <text class="chipt" x="438" y="370">ActionItem</text>
+    <text class="chips" x="438" y="391">跟进池：下一步</text>
+
+    <rect class="chip" x="606" y="344" width="168" height="70" rx="12"/>
+    <text class="chipt" x="622" y="370">Notification</text>
+    <text class="chips" x="622" y="391">Inbox / 飞书群</text>
+
+    <rect class="chip" x="790" y="344" width="152" height="70" rx="12"/>
+    <text class="chipt" x="806" y="370">Quay</text>
+    <text class="chips" x="806" y="391">动态研究调度</text>
+  </g>
+
+  <g>
+    <rect class="chip" x="54" y="432" width="888" height="88" rx="12"/>
+    <text class="chipt" x="74" y="460">为什么慢：每一步都要能举证</text>
+    <text class="chips" x="74" y="482">关闭条件是可测的句子，不是「做完了」。例如「保存/查询 View 零网络/模型调用」、</text>
+    <text class="chips" x="74" y="501">「同 Account 出现在 3 个 View 仍只有一份事实和一次兼容 refresh」。见 docs/AUTOMATION_WORKFLOW.md。</text>
+  </g>
+</svg>

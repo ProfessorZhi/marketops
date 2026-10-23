@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 540" width="900" height="540"
+     role="img" aria-label="一个 MarketOps 插件融合七个上游项目：客户端只连接一个 MCP">
+  <defs>
+    <marker id="spoke" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/>
+    </marker>
+    <style>
+      .sat { fill: #ffffff; stroke: #cbd5e1; stroke-width: 1.4; }
+      .name { font: 600 14px system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; fill: #0f172a; }
+      .role { font: 12px system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; fill: #64748b; }
+      .core { fill: #0f172a; }
+      .corename { font: 700 17px system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; fill: #ffffff; }
+      .corerole { font: 12.5px system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; fill: #cbd5e1; }
+      .clients { font: 600 12.5px system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; fill: #475569; }
+    </style>
+  </defs>
+
+  <rect width="900" height="540" fill="#f1f5f9"/>
+
+  <!-- 客户端 -->
+  <g>
+    <text class="clients" x="450" y="34" text-anchor="middle">Claude Code · Codex · WorkBuddy —— 只连一个 MCP</text>
+    <line x1="450" y1="44" x2="450" y2="76" stroke="#94a3b8" stroke-width="1.8" marker-end="url(#spoke)"/>
+  </g>
+
+  <!-- 上层三个 -->
+  <g>
+    <rect class="sat" x="119" y="82" width="190" height="66" rx="12"/>
+    <text class="name" x="214" y="108" text-anchor="middle">Serper</text>
+    <text class="role" x="214" y="129" text-anchor="middle">搜索 · 地图</text>
+
+    <rect class="sat" x="355" y="82" width="190" height="66" rx="12"/>
+    <text class="name" x="450" y="108" text-anchor="middle">SerpApi</text>
+    <text class="role" x="450" y="129" text-anchor="middle">非 Google 引擎</text>
+
+    <rect class="sat" x="591" y="82" width="190" height="66" rx="12"/>
+    <text class="name" x="686" y="108" text-anchor="middle">TinyFish</text>
+    <text class="role" x="686" y="129" text-anchor="middle">搜索 · 页面提取</text>
+  </g>
+
+  <!-- 核心 -->
+  <g>
+    <rect class="core" x="250" y="215" width="400" height="96" rx="16"/>
+    <text class="corename" x="450" y="252" text-anchor="middle">MarketOps 插件</text>
+    <text class="corerole" x="450" y="275" text-anchor="middle">主 Skill 给方法 · 一个 MCP 给事实</text>
+    <text class="corerole" x="450" y="294" text-anchor="middle">宿主不必分别接七个项目</text>
+  </g>
+
+  <!-- 连线 -->
+  <g stroke="#94a3b8" stroke-width="1.6" marker-end="url(#spoke)">
+    <line x1="214" y1="150" x2="330" y2="212"/>
+    <line x1="450" y1="150" x2="450" y2="210"/>
+    <line x1="686" y1="150" x2="570" y2="212"/>
+    <line x1="270" y1="313" x2="200" y2="392"/>
+    <line x1="400" y1="313" x2="370" y2="392"/>
+    <line x1="500" y1="313" x2="530" y2="392"/>
+    <line x1="630" y1="313" x2="700" y2="392"/>
+  </g>
+
+  <!-- 下层四个 -->
+  <g>
+    <rect class="sat" x="40" y="396" width="190" height="66" rx="12"/>
+    <text class="name" x="135" y="422" text-anchor="middle">DeepSeek</text>
+    <text class="role" x="135" y="443" text-anchor="middle">搜索 · 读页 · 失败不计费</text>
+
+    <rect class="sat" x="255" y="396" width="190" height="66" rx="12"/>
+    <text class="name" x="350" y="422" text-anchor="middle">Crawl4AI</text>
+    <text class="role" x="350" y="443" text-anchor="middle">本地浏览器 · 免费</text>
+
+    <rect class="sat" x="470" y="396" width="190" height="66" rx="12"/>
+    <text class="name" x="565" y="422" text-anchor="middle">Jev / TypeSafe</text>
+    <text class="role" x="565" y="443" text-anchor="middle">有界语义判断</text>
+
+    <rect class="sat" x="685" y="396" width="190" height="66" rx="12"/>
+    <text class="name" x="780" y="422" text-anchor="middle">Quay</text>
+    <text class="role" x="780" y="443" text-anchor="middle">动态研究调度</text>
+  </g>
+
+  <text class="role" x="450" y="500" text-anchor="middle">供应商适配器不是第二个业务后端：口径、预算与证据只在 MarketOps 这一层。</text>
+  <text class="role" x="450" y="520" text-anchor="middle">插件包不含业务事实，也不含任何 key。</text>
+</svg>

@@ -155,6 +155,38 @@
       }
     },
     {
+      "id": "deepseek",
+      "label": "DeepSeek",
+      "role": "Independent web index for source discovery, plus page fetching as a third reader",
+      "account_url": "https://platform.deepseek.com/",
+      "docs_url": "https://api-docs.deepseek.com/",
+      "preferred": "lite_managed_rest",
+      "lite_credential_env": "DEEPSEEK_API_KEY",
+      "lite_transport": "REST_HTTPS",
+      "optional": true,
+      "optional_official_mcp": {
+        "state": "NO_OFFICIAL_VENDOR_MCP_VERIFIED",
+        "url": null,
+        "auth": null,
+        "claude_code": [],
+        "codex": []
+      },
+      "skills": "MarketOps marketops-providers; search and fetch are billed per successful request, not per call attempt",
+      "capabilities": [
+        {
+          "name": "web_search",
+          "cost": "PER_SUCCESSFUL_REQUEST_USD_0_00075"
+        },
+        {
+          "name": "fetch_page",
+          "cost": "PER_SUCCESSFUL_REQUEST_USD_0_00075"
+        }
+      ],
+      "separate_site_login": false,
+      "account_required": true,
+      "note": "Optional. Omitting the key removes this search route and page reader; the other routes keep working. Balance is read from the provider account API, not typed in."
+    },
+    {
       "id": "crawl4ai",
       "label": "Crawl4AI",
       "role": "Local web crawling, extract, batches and optional cloud",
@@ -242,5 +274,8 @@
     }
   ],
   "checked_at": "2026-10-20",
-  "required_cloud_account_count": 4
+  "required_cloud_account_count": 4,
+  "optional_provider_ids": [
+    "deepseek"
+  ]
 }

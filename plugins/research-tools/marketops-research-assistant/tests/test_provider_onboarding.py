@@ -26,8 +26,10 @@ class ProviderOnboardingTests(unittest.TestCase):
         catalog = onboard.read_catalog()
         self.assertEqual("marketops.provider-setup.v1", catalog["schema"])
         rows = catalog["providers"]
-        self.assertEqual({"tinyfish", "serpapi", "serper", "crawl4ai", "jev"},
+        self.assertEqual({"tinyfish", "serpapi", "serper", "crawl4ai", "jev", "deepseek"},
                          {p["id"] for p in rows})
+        required = {p["id"] for p in rows if p.get("optional") is not True}
+        self.assertEqual({"tinyfish", "serpapi", "serper", "crawl4ai", "jev"}, required)
         self.assertTrue(all(p["account_url"].startswith("https://") for p in rows))
         self.assertEqual("NO_OFFICIAL_VENDOR_MCP_VERIFIED",
                          next(p for p in rows if p["id"] == "serper")[
@@ -41,12 +43,14 @@ class ProviderOnboardingTests(unittest.TestCase):
         secret = "test-secret-value-PROVIDER-7b95c"
         env = {name: secret for name in (
             "SERPAPI_API_KEY", "SERPER_API_KEY", "TINYFISH_API_KEY",
-            "CRAWL4AI_API_KEY", "TYPESAFE_API_KEY")}
+            "CRAWL4AI_API_KEY", "TYPESAFE_API_KEY", "DEEPSEEK_API_KEY")}
         data = onboard.report(client="claude", environ=env)
         text = json.dumps(data, ensure_ascii=False) + onboard.format_text(data)
         self.assertNotIn(secret, text)
         self.assertEqual("GUIDE_ONLY_NO_NETWORK_OR_AUTH", data["status"])
-        self.assertEqual(5, data["provider_count"])
+        self.assertEqual(6, data["provider_count"])
+        self.assertEqual(4, data["cloud_account_count"])
+        self.assertEqual(["deepseek"], data["optional_provider_ids"])
         self.assertFalse(data["account_registration_performed"])
         self.assertFalse(data["host_mcp_registration_performed"])
         self.assertFalse(data["provider_fees_known"])

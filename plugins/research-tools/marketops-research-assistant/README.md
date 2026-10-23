@@ -6,7 +6,7 @@
 版本号以 `.claude-plugin/plugin.json` 为唯一权威（Claude Code 读取它，而不是 git tag）。
 每次发版必须递增该字段，否则 `claude plugin update` 会判定「已是最新」而静默不更新。
 
-把市场研究方法、五个项目的使用经验、集中证据与交付放在同一个插件中。人确定目标和有限额度，Agent 连续研究、保存证据、交付结果，再将方法和反馈用于后续任务。
+把市场研究方法、六个项目的使用经验、集中证据与交付放在同一个插件中。人确定目标和有限额度，Agent 连续研究、保存证据、交付结果，再将方法和反馈用于后续任务。
 
 ## 安装和首次启动
 
@@ -18,7 +18,7 @@ Claude Code 一行装（仓库根已带 marketplace 清单）：
 
 其余安装方式从 [START_HERE](START_HERE.md) 开始。Windows x64 双击 `Install.cmd`；Linux x64 使用 `install.sh`。运行时为 Python 3.12。安装器在目标电脑生成 Codex、Claude Code 或 WorkBuddy 配置；WorkBuddy 导入须在客户端完成。
 
-[四账户指引](references/FOUR_ACCOUNT_START.md)提供注册、API Key、官方赠金及余额入口：Serper、SerpApi、TinyFish、TypeSafe。Crawl4AI 在本地运行，无需第五个账户。Key 在本地隐藏输入、或由安装 agent 写进系统凭据库，重启后读取。
+[账户指引](references/FOUR_ACCOUNT_START.md)提供注册、API Key、官方赠金及余额入口：Serper、SerpApi、TinyFish、TypeSafe。Crawl4AI 在本地运行，无需账户。**DeepSeek 是第五把可选的 Key**（`DEEPSEEK_API_KEY`），配了它就多一路搜索和一路读页（$0.75/1k 次，失败不计费）；不配只是这条路不出现，其余照常跑。Key 在本地隐藏输入、或由安装 agent 写进系统凭据库，重启后读取。
 
 **TinyFish 和 SerpApi 的官方 MCP 客户端直接随包安装。** 宿主只连接一个 MarketOps MCP，不必再分别安装两个厂商插件。首次设置检查实际连接、已批准网站和有限请求数。已有账号检查剩余额度，不自动充值或重新领取新用户赠金。
 
@@ -33,15 +33,18 @@ Claude Code 一行装（仓库根已带 marketplace 清单）：
 
 搜索摘要只用于发现。抓取成功、文本匹配、模型判断都不自动证明业务事实。联系人和角色必须有可回读原文及归属证据；输出供业务复核，不授予正式 SOP 等级或外联权限。
 
-## 五个项目和降级
+## 六个项目和降级
 
 | 项目 | 用途 | 连接 |
 |---|---|---|
 | Serper | 来源搜索 | 受管 REST |
+| DeepSeek | 搜索、网页读取（另一套独立网页索引） | 受管 REST |
 | SerpApi | 已审核搜索引擎 | 内嵌官方 MCP |
 | TinyFish | 搜索、网页提取 | 内嵌官方 MCP |
 | Crawl4AI | 本地浏览器抓取，保存渲染 HTML | SDK + Chromium + 受限出口 |
 | Jev / TypeSafe | 对保存的材料做有界语义判断 | SDK |
+
+`marketops_search(provider='all')` 把同一条 query **同时**发给 Serper、DeepSeek、SerpApi、TinyFish，按 URL 合并结果：四家是彼此独立的网页索引，各自漏的页由别家补上。某一路没额度、被拒或超时，**只有它自己退出**，本次搜索照常返回，回执里记 `search_routes` 的逐路结果（各自找到的页数、去重后贡献）。DeepSeek 只对成功且非空的结果计费（$0.75/1k 次），失败不计费；它的余额由 `marketops_costs` 直接读取账户并折算成还能买多少次搜索/读页。读页同样有第三路：DeepSeek Fetch 与 Crawl4AI、TinyFish 并读同一页。
 
 `marketops_research_step` 在已准入服务之间进行有限降级，并记录原因和每次结果。最多三次尝试；未知消费/超时、预算耗尽和明确访问限制不会触发盲目重试。语义服务不可用时保留待核实。见[供应商选择](references/PROVIDER_ROUTING.md)。
 
