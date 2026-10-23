@@ -71,9 +71,7 @@ from research_event_journal import _root, append_event
 #: that way, so this adapter must answer to the same name or the conformance probe
 #: reports ``PROVIDER_MISMATCH`` and the gateway never finds it.
 PROVIDER = "typesafe_jev"
-#: The vendor's own short spelling, which the capability ids and W-QA's
-#: `cost-ledger.schema.json` provider enum both use. Kept as a name rather than a
-#: comment so the translation in `research_ledger_bridge` cites something.
+#: The vendor's own short spelling, which the capability ids use.
 LEGACY_PROVIDER = "jev"
 TRANSPORT = "python_sdk"
 

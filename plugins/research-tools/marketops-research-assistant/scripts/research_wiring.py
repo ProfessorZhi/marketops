@@ -95,8 +95,7 @@ def _by_owner(missing: list[str]) -> dict[str, list[str]]:
 #: constant, because the registry is the allowlist authority and a router keyed by
 #: something else would silently find no adapter. All five agree today: W-F's
 #: adapter now answers to `typesafe_jev` and keeps the vendor's short spelling as
-#: `LEGACY_PROVIDER`, with `research_ledger_bridge` translating on the one boundary
-#: that needs it. This table is still where a future disagreement would show up.
+#: `LEGACY_PROVIDER`. This table is still where a future disagreement would show up.
 PROVIDER_ADAPTERS: dict[str, tuple[str, str]] = {
     "tinyfish": ("research_adapter_tinyfish", "TinyFishAdapter"),
     "serpapi": ("research_adapter_serpapi", "SerpApiAdapter"),

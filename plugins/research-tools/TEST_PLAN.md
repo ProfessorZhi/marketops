@@ -60,7 +60,6 @@ python -m unittest discover -s tests -v
 python scripts/research_pack.py init ~/marketops-research-data/check-one --request-id check-one --country GB --scene gb-demo --objective "Offline schema smoke test"
 python scripts/research_pack.py validate ~/marketops-research-data/check-one
 python scripts/research_pack.py summary ~/marketops-research-data/check-one
-python scripts/export_excel_safe_csv.py ~/marketops-research-data/check-one --output ~/marketops-research-data/check-one-excel-csv
 python scripts/build_client_bundles.py --output ~/marketops-research-bundles
 ```
 

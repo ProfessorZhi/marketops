@@ -47,8 +47,8 @@ client-view/
 ```
 
 - 所有单元格按文本写出：ID 保留前导 0，数值不被表格软件改写。
-- 公式注入前缀（`=` `+` `-` `@`、前置空白、`\t`、`\r`、`\n`）与
-  `export_excel_safe_csv.literal_cell` 一致，写为 `'` 前缀的字面文本。
+- 公式注入前缀（`=` `+` `-` `@`、前置空白、`\t`、`\r`、`\n`）一律写为 `'`
+  前缀的字面文本（`research_client_view.DANGEROUS_PREFIXES`）。
 - XLSX 复用 `_xlsx.Sheet` / `render_workbook`，仅把 ZIP 时间戳规范化为固定值，
   同一输入得到逐字节相同的文件。
 - `来源索引` 逐行列出 `业务表 / 行号 / 记录ID / 资料引用`，provenance 在客户视图中

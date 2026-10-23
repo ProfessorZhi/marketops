@@ -96,9 +96,8 @@ class WorkBuddyBundleTests(unittest.TestCase):
             meta = json.loads((pkg / "connector-meta.json").read_text(encoding="utf-8"))
             self.assertEqual("skill-only", meta["type"])
             self.assertFalse((pkg / "mcp.json").exists())
-            self.assertEqual(13, build1["skills"])
+            self.assertEqual(len(list((ROOT / "skills").glob("*/SKILL.md"))), build1["skills"])
             self.assertTrue((pkg / "scripts" / "experience_pack.py").exists())
-            self.assertTrue((pkg / "scripts" / "export_excel_safe_csv.py").exists())
 
 if __name__ == "__main__":
     unittest.main()

@@ -12,8 +12,8 @@ explain.
 Output is always ``CANDIDATE_NOT_APPROVED``.  Nothing here authorises sending,
 a formal SOP, or a business-verified contact route.
 
-Reuses ``_xlsx.Sheet`` / ``_xlsx.render_workbook`` unchanged and applies the
-same formula-injection rule as ``export_excel_safe_csv.literal_cell``.
+Reuses ``_xlsx.Sheet`` / ``_xlsx.render_workbook`` unchanged and writes every
+cell that starts like a formula as literal text (``DANGEROUS_PREFIXES``).
 """
 from __future__ import annotations
 
@@ -55,7 +55,7 @@ NOTES_SHEET = "客户视图说明"
 PROVENANCE_SHEET = "来源索引"
 RESERVED_SHEET_NAMES = frozenset({NOTES_SHEET, PROVENANCE_SHEET})
 
-#: Same prefixes as ``export_excel_safe_csv.DANGEROUS_PREFIXES``.
+#: Leading characters a spreadsheet would read as a formula.
 DANGEROUS_PREFIXES = ("=", "+", "-", "@", "\t", "\r", "\n")
 
 #: A HOLD marker must be a token, not a substring: "Holding Ltd" is a name.
