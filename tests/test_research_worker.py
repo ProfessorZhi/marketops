@@ -42,6 +42,7 @@ from pathlib import Path
 
 import pytest
 
+import marketops.interfaces.research_worker as research_worker
 from marketops.adapters.build_stamp import LOADED_BUILD, BuildStamp, compare_builds
 from marketops.adapters.server_build import publish_server_build, server_build_path
 from marketops.interfaces.research_worker import (
@@ -480,6 +481,7 @@ def test_the_run_record_says_what_this_round_was(
     assert body["delegate"] == run.delegate_program
     assert body["started_at"].endswith("+00:00")
     assert body["mcp"]["servers"] == ["marketops"]
+    assert body["mcp"]["source"] == str(run.mcp_config), "记录的是核对时读的那一份"
     assert body["mcp"]["strict"] is True
     assert body["loaded_marketops"]["source_tree"] == LOADED_BUILD.source_tree
     assert body["loaded_marketops"]["revision"] == LOADED_BUILD.revision
@@ -799,7 +801,7 @@ def test_an_mcp_config_file_that_is_not_there_is_refused(
     """
     run = Run(tmp_path, monkeypatch)
     missing = run.scaffold / "missing.json"
-    run.delegate_args = ["--mcp-config", str(missing)]
+    run.delegate_args = ["--strict-mcp-config", "--mcp-config", str(missing)]
     monkeypatch.setenv(DELEGATE_ARGS_ENV, json.dumps(run.delegate_args))
 
     code = run()
@@ -816,7 +818,7 @@ def test_an_mcp_config_that_is_not_readable_json_is_refused(
     run = Run(tmp_path, monkeypatch)
     broken = run.scaffold / "broken.json"
     broken.write_text("{not json", encoding="utf-8")
-    run.delegate_args = ["--mcp-config", str(broken)]
+    run.delegate_args = ["--strict-mcp-config", "--mcp-config", str(broken)]
     monkeypatch.setenv(DELEGATE_ARGS_ENV, json.dumps(run.delegate_args))
 
     code = run()
@@ -833,7 +835,7 @@ def test_a_config_without_an_mcp_servers_object_is_refused(
     run = Run(tmp_path, monkeypatch)
     shapeless = run.scaffold / "shapeless.json"
     shapeless.write_text(json.dumps({"mcpServers": ["marketops"]}), encoding="utf-8")
-    run.delegate_args = ["--mcp-config", str(shapeless)]
+    run.delegate_args = ["--strict-mcp-config", "--mcp-config", str(shapeless)]
     monkeypatch.setenv(DELEGATE_ARGS_ENV, json.dumps(run.delegate_args))
 
     code = run()
@@ -841,6 +843,105 @@ def test_a_config_without_an_mcp_servers_object_is_refused(
     assert code == EXIT_REFUSED
     assert "mcpServers" in capsys.readouterr().err
     assert not record_path(tmp_path).exists()
+
+
+def test_a_deployment_without_the_strict_flag_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """缺 ``--strict-mcp-config`` ⇒ 拒绝。
+
+    没有它，CLI 会把 ``--mcp-config`` 与宿主、项目、插件来源的 MCP 配置**合并**；
+    这时 ``mcpServers`` 恰好是 ``{"marketops"}`` 推不出「子进程只看得见 marketops」，
+    而本层那句「工具面核对过」就不成立了。``run.json`` 里的 ``strict`` 之所以是一个
+    读数而不是常量，正是因为这一格可能为假 —— 假的那些在这里就被拦下。
+    """
+    run = Run(tmp_path, monkeypatch)
+    run.delegate_args = ["--mcp-config", str(run.mcp_config)]
+    monkeypatch.setenv(DELEGATE_ARGS_ENV, json.dumps(run.delegate_args))
+
+    code = run()
+
+    assert code == EXIT_REFUSED
+    assert "--strict-mcp-config" in capsys.readouterr().err
+    assert not record_path(tmp_path).exists(), "核对在启动之前：delegate 不该被启动"
+    assert not run.worker_root.exists(), "拒绝发生在落位之前：隔离根不该出现"
+
+
+def test_two_mcp_config_flags_are_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """两份 ``--mcp-config`` ⇒ 拒绝，而不是「核对第一份、delegate 用第二份」。
+
+    CLI 通常是后者覆盖前者。第一份恰好是 marketops-only、第二份很宽时，本层核对
+    过的工具面与子进程真正拿到的那个不是同一个东西 —— 而两次核对都会「通过」。
+    """
+    run = Run(tmp_path, monkeypatch)
+    wide = write_mcp_config(run.scaffold, ("marketops", "everything"), name="wide.json")
+    run.delegate_args = [
+        "--strict-mcp-config",
+        "--mcp-config", str(run.mcp_config),
+        "--mcp-config", str(wide),
+    ]
+    monkeypatch.setenv(DELEGATE_ARGS_ENV, json.dumps(run.delegate_args))
+
+    code = run()
+
+    assert code == EXIT_REFUSED
+    assert "2 次" in capsys.readouterr().err
+    assert not record_path(tmp_path).exists()
+    assert not run.worker_root.exists()
+
+
+def test_a_round_whose_record_cannot_be_written_leaves_nothing_behind(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+) -> None:
+    """``run.json`` 写不下去 ⇒ 退 2，而且**不留**一个没有记录的空轮目录。
+
+    「有 ``run.json`` 才算一轮」是别处统计的依据；一个建了却写不下去的目录会让
+    那些统计多算一轮，而那一轮没有任何东西说明它是什么。清掉的只能是本轮**自己**
+    刚建出来的那个目录 —— ``mkdir`` 抛 ``exist_ok=False`` 的那一支是别人先占下的。
+    """
+    run = Run(tmp_path, monkeypatch)
+
+    def refuse(*_args: object, **_kwargs: object) -> None:
+        raise OSError("磁盘满了")
+
+    monkeypatch.setattr(research_worker, "_write_run_record", refuse)
+
+    code = run()
+
+    assert code == EXIT_REFUSED
+    assert "用不了" in capsys.readouterr().err
+    assert not record_path(tmp_path).exists(), "delegate 不该被启动"
+    # 叶子那一层是「一轮」；它上面的 ``<工作单元>/<任务>/`` 只是路径骨架，留着无妨。
+    leaves = sorted(run.worker_root.glob("*/*/*")) if run.worker_root.is_dir() else []
+    assert leaves == [], "这一轮的目录已经清掉了，不该留下一个没有记录的轮"
+
+
+def test_a_relative_mcp_config_path_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """相对的 ``--mcp-config`` ⇒ 拒绝，哪怕这个相对路径在启动器的 cwd 里读得到。
+
+    本层按启动器的 cwd 解析它，delegate 按隔离运行目录（它的 cwd）解析同一个
+    字符串。文件就摆在部署树里、从这里读得出来，恰恰是这个用例要的：拒绝的理由
+    必须是「两次解析会分家」，而不是「这次读不到」。
+    """
+    run = Run(tmp_path, monkeypatch)
+    (run.deploy / "mcp.json").write_text(
+        json.dumps({"mcpServers": {"marketops": {"type": "http"}}}), encoding="utf-8"
+    )
+    run.delegate_args = ["--strict-mcp-config", "--mcp-config", "mcp.json"]
+    monkeypatch.setenv(DELEGATE_ARGS_ENV, json.dumps(run.delegate_args))
+
+    code = run()
+
+    assert code == EXIT_REFUSED
+    assert "相对" in capsys.readouterr().err
+    assert not record_path(tmp_path).exists()
+    assert not run.worker_root.exists()
 
 
 # ----------------------------------------------------------------------
