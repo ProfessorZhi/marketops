@@ -57,6 +57,16 @@ _GENERIC = re.compile(r"^(?:l['’]\s*)?(?:the\s+)?(?:club|association|asso|soci
                       r"section|union|ligue|amicale|cercle|team|federation|fédération)s?$", re.IGNORECASE)
 
 
+#: The label that follows a name on a list page is a capitalised word too, so the
+#: run glued it on: "Association Tsunagari Discipline(s) pratiquée(s) :" became an
+#: organisation named "Association Tsunagari Discipline". Only the *tail* is
+#: trimmed, and only when another word precedes it.
+_LABEL_TAIL = frozenset({
+    "discipline", "disciplines", "équipement", "equipement", "équipements", "equipements",
+    "nom", "adresse", "adresses", "téléphone", "telephone", "mail", "site", "contact",
+    "correspondant", "lieu", "tél", "tel", "activité", "activites", "activités"})
+
+
 def _clean(name: str) -> str:
     """Trim what a rendered list glues onto a name: page numbers, web addresses,
     and the first word of the description after an all-capitals name."""
@@ -68,6 +78,8 @@ def _clean(name: str) -> str:
         caps += 1
     if 2 <= caps < len(words) and _BODY.search(" ".join(words[:caps])):
         words = words[:caps]  # "ASSOCIATION DE DANSE IRITCHA Cours de danse" -> the capitals
+    while len(words) > 1 and re.sub(r"\W", "", words[-1]).casefold() in _LABEL_TAIL:
+        words = words[:-1]  # "Association Tsunagari Discipline(s)" -> the name
     return " ".join(words)
 
 

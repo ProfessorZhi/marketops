@@ -84,6 +84,39 @@ class ExtractPageTests(unittest.TestCase):
         self.assertEqual(person["entity_key"], contact["facts"]["person_id"])
         self.assertEqual("email", contact["facts"]["type"])
 
+    def test_each_organisation_carries_an_identity_claim_the_gate_accepts(self):
+        from research_delivery import _quote_supports
+        bundles = extract.records_to_bundles(
+            page_text(), extract.extract(page_text())["records"], "art-page")
+        for bundle in bundles:
+            organization = bundle[0]
+            name, claims = organization["facts"]["name"], organization["facts"].get("claims", [])
+            identity = [claim for claim in claims if claim["field"] == "identity"]
+            if len(name.split()) == 1 and len(name) < 6:
+                # "ASJJ" is an alias, not an identity: the gate refuses a single
+                # short token, so no quote on the page can carry the decision.
+                self.assertEqual(["name"], [claim["field"] for claim in claims], claims)
+                continue
+            # field=name alone is refused at delivery with
+            # MISSING_REQUIRED_IDENTITY; the annuaire already printed the name.
+            self.assertTrue(identity, claims)
+            self.assertTrue(_quote_supports(identity[0]["quote"], name, distinctive=True),
+                            identity[0]["quote"])
+
+    def test_a_person_and_address_quote_carry_the_club_name(self):
+        # A shared annuaire page: delivery refuses a person or address whose own
+        # quote does not also name the club (ORGANIZATION_PROVENANCE_MISMATCH).
+        bundles = extract.records_to_bundles(
+            page_text(), extract.extract(page_text())["records"], "art-page")
+        for bundle in bundles:
+            organization, person, contact = bundle[:3]
+            name = organization["facts"]["name"]
+            for item, value in ((person, person["facts"]["name"]),
+                                (contact, contact["facts"]["value"])):
+                quotes = [claim["quote"] for claim in item["facts"]["claims"]]
+                self.assertTrue(any(name in quote and value in quote for quote in quotes),
+                                (name, item["kind"], quotes))
+
     def test_prose_is_refused_with_the_reason(self):
         from research_evidence import decode_material, readable_text
         result = extract.extract(readable_text("rendered_html", decode_material(PROSE)))

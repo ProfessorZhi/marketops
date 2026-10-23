@@ -438,6 +438,55 @@ def _key(prefix: str, *parts: str) -> str:
     return prefix + "-" + hashlib.sha256("|".join(parts).encode()).hexdigest()[:24]
 
 
+def _identity_quote(text: str, span: list[int] | None, name: str) -> str:
+    """A quote that both contains the name and *supports* it as an identity.
+
+    `field=name` alone is not enough: the delivery gate requires
+    `field=identity` for an organisation, and 114 annuaire organisations staged
+    with only a name quote were refused after the page had been read. The span
+    quote is tried first; if the word that follows the name on the page turns
+    the match into a longer legal entity ("... Club"), narrower windows on the
+    same name are tried before giving up.
+    """
+    if not span:
+        return ""
+    import research_delivery as delivery
+
+    start, end = span
+    candidates = [_span_quote(text, span),
+                  _span_quote(text, span, pad=12),
+                  text[start:min(len(text), end + 12)].strip()]
+    for quote in candidates:
+        if quote and 12 <= len(quote) <= _MAX_QUOTE and \
+                delivery._quote_supports(quote, name, distinctive=True):
+            return quote
+    return ""
+
+
+def _block_quote(text: str, org_span: list[int] | None, span: list[int] | None,
+                 name: str, value: str) -> str | None:
+    """One contiguous quote carrying both the club's name and this record's value.
+
+    A shared directory page lists a hundred clubs, so the delivery refuses a
+    person or address that cites that page without proof it belongs to *this*
+    club (ORGANIZATION_PROVENANCE_MISMATCH). The page prints the club, then the
+    person, then the address as one block; that block is the proof.
+    """
+    if not org_span or not span:
+        return None
+    start, end = org_span[0], span[1]
+    if not 0 <= start < end:
+        return None
+    quote = text[start:end].strip()
+    if not 12 <= len(quote) <= _MAX_QUOTE:
+        return None
+    if name and name not in quote:
+        return None
+    if value and value not in quote:
+        return None
+    return quote
+
+
 def records_to_bundles(text: str, records: list[dict], artifact_id: str) -> list[list[dict]]:
     """Ready-to-stage candidates, grouped per record: organisation, person, address.
 
@@ -455,7 +504,17 @@ def records_to_bundles(text: str, records: list[dict], artifact_id: str) -> list
         items = []
         org_facts = {"name": name}
         name_quote = _span_quote(text, spans.get("organization"))
-        claims = [{"artifact_id": artifact_id, "field": "name", "quote": name_quote}] if name_quote else []
+        identity_quote = _identity_quote(text, spans.get("organization"), name)
+        claims = []
+        if identity_quote:
+            claims.append({"artifact_id": artifact_id, "field": "identity",
+                           "quote": identity_quote})
+        elif name_quote:
+            # No window on this page supports the name as an identity; stage the
+            # name quote anyway so the record is still auditable, and let the
+            # gate say MISSING_REQUIRED_IDENTITY rather than inventing a quote.
+            claims.append({"artifact_id": artifact_id, "field": "name",
+                           "quote": name_quote})
         if record.get("website"):
             org_facts["website"] = record["website"]
             website_quote = _span_quote(text, spans.get("website"))
@@ -473,7 +532,9 @@ def records_to_bundles(text: str, records: list[dict], artifact_id: str) -> list
         person_key = ""
         if person:
             person_key = _key("person", name.casefold(), person.casefold())
-            person_quote = _span_quote(text, spans.get("person"))
+            person_quote = (_block_quote(text, spans.get("organization"), spans.get("person"),
+                                         name, person)
+                            or _span_quote(text, spans.get("person")))
             person_facts = {"name": person, "organization_id": org_key}
             if person_quote:
                 person_facts["claims"] = [{"artifact_id": artifact_id,
@@ -482,7 +543,9 @@ def records_to_bundles(text: str, records: list[dict], artifact_id: str) -> list
                           "entity_key": person_key, "facts": person_facts,
                           "artifact_ids": [artifact_id]})
         email = (record.get("email") or "").strip()
-        contact_quote = _span_quote(text, spans.get("email"))
+        contact_quote = (_block_quote(text, spans.get("organization"), spans.get("email"),
+                                      name, email)
+                         or _span_quote(text, spans.get("email")))
         if email and contact_quote:
             contact_key = _key("contact", org_key, email.casefold())
             contact_facts = {"organization_id": org_key, "type": "email", "value": email,
