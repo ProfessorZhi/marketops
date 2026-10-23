@@ -3,7 +3,7 @@
 ## 它守的是哪一条
 
 §6 把持久化的要求写成一句话：**「Store admission and dispatch intent
-transactionally, reconcile Quay task mapping, use attempt/lease protection, and
+transactionally, reconcile dispatch task mapping, use attempt/lease protection, and
 commit findings through one controlled writer.」** 这句话里有四个动作，所以这个
 接口上有四组动词，而不是一个笼统的 ``save()``。
 
@@ -11,7 +11,7 @@ commit findings through one controlled writer.」** 这句话里有四个动作�
 
 1. 两个控制端同时受理同一个请求 —— 两次研究、两份账单；
 2. 同一批输入被编译两次 —— 报告上显示「候选多了一倍」；
-3. 两个派发者给同一个 work item 建了两个 Quay 任务 —— §8B 逐字禁止的
+3. 两个派发者给同一个 work item 建了两个 派发任务 —— §8B 逐字禁止的
    duplicate expensive work；
 4. 两个 worker 领到同一个 work item —— 同上，而且两边都会以为自己是对的；
 5. 一个被取消的作业还在收 findings —— 报告里多出一批没人授权的工作。
@@ -51,8 +51,8 @@ commit findings through one controlled writer.」** 这句话里有四个动作�
 ``adapters/memory.py``（单进程测试替身）。B3 立的判据是**端口在第二个实现出现时
 才提取**，这里两个都跑 ``tests/test_job_contract.py``。
 
-本模块**不得**出现任何存储引擎或厂商名（``sqlite3`` / ``redis`` / ``quay`` …），
-由 ``tests/test_ports_are_contracts_only.py`` 执行。特别是「Quay」这个词：映射的
+本模块**不得**出现任何存储引擎或厂商名（``sqlite3`` / ``redis`` / 任何执行器实现 …），
+由 ``tests/test_ports_are_contracts_only.py`` 执行。特别是「执行器」这个词：映射的
 内容是一个字符串 id，端口不需要知道它是谁给的。
 """
 
@@ -239,7 +239,7 @@ class JobStore(ABC):
     ) -> ResearchJob:
         """``control_job`` 的落点：类型化的 pause / resume / cancel。
 
-        ``expected`` 必填，不一致整次拒绝 —— 这是**一次 CAS**，与 Quay 自己的
+        ``expected`` 必填，不一致整次拒绝 —— 这是**一次 CAS**，与 执行器 自己的
         ``--expect-status`` 是同一条纪律（§2.9 记着它逐字回的那句
         ``refusing to overwrite (write() aborted, nothing written to disk)``）。
         读到的状态与据此写下的状态必须在同一个写事务里；没有它，两个控制端
@@ -331,29 +331,29 @@ class JobStore(ABC):
         """按 id 取一个 work item；不存在时返回 ``None``。"""
 
     # ------------------------------------------------------------------
-    # 派发：WorkItem → Quay task（§6 reconcile Quay task mapping）
+    # 派发：WorkItem → 执行器 task（§6 reconcile dispatch task mapping）
     # ------------------------------------------------------------------
     @abstractmethod
-    def map_execution(self, work_item_id: str, *, quay_task_id: str) -> ExecutionRef:
-        """把 work item 映射到一个已在 Quay 建好的任务。**写一次**。
+    def map_execution(self, work_item_id: str, *, dispatch_task_id: str) -> ExecutionRef:
+        """把 work item 映射到一个已在 执行器 建好的任务。**写一次**。
 
-        映射同一个 ``quay_task_id`` 是幂等的（重发拿回同一行）；映射到**另一个**
-        task 报错 —— 那意味着同一个 work item 有两个 Quay 任务，也就是同一件
+        映射同一个 ``dispatch_task_id`` 是幂等的（重发拿回同一行）；映射到**另一个**
+        task 报错 —— 那意味着同一个 work item 有两个 派发任务，也就是同一件
         昂贵的事被派发了两遍，而两边都会正常跑完。
 
         作业必须处于放行派发的状态，否则报错 —— 这是 §6 那句「Pause normally
         prevents new dispatch」的可执行形式。**派发就是这里**，没有第二个入口：
         §6 的另一句「The controller cannot substitute an outer-shell worker
-        launch for Quay dispatch」由 ``lease`` 反过来守（见下）。
+        launch for 执行器 dispatch」由 ``lease`` 反过来守（见下）。
 
         Raises:
             JobStateError: work item 不存在；作业不放行派发；或已经映射到别的 task。
-            ValueError: ``quay_task_id`` 为空。
+            ValueError: ``dispatch_task_id`` 为空。
         """
 
     @abstractmethod
     def execution_ref(self, work_item_id: str) -> ExecutionRef | None:
-        """work item 的 Quay 映射；没有时返回 ``None``。"""
+        """work item 的 派发映射；没有时返回 ``None``。"""
 
     @abstractmethod
     def work_item_snapshot(self, work_item_id: str) -> WorkItemSnapshot | None:
@@ -393,10 +393,10 @@ class JobStore(ABC):
 
         Raises:
             LeaseError: 已经有**别的** holder 持着；这个 work item 已经停止；
-                或者它**还没有派发到 Quay**。最后一种是刻意的：没有
-                ``ExecutionRef`` 就没有租约，于是「绕过 Quay 直接开一个 worker」
+                或者它**还没有派发到执行器**。最后一种是刻意的：没有
+                ``ExecutionRef`` 就没有租约，于是「绕过派发 直接开一个 worker」
                 在代码里写不出来（§6 逐字：the controller cannot substitute an
-                outer-shell worker launch for Quay dispatch）。
+                outer-shell worker launch for 执行器 dispatch）。
             JobStateError: work item 不存在；作业不存在或已取消。
             ValueError: ``holder`` 为空。
         """

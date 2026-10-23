@@ -535,21 +535,14 @@ def _provider_row(report: PreflightReport) -> PreflightRow:
 
 
 def _executor(tmp_path: Path) -> dict[str, str]:
-    """执行器三样，**给真文件**。
+    """执行器：本机任务板，根放在这个用例自己的目录下。
 
-    第一版这里给的是三条路径字符串，两条判据于是在一个空 ``facts`` 上断言：
-    组合根在装载期判 ``cli_path`` 是否存在（``ConfigError: cli_path 不存在``），
-    不存在时装配停在 ``auth`` 那一行，后面的行是「没有问到」而不是「答过了」。
-    这一段的形状因此与 ``REPO_ROOT`` 下真实的那三样一致：入口是一个真文件。
+    它不需要任何外部程序，所以「给真文件」这件事在这里只剩一个根 —— 而那个根由
+    本地板在第一次写入时自己建。这一行问的是「这个部署会不会派发」，不是在探一张板。
     """
-    cli = tmp_path / "quay.js"
-    node = tmp_path / "node"
-    cli.write_text("", encoding="utf-8")
-    node.write_text("", encoding="utf-8")
     return {
-        "MARKETOPS_QUAY_CLI": str(cli),
-        "MARKETOPS_QUAY_NODE": str(node),
-        "MARKETOPS_QUAY_ROOT": str(tmp_path),
+        "MARKETOPS_DISPATCH_EXECUTOR": "local",
+        "MARKETOPS_DISPATCH_ROOT": str(tmp_path / "board"),
     }
 
 
@@ -565,7 +558,7 @@ def test_feishu_missing_is_reported_and_never_drives_the_verdict(tmp_path, monke
     * ``feishu`` 那一格**在** ``facts`` 里且为 ``False``：删掉它才是相反的错 ——
       缺口从报告里消失，而「我们不报它」与「它是好的」在读的人眼里是同一行。
 
-    执行器三样按 ``_executor`` 造出来（入口是真文件），而**不启动它** —— 这一行问的是
+    执行器按 ``_executor`` 造出来（本机任务板），而**不启动它** —— 这一行问的是
     「配了没有」，``docs/MULTI_SESSION_PLUGIN_AND_NOTIFICATION_ARCHITECTURE.md`` 之外
     任何一处都不该由一次自检顺手派发一件工作。
     """
@@ -599,4 +592,4 @@ def test_serper_missing_blocks_and_feishu_is_not_added_to_that_list(tmp_path, mo
     assert provider.facts["blocking"] == ["serper"]
     assert provider.facts["feishu"] is False
     # 对照：缺的确实是 serper 而不是「一个都没配」—— 否则上面那条清单为空也成立。
-    assert provider.facts["quay"] is True
+    assert provider.facts["dispatch"] is True

@@ -615,7 +615,7 @@ JOB_TRANSITIONS: dict[JobState, frozenset[JobState]] = {
 class AttemptState(str, Enum):
     """一次尝试的终局只有三种，**没有第四种「过期」**。
 
-    §6 要求「attempt/lease protection」，而 Quay 那侧**没有** attempt 这个概念
+    §6 要求「attempt/lease protection」，而 外部执行器那侧**没有** attempt 这个概念
     （见 ``docs/MVP_MIGRATION_PLAN.md`` §2.9：attempt 只有三个不相干的住处，
     lease 的 32 处命中全是 ``release``）。所以租约是我们自己的一等概念，包括
     「它怎么结束」这个问题。

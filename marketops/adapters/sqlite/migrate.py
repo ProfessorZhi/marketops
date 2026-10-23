@@ -286,6 +286,9 @@ class MigrationReport:
     #: **它总是有一个值**（哪怕这一步没做）—— 「这张表认得的词与代码一致」是一句有
     #: 内容的话，而 ``None`` 只说得出「这一次没走到那一步」，两者不该长得一样。
     jobs: JobKindWidening | None = None
+    #: 第六步（v6 → v7）把 ``execution_ref`` 的映射列改名成了什么。**总是有一个值**，
+    #: 理由与 ``jobs`` 那一格逐字相同。
+    refs: ExecutionRefRename | None = None
     archive: tuple[ArchiveFile, ...] = ()
     proof: InputProof | None = None
     #: §15(c) 的回读核对读数。**由那一步自己算出来**（数了哪些格、各多少行），
@@ -327,6 +330,8 @@ class MigrationReport:
             lines.append(self.routes.describe())
         if self.jobs is not None:
             lines.append(self.jobs.describe())
+        if self.refs is not None:
+            lines.append(self.refs.describe())
         if self.verified:
             lines.append(self.verified)
         if self.proof is not None:
@@ -443,6 +448,7 @@ def migrate(
         rebuild = _plan_revisions(conn, db_path=db_path)
         split = _plan_routes(conn, db_path=db_path, stamped=stamped)
         jobs = _plan_job_kind(conn, db_path=db_path)
+        refs = _plan_execution_ref(conn)
         # 存档的预检：与库那一侧同一个理由 —— 在任何一次写入之前就知道每一处都证得出来。
         # 它的报告被丢掉（那一份里的 backup 还是空的），真正进报告的是下面那次 write=True。
         _migrate_archive(
@@ -471,6 +477,7 @@ def migrate(
                 _apply_routes(conn, split)
                 _apply_job_kind(conn, jobs)
                 _require_job_rows_kept(conn, jobs, db_path=db_path)
+                _apply_execution_ref(conn, refs)
                 set_meta(conn, SCHEMA_VERSION_KEY, str(SCHEMA_VERSION))
         except sqlite3.Error as exc:
             # 存储层报错（主键撞车、约束、磁盘）**不能长成一句 Python 回溯**：它看起来
@@ -500,6 +507,7 @@ def migrate(
         rebuild=rebuild,
         split=split,
         jobs=jobs,
+        refs=refs,
         backup=backup,
     )
     archive = _migrate_archive(
@@ -518,6 +526,7 @@ def migrate(
         revisions=rebuild,
         routes=split,
         jobs=jobs,
+        refs=refs,
         archive=archive,
         proof=proof,
         verified=verified,
@@ -532,6 +541,7 @@ def _verify_migrated(
     rebuild: RevisionRebuild,
     split: RouteSplit,
     jobs: JobKindWidening,
+    refs: ExecutionRefRename,
     backup: Path,
 ) -> str:
     """写完之后的**回读**：盘上那个库真是我们打算留下的那个吗（§15(c)）。
@@ -607,6 +617,8 @@ def _verify_migrated(
     #: 第五步那一张表与**引用它的每一张表**读回来各多少行。**与上面三个分开**，同一条
     #: 理由：一个 dict 装两件事，报告上那一行就会把两处的数字加起来。
     job_rows: dict[str, int] = {}
+    #: 第六步那一张表读回来多少行。**单独一个数**（同一条理由）。
+    ref_rows: dict[str, int] = {}
     with connect(db_path) as conn:
         row = conn.execute(
             "SELECT value FROM schema_meta WHERE key = ?", (SCHEMA_VERSION_KEY,)
@@ -830,6 +842,34 @@ def _verify_migrated(
             problems.extend(found)
             job_rows.update(counted)
 
+        if refs.present:
+            # 改名这一步核两件事：新名字在、旧名字不在（后者由「除开那两列固定的
+            # 只剩一列」这句话承担），以及行数没变 —— 改名不该动任何一行。
+            columns = _columns_of(conn, _EXECUTION_REF_TABLE)
+            if _EXECUTION_REF_COLUMN not in columns:
+                problems.append(
+                    f"{_EXECUTION_REF_TABLE}：映射列读回来不叫 {_EXECUTION_REF_COLUMN}"
+                    f"（盘上的列是 {sorted(columns)!r}）"
+                )
+            strays = sorted(
+                set(columns) - _EXECUTION_REF_FIXED_COLUMNS - {_EXECUTION_REF_COLUMN}
+            )
+            if strays:
+                problems.append(
+                    f"{_EXECUTION_REF_TABLE}：除开映射列还有多余的列 {strays!r}"
+                )
+            found_rows = int(
+                conn.execute(
+                    f"SELECT COUNT(*) AS n FROM {_EXECUTION_REF_TABLE}"  # noqa: S608
+                ).fetchone()["n"]
+            )
+            if refs.renamed and found_rows != refs.rows:
+                problems.append(
+                    f"{_EXECUTION_REF_TABLE}：改名之前是 {refs.rows} 行，盘上是 "
+                    f"{found_rows} 行 —— 改名不该动任何一行"
+                )
+            ref_rows[_EXECUTION_REF_TABLE] = found_rows
+
     if problems:
         raise StoreError(
             f"{db_path} 迁完之后**回读核对不过** —— 报告里「迁移完成」，而盘上不是"
@@ -853,6 +893,9 @@ def _verify_migrated(
     job_rows_reading = "、".join(
         f"{table} {count} 行" for table, count in sorted(job_rows.items())
     )
+    ref_reading = "、".join(
+        f"{table} {count} 行" for table, count in sorted(ref_rows.items())
+    )
     return (
         f"回读核对（从盘上新开一条连接读回来）：版本 {SCHEMA_VERSION}"
         + ("、工作区绑定" if stamped is not None else "")
@@ -869,6 +912,11 @@ def _verify_migrated(
         + (
             f"、研究请求的输入种类（{job_rows_reading}，词与代码一致、引用都指得到）"
             if job_rows
+            else ""
+        )
+        + (
+            f"、派发映射的列名（{ref_reading}，列名是 {_EXECUTION_REF_COLUMN}）"
+            if ref_rows
             else ""
         )
         + " —— 都对上了。"
@@ -2344,6 +2392,109 @@ def _require_job_rows_kept(
         "这一步的外键强制在事务期间是关的，所以「搬漏了会被拦下来」这件事在这里不成立"
         "—— 它是这一步自己算的，而算出来不对时唯一诚实的处置就是一句都不写。"
         "库还是迁移前那个样子，备份在旁边（路径写在下面那条消息里）。"
+    )
+
+
+#: ``execution_ref`` 的形状：映射的左边、右边、时刻。v7 要求右边那一列叫
+#: ``dispatch_task_id``（理由在 ``db.SCHEMA_VERSION`` 上面那段）。
+#:
+#: 这一步**不写旧名字**：它认的是「这张表除开那两列固定的，还剩哪一列」，而剩下的
+#: 那一列就是映射的右边。一个把旧名字抄进来的迁移，会在下一次改名时留下第二个要
+#: 同步的地方；而这一步真正的主张是「这张表只许有一个映射列，它叫这个名字」。
+_EXECUTION_REF_TABLE = "execution_ref"
+_EXECUTION_REF_FIXED_COLUMNS = frozenset({"work_item_id", "mapped_at"})
+_EXECUTION_REF_COLUMN = "dispatch_task_id"
+
+
+@dataclass(frozen=True)
+class ExecutionRefRename:
+    """v6 → v7 的**计划**：``execution_ref`` 那一列要不要改名。**一行都没动过。**
+
+    ``present=False`` 是「这张表不在盘上」（``replay_ddl`` 会按这一版代码的形状建它），
+    ``renamed=False`` 而 ``present=True`` 是「它在，而且列名已经是对的」。报告里两种都
+    读作「没有改名」，但理由不同 —— 而理由正是运维要看的。
+    """
+
+    table: str = _EXECUTION_REF_TABLE
+    present: bool = False
+    renamed: bool = False
+    #: 改名之前查到的那一列叫什么。**只在 ``renamed`` 与「已经是对的」两档里有值**：
+    #: 一个没在盘上的表没有列名可报。
+    found_column: str = ""
+    #: 这张表有几行。改名不动取值，这个数是回读时的对账分母。
+    rows: int = 0
+
+    @property
+    def empty(self) -> bool:
+        return not self.renamed
+
+    def describe(self) -> str:
+        if not self.present:
+            return (
+                f"派发映射的列名（v6 → v7）：{self.table} 不在盘上"
+                "（``replay_ddl`` 会按这一版代码的形状建它），没有可改的名。"
+            )
+        if not self.renamed:
+            return (
+                f"派发映射的列名（v6 → v7）：{self.table} 的映射列已经叫 "
+                f"{self.found_column}，一行都没有改。"
+            )
+        return (
+            f"派发映射的列名（v6 → v7）：{self.table} 的映射列 "
+            f"{self.found_column} 改名为 {_EXECUTION_REF_COLUMN}"
+            f"（{self.rows} 行的取值逐字没动）。"
+        )
+
+
+def _plan_execution_ref(conn: sqlite3.Connection) -> ExecutionRefRename:
+    """算出 ``execution_ref`` 的映射列要不要改名。**一行都不写。**
+
+    判据是**这张表有几列、分别叫什么** —— 不是「旧名字在不在」。两种答案都不是拒绝，
+    第三种是：
+
+    * 这张表不在盘上 —— ``replay_ddl`` 刚按这一版的形状建了它；
+    * 映射列已经叫新名字 —— 没有可修的东西（**重跑走的就是这一条**）；
+    * 这张表除开 ``work_item_id`` / ``mapped_at`` 之外有**恰好一列** —— 那一列就是
+      映射的右边，改成新名字；
+    * 零列或多于一个 —— 拒绝。零列说明这张表不是它该有的样子（没有映射列，改名会
+      把它改成一张没有右边的表）；多于一个说明有人加过列，而「哪一列是映射」在这
+      一步里没有答案。
+
+    Raises:
+        StoreError: 上面第四种。
+    """
+    columns = _columns_of(conn, _EXECUTION_REF_TABLE)
+    if not columns:
+        return ExecutionRefRename()
+    if _EXECUTION_REF_COLUMN in columns:
+        return ExecutionRefRename(
+            present=True, found_column=_EXECUTION_REF_COLUMN
+        )
+    extra = [name for name in columns if name not in _EXECUTION_REF_FIXED_COLUMNS]
+    if len(extra) != 1:
+        raise StoreError(
+            f"{_EXECUTION_REF_TABLE} 的列是 {sorted(columns)!r}，而这一步只认"
+            f"「{sorted(_EXECUTION_REF_FIXED_COLUMNS)!r} 加恰好一列映射」。\n"
+            "**整份拒绝，一行都没写。** 零列时这张表没有映射的右边；多于一列时"
+            "「哪一列是映射」没有答案 —— 猜一个会把取值搬进错的地方。"
+        )
+    rows = int(
+        conn.execute(f"SELECT COUNT(*) FROM {_EXECUTION_REF_TABLE}").fetchone()[0]  # noqa: S608
+    )
+    return ExecutionRefRename(present=True, renamed=True, found_column=extra[0], rows=rows)
+
+
+def _apply_execution_ref(conn: sqlite3.Connection, plan: ExecutionRefRename) -> None:
+    """按计划改名。**自己不开事务**（同 ``_apply_revisions``）。
+
+    一条 ``ALTER TABLE … RENAME COLUMN``：SQLite 会就地改列名并保留每一行的取值，
+    所以这一步既不像 v5 → v6 那样重建表，也不需要在事务之外关外键。
+    """
+    if plan.empty:
+        return
+    conn.execute(
+        f'ALTER TABLE {plan.table} RENAME COLUMN "{plan.found_column}" '  # noqa: S608
+        f"TO {_EXECUTION_REF_COLUMN}"
     )
 
 

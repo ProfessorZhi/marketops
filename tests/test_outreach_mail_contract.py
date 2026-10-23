@@ -381,7 +381,7 @@ def test_the_capture_service_binds_where_it_was_told_and_nowhere_else(
 ) -> None:
     """绑定地址与端口都来自参数，而且**通配地址被直接拒绝**。
 
-    这条守的是一条已经记过的教训（``quay-ui-must-bind-loopback``）：一个默认绑
+    这条守的是一条已经记过的教训（本机服务默认只允许绑回环）：一个默认绑
     全部网卡的服务在共享主机上就是别人也能投信的口子，而它的症状是「测试全绿」
     外加「机器上有一个没人知道的服务在听」。
     """

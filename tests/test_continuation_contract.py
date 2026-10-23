@@ -144,7 +144,7 @@ def _admitted(store: JobStore, *, key: str = KEY, tag: str = "r1") -> ResearchJo
 def _dispatched(store: JobStore) -> tuple[ResearchJob, WorkItem]:
     job = _admitted(store)
     items = store.compile_work_items(job.job_id, DOSSIERS, scene=SCENE_FILES)
-    store.map_execution(items[0].work_item_id, quay_task_id="TASK-001")
+    store.map_execution(items[0].work_item_id, dispatch_task_id="TASK-001")
     return job, items[0]
 
 

@@ -4,7 +4,7 @@
 
 1. 两个控制端同时受理同一个请求 —— 两次研究、两份账单；
 2. 同一批输入被编译两次 —— 报告上显示「候选多了一倍」；
-3. 两个派发者给同一个 work item 建了两个 Quay 任务 —— §8B 逐字禁止的
+3. 两个派发者给同一个 work item 建了两个派发任务 —— §8B 逐字禁止的
    duplicate expensive work；
 4. 两个 worker 领到同一个 work item —— 同上，而且**两边都会以为自己是对的**；
 5. 一个被取消的作业还在收 findings —— 报告里多出一批没人授权的工作；
@@ -163,7 +163,7 @@ def _dispatched(store: JobStore, *, holder: str = "worker-a") -> tuple[ResearchJ
     """受理 → 编译 → 派发。返回第一个 work item（还没出租）。"""
     job = _admitted(store)
     items = store.compile_work_items(job.job_id, DOSSIERS, scene=SCENE_FILES)
-    store.map_execution(items[0].work_item_id, quay_task_id="TASK-001")
+    store.map_execution(items[0].work_item_id, dispatch_task_id="TASK-001")
     return job, items[0]
 
 
@@ -246,7 +246,7 @@ def test_a_stale_expected_state_is_refused_and_nothing_is_written(store: JobStor
     """读到的状态与据此写下的状态必须在同一个写事务里。
 
     没有这一条，两个控制端同时 pause / cancel 时最后一个写的赢，而**两边都以为
-    自己成功了**。同一个形状 Quay 自己也逐字回：``refusing to overwrite
+    自己成功了**。同一个形状 一个执行器它自己也逐字回：``refusing to overwrite
     (write() aborted, nothing written to disk)``。
     """
     job = _admitted(store)
@@ -564,18 +564,18 @@ def test_an_unknown_work_item_has_no_pin(store: JobStore) -> None:
 # ----------------------------------------------------------------------
 # 四、派发：映射写一次
 # ----------------------------------------------------------------------
-def test_the_mapping_to_quay_is_written_once(store: JobStore) -> None:
+def test_the_execution_mapping_is_written_once(store: JobStore) -> None:
     """两个派发者抢同一个 work item 时，第二个撞在已有映射上，而不是悄悄建出
-    第二个 Quay 任务 —— 同一件昂贵的事被派发两遍时，**两边都会正常跑完**。
+    第二个 派发任务 —— 同一件昂贵的事被派发两遍时，**两边都会正常跑完**。
     """
     job = _admitted(store)
     (item,) = store.compile_work_items(job.job_id, DOSSIERS[:1], scene=SCENE_FILES)
-    first = store.map_execution(item.work_item_id, quay_task_id="TASK-001")
+    first = store.map_execution(item.work_item_id, dispatch_task_id="TASK-001")
 
-    assert store.map_execution(item.work_item_id, quay_task_id="TASK-001") == first
+    assert store.map_execution(item.work_item_id, dispatch_task_id="TASK-001") == first
     assert isinstance(first, ExecutionRef)
     with pytest.raises(JobStateError):
-        store.map_execution(item.work_item_id, quay_task_id="TASK-002")
+        store.map_execution(item.work_item_id, dispatch_task_id="TASK-002")
 
 
 def test_a_paused_job_dispatches_nothing(store: JobStore) -> None:
@@ -585,22 +585,22 @@ def test_a_paused_job_dispatches_nothing(store: JobStore) -> None:
     store.set_state(job.job_id, JobState.PAUSED, expected=JobState.QUEUED, reason="ops")
 
     with pytest.raises(JobStateError):
-        store.map_execution(item.work_item_id, quay_task_id="TASK-001")
+        store.map_execution(item.work_item_id, dispatch_task_id="TASK-001")
     assert store.execution_ref(item.work_item_id) is None
 
 
 def test_an_unknown_work_item_cannot_be_mapped(store: JobStore) -> None:
     with pytest.raises(JobStateError):
-        store.map_execution("0" * 32, quay_task_id="TASK-001")
+        store.map_execution("0" * 32, dispatch_task_id="TASK-001")
     assert store.execution_ref("0" * 32) is None
 
 
 # ----------------------------------------------------------------------
 # 五、租约：排他，且只有派发过的才出租
 # ----------------------------------------------------------------------
-def test_a_work_item_without_a_quay_task_cannot_be_leased(store: JobStore) -> None:
+def test_a_work_item_without_a_dispatch_task_cannot_be_leased(store: JobStore) -> None:
     """§6 逐字：the controller cannot substitute an outer-shell worker launch for
-    Quay dispatch。没有 ``ExecutionRef`` 就没有租约 —— 于是「绕过 Quay 直接开一个
+    执行器 dispatch。没有 ``ExecutionRef`` 就没有租约 —— 于是「绕过派发 直接开一个
     worker」在代码里写不出来。
     """
     job = _admitted(store)
@@ -939,7 +939,7 @@ def _two_workers_can_take_one_work_item(store: JobStore) -> bool:
         request_sha256=_request("probe"),
     )
     (item,) = store.compile_work_items(job.job_id, DOSSIERS[:1], scene=SCENE_FILES)
-    store.map_execution(item.work_item_id, quay_task_id="TASK-999")
+    store.map_execution(item.work_item_id, dispatch_task_id="TASK-999")
     store.lease(item.work_item_id, holder="worker-a")
     try:
         store.lease(item.work_item_id, holder="worker-b")

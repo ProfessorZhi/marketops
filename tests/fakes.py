@@ -14,7 +14,7 @@
 「工具层静默重试」看起来是干净的。
 
 外部 id 刻意用 ``EXT-…``，**不是**适配器那个 ``MOPS-…`` 形状：本层不知道也不该
-知道实现怎么派生 id（那是 ``adapters/quay_cli.py`` 的约定）。用同一个形状写替身，
+知道实现怎么派生 id（那是执行器适配器自己的约定，本层不该问）。用同一个形状写替身，
 会让「本层悄悄依赖了那个形状」这件事在测试里看不出来。
 
 ## 页面那一对替身也住在这里，理由与 ``FakeDispatcher`` 逐字相同
@@ -169,7 +169,7 @@ class FakeDispatcher(Dispatcher):
         顺手调用时红。断言换成记账，判据没有丢。
 
         抛 ``ExternalStateError`` 而不是 ``AssertionError``：CAS 冲突在真适配器
-        那里就是这个类型（``adapters/quay_cli.py::_payload``），替身换一种类型会
+        那里就是这个类型（适配器在 CAS 冲突时抛它），替身换一种类型会
         让「冲突怎么处置」这条路径在测试里走出与生产不同的分支。
         """
         self.calls.append("transition")

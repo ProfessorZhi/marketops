@@ -37,17 +37,17 @@ the same job）。``drive_with_settings`` 每次调用都重新 ``build_server``
 
 ## 缺省的执行器是**没有**
 
-``control`` 那条驱动路径缺省不传 ``quay`` —— 那是一个合法部署，也是一个需要被
+``control`` 那条驱动路径缺省不传 ``dispatcher`` —— 那是一个合法部署，也是一个需要被
 测的对象（``dispatch`` 那一格如实报 ``executor_configured: false``）。派发那几条
 判据要的是**记账的外部执行器**（``tests/fakes.py``）：它们问的不是「工具返回了
 什么」，而是「**外部被碰了几次**」—— 一个每次都重试的实现会让前者照旧全绿。
 
 ## 派发那一格还要说得出服务的是**计划里的哪一步**（§B16 关闭条件 7）
 
-条件 7 的五个被选者里 Quay 是最后一段。``dispatch.source_method`` 那一格给了这条
+条件 7 的五个被选者里 执行器 是最后一段。``dispatch.source_method`` 那一格给了这条
 工具面一个锚点，而它的判别力同样落在 ``outside`` 上：一个恒填常量的实现能让「回显」
 全绿，一个先建任务后校验的实现能让「拒绝」全绿。两条判据（一条正控、一条反例）
-在文件末尾，与 ``control_job`` 的 resume 那条一起构成 Quay 这一锚的两条来路。
+在文件末尾，与 ``control_job`` 的 resume 那条一起构成 派发这一锚的两条来路。
 """
 
 from __future__ import annotations
@@ -121,7 +121,7 @@ def control(
             token=token,
             calls=((tool, arguments or {}),),
             want_tool_list=False,
-            quay=outside if with_dispatcher else None,
+            dispatcher=outside if with_dispatcher else None,
             jobs=store_factory,
             ledger_factory=ledger_factory if with_ledger else None,
         )
@@ -416,9 +416,9 @@ def test_the_unconfigured_account_criterion_actually_discriminates(
 
 
 # ----------------------------------------------------------------------
-# 读取：真实的 Quay 映射与租约
+# 读取：真实的 派发映射与租约
 # ----------------------------------------------------------------------
-def test_get_job_reports_the_quay_task_and_the_lease(
+def test_get_job_reports_the_dispatch_task_and_the_lease(
     control, store_factory
 ) -> None:
     """``get_job`` 要读的是**真实的** task/attempt 链接，不是作业自己的复述。
@@ -429,13 +429,13 @@ def test_get_job_reports_the_quay_task_and_the_lease(
     job = _submit(control)
     store = store_factory()
     item = store.work_items(job["job_id"])[0]
-    store.map_execution(item.work_item_id, quay_task_id="TASK-777")
+    store.map_execution(item.work_item_id, dispatch_task_id="TASK-777")
     store.lease(item.work_item_id, holder="worker-a")
 
     body = control("get_job", {"job_id": job["job_id"]}).as_json()
     row = body["work_items"][0]
 
-    assert row["execution"] == {"quay_task_id": "TASK-777", "mapped_at": row["execution"]["mapped_at"]}
+    assert row["execution"] == {"dispatch_task_id": "TASK-777", "mapped_at": row["execution"]["mapped_at"]}
     assert row["attempts"][0]["holder"] == "worker-a"
     assert row["attempts"][0]["state"] == "leased"
     assert row["stop_reason"] is None
@@ -767,8 +767,9 @@ def test_without_an_executor_the_receipt_says_nothing_was_handed_out(control) ->
     assert handed["counts"] == {"already_mapped": 0, "adopted": 0, "created": 0}
     assert handed["handed_out"] == 0
     assert handed["stopped_at"] == ""
-    # 理由说的是**加哪几个环境变量**，不是一句「执行器不可用」（与能力表 quay 行同源）。
-    assert "MARKETOPS_QUAY_CLI" in handed["blocker"]
+    # 理由说的是**这个进程没有把执行器构造出来**，不是一句「执行器不可用」
+    # （与能力表 dispatch 行同源：那一行同样分开「没配」与「没装起来」）。
+    assert "没有把执行器构造出来" in handed["blocker"]
     # 收敛扫描这一趟**没有跑** —— 而四个计数全 0 与「跑了、一切到位」在数字上
     # 长得一样，所以 ``ran`` 是那一格唯一的判词（同 `executor_configured`）。
     sweep = handed["board_convergence"]
@@ -837,7 +838,7 @@ def test_the_dispatch_receipt_says_which_plan_step_it_was_issued_for(
 ) -> None:
     """正控：给了这一步，派发照常发生，而且回执里那一格**逐字**回显。
 
-    条件 7 的五个被选者里 Quay 是最后一段：这一趟真的去外部建了任务，那件事要
+    条件 7 的五个被选者里 执行器 是最后一段：这一趟真的去外部建了任务，那件事要
     说得出服务的是哪一步。只断言「回执里有这一格」会让一个恒填常量的实现全绿，
     所以这里同时断 ``outside.calls`` —— 合法的步骤不该改变派发做不做。
 
@@ -861,13 +862,13 @@ def test_the_dispatch_receipt_says_which_plan_step_it_was_issued_for(
     assert plain["dispatch"]["source_method"] is None
 
 
-def test_a_step_this_plan_never_opened_is_refused_before_quay_is_touched(
+def test_a_step_this_plan_never_opened_is_refused_before_the_dispatcher_is_touched(
     control, outside: FakeDispatcher
 ) -> None:
     """反例：一个**注册过、但这一份声明没给它入口**的步骤 ⇒ 拒绝，且**外部零调用**。
 
     与三条研究工具上那一条同形，只是零 I/O 的观察面换成了 ``outside.calls``：
-    Quay 的任务是外部副作用，一次注定被拒的派发不该先在对面留下一条。断言「工具
+    执行器的任务是外部副作用，一次注定被拒的派发不该先在对面留下一条。断言「工具
     报了个错」会让一个先建任务后校验的实现照样绿。
 
     最后那一次重发钉的是**拒绝发生在门口**：同一个幂等键、换一个 ``input_ref``

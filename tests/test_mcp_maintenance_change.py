@@ -230,7 +230,7 @@ def _dispatched(settings: Settings, *, subject: str, key: str = "one") -> tuple[
     (item,) = store.compile_work_items(
         job.job_id, (dossier,), scene=_scene_files(settings)
     )
-    store.map_execution(item.work_item_id, quay_task_id=f"quay-task-{key}")
+    store.map_execution(item.work_item_id, dispatch_task_id=f"dispatch-task-{key}")
     attempt = store.lease(item.work_item_id, holder=WORKER)
     return item.work_item_id, attempt.attempt_id
 

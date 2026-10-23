@@ -695,7 +695,7 @@ def test_a_once_run_acquires_drives_and_releases_in_that_order(
     """``--once`` 也会先 acquire，跑完 release，而**顺序**是这条判据的全部内容。
 
     ``--once`` 是最容易写成「跑一轮看看」的那一种跑法，而它与常驻的那一个推的是同一批
-    共享资源（模型预算、执行器、Quay 任务）。两种跑法都从同一处 CAS 进来，「不能并行
+    共享资源（模型预算、执行器、派发任务）。两种跑法都从同一处 CAS 进来，「不能并行
     双触发器」才是一个性质，而不是常驻模式自己的一条自觉。
     """
     _scene(settings)

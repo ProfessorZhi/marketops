@@ -1344,6 +1344,7 @@ def _readback(settings: Settings, report: MigrationReport, **fields: object) -> 
     assert report.revisions is not None, "前提：这一次真的走了第三步"
     assert report.routes is not None, "前提：这一次真的走了第四步"
     assert report.jobs is not None, "前提：这一次真的走了第五步"
+    assert report.refs is not None, "前提：这一次真的走了第六步"
     assert report.backup is not None, "前提：这一次真的写过库"
     _verify_migrated(
         settings.database_path,
@@ -1351,6 +1352,7 @@ def _readback(settings: Settings, report: MigrationReport, **fields: object) -> 
         rebuild=report.revisions,
         split=report.routes,
         jobs=report.jobs,
+        refs=report.refs,
         backup=report.backup,
         **fields,  # type: ignore[arg-type]
     )
@@ -2596,3 +2598,118 @@ def test_a_missing_job_table_is_planned_as_nothing_to_do(settings: Settings) -> 
     assert plan.admitted_on_disk == ()
     assert plan.admitted_declared == tuple(kind.value for kind in JobInputKind)
     assert "没有可重建的东西" in plan.describe()
+
+
+# ----------------------------------------------------------------------
+# 第六步：execution_ref 的那一列改名
+# ----------------------------------------------------------------------
+#: 改名前那一列在 v6 的库上叫什么。这里写的是一个**占位名**，不是历史名：这一步的
+#: 计划逻辑按「映射表上那唯一一个不认识的列」识别它（理由在 ``_plan_execution_ref``
+#: 的 docstring），所以判据不必知道历史上那个名字 —— 知道它反而会把判据钉在一个
+#: 已经被删掉的词上。
+_LEGACY_EXECUTION_REF_COLUMN = "legacy_task_ref"
+
+
+def _build_v6(settings: Settings, *, rename: bool = True) -> tuple[str, str]:
+    """一个**真实的** v6 库：作业、工作单元、派发映射都走真写路径，然后把映射那
+    一列改成旧名、版本写回 6。
+
+    行不是手写的：``map_execution`` 写下的是迁移真正要保住的那一行。改名用 SQLite
+    自己的 ``RENAME COLUMN``（它会把索引与引用一起搬），所以这个夹具与一个历史库在
+    形状上只差那一列的名字 —— 而差的正是这一步要处置的东西。
+
+    前两行同 ``_build_v5``：先让一个真的写路径建库并写下工作区绑定。少了绑定，
+    迁移会在门口以 ``StoreError`` 拒掉，而那条判据与这里要测的改名无关。
+    """
+    _write_inputs(settings)
+    _write_rows(settings)
+    store = SqliteJobStore(settings.database_path)
+    job = store.admit(
+        scene_id=WORKSPACE,
+        input_kind=JobInputKind.KNOWN_ACCOUNTS,
+        input_ref=ROSTER_ACCOUNT,
+        idempotency_key="v6-key-ref",
+        request_sha256=sha256_text("v6-request-ref"),
+    )
+    (item,) = store.compile_work_items(job.job_id, DOSSIERS, scene=SCENE_FILES)
+    store.map_execution(item.work_item_id, dispatch_task_id="TASK-777")
+    if rename:
+        _break(
+            settings.database_path,
+            "ALTER TABLE execution_ref RENAME COLUMN dispatch_task_id TO "
+            f"{_LEGACY_EXECUTION_REF_COLUMN}",
+            (),
+        )
+    _break(
+        settings.database_path,
+        "UPDATE schema_meta SET value = ? WHERE key = ?",
+        ("6", SCHEMA_VERSION_KEY),
+    )
+    return job.job_id, item.work_item_id
+
+
+def test_a_v6_mapping_table_gets_the_new_column_and_keeps_its_rows(
+    settings: Settings,
+) -> None:
+    """v6 → v7 改的是**列名**，不是数据：那一行还在，读写路径都回到新名字上。
+
+    三句断言各自回答一件不同的事：
+
+    * 报告说它找到了哪一列并用它改成了什么 —— 「改过了」与「本来就叫这个」在报告里
+      长得一样，而两者的处置不同；
+    * 盘上的列集合里不再有旧名、且有新名 —— 报告说的是计划，这一格才是盘上的；
+    * 走**真的读路径**（``execution_ref``）读回来的是那一行的值 —— 列名对了不等于
+      读得出来，而读路径只认新名字。
+    """
+    _, item_id = _build_v6(settings)
+    with session(settings.database_path) as conn:
+        assert _LEGACY_EXECUTION_REF_COLUMN in _columns_of(conn, "execution_ref"), (
+            "前提：这个库的映射表还是旧列名"
+        )
+
+    report = migrate(settings.database_path, profile=WORKSPACE, inputs_dir=settings.inputs_dir)
+
+    assert (report.from_version, report.to_version) == (6, SCHEMA_VERSION)
+    assert report.refs is not None
+    assert report.refs.present is True
+    assert report.refs.renamed is True
+    assert report.refs.found_column == _LEGACY_EXECUTION_REF_COLUMN
+    assert report.refs.rows == 1
+    rendered = report.render()
+    assert _LEGACY_EXECUTION_REF_COLUMN in rendered
+    assert "dispatch_task_id" in rendered
+
+    with session(settings.database_path) as conn:
+        columns = _columns_of(conn, "execution_ref")
+    assert _LEGACY_EXECUTION_REF_COLUMN not in columns
+    assert "dispatch_task_id" in columns
+
+    ref = SqliteJobStore(settings.database_path).execution_ref(item_id)
+    assert ref is not None, "迁移之后那一行读不回来了"
+    assert ref.dispatch_task_id == "TASK-777"
+
+
+def test_a_v6_database_with_the_new_column_already_plans_nothing(
+    settings: Settings,
+) -> None:
+    """一个版本写着 6、列名却已经是新名字的库：这一步什么也不做，且**说得出口**。
+
+    「改过了」与「本来就叫这个」在报告里必须分开。后者不发 ``ALTER`` —— 这一条
+    用 ``rename=False`` 造一个只在版本号上停在 6 的库，于是 ``refs.renamed`` 为假，
+    而 ``present`` 仍为真：它确实看过那张表。
+    """
+    _build_v6(settings, rename=False)
+
+    report = migrate(
+        settings.database_path, profile=WORKSPACE, inputs_dir=settings.inputs_dir
+    )
+
+    assert (report.from_version, report.to_version) == (6, SCHEMA_VERSION)
+    assert report.refs is not None
+    assert report.refs.present is True
+    assert report.refs.renamed is False
+    assert report.refs.empty is True
+    # ``rows`` 记的是**这一步搬了几行**，不是表里有几行：没发 ALTER 就是 0。表里那
+    # 一行由回读那一格核（``execution_ref 1 行``），两者不是同一个数。
+    assert report.refs.rows == 0
+    assert "execution_ref 1 行" in report.verified

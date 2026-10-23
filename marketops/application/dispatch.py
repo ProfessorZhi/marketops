@@ -1,6 +1,6 @@
-"""§6 的「reconcile Quay task mapping」：把本地 work item 与外部任务之间那条线维持住。
+"""§6 的「reconcile dispatch task mapping」：把本地 work item 与外部任务之间那条线维持住。
 
-§6 逐字：**「Store admission and dispatch intent transactionally, reconcile Quay
+§6 逐字：**「Store admission and dispatch intent transactionally, reconcile 执行器
 task mapping, use attempt/lease protection …」**。前半句由 ``JobStore`` 守
 （``admit`` / ``compile_work_items``），后半句是一个**跨系统**的动作，所以它有
 自己的那一份契约（``ports/dispatch.py``）和自己的那一段顺序 —— 就是本模块。
@@ -103,18 +103,18 @@ dispatch」管的是新的。
 话**，而且是这条边界上最贵的一类错话：它读起来完全合理（``todo`` 确实是闭集
 里的第一个词），但它让整条链路**静默地跑不起来**。
 
-2026-09-22 在 0.11.0（插件缓存 ``quay/quay/0.11.0``，``--version`` 报
+2026-09-22 在 0.11.0（插件缓存 ``外部执行器的 0.11.0``，``--version`` 报
 ``0.11.0-dev``）上量到的是：
 
 * worker-driver 每一轮扫的是 ``status: ready`` 的任务。**``todo`` 的任务它从来
   不看一眼** —— 不是报错，不是跳过并记录，是那一行**不在候选集里**。
 * 于是 ``todo`` 的下场与「外部执行器根本没接线」逐字同形：看板上有一行，谁也没
-  动过它，而两边都不报错。本仓的第一批 5 个 MOPS 任务（``marketops-mvp-quay``）
+  动过它，而两边都不报错。本仓的第一批 5 个 MOPS 任务（``marketops-mvp``）
   就停在这一格上。
 
-而 ``ready`` 是**受支持**的建任务取值：``quay task create --status <status>``
+而 ``ready`` 是**受支持**的建任务取值：`task create --status <status>`
 的 usage 行里有它，provider 侧的 ``default_task_status`` 也收 ``todo|ready``
-（``quay-native/src/store.ts`` 的校验函数与取值点）。所以这不是绕过什么 ——
+（外部执行器源码 的校验函数与取值点）。所以这不是绕过什么 ——
 是走到对面本来就开着的那个门上。
 
 **为什么本仓的初始状态就该是 ``ready``，而不是先 ``todo`` 再补一次 promote。**
@@ -168,7 +168,7 @@ __all__ = [
 #: 永远不会被派发，且**不报错**。理由与实测依据见模块 docstring 同名小节。
 INITIAL_EXTERNAL_STATUS = "ready"
 
-#: 外部看板认识的**全部**状态。闭集，从**实现**那侧读的（``quay task list
+#: 外部看板认识的**全部**状态。闭集，从**实现**那侧读的（`task list
 #: --help`` 的 ``--status`` 过滤值，0.11.0 实测），理由同
 #: ``INITIAL_EXTERNAL_STATUS``。
 #:
@@ -274,7 +274,7 @@ def external_task_id(job_id: str, unit_id: str) -> str:
     外部那棵树里**唯一**会变的文件就是它自己的任务文件）。写正文的那一层因此必须
     知道这条命名规则 —— 而让它从适配器 import 是不可能的（``application`` 不依赖
     ``adapters``，那是这条分层的方向）。所以这条规则搬到了「两层都能读、而且只有
-    一份」的地方：``adapters/quay_cli.py`` 的 ``create`` 与这里的 :func:`_unit`
+    一份」的地方：执行器适配器 的 ``create`` 与这里的 :func:`_unit`
     调的是**同一个函数**。两份实现的那天，正文里写的那个文件名会与外面真正建出来的
     那个分家，而两边各自都正常。
 
@@ -293,7 +293,7 @@ def external_task_id(job_id: str, unit_id: str) -> str:
 #:
 #: ## 它**不是**指引，而且这一点是本条常量的全部理由
 #:
-#: §2.14 H3a 逐字：「指引走 ``get_assignment``，**不**走 Quay 的 task 正文」。
+#: §2.14 H3a 逐字：「指引走 ``get_assignment``，**不**走 执行器的 task 正文」。
 #: 所以这里一个市场词都没有、一条操作步骤都没有 —— 它只说「谁提供指引、谁收口」，
 #: 并且**指名**那一个工具。抄一份指引进来的代价不是多几行：两份指引会各自漂移，
 #: 而漂移的那一份（正文）**没有任何执行器**，读它的人却会照着做。
@@ -304,7 +304,7 @@ def external_task_id(job_id: str, unit_id: str) -> str:
 #: 两半各有各的理由，都不是排版偏好：
 #:
 #: * **必须有那一节。** 派发器按它判断两件工作能不能同时跑。实测（2026-09-23，
-#:   Quay 0.11.0 的 ``concurrent-batch-scheduler``，喂的就是本模板渲染出来的
+#:   执行器 0.11.0 的 ``concurrent-batch-scheduler``，喂的就是本模板渲染出来的
 #:   正文）：没有这一节时它报 ``ill-declared touches: conservative: side A declares
 #:   no/empty ## Touches → serialize``，批宽 **0** —— 于是 ``cap=2`` 会静默退化成
 #:   一次一件，而每一轮的报告都正常。补上自身声明之后同一个执行器报
@@ -368,8 +368,8 @@ def link_labels(job_id: str, work_item_id: str) -> tuple[str, ...]:
 def work_item_id_from_labels(labels: Sequence[str]) -> str:
     """从一组 label 里读回 ``link_labels`` 写下的那个**工作单元** id。
 
-    入站方向的第三个消费者：``marketops-research-worker`` 收到一条 Quay 任务时手上
-    只有任务的 label，而它要回答「这件工作单元是谁」。Quay 的 ``-p`` 里那句身份
+    入站方向的第三个消费者：``marketops-research-worker`` 收到一条 派发任务时手上
+    只有任务的 label，而它要回答「这件工作单元是谁」。执行器的 ``-p`` 里那句身份
     只有 task id、没有 work item id，所以这件事在这条路上**没有第二个来源** ——
     读错就是去领另一件工作，而两次调用各自的日志都正常。
 
@@ -751,7 +751,7 @@ class WorkDispatch:
             )
             outcome = DispatchOutcome.CREATED
 
-        ref = self._jobs.map_execution(item.work_item_id, quay_task_id=task.external_id)
+        ref = self._jobs.map_execution(item.work_item_id, dispatch_task_id=task.external_id)
         return DispatchReceipt(
             work_item_id=item.work_item_id,
             job_id=job.job_id,
@@ -1005,7 +1005,7 @@ class WorkDispatch:
         的真实状态**（不是预测），``changed`` 说的是「差一个写」。这三个字段的
         语义因此不随模式漂移。
         """
-        task_id = ref.quay_task_id
+        task_id = ref.dispatch_task_id
         read = self._observe(ref, job_id)
         if read.error is not None:
             return BoardSync(
@@ -1077,25 +1077,25 @@ class WorkDispatch:
             found = self._dispatcher.find(labels=labels)
         except (DispatchError, ExternalStateError) as exc:
             return BoardRead(
-                task_id=ref.quay_task_id,
+                task_id=ref.dispatch_task_id,
                 kind=BoardReadKind.UNREADABLE,
                 observed_status=None,
                 error=str(exc),
             )
         if len(found) > 1:
             return BoardRead(
-                task_id=ref.quay_task_id,
+                task_id=ref.dispatch_task_id,
                 kind=BoardReadKind.DUPLICATE,
                 observed_status=None,
                 error=_duplicate_tasks_message(ref.work_item_id, found, labels),
             )
         if not found:
             return BoardRead(
-                task_id=ref.quay_task_id,
+                task_id=ref.dispatch_task_id,
                 kind=BoardReadKind.MISSING,
                 observed_status=None,
                 error=(
-                    f"本地记着 work item → {ref.quay_task_id} 这条映射，但外面按它的"
+                    f"本地记着 work item → {ref.dispatch_task_id} 这条映射，但外面按它的"
                     f" label（{', '.join(labels)}）一条都查不到。\n"
                     "本地映射因此**仍然**是权威（同 ``dispatch`` 第 2 步）：这件事"
                     "派发过，是外面那一行被谁删了。本层不重建它 —— 重建等于让一次"
@@ -1104,7 +1104,7 @@ class WorkDispatch:
                 ),
             )
         return BoardRead(
-            task_id=ref.quay_task_id,
+            task_id=ref.dispatch_task_id,
             kind=BoardReadKind.OK,
             observed_status=found[0].status,
             error=None,

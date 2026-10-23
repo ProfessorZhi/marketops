@@ -16,19 +16,19 @@
 * **没有一次真实网络调用。** 抓取器是 :class:`tests.fakes.FakeHttp`，由 :func:`rig`
   在**组合根装配之前**换掉。它算的指纹是落地文件经 ``contact_routes._document`` 解析
   出来的正文摘要，所以「同一份正文再取一次」必须逐字节重放（见 :func:`_seed_the_pages`）。
-* **没有一次真实 Quay 调用。** 派发那一步走 ``tests/fake_quay_cli.py``：真子进程、
-  真 argv、真退出码 —— 换掉的是一个**外部进程**，不是这一层的行为。
+* **没有一次真实的外部调用。** 派发那一步走本机任务板（``adapters/local_board.py``，
+  一张写在 ``tmp_path`` 下的真 SQLite）—— 它是一次真的提交，但不是一次网络调用。
 * **时钟是受控的，而且它走在真时钟前面**（:data:`SHIFT`）。理由要说准：MCP 面上没有
   ``now`` 注入口（``create_scene`` / ``submit_research`` 取的是 ``utc_now()``），所以
   那些工具落下行的 ``due_at`` 是**真**时刻；要让控制器（读的是被换掉的 ``utc_now``）
   看得见它们到期，那个读数就必须在真时刻之后。否则这一份文件里每一条都会红在
   「一行都没到期」上，而它长得像链路坏了。
 * **控制器那一侧要的是「装配过配置」的 ``Settings``**（:attr:`Rig.composed`）：
-  ``default_dispatcher`` 要从 ``quay_cli_path`` / ``quay_root`` 造出执行器，而
+  ``default_dispatcher`` 要从 ``dispatch_root`` 造出执行器，而
   ``run_once_cli`` 自己会 ``ensure_data_dirs()``。:func:`rig` 因此把
   :class:`tests.test_r1_vertical_acceptance.Deployment` 内部那份 ``replace(...)``
   重写了一遍 —— 这是一处**刻意的重复**，它由两条断言兜着：那两份配置指的必须是
-  同一个令牌环与同一个 Quay 根。指错了的形态是「控制器推的是另一个库」，而它在每一
+  同一个令牌环与同一个 执行器 根。指错了的形态是「控制器推的是另一个库」，而它在每一
   份回执上都显示成「一行都没有到期」。
 * **「受控过期」不由手改 ``observed_at`` 造**，而是走一次真的业务动作
   （:func:`_tighten_cadence`：加一版 Scene、把两个页面面的复核节奏压到 1 天、激活）。
@@ -79,7 +79,6 @@ from __future__ import annotations
 import io
 import json
 import re
-import sys
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -218,13 +217,12 @@ def rig(settings: Settings, tmp_path: Path, monkeypatch) -> Rig:
         settings,
         mcp_tokens_path=tmp_path / "tokens.json",
         outbound_from_address=r1.SENDBOX,
-        quay_cli_path=Path(r1.__file__).with_name("fake_quay_cli.py"),
-        quay_node_path=Path(sys.executable),
-        quay_root=tmp_path / "quay",
+        dispatch_executor="local",
+        dispatch_root=tmp_path / "board",
     )
     assert composed.mcp_tokens_path.is_file(), "两份配置指的不是同一个令牌环"
-    assert (composed.quay_root / ".quay" / "config.yml").is_file(), (
-        "两份配置指的不是同一个 Quay 根 —— 控制器那一侧造不出执行器，而它会安静地"
+    assert composed.dispatch_root_resolved == (tmp_path / "board"), (
+        "两份配置指的不是同一张任务板 —— 控制器那一侧写的是另一张，而它会安静地"
         "报 BLOCKED(缺接线)"
     )
     return Rig(deployment=deployment, composed=composed, fake=fake, clock=_clock(monkeypatch))

@@ -55,6 +55,11 @@ _SEND_AUTHORIZED = False
 #: 会按中继支不支持 TLS 悄悄分成两种行为，而配置里看不出来。
 SMTP_SECURITY_MODES: frozenset[str] = frozenset({"starttls", "ssl"})
 
+#: 派发执行器的**闭集**。理由与 ``SMTP_SECURITY_MODES`` 同源：多一个拼错的取值
+#: 会让「本部署不派发」与「本部署派发到一张谁也不会去领的板」在配置里长得一样，
+#: 而两者在第一次受理之前都看不出来。装载期就拒掉闭集之外的字符串。
+DISPATCH_EXECUTORS: frozenset[str] = frozenset({"local", "none"})
+
 #: 飞书**对外写入**的独立授权位。与 ``_SEND_AUTHORIZED`` 同型，但**独立存在**：
 #: 两者解除的条件不同 —— 那一个是「这封信可以发了」，这一个是「研究产出的那一行
 #: 可以写进一个别人看得见的表了」。共用一个常量会在某一天被一起打开，而那一天
@@ -155,6 +160,29 @@ def _optional_smtp_security(value: str | None) -> str | None:
     return text
 
 
+def _dispatch_executor(value: str | None) -> str:
+    """把 ``MARKETOPS_DISPATCH_EXECUTOR`` 的原文收成 :data:`DISPATCH_EXECUTORS` 里的一个。
+
+    未设置（含空串）落回 ``"local"``：本机任务板是**正式**执行器，不需要任何第三方
+    服务，所以「一个新部署没有派发路径」不是缺省状态（Issue #2 的验收条款：缺执行器
+    不得成为 ``BLOCKED_EXECUTION``）。
+
+    写坏了的**抛**，而不是落回缺省：落回会让一个拼错的取值表现为「用本地板」，
+    而它与「本部署不派发」在第一次受理之前都看不出来。取值同样不折大小写，
+    理由与 :func:`_optional_smtp_security` 逐字相同。
+    """
+    text = (value or "").strip()
+    if not text:
+        return "local"
+    if text not in DISPATCH_EXECUTORS:
+        raise ConfigError(
+            f"MARKETOPS_DISPATCH_EXECUTOR={text!r} 不是可识别的执行器。\n"
+            f"  取值只有：{'、'.join(sorted(DISPATCH_EXECUTORS))}。\n"
+            "  local = 本机 SQLite 任务板（缺省）；none = 本部署不派发。"
+        )
+    return text
+
+
 @dataclass(frozen=True)
 class Settings:
     """一次运行的完整配置。
@@ -225,23 +253,26 @@ class Settings:
     mcp_resource: str | None = None
 
     # --- 外部执行器（§6 dispatch）---
-    #: 执行器 CLI 的**入口脚本**。要求显式给出，**不回落 PATH 上的同名命令**：
-    #: 一个回落会让我们实际跑的是别人装的那一个版本，而版本差异在这条边界上是
-    #: 真的 —— 同一个门失败，一个版本退 0、另一个退 1（``§2.9`` 实测 0.11.0，
-    #: ``tests/test_quay_cli_adapter.py`` 实测本机这个构建）。这正是适配器
-    #: **不读退出码**的理由，而一条静默的版本回落会让那个理由在运行时失效。
-    quay_cli_path: Path | None = None
-    #: 跑那个脚本的解释器。同样要求显式：「PATH 上有一个 node」与「**这个**脚本
-    #: 能被**这个** node 跑起来」是两件事，而后者才是我们要的。
-    quay_node_path: Path | None = None
-    #: 执行器的工作区根 —— 一个含它自己 ``.quay/config.yml`` 的目录。它是**外部**
-    #: 那本账的边界，所以它不能落在 ``data_root`` 之下：``data/`` 是本仓的数据平面，
-    #: 而外部的任务账不是我们的数据。
-    quay_root: Path | None = None
-    quay_timeout_seconds: float = 60.0
+    #: 本部署用**哪一个**执行器。取值域 :data:`DISPATCH_EXECUTORS`，装载期就拒掉
+    #: 别的字符串。
+    #:
+    #: * ``"local"``（默认）—— ``adapters/local_board.py`` 那张本机 SQLite 任务板。
+    #:   它不需要任何第三方服务，因此「缺执行器 就不能研究」在这条默认值下不再成立
+    #:   （Issue #2）。
+    #: * ``"none"`` —— 本部署不派发。它是一条**被写下来的**事实，与「忘了配」不同：
+    #:   能力表、受理回执与自检都按这个值说「本部署不派发」，而不是去猜。
+    #:
+    #: 外部 执行器 工作区那一路已经整体移除（Issue #2）：派发路径不再有任何第三方
+    #: 依赖，也没有「配了哪几样就自动切过去」的隐式分支。
+    dispatch_executor: str = "local"
+    #: 本机任务板的**目录**。``None`` = ``<data_root>/dispatch``。
+    #:
+    #: 缺省值按 ``data_root`` 推而不是写死，理由与 ``state_dir`` 一族逐字相同：
+    #: 写死一处，「同一份代码跑在不同机器上」就变成「每个环境一份代码」。
+    dispatch_root: Path | None = None
 
     # --- 外联执行（§6）---
-    #: SMTP 中继的端点。**两样都没有缺省值**，而理由与 ``quay_cli_path`` 那一组
+    #: SMTP 中继的端点。**两样都没有缺省值**，而理由与 ``dispatch_executor`` 那一组
     #: 同源、方向相反：``SmtpMailTransport`` 自己的 ``host`` 缺省是回环，
     #: 那一条决定的是「一次漏写连到哪里」；而这里的缺省决定的是「这个部署有没有
     #: 外发路径」，一个 ``127.0.0.1`` 的缺省会让 ``outbound_capable`` 凭一个
@@ -353,15 +384,28 @@ class Settings:
         return bool(self.laya_checkpoint_dir)
 
     @property
-    def quay_enabled(self) -> bool:
-        """**是否**配了外部执行器。刻意不暴露它在哪 —— 与 ``laya_enabled`` 同一条理由。
+    def dispatch_root_resolved(self) -> Path:
+        """本机任务板目录的**实际位置**。``dispatch_root`` 缺省时落在 ``data_root`` 下。
 
-        三样缺一不可：入口脚本、解释器、工作区根。只配了其中两样时这个布尔值为假，
-        而那是正确的：一个跑不起来的执行器与一个没配的执行器，对「派发能不能发生」
-        是同一个答案，而对运维是两句不同的话（见 ``interfaces/composition.py``
-        在没配时抛的那条消息）。
+        这个推导只写在这里一处。组合根与 runner 各推一遍的话，它们会在有人改缺省值
+        的那天各看一张板 —— 而两边都正常，只是活永远不会被领走。
         """
-        return bool(self.quay_cli_path and self.quay_node_path and self.quay_root)
+        return self.dispatch_root or (self.data_root / "dispatch")
+
+    @property
+    def dispatch_enabled(self) -> bool:
+        """本部署**有没有**派发路径（配置层面；这个进程有没有把它装起来是另一件事）。
+
+        * ``local`` —— 恒真：本机板不需要任何第三方服务，只有「目录建不出来」会让
+          它假，而那在构造时已经抛了。
+        * ``none`` —— 恒假：那是一句被写下来的话。
+
+        闭集之外的值（直接构造 ``Settings`` 的调用方可以写出来）也返回假，同时由
+        ``interfaces/composition.py`` 在构造执行器时抛 —— 两个读数不冲突：本属性
+        答「配置层有没有意图」，那里答「这个意图能不能兑现」。
+        """
+        kind = (self.dispatch_executor or "").strip()
+        return kind == "local"
 
     @property
     def outbound_missing(self) -> tuple[str, ...]:
@@ -663,7 +707,8 @@ class Settings:
             "mcp_host": self.mcp_host,
             "mcp_port": self.mcp_port,
             "mcp_auth_configured": self.mcp_auth_configured,
-            "quay_enabled": self.quay_enabled,
+            "dispatch_executor": self.dispatch_executor,
+            "dispatch_root": str(self.dispatch_root_resolved),
             # 来信来源：**报路径**，与 ``data_root`` / ``profiles_dir`` 同一处置。
             # 一个布尔答不出「配错了目录」—— 而「配了一个存在但没有东西的目录」
             # 与「配对了」在自检里必须分得开，它们一个是去补投递、一个是去查收信。
@@ -723,10 +768,8 @@ def load_settings(*, data_root: Path | None = None) -> Settings:
         mcp_resource=_raw("MARKETOPS_MCP_RESOURCE") or None,
         # 外部执行器。三样都是**显式**的：没有一项有缺省值，因为每一项的缺省
         # 都会是「我猜你想跑的其实是……」，而这条路径上猜错一次就是一次真的派发。
-        quay_cli_path=_raw_path("MARKETOPS_QUAY_CLI"),
-        quay_node_path=_raw_path("MARKETOPS_QUAY_NODE"),
-        quay_root=_raw_path("MARKETOPS_QUAY_ROOT"),
-        quay_timeout_seconds=_raw_float("MARKETOPS_QUAY_TIMEOUT_SECONDS", 60.0),
+        dispatch_executor=_dispatch_executor(_raw("MARKETOPS_DISPATCH_EXECUTOR")),
+        dispatch_root=_raw_path("MARKETOPS_DISPATCH_ROOT"),
         # 外联执行（§6）。这几样都**没有缺省值** —— 缺省在这里的意思就是
         # 「这个部署没有外发路径」，而它是 :attr:`outbound_capable` 的答案本身，
         # 不该由任何一个「我猜你想连的其实是……」的值给出。

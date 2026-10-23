@@ -514,13 +514,13 @@ SAMPLE_ORGS = (
     {"key": "example-baths", "name": "Example Baths", "material": "html",
      "class": "own", "grade": "A", "row": "role_inferred"},
     # a contact route the page never states
-    {"key": "example-quay", "name": "Example Quay", "material": "html",
+    {"key": "example-harbour", "name": "Example Harbour", "material": "html",
      "class": "own", "grade": "A", "row": "route_inferred"},
 )
 DUPLICATED_KEY = "example-cinema"
 UNTRACEABLE_KEY = "example-pier"
 INFERRED_ROLE = "Head of Venues"
-INFERRED_ROUTE = "bookings@example-quay.example.org"
+INFERRED_ROUTE = "bookings@example-harbour.example.org"
 CHALLENGE_TEXT = "Please complete the CAPTCHA to continue."
 
 

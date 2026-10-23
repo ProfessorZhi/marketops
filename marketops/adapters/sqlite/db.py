@@ -154,7 +154,17 @@ Connection = sqlite3.Connection
 #: 补什么值是一个需要证据的决定（``application/lineage.py``），方向与旧库去留是人的
 #: 决定。命令是 ``python -m marketops.adapters.sqlite.migrate``，它先备份再改，只给
 #: **证得出来**的行盖章，且只改**认得出来**的词。
-SCHEMA_VERSION = 6
+#:
+#: ## v6 → v7：``execution_ref`` 那一列改名
+#:
+#: 派发那一层不再认识任何外部工作区，映射表上那一列因此改名为
+#: ``dispatch_task_id``。这是一次**纯改名**：一行不增不减、取值逐字不动，改的是
+#: 名字本身（它出现在报告、日志与运维读的每一条消息里）。``ALTER TABLE … RENAME
+#: COLUMN`` 能就地做，所以这一步不像 v5 → v6 那样重建表、也不关外键。
+#:
+#: 版本号必须动：一个 v6 的库打开之后，盘上那一列还叫旧名字，而代码读的是新名字
+#: —— 「同一版代码、两个形状」正是版本号存在的唯一理由。
+SCHEMA_VERSION = 7
 
 #: ``schema_meta`` 里记「这个库属于哪个工作区」的键。
 #:
@@ -388,12 +398,12 @@ CREATE TABLE IF NOT EXISTS work_item (
     UNIQUE (job_id, ordinal)
 );
 
--- WorkItem → Quay 任务的映射。**主键就是 work_item_id**：写一次是结构性的，
+-- WorkItem → 派发任务的映射。**主键就是 work_item_id**：写一次是结构性的，
 -- 不是一条「写之前先查一下」的约定。两个派发者抢同一个 work item 时，第二个
--- 撞在主键上，而不是悄悄建出第二个 Quay 任务。
+-- 撞在主键上，而不是悄悄建出第二个 派发任务。
 CREATE TABLE IF NOT EXISTS execution_ref (
     work_item_id TEXT PRIMARY KEY REFERENCES work_item (work_item_id),
-    quay_task_id TEXT NOT NULL,
+    dispatch_task_id TEXT NOT NULL,
     mapped_at    TEXT NOT NULL
 );
 
@@ -1799,6 +1809,13 @@ _VERSION_NOTES: dict[int, str] = {
         "读得出来 —— 坏的只有那一处约束，所以它比前几个版本都安静：打开、读、写已知的"
         "那三种输入全都正常，只有**按 cohort 提交**撞在一句 CHECK 上，报出来的是一句"
         "看起来像存储坏了的 IntegrityError。"
+    ),
+    6: (
+        "v6 的 execution_ref 把映射列叫 dispatch_task_id 之前的那个名字，而这一版代码的"
+        "读写两条路径都用新名字。表读得出来、行也在，坏的只有那一列的名字 —— 于是"
+        "第一次读派发映射（get_job / reconcile / research_terminals 的那一段）会撞上"
+        "一句「no such column: dispatch_task_id」，而它读起来像库坏了，不是像「这一列"
+        "改过名」。"
     ),
 }
 

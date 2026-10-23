@@ -2,7 +2,7 @@
 
 ## 这一条证的是 §G1 的那两句
 
-> 顺序：Scene → discovery/import → 准入/identity → cohort → Quay research →
+> 顺序：Scene → discovery/import → 准入/identity → cohort → 执行器 research →
 > Jev（确有用途）→ 唯一路线/拒收 → 草稿/合法 hold。**全程通过一个 MCP，从零手工
 > roster 开始。**
 
@@ -12,7 +12,7 @@
 | discovery / import（上游工件 → 回执 → 池子） | 同上 |
 | 准入 / identity（身份线索不足者整份拒绝） | :func:`test_a_cohort_member_without_identity_clues_refuses_the_whole_batch` |
 | cohort（系统冻结成员名单，不落 YAML） | :func:`test_the_whole_chain_runs_from_a_clean_root_on_one_mcp` |
-| Quay research（**把名单交给研究**） | 同上 —— 这一步在 G1 之前**没有入口**，见下 |
+| 执行器 research（**把名单交给研究**） | 同上 —— 这一步在 G1 之前**没有入口**，见下 |
 | Jev（确有用途，且不被强加给每个任务） | :func:`test_the_jevs_step_hands_over_the_specs_and_forces_no_call` |
 | 唯一路线 / 拒收 | :func:`test_the_whole_chain_runs_from_a_clean_root_on_one_mcp` |
 | 草稿 / 合法 hold | 同上（草稿）；:func:`test_a_route_that_was_never_judged_is_review_only_and_leaves_named`（hold） |
@@ -45,7 +45,7 @@
 
 ``submit_research`` 的 ``input_kind`` 在此之前只能三选一，**没有一条能把一份冻好的
 名单送去研究**。于是 §B12 的实现逐字要求的「维护/草稿/**研究**接受 Scene selector
-或 durable cohort 引用」只有前两条兑现，而 §G1 的顺序里 cohort 后面紧跟着 Quay
+或 durable cohort 引用」只有前两条兑现，而 §G1 的顺序里 cohort 后面紧跟着 执行器
 research。这不是一条可以登记后结束的缺口：它在本仓代码范围内，所以那条枚举成员
 （``JobInputKind.COHORT``）与那两格接线在这一轮补上了，而**补完之后这条链才第一次
 走得通** —— 这一份文件就是它的执行器。
@@ -55,7 +55,6 @@ from __future__ import annotations
 
 import json
 import sqlite3
-import sys
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -63,8 +62,10 @@ from typing import Any
 
 import pytest
 
+from marketops.adapters.local_board import LocalBoardDispatcher
 from marketops.adapters.sqlite.evidence_store import SqliteEvidenceStore
 from marketops.adapters.sqlite.jobs import SqliteJobStore
+from marketops.application.dispatch import WorkDispatch, link_labels
 from marketops.application.discovery_run import candidate_id_for
 from marketops.application.evidence_ingest import document_evidence
 from marketops.application.promotion import canonical_account_id_for
@@ -162,20 +163,19 @@ class Deployment:
     持 controller 与 authorizer，而 §G1 那条链止于草稿/合法 hold —— ``send_wave``
     不在这九步里。
 
-    ## 执行器：一个**真的子进程**，但不是一个真的 Quay
+    ## 执行器：**本机任务板**，真的落盘、真的跨调用可见
 
     §6 那句 "The controller cannot substitute an outer-shell worker launch for
-    Quay dispatch" 由 ``lease`` 反过来守：没有 ``ExecutionRef`` 就没有租约，于是
+    dispatch" 由 ``lease`` 反过来守：没有 ``ExecutionRef`` 就没有租约，于是
     ``get_assignment`` 直接拒。所以这一条链**必须**真的走过一次派发，否则它在
     「领活」那一格上红成一个与被测行为无关的理由 —— 第一版就是这样：``settings``
-    里三样执行器配置都没有，``default_dispatcher`` 返回 ``None``，工作单元编译出来了
-    却一件也没交出去。
+    里没有执行器，``default_dispatcher`` 返回 ``None``，工作单元编译出来了却一件
+    也没交出去。
 
-    这里给的是 ``tests/fake_quay_cli.py``：**真子进程、真 argv、真 stderr、真退出
-    码**，照着实测到的 Quay 怪癖失败（见那个文件的模块文档）。它不是 in-process
-    替身 —— 换掉的是一个**外部进程**，而那个进程不在本仓、也不在 CI 上。真正那套
-    Quay（`quay.js` + 一个含 ``.quay/config.yml`` 的 store）属于 live 验收那一轮，
-    这里用的是同一份 ``default_dispatcher`` 映射，只是把那个可执行文件换成了它。
+    这里用的是 ``adapters/local_board.py``：一张**真的** SQLite 任务板，写在
+    ``tmp_path`` 下。它不是 in-process 替身 —— 受理那一步在服务进程里写、领活那一步
+    在另一条调用里读，两次之间隔着一次真的提交。这正是这一条验收链要证的「派发是
+    一次跨系统的动作」。
     """
 
     def __init__(self, settings: Settings, tmp_path: Path) -> None:
@@ -186,19 +186,13 @@ class Deployment:
             json.dumps(ring_payload(ring_entry(digest, "claude-g1", roles))),
             encoding="utf-8",
         )
-        quay_root = tmp_path / "quay"
-        (quay_root / ".quay").mkdir(parents=True)
-        (quay_root / ".quay" / "config.yml").write_text(
-            "provider: native\n", encoding="utf-8"
-        )
         composed = _compose(
             replace(
                 settings,
                 mcp_tokens_path=ring_path,
                 outbound_from_address=SENDBOX,
-                quay_cli_path=Path(__file__).with_name("fake_quay_cli.py"),
-                quay_node_path=Path(sys.executable),
-                quay_root=quay_root,
+                dispatch_executor="local",
+                dispatch_root=tmp_path / "board",
             )
         )
         assert composed.blocker == "", composed.blocker
@@ -734,7 +728,7 @@ def _run_chain(
         "它没有理由在盘上多写一份清单"
     )
 
-    # --- 阶段 5：Quay research **把名单交出去** ---------------------------
+    # --- 阶段 5：执行器 research **把名单交出去** ---------------------------
     # 这一步在 G1 之前**没有入口**：``submit_research`` 的 input_kind 只能三选一，
     # 而三条路都不读名单。补上 ``cohort`` 之后它第一次走得通。
     submitted = _ok(
@@ -833,6 +827,9 @@ def _run_chain(
         "cohort_id": cohort_id,
         "settled": settled,
         "item_id": by_subject[second].work_item_id,
+        "job_id": submitted["job_id"],
+        "items": items,
+        "submitted": submitted,
         "routes": {account_id: store.list_routes(account_id) for account_id in accounts},
     }
 
@@ -1517,3 +1514,77 @@ def test_the_view_and_watch_loops_are_wired_by_the_composition_root(
         f"而这一格是一条**要处置**的结论：{listed}"
     )
     assert "尚未接线" not in json.dumps(listed), "跟进那一族本身没接线"
+
+
+# ----------------------------------------------------------------------
+# 十一、派发在**没有厂商变量**的部署里真的走完一条链
+# ----------------------------------------------------------------------
+def test_the_chain_dispatches_and_reconciles_without_any_vendor_variable(
+    deployed: Deployment, settings: Settings, tmp_path: Path
+) -> None:
+    """受理（阶段 5）→ 领取 → 租约 → 结算 → 收敛，全部落在本机任务板上。
+
+    这条判据盯的是 Issue #2 的验收条款：``MARKETOPS_DISPATCH_EXECUTOR`` 用缺省值
+    （``local``）、环境里**没有任何**厂商执行器的变量时，一件真实的工作单元仍然要
+    被交出去、被领取、被结算，并把外部那一条推到终态。每一格都读**盘上**的东西，
+    不读工具回执的复述：
+
+    * ``submitted["dispatch"]`` 说交出去了几件 —— 受理那一刻的回执；
+    * ``execution_ref`` 说本地记下了哪一条线 —— 派发真正发生过的证据；
+    * 板上的行说外部现在是什么状态 —— 收敛真正发生过的证据。
+
+    三处读的是**同一批 id**：只对一处会让「回执说交了、盘上没有」这种形状看起来
+    正常（而它正是重复派发的来源）。
+    """
+    assert settings.dispatch_executor == "local", (
+        "这条判据的前提是执行面只有本机任务板，没有外部厂商执行器"
+    )
+    chain = _run_chain(deployed, settings, second_route="settled")
+    accounts = chain["accounts"]
+    job_id = chain["job_id"]
+
+    handed = chain["submitted"]["dispatch"]
+    assert handed["executor_configured"] is True, handed
+    assert handed["handed_out"] == len(accounts), (
+        f"名单上 {len(accounts)} 个成员，交出去的却是 {handed['handed_out']} 件：{handed}"
+    )
+
+    jobs = SqliteJobStore(settings.database_path)
+    # 板的位置与 ``Deployment`` 构造服务时用的是**同一个**：那个对象读的是它自己
+    # 那份 ``settings`` 的 ``dispatch_root``（``tmp_path/"board"``），而这里的
+    # ``settings`` 是没改过的那一份，解析到 ``<data_root>/dispatch`` —— 两张板。
+    board = LocalBoardDispatcher(root=tmp_path / "board")
+    refs = {item.work_item_id: jobs.execution_ref(item.work_item_id) for item in chain["items"]}
+    assert all(ref is not None for ref in refs.values()), refs
+    task_ids = {ref.dispatch_task_id for ref in refs.values() if ref is not None}
+    assert len(task_ids) == len(accounts), f"两件工作绑到了同一条外部任务上：{refs}"
+
+    # 每一件都能按自己的那组 label 在板上读回来 —— label 是唯一能把这条线找回来的东西。
+    for item in chain["items"]:
+        found = board.find(labels=link_labels(job_id, item.work_item_id))
+        assert [task.external_id for task in found] == [refs[item.work_item_id].dispatch_task_id]
+
+    dispatch = WorkDispatch(jobs=jobs, dispatcher=board)
+    syncs = [dispatch.reconcile(item.work_item_id) for item in chain["items"]]
+
+    assert [(sync.synced, sync.target_status) for sync in syncs] == [
+        (True, "done")
+    ] * len(accounts), (
+        "结算过的每一件都该被推到 done："
+        f"{[(s.changed, s.synced, s.target_status, s.error) for s in syncs]}"
+    )
+    # ``changed`` 在这里是 ``False``，而那是**正确**的读数：服务在结算那一刻已经推过
+    # 一次，这一次只是核对。第一遍真的动过板子由板上的 ``done`` 证明（下面那一格），
+    # 而「重放不造并发」由第二遍仍为 ``synced`` 证明。
+    assert [sync.changed for sync in dispatch_replays(jobs, board, chain)] == [False] * len(
+        accounts
+    )
+    for item in chain["items"]:
+        (task,) = board.find(labels=link_labels(job_id, item.work_item_id))
+        assert task.status == "done"
+
+
+def dispatch_replays(jobs, board, chain):
+    """再收敛一遍：第一次真的动过板子之后，重放**不该**再动它。"""
+    work = WorkDispatch(jobs=jobs, dispatcher=board)
+    return [work.reconcile(item.work_item_id) for item in chain["items"]]

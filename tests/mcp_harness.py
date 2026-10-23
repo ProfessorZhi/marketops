@@ -272,7 +272,7 @@ def drive_with_settings(
     scenes: Any = None,
     decisions: Any = None,
     advisory: Any = None,
-    quay: Any = None,
+    dispatcher: Any = None,
     jobs: Any = None,
     ledger_factory: Any = None,
     worker_outcomes: Any = None,
@@ -307,7 +307,7 @@ def drive_with_settings(
     咨询的那一个。**两者必须来自同一次构造** —— ``_decision_rows`` 按对象同一性
     回答「谁会真的被调用」，所以这里是透传，不是拼装。
 
-    ``quay`` 同样透传，但它的缺省（``None``）在测试里是**主流**：绝大多数用例
+    ``dispatcher`` 同样透传，但它的缺省（``None``）在测试里是**主流**：绝大多数用例
     关心的是受理、编译、读取，而不是派发。缺省为 ``None`` 时 ``submit_research``
     照常工作，只是那一批工作一件都不交出去 —— 而那正是另一条判据要断言的形状，
     所以这个缺省既是省事，也是「没有执行器的部署」那个被测对象。
@@ -512,7 +512,7 @@ def drive_with_settings(
             scenes=scenes,
             decisions=decisions,
             advisory=advisory,
-            quay=quay,
+            dispatcher=dispatcher,
             jobs=jobs,
             ledger_factory=ledger_factory,
             worker_outcomes=worker_outcomes,

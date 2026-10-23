@@ -144,7 +144,7 @@ def test_the_mapping_only_lands_on_statuses_the_board_knows() -> None:
     它可能**不**拒绝：状态名是自由的字符串，一个不存在的词会被原样存下来，于是
     看板上出现一个谁也不认识的状态，而没有任何一方报错。
 
-    闭集本身是从**实现**那侧读的（``quay task list`` 的 ``--status`` 过滤值），
+    闭集本身是从**实现**那侧读的（执行器自己的状态列表 的 ``--status`` 过滤值），
     理由同 ``INITIAL_EXTERNAL_STATUS`` 的 docstring。
     """
     assert set(STOP_REASON_EXTERNAL_STATUS.values()) <= EXTERNAL_STATUSES
@@ -194,7 +194,7 @@ def test_a_settled_item_moves_the_board_to_the_mapped_status(
 ) -> None:
     """正常路径：读一次当下状态，再发一次 CAS，两端都写对。"""
     job_id, work_item_id = _dispatched(store, outside)
-    task_id = store.execution_ref(work_item_id).quay_task_id
+    task_id = store.execution_ref(work_item_id).dispatch_task_id
     _settled(store, work_item_id, StopReason.BLOCKED)
 
     result = sync.reconcile(work_item_id)
@@ -220,7 +220,7 @@ def test_an_already_converged_board_is_not_touched(
     假事实。``changed=False`` 与 ``synced=True`` 一起说清「没动，但已经对了」。
     """
     _, work_item_id = _dispatched(store, outside)
-    task_id = store.execution_ref(work_item_id).quay_task_id
+    task_id = store.execution_ref(work_item_id).dispatch_task_id
     _settled(store, work_item_id, StopReason.BLOCKED)
     # 把外面那个任务**就地**改成目标状态：labels 不动，只动状态 —— 模拟「上一次
     # 回传已经成功过一次」。换一个新任务会让这条判据变成「读到了别的任务」。
@@ -338,7 +338,7 @@ def test_a_cas_conflict_is_reported_with_the_actual_state(
     不是外面真实的那一个。想读真实值只有 ``error``。
     """
     _, work_item_id = _dispatched(store, outside)
-    task_id = store.execution_ref(work_item_id).quay_task_id
+    task_id = store.execution_ref(work_item_id).dispatch_task_id
     _settled(store, work_item_id, StopReason.BLOCKED)
     outside.tasks[task_id] = ExternalTask(
         external_id=task_id, status="ready", labels=outside.tasks[task_id].labels
@@ -434,7 +434,7 @@ def test_the_target_is_whatever_the_settled_reason_says(
     result = WorkDispatch(jobs=store, dispatcher=outside).reconcile(work_item_id)
 
     assert result.target_status == STOP_REASON_EXTERNAL_STATUS[reason]
-    assert outside.tasks[ref.quay_task_id].status == STOP_REASON_EXTERNAL_STATUS[reason]
+    assert outside.tasks[ref.dispatch_task_id].status == STOP_REASON_EXTERNAL_STATUS[reason]
 
 
 def test_an_item_that_has_not_settled_has_no_target_and_touches_nothing_outside(

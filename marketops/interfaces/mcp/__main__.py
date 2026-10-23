@@ -25,7 +25,7 @@
 同一句话对**装配**也成立，而且是靠结构做到的：``--check`` 与 ``_serve()`` 都调
 ``_compose()``，两者唯一的差别是最后一步跑不跑 ``server.run(...)``。这条不是
 风格问题 —— 自检曾经**只**做三件事（读配置、解析地址、装令牌环），完全不碰决策
-后端与外部执行器的构造，于是一个 ``MARKETOPS_QUAY_*`` 配了一半的部署能拿到
+后端与外部执行器的构造，于是一个派发执行器配了一半的部署能拿到
 「自检不通过：没有配置令牌环（退 1）」，然后在真正启动时退 2。同一个部署，两句
 互相矛盾的话，而先跑到的、也是唯一会被贴进工单的，是自检那句。
 
@@ -631,13 +631,15 @@ def _row_database(composed: _Composition) -> PreflightRow:
 def _row_provider(settings: Settings) -> PreflightRow:
     """本部署**有哪几样外部能力**。只报存在性，一个取值都不打印。
 
-    ## 只有 serper 与 quay 驱动判词
+    ## 只有 serper 与 dispatch 驱动判词
 
     ``serper`` 是这一栈里**唯一一条按调用计费**的检索提供方，而缺了它
     ``search_web`` 仍然接线、仍然受理，只在调用点明确拒绝（``research.py`` 那段
-    「这不是一次『检索过、没有结果』」）。``quay`` 是派发路径 —— 缺了它
-    ``default_dispatcher`` 返回 ``None``，而这个部署就**没有执行器**：一次试运行
-    连一件工作都派不出去。两样都是「外面给的」，所以缺了判 ``BLOCKED_EXTERNAL``。
+    「这不是一次『检索过、没有结果』」）。``dispatch`` 是派发路径 —— 本部署把它
+    关掉（``MARKETOPS_DISPATCH_EXECUTOR=none``）就**没有执行器**：一次试运行连
+    一件工作都派不出去。两样都是「外面给的」，所以缺了判 ``BLOCKED_EXTERNAL``。
+    ``dispatch`` 的默认值是 ``local``，所以「缺」只会是一个写下来的选择，不会
+    是「忘了配」—— 那条路在 Issue #2 里已经移除，没有需要额外配置的外部工作区。
 
     另外三样报出来但**不驱动判词**，各有各的书面理由，不是这里省事：
 
@@ -655,12 +657,12 @@ def _row_provider(settings: Settings) -> PreflightRow:
     """
     flags = {
         "serper": settings.serper_enabled,
-        "quay": settings.quay_enabled,
+        "dispatch": settings.dispatch_enabled,
         "jev": settings.jev_enabled,
         "laya": settings.laya_enabled,
         "feishu": settings.feishu_enabled,
     }
-    blocking = [name for name in ("serper", "quay") if not flags[name]]
+    blocking = [name for name in ("serper", "dispatch") if not flags[name]]
     facts: dict[str, Any] = {**flags, "blocking": blocking}
     if blocking:
         return PreflightRow(
@@ -899,7 +901,7 @@ class _Composition:
 
     两者唯一的差别是最后一步跑不跑 ``server.run(...)``。做成共用是因为自检曾经
     **只**读配置、解析地址、装令牌环 —— 它会说「可以启动」，而一个
-    ``MARKETOPS_QUAY_*`` 配了一半的部署会在真正启动时退 2。同一个部署得出两句
+    派发执行器配了一半的部署会在真正启动时退 2。同一个部署得出两句
     互相矛盾的话，而先被跑到的、也是唯一会被写进工单的那句，是自检那句。
 
     ``database`` 也在这里取，理由完全相同而多一条：状态库的判决是**一次读数**，
@@ -963,7 +965,6 @@ def _compose(settings: Settings) -> _Composition:
     from ...adapters.mcp_server.scheduling import scheduling_handlers
     from ...adapters.mcp_server.views import views_handlers
     from ...adapters.mcp_server.workstream import workstream_handlers
-    from ...adapters.quay_cli import read_worker_outcomes
     from ...adapters.reply_classifier import RuleBasedReplyClassifier
     from ...adapters.sqlite.jobs import SqliteJobStore
     from ...adapters.sqlite.ledger import SqliteBudgetLedger
@@ -1156,7 +1157,7 @@ def _compose(settings: Settings) -> _Composition:
     # 但**配错了**要在这里停下。`default_dispatcher` 只在三样一个都没给时返回
     # None；配了一半、或路径不在盘上，都是 ConfigError，于是退 2（「原因在启动
     # 参数或环境」，见模块 docstring 的退出码一节）。
-    quay = default_dispatcher(settings)
+    dispatcher = default_dispatcher(settings)
     # 外联那一段（§6/§7）。三样东西各自决定自己的那几条工具**存不存在**：
     #
     #   * ``transport``：没有它就没有 ``send_wave`` / ``reconcile_wave``。它是
@@ -1574,7 +1575,7 @@ def _compose(settings: Settings) -> _Composition:
             scenes=scenes,
             decisions=decisions,
             advisory=advisory,
-            quay=quay,
+            dispatcher=dispatcher,
             # 与上面 ``continuation_handlers`` 收到的是**同一个**（见那一处的理由）。
             jobs=jobs,
             # 与上面 ``budget_handlers`` 收到的是**同一个对象**（不是另一句同形的
@@ -1597,10 +1598,11 @@ def _compose(settings: Settings) -> _Composition:
             # 输入如实报「本部署没有接这两样」，而不是把一份冻好的名单读成空集。
             accounts=accounts,
             cohorts=cohorts,
-            # 外部那本退出账的读器（§1）。注入的是一个**只读**的闭包 —— 报告路径
-            # 不因此拿到任何写外部的权力。读不出来的情形由调用点如实报，不在这里
-            # 兜底成空元组：那会让「外面判了没落地」与「外面什么都没说」同形。
-            worker_outcomes=lambda task_id: read_worker_outcomes(settings.quay_root, task_id),
+            # 本部署没有外部退出账可读 —— 执行器是本地任务板，一轮的结局由
+            # delegate 的退出码与 run.json 记着，不在服务进程能读的地方。``None``
+            # 让 ``get_job`` 的 ``research_terminals`` 如实报「这个实例读不到外部
+            # 判决」，而不是拿一个空元组兜底成「外面什么都没说」。
+            worker_outcomes=None,
         ),
     )
 

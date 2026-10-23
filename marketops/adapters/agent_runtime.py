@@ -3,7 +3,7 @@
 ## 为什么这一处 ``subprocess`` 在 ``adapters/``，而不是 worker 入口里
 
 ``tests/test_adapters_hold_the_vendors.py`` 的 ``VENDOR_MODULES`` 里有
-``subprocess``，与 ``httpx`` 同一条理由（那条注释逐字）：**Quay 没有 Python SDK，
+``subprocess``，与 ``httpx`` 同一条理由（那条注释逐字）：**执行器 没有 Python SDK，
 本仓与它的全部界面就是一个子进程**。所以「谁 import 得到 subprocess」与「谁
 import 得到 httpx」问的是同一件事，只是换了一个外部提供者。
 
@@ -23,7 +23,7 @@ adapter」，不是 import 厂商 SDK。研究 worker 的入口住在 ``interfac
 
 ## 它**不是** launcher
 
-Quay 的词汇里 ``launcher`` 指的是 ``.quay/profiles.yml`` 里那个单 token，也就是
+外部执行器的词汇里 ``launcher`` 指的是它自己那份 profiles 文件里的单个 token，也就是
 ``interfaces/research_worker.py`` 自己。本模块是**它对面**那一个：launcher 把一轮
 递给谁。两个名字都要留着，所以这里不叫 ``launch``。
 """

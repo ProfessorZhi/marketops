@@ -170,7 +170,7 @@ def session(settings: Settings, tmp_path: Path):
     relations = default_relation_store(settings)
     accounts = default_account_pool_store(settings)
     # 一个执行器：受理之后真的要派发，否则 ``get_assignment`` 拒绝「还没派发到
-    # Quay」—— 而那一条拒绝是对的（租约由 ``ExecutionRef`` 反过来守）。整个用例
+    # 执行器」—— 而那一条拒绝是对的（租约由 ``ExecutionRef`` 反过来守）。整个用例
     # 共用一个：结算之后看板同步读的是同一个执行器里的任务。
     dispatcher = FakeDispatcher()
 
@@ -194,7 +194,7 @@ def session(settings: Settings, tmp_path: Path):
             ),
             scenes=scenes,
             jobs=lambda: SqliteJobStore(settings.database_path),
-            quay=dispatcher,
+            dispatcher=dispatcher,
             assets=assets,
             relation_store=relations,
             calls=calls,

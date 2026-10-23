@@ -168,9 +168,9 @@ class JobError(MarketOpsError):
 class JobStateError(JobError):
     """作业状态上的非法动作：转移不合法、CAS 不匹配、或终态之后还写。
 
-    与 ``docs`` 里 Quay 的 ``--expect-status`` 是同一条纪律：**读到的状态与据此
+    与 ``docs`` 里 执行器的 ``--expect-status`` 是同一条纪律：**读到的状态与据此
     写下的状态必须在同一个写事务里**。``set_state`` 因此要求 ``expected``，
-    不一致就整次拒绝 —— 而那正是 Quay 逐字回的那句
+    不一致就整次拒绝 —— 而那正是 执行器 逐字回的那句
     ``CAS conflict ... refusing to overwrite (write() aborted, nothing written to disk)``。
     """
 
@@ -179,9 +179,9 @@ class LeaseError(JobError):
     """拿不到或交不出一个租约。
 
     三种原因共用这一个类型：这个 work item 已经有主、已经停止、或者**还没派发
-    到 Quay**。第三种是 §6 那句「The controller cannot substitute an outer-shell
-    worker launch for Quay dispatch」的可执行形式 —— 没有 ``ExecutionRef`` 就没有
-    租约，于是「绕过 Quay 直接开一个 worker」在代码里写不出来。
+    到执行器**。第三种是 §6 那句「The controller cannot substitute an outer-shell
+    worker launch for 执行器 dispatch」的可执行形式 —— 没有 ``ExecutionRef`` 就没有
+    租约，于是「绕过派发 直接开一个 worker」在代码里写不出来。
 
     消息必须点名是哪一种：三者对调用方的处置不同（等、改派别的 work item、
     先去派发）。

@@ -9,10 +9,10 @@
 
 ## 脚手架准备的是**落点**，调用走的是**工具**
 
-派发到 Quay 这一条在工具面上现在是有的（``submit_research`` 受理那一刻、
+派发到执行器 这一条在工具面上现在是有的（``submit_research`` 受理那一刻、
 ``control_job(action=resume)`` 恢复那一刻，见 ``tests/test_mcp_job_tools.py``）。
 但这个文件仍然用 ``SqliteJobStore`` 摆「已派发」：它要的是一个**指定的**
-``quay_task_id`` 与一个**指定的** holder，而走工具面就得先铸一个 controller
+``dispatch_task_id`` 与一个**指定的** holder，而走工具面就得先铸一个 controller
 令牌、再写一份账号清单，摆出来的东西却没多测到任何一样。三个动词
 （``compile_work_items`` / ``map_execution`` / ``lease``）各自有自己的判据
 （``tests/test_job_contract.py``），这里不重复测它们，只用它们。
@@ -27,7 +27,7 @@
 | 别人的 assignment 读不到 | 一个 researcher 读走另一个的任务 |
 | 已派发、无人持着时**当场领活** | 「已派发」被读成「有人在跑」；以及「没人能领，所以永远没人持着」 |
 | 作业不放行时领不到活 | 暂停的作业照样被人领走 |
-| 没有 ``ExecutionRef`` 时按 §6 拒绝 | 「绕过 Quay 直接开一个 worker」在服务面上被挡下 |
+| 没有 ``ExecutionRef`` 时按 §6 拒绝 | 「绕过派发 直接开一个 worker」在服务面上被挡下 |
 | 作业取消之后持有者仍读得到 | 一次取消把一件在跑的工作变成**读不到**（租约并没有被谁收回） |
 | 未知 work item 拒绝 | 静默返回一个空壳 |
 | ``tool_rights`` 与 ``visible_tools`` 逐字一致 | assignment 承诺一个工具、中间件拒绝它 |
@@ -182,11 +182,11 @@ def _ring_file(settings: Settings, digest: str, name: str, role: str):
 
 
 def _session(
-    settings: Settings, store_factory, ledger_factory, *, name: str, role: Role, quay=None
+    settings: Settings, store_factory, ledger_factory, *, name: str, role: Role, dispatcher=None
 ):
     """一个会话驱动器。每次调用都是一段**全新的**会话（含一次新的握手）。
 
-    ``quay`` 缺省为 ``None``，与 ``drive_with_settings`` 的缺省一致：「没有执行器
+    ``dispatcher`` 缺省为 ``None``，与 ``drive_with_settings`` 的缺省一致：「没有执行器
     的部署」在这个文件里是主流，而且它自己就是一个要被测的对象（结算那张判据表
     的最后一行）—— 只有回传看板那条判据需要一个接了执行器的会话。
     """
@@ -200,7 +200,7 @@ def _session(
             token=token,
             calls=((tool, arguments or {}),),
             want_tool_list=False,
-            quay=quay,
+            dispatcher=dispatcher,
             jobs=store_factory,
             ledger_factory=ledger_factory,
         )
@@ -234,7 +234,7 @@ def wired(settings, store_factory, ledger_factory, outside):
         ledger_factory,
         name=WORKER,
         role=Role.RESEARCHER,
-        quay=outside,
+        dispatcher=outside,
     )
 
 
@@ -329,7 +329,7 @@ def _compiled_job(
         job.job_id, synthetic_dossiers(SUBJECT), scene=pinned or _scene(settings)
     )
     if dispatch:
-        store.map_execution(item.work_item_id, quay_task_id="quay-task-0001")
+        store.map_execution(item.work_item_id, dispatch_task_id="dispatch-task-0001")
     return store, job.job_id, item.work_item_id
 
 
@@ -356,7 +356,7 @@ def test_a_worker_can_read_its_own_assignment(settings, store_factory, worker) -
     assert body["work_item"]["subject_ref"] == SUBJECT
     assert body["attempt"]["attempt_id"] == attempt_id
     assert body["attempt"]["holder"] == WORKER
-    assert body["execution"]["quay_task_id"] == "quay-task-0001"
+    assert body["execution"]["dispatch_task_id"] == "dispatch-task-0001"
     assert body["job"]["scene_id"] == SCENE
     assert body["scene"]["scene_id"] == SCENE
 
@@ -661,7 +661,7 @@ def test_an_assignment_naming_only_an_internal_slug_is_refused(
         input_sha256=sha256_text("slug-only-row"),
     )
     (item,) = store.compile_work_items(job.job_id, (slug_only,), scene=_scene(settings))
-    store.map_execution(item.work_item_id, quay_task_id="quay-task-0001")
+    store.map_execution(item.work_item_id, dispatch_task_id="dispatch-task-0001")
 
     outcome = worker("get_assignment", {"work_item_id": item.work_item_id})
 
@@ -722,7 +722,7 @@ def test_another_worker_cannot_read_the_assignment(settings, store_factory, work
 def test_a_dispatched_but_unleased_work_item_is_claimed_by_this_call(
     settings, store_factory, worker
 ) -> None:
-    """「已派发到 Quay」与「有人正在跑」是两件事 —— 而**这一次调用**把第二件做出来。
+    """「已派发到执行器」与「有人正在跑」是两件事 —— 而**这一次调用**把第二件做出来。
 
     §3 的工具目录里没有 ``lease``。所以这条路径如果只肯回答「没有活的租约」，
     这件工作就永远没有人能持着：没人能领，所以永远没有人持着 —— 而那句话读起来
@@ -791,7 +791,7 @@ def test_an_undispatched_work_item_is_refused_with_the_six_six_wording(
     settings, store_factory, worker
 ) -> None:
     """§6 逐字「the controller cannot substitute an outer-shell worker launch for
-    Quay dispatch」在**服务面**上的执行器。
+    执行器 dispatch」在**服务面**上的执行器。
 
     这条判据在 H2c 之前**走不到**：那时没有活租约的 work item 先被一句「没有活的
     租约」挡下，而活租约又造不出来（``lease`` 自己也要求 ExecutionRef）—— 于是
@@ -806,10 +806,10 @@ def test_an_undispatched_work_item_is_refused_with_the_six_six_wording(
     outcome = worker("get_assignment", {"work_item_id": work_item_id})
 
     assert outcome.is_error
-    assert "还没有派发到 Quay" in outcome.text
+    assert "还没有派发到执行器" in outcome.text
     assert "不是一个 assignment" in outcome.text
     # 这两句一起才把**顺序**钉住。存储层对同一个 work item 会拒绝同一件事（措辞是
-    # 「不能出租」），所以两句话里都含「还没有派发到 Quay」—— 判词只查这一句的话，
+    # 「不能出租」），所以两句话里都含「还没有派发到执行器」—— 判词只查这一句的话，
     # 把 §6 那条判挪到领活**之后**，用例照样绿，而那正是要挡的形态（先去签一条
     # 签不下来的租约，再回头说「你该先派发」）。所以负的那半才是判据：
     # 存储层那句话出现，就说明领活已经先跑过了。
@@ -1245,11 +1245,11 @@ def test_settling_writes_the_outcome_back_to_the_board(
     work_item_id, attempt_id = _dispatched_job(settings, store_factory)
     # 手搓的 ``map_execution`` 只写了本地那一半，外面还没有这个任务。
     job_id = store_factory().get_work_item(work_item_id).job_id
-    outside.seed("quay-task-0001", link_labels(job_id, work_item_id), status="todo")
+    outside.seed("dispatch-task-0001", link_labels(job_id, work_item_id), status="todo")
 
     body = wired("submit_findings", _findings_args(work_item_id, attempt_id)).as_json()
 
-    assert outside.transitions == [("quay-task-0001", "todo", "done")], (
+    assert outside.transitions == [("dispatch-task-0001", "todo", "done")], (
         "结算之后外面必须被写成映射要求的那一个状态，且 CAS 的期望值是**读到的**那一个"
     )
     board = body["board_sync"]
@@ -1266,7 +1266,7 @@ def test_settling_without_an_executor_still_settles_and_says_which_it_is(
     """没接执行器：结算照常成功，回执说清是**没接线**，而不是「同步失败」。
 
     两件事的处置不同：「同步失败」是去看外面怎么了；「没接线」是去看这个进程是怎么
-    构造的（与能力表 quay 行的 ``runtime_ready`` 同源）。合成一句会让运维去查一个
+    构造的（与能力表 dispatch 行的 ``runtime_ready`` 同源）。合成一句会让运维去查一个
     这个部署里根本不存在的东西。
 
     而**结算本身不受影响** —— ``replayed`` 与 ``content_sha256`` 在这里钉住的是那条

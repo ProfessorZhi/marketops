@@ -172,7 +172,7 @@ class MappingRow:
 
     work_item_id: str
     subject_ref: str
-    quay_task_id: str
+    dispatch_task_id: str
     stop_reason: str | None
     target_status: str | None
     observed_status: str | None
@@ -304,7 +304,7 @@ class ReconcileReport:
                 {
                     "work_item_id": row.work_item_id,
                     "subject_ref": row.subject_ref,
-                    "quay_task_id": row.quay_task_id,
+                    "dispatch_task_id": row.dispatch_task_id,
                     "stop_reason": row.stop_reason,
                     "target_status": row.target_status,
                     "observed_status": row.observed_status,
@@ -432,7 +432,7 @@ def _mapping_rows(
             MappingRow(
                 work_item_id=item.work_item_id,
                 subject_ref=item.subject_ref,
-                quay_task_id=read.task_id,
+                dispatch_task_id=read.task_id,
                 stop_reason=item.stop_reason.value if item.stop_reason else None,
                 target_status=target,
                 observed_status=read.observed_status,
@@ -610,7 +610,7 @@ def _unwired_mapping(jobs: JobStore, item: WorkItem) -> MappingRow:
     return MappingRow(
         work_item_id=item.work_item_id,
         subject_ref=item.subject_ref,
-        quay_task_id=jobs.execution_ref(item.work_item_id).quay_task_id,  # type: ignore[union-attr]
+        dispatch_task_id=jobs.execution_ref(item.work_item_id).dispatch_task_id,  # type: ignore[union-attr]
         stop_reason=item.stop_reason.value if item.stop_reason else None,
         target_status=board_target(item),
         observed_status=None,

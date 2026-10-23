@@ -454,36 +454,36 @@ def test_check_refuses_a_non_loopback_host(tmp_path) -> None:
     assert "MARKETOPS_MCP_HOST" in done.stdout + done.stderr
 
 
-def test_a_half_configured_executor_fails_the_self_check_not_only_the_serve_path(
+def test_an_unrecognised_executor_fails_the_self_check_not_only_the_serve_path(
     tmp_path, monkeypatch
 ) -> None:
     """``--check`` 跑的是**整份装配**，不只是配置与令牌环。
 
     曾经不是。``--check`` 只做三件事：读配置、解析地址、装令牌环 —— 完全不碰决策
-    后端与外部执行器的构造。于是一个 ``MARKETOPS_QUAY_*`` 配了一半的部署会拿到
-    「自检不通过：没有配置令牌环」（退 1，读起来是「配好令牌环就能起」），然后在
-    真正启动时退 2。同一个部署，两句互相矛盾的话，而先跑到的、也是唯一会被贴进
+    后端与执行器的构造。于是一个把 ``MARKETOPS_DISPATCH_EXECUTOR`` 拼错的部署会
+    拿到「自检不通过：没有配置令牌环」（退 1，读起来是「配好令牌环就能起」），然后
+    在真正启动时退 2。同一个部署，两句互相矛盾的话，而先跑到的、也是唯一会被贴进
     工单的那句，是自检那句。
 
     判据故意做成**两条路径在同一份配置上的举止**，而不是「两处都调了 ``_compose``」
     那种结构断言：后者在有人把装配拆成两半、只让一半走 ``_compose`` 时照样绿。
     """
     ring = _ring(tmp_path, ("claude-control", "controller"))
-    half = {"MARKETOPS_QUAY_CLI": "/bin/true"}  # 三样只给一样
+    wrong = {"MARKETOPS_DISPATCH_EXECUTOR": "local-ish"}
 
     checked = _run_check(
         {
             "MARKETOPS_DATA_ROOT": str(tmp_path / "state"),
             "MARKETOPS_MCP_TOKENS": str(ring),
-            **half,
+            **wrong,
         }
     )
     assert checked.returncode == 2, (
-        f"半配的执行器必须让自检**起不来**（退 2），实际退 {checked.returncode}："
+        f"拼错的执行器必须让自检**起不来**（退 2），实际退 {checked.returncode}："
         "退 1 读出来是「谁都不许」，而那不是这个部署的问题。"
     )
-    assert "MARKETOPS_QUAY_NODE" in checked.stdout + checked.stderr, (
-        "消息要点名缺的是哪一个变量 —— 运维手里只有变量名，没有那些字段名。"
+    assert "MARKETOPS_DISPATCH_EXECUTOR" in checked.stdout + checked.stderr, (
+        "消息要点名是哪一个变量 —— 运维手里只有变量名，没有那些字段名。"
     )
 
     # 真正启动那一条：把 ``run`` 换成空操作，否则它会绑端口并阻塞。这一条的
@@ -495,17 +495,13 @@ def test_a_half_configured_executor_fails_the_self_check_not_only_the_serve_path
     monkeypatch.setattr(MCPServer, "run", lambda self, **kwargs: None)
     monkeypatch.setenv("MARKETOPS_DATA_ROOT", str(tmp_path / "state"))
     monkeypatch.setenv("MARKETOPS_MCP_TOKENS", str(ring))
-    for name, value in half.items():
+    for name, value in wrong.items():
         monkeypatch.setenv(name, value)
-    for name in ("MARKETOPS_QUAY_NODE", "MARKETOPS_QUAY_ROOT"):
-        monkeypatch.delenv(name, raising=False)
     assert _serve() == 2, "启动路径与自检必须对同一份配置给出同一个判决"
 
-    # 正对照：把三样补齐，同一条启动路径必须**走到 run**（退 0）。没有这一半，
-    # 上面那个 2 可能来自任何一处与执行器无关的失败。
-    monkeypatch.setenv("MARKETOPS_QUAY_NODE", sys.executable)
-    monkeypatch.setenv("MARKETOPS_QUAY_ROOT", str(tmp_path / "quay-root"))
-    (tmp_path / "quay-root").mkdir()
+    # 正对照：把执行器恢复成默认值（``local``），同一条启动路径必须**走到 run**
+    # （退 0）。没有这一半，上面那个 2 可能来自任何一处与执行器无关的失败。
+    monkeypatch.delenv("MARKETOPS_DISPATCH_EXECUTOR", raising=False)
     assert _serve() == 0
 
 
@@ -537,10 +533,7 @@ def test_a_serve_that_starts_publishes_the_build_it_loaded_before_it_serves(
     monkeypatch.setattr(MCPServer, "run", look_while_serving)
     monkeypatch.setenv("MARKETOPS_DATA_ROOT", str(data_root))
     monkeypatch.setenv("MARKETOPS_MCP_TOKENS", str(_ring(tmp_path, ("claude-control", "controller"))))
-    monkeypatch.setenv("MARKETOPS_QUAY_CLI", "/bin/true")
-    monkeypatch.setenv("MARKETOPS_QUAY_NODE", sys.executable)
-    monkeypatch.setenv("MARKETOPS_QUAY_ROOT", str(tmp_path / "quay-root"))
-    (tmp_path / "quay-root").mkdir()
+    monkeypatch.setenv("MARKETOPS_DISPATCH_ROOT", str(tmp_path / "board"))
 
     assert _serve() == 0
     assert during_run, "前提没成立：run 一次都没被调到"
@@ -577,10 +570,7 @@ def test_a_serve_that_cannot_publish_its_build_refuses_to_serve(tmp_path, monkey
     monkeypatch.setattr(MCPServer, "run", lambda self, **kwargs: ran.append(1))
     monkeypatch.setenv("MARKETOPS_DATA_ROOT", str(data_root))
     monkeypatch.setenv("MARKETOPS_MCP_TOKENS", str(_ring(tmp_path, ("claude-control", "controller"))))
-    monkeypatch.setenv("MARKETOPS_QUAY_CLI", "/bin/true")
-    monkeypatch.setenv("MARKETOPS_QUAY_NODE", sys.executable)
-    monkeypatch.setenv("MARKETOPS_QUAY_ROOT", str(tmp_path / "quay-root"))
-    (tmp_path / "quay-root").mkdir()
+    monkeypatch.setenv("MARKETOPS_DISPATCH_ROOT", str(tmp_path / "board"))
     state = load_settings().state_dir
     load_settings().ensure_data_dirs()
     assert state.is_dir(), "前提：目录树已经按正常路建齐"

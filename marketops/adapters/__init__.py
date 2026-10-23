@@ -30,7 +30,7 @@
 
 **本包是唯一允许 import 厂商模块的地方。** 这条由
 ``tests/test_adapters_hold_the_vendors.py`` 执行，不是靠自觉 —— §2 的
-「业务代码不得直接依赖 Serper / Jev / Laya / Crawl4AI / Quay 的 API」如果只是
+「业务代码不得直接依赖 Serper / Jev / Laya / Crawl4AI / 执行器的 API」如果只是
 一句写在文档里的话，第一个赶时间的人就会在 pipeline 里直接 ``import httpx``。
 
 ``document_router`` 曾经在这一行里，B7a 搬走了（``application/document_router.py``

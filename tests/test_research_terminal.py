@@ -2,11 +2,11 @@
 
 ## 这一条修的是哪一种不一致
 
-外部那套（Quay）判一件工作「做完了没有」，问的是**软件工程**的问题：worker 的
+外部那套（执行器）判一件工作「做完了没有」，问的是**软件工程**的问题：worker 的
 产出有没有合进 ``develop``、有没有留下 worktree。本仓的研究工作单元不产出提交、
 不跑 fan-in、也没有 worktree，于是那个判据在它身上**恒为假**：
 
-    2026-09-23 实测（``artifacts/marketops-mvp-quay/.quay/worker-outcome.jsonl``）：
+    2026-09-23 实测（外部执行器写下的 ``worker-outcome.jsonl``）：
     {"task": "MOPS-11ed121a-688a5fe8", "final_state": "exited-not-landed",
      "failure_reason": "worktree state unreadable (git worktree list failed)"}
 
@@ -44,7 +44,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from marketops.adapters.memory import InMemoryJobStore
-from marketops.adapters.quay_cli import read_worker_outcomes
+from marketops.adapters.dispatch_outcomes import read_worker_outcomes
 from marketops.application.dispatch import (
     INITIAL_EXTERNAL_STATUS,
     WorkDispatch,
@@ -121,8 +121,8 @@ def _settle(store: JobStore, item: WorkItem, reason: StopReason) -> None:
 
 
 def _write_outcomes(root: Path, rows: Sequence[dict[str, object]]) -> None:
-    """把外部那本账写下来 —— 形状照 ``worker-outcome.jsonl`` 的每一行一条 JSON。"""
-    path = root / ".quay" / "worker-outcome.jsonl"
+    """把派发那一侧的退出账写下来 —— 一行一条 JSON，形状与读器一致。"""
+    path = root / "outcomes.jsonl"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows),
@@ -149,7 +149,7 @@ def _receipt(
     item: WorkItem,
     *,
     outcomes: Sequence[dict[str, object]] = (),
-    quay_root: Path | None = None,
+    outcomes_root: Path | None = None,
     dry_run: bool = True,
 ):
     """把工具的接线原样走一遍：**读库、读外面、读外部那本账**，然后组装回执。"""
@@ -165,8 +165,8 @@ def _receipt(
     )
     rows = (
         ()
-        if quay_root is None or ref is None
-        else read_worker_outcomes(quay_root, ref.quay_task_id)
+        if outcomes_root is None or ref is None
+        else read_worker_outcomes(outcomes_root, ref.dispatch_task_id)
     )
     assert len(rows) == len(outcomes), "外部那本账没被读成预期的行数"
     return research_terminal(
@@ -182,7 +182,7 @@ def _receipt(
 # ----------------------------------------------------------------------
 # 1. 主判据：业务完成 ⇒ 出池，即便外部判了 exited-not-landed
 # ----------------------------------------------------------------------
-def test_a_settled_research_task_leaves_the_pool_even_though_quay_judged_it_not_landed(
+def test_a_settled_research_task_leaves_the_pool_even_though_the_worker_judged_it_not_landed(
     tmp_path: Path,
 ) -> None:
     """这一条就是 §1 要的那条测试本身。"""
@@ -192,13 +192,13 @@ def test_a_settled_research_task_leaves_the_pool_even_though_quay_judged_it_not_
     _settle(store, item, StopReason.GOAL_MET)
     WorkDispatch(jobs=store, dispatcher=outside).reconcile(item.work_item_id)
 
-    quay_root = tmp_path / "quay"
+    outcomes_root = tmp_path / "outcomes"
     line = _outcome_line(ref_task_id(store, item))
-    _write_outcomes(quay_root, [line])
+    _write_outcomes(outcomes_root, [line])
 
     after = store.get_work_item(item.work_item_id)
     assert after is not None
-    receipt = _receipt(store, outside, after, outcomes=[line], quay_root=quay_root)
+    receipt = _receipt(store, outside, after, outcomes=[line], outcomes_root=outcomes_root)
 
     assert receipt.authoritative == "done"
     assert receipt.complete is True
@@ -240,7 +240,7 @@ def test_an_item_whose_board_never_converged_stays_in_the_pool(tmp_path: Path) -
 def ref_task_id(store: JobStore, item: WorkItem) -> str:
     ref = store.execution_ref(item.work_item_id)
     assert ref is not None
-    return ref.quay_task_id
+    return ref.dispatch_task_id
 
 
 # ----------------------------------------------------------------------
@@ -272,7 +272,7 @@ def test_the_code_landing_criterion_is_labelled_not_applicable_and_never_failed(
 # ----------------------------------------------------------------------
 # 4. 权威来自结算，不是来自外部那本账
 # ----------------------------------------------------------------------
-def test_the_authoritative_terminal_comes_from_the_settlement_not_from_quay() -> None:
+def test_the_authoritative_terminal_comes_from_the_settlement_not_from_the_worker() -> None:
     """两个方向各有一格：结算了的是终态，没结算的**没有**终态。
 
     「没结算就没有终态」那一格是判据的判别力所在：把它写成 ``None`` 之外的东西
@@ -318,7 +318,7 @@ def test_the_job_report_carries_the_authoritative_research_terminal(settings, tm
 
     write_accounts(settings, "wired-2026", ("kent-004",))
     outside = FakeDispatcher()
-    quay_root = tmp_path / "quay"
+    outcomes_root = tmp_path / "outcomes"
 
     token, digest = mint("claude-control", [Role.CONTROLLER])
     ring_path = settings.data_root / "wired-tokens.json"
@@ -338,9 +338,9 @@ def test_the_job_report_carries_the_authoritative_research_terminal(settings, tm
             token=token,
             calls=((tool, arguments),),
             want_tool_list=False,
-            quay=outside,
+            dispatcher=outside,
             jobs=store,
-            worker_outcomes=lambda task_id: read_worker_outcomes(quay_root, task_id),
+            worker_outcomes=lambda task_id: read_worker_outcomes(outcomes_root, task_id),
         )
         assert not outcome.handshake_error, outcome.handshake_error
         call = outcome.call(tool)
@@ -367,8 +367,8 @@ def test_the_job_report_carries_the_authoritative_research_terminal(settings, tm
 
     ref = jobs.execution_ref(item.work_item_id)
     assert ref is not None
-    line = _outcome_line(ref.quay_task_id)
-    _write_outcomes(quay_root, [line])
+    line = _outcome_line(ref.dispatch_task_id)
+    _write_outcomes(outcomes_root, [line])
 
     body = session("get_job", {"job_id": job_id})
     block = body["research_terminals"]
@@ -378,9 +378,9 @@ def test_the_job_report_carries_the_authoritative_research_terminal(settings, tm
     terminal = block["items"][0]
     assert terminal["authoritative"] == "done"
     assert terminal["complete"] is True
-    assert terminal["external"]["quay_final_state"] == "exited-not-landed"
+    assert terminal["external"]["dispatch_final_state"] == "exited-not-landed"
     assert terminal["external"]["code_landing"] == CODE_LANDING_NOT_APPLICABLE
-    assert terminal["external"]["quay_records"] == 1
+    assert terminal["external"]["dispatch_records"] == 1
 
 
 def test_an_unreadable_worker_ledger_is_not_reported_as_zero_records(settings, tmp_path) -> None:
@@ -400,8 +400,8 @@ def test_an_unreadable_worker_ledger_is_not_reported_as_zero_records(settings, t
 
     write_accounts(settings, "wired-bad-2026", ("kent-004",))
     outside = FakeDispatcher()
-    quay_root = tmp_path / "quay"
-    _write_outcomes(quay_root, [])  # 目录存在、账本存在
+    outcomes_root = tmp_path / "outcomes"
+    _write_outcomes(outcomes_root, [])  # 目录存在、账本存在
 
     token, digest = mint("claude-control", [Role.CONTROLLER])
     ring_path = settings.data_root / "wired-bad-tokens.json"
@@ -421,9 +421,9 @@ def test_an_unreadable_worker_ledger_is_not_reported_as_zero_records(settings, t
             token=token,
             calls=((tool, arguments),),
             want_tool_list=False,
-            quay=outside,
+            dispatcher=outside,
             jobs=store,
-            worker_outcomes=lambda task_id: read_worker_outcomes(quay_root, task_id),
+            worker_outcomes=lambda task_id: read_worker_outcomes(outcomes_root, task_id),
         )
         assert not outcome.handshake_error, outcome.handshake_error
         call = outcome.call(tool)
@@ -448,11 +448,11 @@ def test_an_unreadable_worker_ledger_is_not_reported_as_zero_records(settings, t
     assert ref is not None
 
     # 结算之后把那一行弄坏 —— 这是「文件在、读不动」，不是「文件不在」。
-    (quay_root / ".quay" / "worker-outcome.jsonl").write_text("{ 这不是 JSON\n", encoding="utf-8")
+    (outcomes_root / "outcomes.jsonl").write_text("{ 这不是 JSON\n", encoding="utf-8")
 
     terminal = session("get_job", {"job_id": job_id})["research_terminals"]["items"][0]
 
     assert terminal["authoritative"] == "done", "附注读坏了，正文照常"
-    assert terminal["external"]["quay_records"] is None, "报 0 就是把它说成「外面没记过」"
-    assert terminal["external"]["quay_read_error"]
+    assert terminal["external"]["dispatch_records"] is None, "报 0 就是把它说成「外面没记过」"
+    assert terminal["external"]["dispatch_read_error"]
     del job_id

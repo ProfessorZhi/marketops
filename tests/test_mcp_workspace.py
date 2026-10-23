@@ -659,7 +659,7 @@ def foreign_assignment(settings: Settings) -> tuple[str, str]:
         synthetic_dossiers("foreign-devon-01"),
         scene=load_profile(settings).scene_files,
     )
-    store.map_execution(item.work_item_id, quay_task_id="quay-task-foreign")
+    store.map_execution(item.work_item_id, dispatch_task_id="dispatch-task-foreign")
     attempt = store.lease(item.work_item_id, holder=OPERATOR)
     return item.work_item_id, attempt.attempt_id
 

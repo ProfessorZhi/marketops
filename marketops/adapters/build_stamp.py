@@ -100,7 +100,7 @@ def _run_git(root: Path, argv: Sequence[str]) -> GitResult:
     ``GIT_DIR`` / ``GIT_WORK_TREE`` / ``GIT_INDEX_FILE`` 一旦在环境里，``-C`` 就
     不再是「哪棵树」的唯一定位来源（``GIT_DIR`` 优先于它）。继承环境会让「这份回执
     说的是哪棵树」取决于启动这个服务的那个人当时站在什么 shell 里 —— 而这一格要答
-    的正是「哪棵树」。形状与 ``quay_cli._minimal_env`` 相同，只少一项（那边把 node
+    的正是「哪棵树」。形状与 ``构建回执那一族的 _minimal_env`` 相同，只少一项（那边把 node
     所在目录放进 ``PATH``，因为对面内部会再起一个 node）。
     """
     full = ["git", "--no-optional-locks", "-C", str(root), *argv]
