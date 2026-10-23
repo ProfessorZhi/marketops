@@ -1,15 +1,53 @@
 # docs/ —— 从这里开始
 
-更新：2026-09-27。先分清四件事：**业务来源是什么、产品应当怎样工作、代码已经有什么、某次部署实际通过了什么**。它们不能用一份“当前状态”混在一起。
+更新：2026-10-23。先分清四件事：**业务来源是什么、产品应当怎样工作、代码已经有什么、某次部署实际通过了什么**。它们不能用一份“当前状态”混在一起。
 
 MarketOps 的对外交付形态收敛为 **一个可安装的 MarketOps 插件/主 Skill + 一个持久化业务 MCP**。Member-A 可从多个 Codex/WorkBuddy session 连接同一服务；任务、事实、Watch、Action、Schedule 与 Notification 都在服务端。客户端、供应商适配器和飞书投影都不是另一个业务后端。
 
+## 文档地图
+
+```mermaid
+flowchart TD
+    ROOT["根 README<br/>当前事实 · 安装 · 架构图"]
+
+    subgraph NOW["当前事实"]
+        A1["ARCHITECTURE.md<br/>主架构与边界"]
+        A2["MCP_SERVICE.md<br/>工具目录与合同"]
+        A3["DATA_MODEL.md / SOP_MAPPING.md<br/>数据契约与业务规则"]
+        A4["DEVELOPMENT_INFRASTRUCTURE.md<br/>开发拓扑"]
+    end
+
+    subgraph FROZEN["冻结的历史盘点（不改写）"]
+        F1["CURRENT_STATE.md<br/>origin/main @ 9a4fe4e"]
+        F2["MVP_ACCEPTANCE_REPORT*.md<br/>各自 build 的回执"]
+    end
+
+    subgraph DESIGN["设计依据与专项方案"]
+        D1["MULTI_SESSION_PLUGIN_AND_NOTIFICATION_ARCHITECTURE.md"]
+        D2["PRODUCT_LINE_AND_SCENE_MODEL.md"]
+        D3["ACQUISITION_AND_PROVIDER_DESIGN.md"]
+        D4["DEPLOYMENT.md / NOT_BUILT.md"]
+    end
+
+    ROOT --> NOW
+    ROOT --> FROZEN
+    ROOT --> DESIGN
+    NOW --> F1
+    NOW --> F2
+```
+
+**读图规则**：箭头只表示「先看哪个」，不表示覆盖关系。冻结盘点里的事实只在它注明的
+revision 上成立；今天的结论要么写在当前事实类文档里，要么以新构建的追加回执出现。
 
 ## 当前入口：Member-A 自动化设计与执行
 
 先读 [主架构](ARCHITECTURE.md) → [插件/多Session/通知](MULTI_SESSION_PLUGIN_AND_NOTIFICATION_ARCHITECTURE.md) → [共享市场/Scene业务模型](PRODUCT_LINE_AND_SCENE_MODEL.md) → [采集与供应商接入](ACQUISITION_AND_PROVIDER_DESIGN.md) → [统一执行计划](MEMBER_A_AUTOMATION_EXECUTION_PLAN.md)。长期控制/数据机制见 [增量设计](MEMBER_A_AUTOMATION_ARCHITECTURE.md)，证据见 [2026-09-26](research/MEMBER_A_AUTOMATION_EVIDENCE_2026-09-26.md) 与 [2026-09-27](research/MARKET_MODEL_ACCESS_REVIEW_2026-09-27.md)。
 
-本轮固定产品 `df689f52`、分析 `06cdae4`；两份 PR 尚未合并。目标先 R1 无人工桥研究，再 R2 持续经营；Jev required，Laya/ServerOS/Docker/生产外联 deferred。历史 Research v1 仍为 NOT_READY，本次文档不是通过验收。
+本节记录的 `df689f52` / `06cdae4` 与「两份 PR 尚未合并」是 **2026-09-27 那个时点**的
+状态。之后仓库已推进到 release candidate（插件版本见
+`plugins/research-tools/marketops-research-assistant/.claude-plugin/plugin.json`）；
+要判断当下，读该文件、`git log main` 与实际运行回执，不要拿本节当实时状态。
+Jev 仍为 required，Laya/ServerOS/Docker/生产外联仍为 deferred。
 
 以下保留专题导航；其中 2026-09-23 盘点只在原 revision 上成立。当前工具是核心研究目录与产品环目录的并集，不是总计只有 15 个。
 
