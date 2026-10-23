@@ -45,6 +45,10 @@ _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 #: A run of text between list separators: line breaks, bullets, bars, colons,
 #: commas, brackets, and a dash with spaces around it ("Club X - Président").
 _SEGMENT = re.compile(r"(?:(?!\s[-–—]\s)[^\n•|·;:,()\[\]])+")
+#: Capitalised words, joined by the small words names keep ("Union Sportive du
+#: Gros-Caillou", "Club of the Year"); digits count ("Paris 7", "1er").
+_RUN = re.compile(r"[A-ZÀ-ÖØ-Þ0-9][\w'’.&-]*(?:\s+(?:(?:du|de|des|la|le|les|d'|of|the|and|et|&|sur|en|aux?)\s+)*"
+                  r"[A-ZÀ-ÖØ-Þ0-9][\w'’.&-]*)*")
 
 
 def _registrable(host: str) -> str:
@@ -75,23 +79,21 @@ def candidates(text: str, email: str) -> list[dict]:
         left = left[previous[-1].end():]
     start = at - len(left)
     found, seen = [], set()
-    for match in _SEGMENT.finditer(left):
-        segment = match.group(0).strip(" -–—,.")
-        words = segment.split()
-        if not 1 <= len(words) <= 9 or len(segment) < 3:
-            continue
-        if not (_BODY.search(segment) or (len(words) >= 2 and sum(w[:1].isupper() for w in words) >= 2)):
-            continue
-        if re.search(r"\b(tél|tel|e-?mail|courriel|mail|contact|phone|adresse|site)\b", segment, re.I) \
-                and not _BODY.search(segment):
-            continue
-        key = segment.casefold()
-        if key in seen:
-            continue
-        seen.add(key)
-        found.append({"name": segment, "start": start + match.start() + (len(match.group(0))
-                                                                     - len(match.group(0).lstrip(" -–—,."))),
-                      "body_word": bool(_BODY.search(segment))})
+    for segment in _SEGMENT.finditer(left):
+        # Pages often lose their line breaks when rendered ("... du 7e arrondissement
+        # Badminton Club Paris 7 - Président"), so a candidate is a run of
+        # capitalised words inside a segment, and it must name a kind of body:
+        # a person's name printed next to the address is never an organisation.
+        for run in _RUN.finditer(segment.group(0)):
+            name = run.group(0).strip(" -–—,.")
+            words = name.split()
+            if not 1 <= len(words) <= 9 or len(name) < 3 or not _BODY.search(name):
+                continue
+            if name.casefold() in seen:
+                continue
+            seen.add(name.casefold())
+            offset = start + segment.start() + run.start() + (len(run.group(0)) - len(run.group(0).lstrip(" -–—,.")))
+            found.append({"name": name, "start": offset, "body_word": True})
     return found
 
 
@@ -111,7 +113,7 @@ def split(text: str, routes: list[dict], *, choose=None) -> list[dict]:
             continue
         email = route["value"]
         found = candidates(text, email)
-        bodies = [c for c in found if c["body_word"]] or found
+        bodies = found
         pick = None
         if len(bodies) == 1:
             pick = bodies[0]

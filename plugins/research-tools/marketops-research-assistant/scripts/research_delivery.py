@@ -599,6 +599,8 @@ def evaluate_admission(records: list[dict], artifacts, links: list[dict],
     # Hosts on which exactly one admitted organisation has an identity quote.
     site_claims: dict[str, set[str]] = defaultdict(set)
     for key, org in org_by_key.items():
+        if (org.get("data") or {}).get("listed_on"):
+            continue  # a club printed on a town's list does not own the town's site
         for field, _quote, artifact_id in prepared[org["record_id"]][3]:
             host, directory = _artifact_site(assets.get(artifact_id))
             if field == "identity" and host and not directory:

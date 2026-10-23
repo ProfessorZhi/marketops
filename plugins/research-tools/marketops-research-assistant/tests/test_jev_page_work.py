@@ -116,3 +116,62 @@ class Screen(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HarvestWithJev(unittest.TestCase):
+    """The page work inside a real harvest: staged records pass the evidence gate."""
+
+    HOME = "https://mairie07.paris.fr/"
+    PAGE = ("<html><body><h1>Mairie du 7e arrondissement</h1><p>Associations sportives</p>"
+            + "".join(f"<p>{line}</p>" for line in DIRECTORY.splitlines()) + "</body></html>")
+
+    def setUp(self):
+        import tempfile
+        import research_lite_store as store
+        self.store = store
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name) / "data"
+        store.start_run(self.root, "jev-run", "synthetic", "clubs", "rules")
+
+    def fetch(self, url, operation_id):
+        if url != self.HOME:
+            return {"status": "HOLD", "reason_code": "SOURCE_ACCESS_BLOCKED"}
+        artifact = "art-" + operation_id
+        self.store.save_artifact(self.root, "jev-run", artifact, "crawl4ai", url,
+                                 self.PAGE.encode(), "rendered_html")
+        return {"status": "SUCCESS_CANDIDATE", "artifact_ids": [artifact],
+                "primary_artifact_ids": [artifact]}
+
+    def harvest(self, jev, question=""):
+        import research_site_harvest as harvest
+        return harvest.harvest(self.root, run_id="jev-run", operation_id="h1",
+                               organization_name="Mairie du 7e arrondissement",
+                               organization_key="org-mairie7", url=self.HOME, fetch=self.fetch,
+                               max_pages=2, jev_ask=jev, screen_question=question)
+
+    def test_clubs_on_a_town_list_become_their_own_organisations(self):
+        jev = Fake({"contact@tc-invalides": ("org_1", 0.93)})
+        result = self.harvest(jev)
+        records = self.store.list_run(self.root, "jev-run")["records"]
+        orgs = {r["data"]["name"]: r["entity_key"] for r in records if r["kind"] == "organization"}
+        self.assertIn("Badminton Club Paris 7", orgs)
+        self.assertIn("Tennis Club Invalides", orgs)
+        contacts = {r["data"]["value"]: r["data"] for r in records if r["kind"] == "contact_point"}
+        self.assertEqual(orgs["Badminton Club Paris 7"], contacts["bcp7@orange.fr"]["organization_id"])
+        self.assertEqual("org-mairie7", contacts["sports7@paris.fr"]["organization_id"])
+        self.assertTrue(all(d["admitted"] for d in harvest_admission(self.root, result)),
+                        harvest_admission(self.root, result))
+
+    def test_a_sure_out_of_scope_site_is_not_staged(self):
+        result = self.harvest(Fake({"Research target": ("out_of_scope", 0.97)}),
+                              question="Research target: natural-grass pitch operators in Paris.")
+        self.assertTrue(result["screen"]["stop"])
+        self.assertEqual([], result["routes"])
+        self.assertTrue(result["next_action"].startswith("SCREENED_OUT"))
+        self.assertEqual([], self.store.list_run(self.root, "jev-run")["records"])
+
+
+def harvest_admission(root, result):
+    import research_site_harvest as harvest
+    return harvest.admission_for(root, "jev-run", result["record_ids"])

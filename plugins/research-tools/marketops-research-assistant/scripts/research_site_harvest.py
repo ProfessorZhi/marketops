@@ -398,10 +398,30 @@ def _evidence_artifact(receipt: dict) -> str:
     return ""
 
 
+def _jev_page_work(texts: dict, routes: dict, ask) -> None:
+    """Directory split, then name fill, on each saved page's own routes (in place)."""
+    import research_grading
+    import research_jev_pages
+    by_page = {}
+    for route in routes.values():
+        by_page.setdefault(route["artifact_id"], []).append(route)
+    for artifact_id, page_routes in by_page.items():
+        text = texts.get(artifact_id)
+        if not text:
+            continue
+        for split in research_jev_pages.split_directory(text, page_routes[0]["url"], page_routes,
+                                                        artifact_id, ask):
+            split["route"].update(directory_org=split["organization"], quote=split["quote"])
+        research_jev_pages.fill_names(
+            text, page_routes, artifact_id, ask,
+            has_name=lambda email, quote: bool(research_grading._name_in_quote(email, [("", quote)])))
+
+
 def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str,
             organization_key: str, url: str, fetch, max_pages: int = 6,
             write: bool = True, check_admission: bool = True, grade=None,
-            time_budget_seconds: float | None = None, focus: str = "") -> dict:
+            time_budget_seconds: float | None = None, focus: str = "",
+            jev_ask=None, screen_question: str = "") -> dict:
     """Fetch, extract and (optionally) stage one organisation's own-site routes.
 
     ``fetch(url, operation_id)`` is the managed known-public-URL step; it must
@@ -413,6 +433,11 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
     organisation replays its finished pages instead of fetching them again.
     ``time_budget_seconds`` stops opening new pages once spent (hosts cut a
     tool call off at about 60 s); the result says to call again, which resumes.
+
+    ``jev_ask`` (see `research_jev_pages`) lets Jev settle what code cannot: which
+    club on a directory page owns an address, which printed name an address
+    belongs to, and, with ``screen_question``, whether the site is a target at
+    all (a sure competitor or out-of-scope site is not crawled or staged).
     """
     started = time.monotonic()
     if not isinstance(organization_name, str) or not 3 <= len(organization_name.strip()) <= 200:
@@ -428,6 +453,7 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
     root = Path(store._root(data_root))
 
     pages, queue, routes, identity, obfuscated = [], [url], {}, None, 0
+    texts, screened = {}, None
     scope = hashlib.sha256(organization_key.encode()).hexdigest()[:8]
     out_of_time = False
     while queue and len(pages) < max_pages:
@@ -454,6 +480,12 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
         material = store.read_artifact(root, run_id, artifact_id)
         raw = evidence.decode_material(material["content"])
         text = _readable(material["material_kind"], raw)
+        texts[artifact_id] = text
+        if len(pages) == 1 and jev_ask is not None and screen_question:
+            import research_jev_pages
+            screened = research_jev_pages.screen(artifact_id, screen_question, jev_ask)
+            if screened["stop"]:
+                break  # a sure competitor or out-of-scope site: read no further
         if len(pages) == 1:
             anchors = raw + "".join(f'<a href="{link}"></a>'
                                     for link in _envelope_links(root, run_id, receipt))
@@ -480,6 +512,8 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
             if key not in routes:
                 routes[key] = {**route, "artifact_id": artifact_id, "url": page_url}
 
+    if jev_ask is not None and not (screened or {}).get("stop"):
+        _jev_page_work(texts, routes, jev_ask)
     if grade is not None:
         # Jev tags who each email reaches; a ranking aid, never evidence. The
         # calls are independent, so they run side by side within the host timeout.
@@ -497,6 +531,14 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
               "pages": pages, "identity": identity, "routes": list(routes.values()),
               "obfuscated_emails_not_decoded": obfuscated,
               "business_verified": False, "written": [], "admission": []}
+    if screened is not None:
+        result["screen"] = screened
+    if (screened or {}).get("stop"):
+        result["routes"] = []
+        result["next_action"] = ("SCREENED_OUT: Jev judged this site " + str(screened["choice"])
+                                 + f" at {screened['confidence']}; nothing staged. Reopen the "
+                                 "target if the brief says otherwise")
+        return result
     if not pages[0]["artifact_id"]:
         result["next_action"] = ("SITE_UNREACHABLE: " + (pages[0]["reason_code"] or "NO_MATERIAL")
                                  + "; record HOLD with this cause or use another authorised source")
@@ -521,13 +563,34 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
                           {"field": "identity", "artifact_id": identity["artifact_id"],
                            "quote": identity["quote"]}]},
                       "artifact_ids": [identity["artifact_id"]]})
+    listed = {}
     for route in result["routes"]:
-        entity = f"{organization_key}-{route['type']}-" + hashlib.sha256(
+        club = route.get("directory_org")
+        if club and club["entity_key"] not in listed:
+            # A club printed on this page's list: its own organisation, quoted from
+            # the list entry that names it and prints its address.
+            listed[club["entity_key"]] = True
+            if not _exists(root, run_id, "entity_key", club["entity_key"], kind="organization"):
+                items.append({"record_id": _record_id(run_id, club["entity_key"], "org"),
+                              "stage": "entities", "kind": "organization",
+                              "entity_key": club["entity_key"],
+                              "facts": {"name": club["name"], "listed_on": route["url"],
+                                        "listed_by_organization_id": organization_key,
+                                        "found_by": "DIRECTORY_SPLIT", "claims": [
+                                  {"field": "identity", "artifact_id": route["artifact_id"],
+                                   "quote": route["quote"]}]},
+                              "artifact_ids": [route["artifact_id"]]})
+    for route in result["routes"]:
+        owner = (route.get("directory_org") or {}).get("entity_key") or organization_key
+        entity = f"{owner}-{route['type']}-" + hashlib.sha256(
             route["value"].casefold().encode()).hexdigest()[:10]
         items.append({"record_id": _record_id(run_id, entity), "stage": "routes",
                       "kind": "contact_point", "entity_key": entity,
-                      "facts": {"organization_id": organization_key, "type": route["type"],
+                      "facts": {"organization_id": owner, "type": route["type"],
                                 "value": route["value"], "source_url": route["url"],
+                                **({"person_name": route["person_name"],
+                                    "person_name_by": route.get("name_by", "")}
+                                   if route.get("person_name") else {}),
                                 # Jev's tag ranks the route for people; it is not evidence.
                                 **({"jev_role": route["role"],
                                     "jev_confidence": route.get("confidence")}

@@ -1264,6 +1264,36 @@ def _hits(answer):
     return []
 
 
+def _jev_ask(run_id: str):
+    """``ask(artifact_id, locator, question, options) -> (choice, confidence)`` for
+    the harvest's page work; one Jev choice, read around ``locator`` when given."""
+    def ask(artifact_id, locator, question, options):
+        op = "jp-" + hashlib.sha256(json.dumps(
+            [run_id, artifact_id, locator, question, options]).encode()).hexdigest()[:24]
+        answer = invoke("jev_choice", run_id, op, document=artifact_id, question=question,
+                        options=options, primitive="choice", evidence_query=locator)
+        judgment = ((answer.get("payload") or {}).get("judgments") or {}).get("judgment") or {}
+        return judgment.get("choice"), judgment.get("confidence")
+    return ask
+
+
+def _screen_question(run_id: str) -> str:
+    """The brief's screening question, or "" when the brief switched screening off."""
+    import research_jev_pages
+    try:
+        snapshot = store.list_run(root(), run_id, limit=50)
+    except (ValueError, KeyError):
+        return ""
+    brief = {}
+    for record in snapshot["records"]:
+        data = record.get("data") or {}
+        if data.get("record_type") == "research_brief":
+            brief = data
+    if brief.get("screen") is False:
+        return ""
+    return research_jev_pages.screen_question(brief, str(snapshot.get("objective") or ""))
+
+
 def _brief_roles(run_id: str) -> str:
     """The brief's roles_wanted, so Jev tags routes without the Agent repeating them."""
     try:
@@ -1328,7 +1358,7 @@ def jev_triage(run_id, operation_id, artifact_ids, question, options, threshold=
 
 def invoke(action, run_id, operation_id, url="", query="", document="",
            question="", options=None, primitive="choice", mcp_params=None,
-           paid_limit_usd="", ledger_grant=""):
+           paid_limit_usd="", ledger_grant="", evidence_query=""):
     if action == "crawl4ai_local":
         capability, params = "crawl4ai.fetch_page", {"url": url}
     elif action == "tinyfish_mcp_search":
@@ -1355,6 +1385,9 @@ def invoke(action, run_id, operation_id, url="", query="", document="",
                                                  "question": question}
         if primitive == "choice":
             params["options"] = options
+            if evidence_query:
+                # Read the part of the page around this phrase, not the page head.
+                params["evidence_query"] = evidence_query[:60]
         elif primitive == "score":
             params["scale"] = options
     else:
@@ -1735,6 +1768,11 @@ def _with_budget(fn):
 def build_server():
     from research_credentials import load_into_environment
     load_into_environment()
+    try:
+        import research_key_slots
+        research_key_slots.apply(root())
+    except (ValueError, OSError):
+        pass  # no data root yet: slot 1, as configured
     # Direct by default; only an explicitly configured proxy changes that.
     research_config.load_upstream_proxy_into_environment()
     _use_installed_browser()
@@ -2044,7 +2082,8 @@ def build_server():
             url=url, fetch=fetch, max_pages=max_pages, write=write,
             grade=_role_grader(run_id, roles_wanted),
             time_budget_seconds=HARVEST_TIME_BUDGET_SECONDS,
-            focus=roles_wanted.strip() or _brief_roles(run_id))
+            focus=roles_wanted.strip() or _brief_roles(run_id),
+            jev_ask=_jev_ask(run_id), screen_question=_screen_question(run_id))
 
     def _role_grader(run_id, roles_wanted):
         roles_wanted = roles_wanted.strip() or _brief_roles(run_id)
@@ -2058,7 +2097,9 @@ def build_server():
             answer = invoke("jev_choice", run_id, op, document=route["artifact_id"],
                             question=(f"Who does the contact {route['value']} on this page belong "
                                       f"to? Wanted roles: {roles_wanted.strip()[:200]}."),
-                            options=ROLE_OPTIONS, primitive="choice")
+                            options=ROLE_OPTIONS, primitive="choice",
+                            # Around the address: the page head may not even print it.
+                            evidence_query=route["value"] if len(route["value"]) <= 60 else "")
             judgment = ((answer.get("payload") or {}).get("judgments") or {}).get("judgment") or {}
             return {"role": judgment.get("choice") or "unclear",
                     "confidence": judgment.get("confidence")}
@@ -2214,10 +2255,22 @@ def build_server():
         returns ask_now=true once per account; record the answer with marketops_costs
         set_balance, or continue with UNKNOWN if the user does not know. Account
         registration and key changes use the local research_accounts.py CLI (stdin).
+        action='slots' shows which Serper/SerpApi key slot is in use; action='use_slot',
+        account_ref='serper:2' switches to the second key. Switch only when the user
+        tells you to (a slot is one of their accounts); never to dodge a limit yourself.
         """
         import research_accounts
         if action == "status":
             return research_accounts.status(root())
+        if action in {"use_slot", "slots"}:
+            # Serper/SerpApi second key: switched only on the user's word.
+            import research_key_slots
+            if action == "slots":
+                return research_key_slots.status(root())
+            provider, _, slot = account_ref.partition(":")
+            if not slot.isdigit():
+                raise ValueError("KEY_SLOT_INVALID: account_ref='serper:2' or 'serpapi:1'")
+            return research_key_slots.use(root(), provider, int(slot))
         if action == "ask_balance":
             accounts = research_accounts.status(root())["accounts"]
             if account_ref not in {a["account_ref"] for a in accounts}:
@@ -2360,7 +2413,8 @@ def build_server():
             max_pages=max_pages, grade=_role_grader(run_id, roles_wanted),
             find_site=lambda target, op: find_official_site(run_id, op, target,
                                                             country, language),
-            focus=roles_wanted.strip() or _brief_roles(run_id))
+            focus=roles_wanted.strip() or _brief_roles(run_id),
+            jev_ask=_jev_ask(run_id), screen_question=_screen_question(run_id))
         if parked["parked"]:
             result["source_gate_parked"] = parked
         return result

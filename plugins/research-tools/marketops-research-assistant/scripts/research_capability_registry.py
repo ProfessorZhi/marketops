@@ -1273,7 +1273,8 @@ DEFAULT_REGISTRY = CapabilityRegistry((
     # -- TypeSafe Jev: Python SDK ------------------------------------------
     build_entry("jev.choice", "typesafe_jev", "choice", "python_sdk", EffectClass.BILLABLE_READ,
            Tier.T2, "typesafe_jev:judge", "request",
-           {"artifact_id": "string", "question": "string", "options": "array"},
+           {"artifact_id": "string", "question": "string", "options": "array",
+            "evidence_query": "string"},
            "judge", description="Typed choice over server-held evidence; input pinned to an "
                                 "artifact, never to Agent-supplied text."),
     build_entry("jev.noul", "typesafe_jev", "noul", "python_sdk", EffectClass.BILLABLE_READ,

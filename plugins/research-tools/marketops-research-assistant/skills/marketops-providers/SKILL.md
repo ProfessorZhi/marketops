@@ -71,6 +71,10 @@ use it for those, sparingly.
 - **At the start of a task**: `marketops_costs(action='balances')` reads SerpApi and TinyFish
   accounts (free) and shows Serper/Jev from the last balance the user entered. Tell the user in one
   line what is left. `marketops_setup_status` lists `low_balance_warnings`.
+- **Second key (Serper, SerpApi)**: `marketops_accounts(action='slots')` shows which slot is in
+  use. When slot 1 runs out, tell the user and switch only when they say so:
+  `marketops_accounts(action='use_slot', account_ref='serper:2')`, then read balances. Never
+  switch on your own to get past a limit.
 - **If Serper or Jev show no balance**: read `marketops_accounts()`; only for
   `ask_balance_once=true`, claim `marketops_accounts(action='ask_balance', account_ref=<ref>)`
   and ask if it returns `ask_now=true`. Record the console's current available amount using

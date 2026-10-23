@@ -95,6 +95,11 @@ Save it with `marketops_start(..., brief=...)`. Fields:
 - `source_gate`: leave it out. By default each source's first 30 finished targets decide whether
   the rest of that source is researched (A+B accounts ≥10% go on, 5–10% change approach once,
   <5% parked). `{pilot:20}` for small pools; `false` only if the user asks for every target.
+- Screening (Jev, one question on each target's first page): give `screen_in_scope` (who is a
+  target, one line), `screen_competitors` (who sells what the user sells) and
+  `screen_out_of_scope` (kinds of body to skip). A site Jev is sure (≥0.9) is a competitor or
+  out of scope is not crawled or staged; it holds with `SCREENED_OUT` and can be reopened.
+  Without these the objective is used; `screen:false` switches screening off.
 - Changing the goal later: a new brief record with `facts.supersedes`; never lower a goal to pass.
 
 ## Source pool: find the whole list first

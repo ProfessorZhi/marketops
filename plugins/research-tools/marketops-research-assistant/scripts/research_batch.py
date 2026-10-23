@@ -136,7 +136,8 @@ def _settle_result(data_root, *, pool_id, worker_id, run_id, item):
 def harvest_batch(data_root, *, pool_id: str, worker_id: str, run_id: str, fetch,
                   count: int = 20, concurrency: int = 4, max_pages: int = 5,
                   lease_minutes: int = 10, grade=None, find_site=None, focus: str = "",
-                  deadline_seconds: float = DEADLINE_SECONDS) -> dict:
+                  deadline_seconds: float = DEADLINE_SECONDS, jev_ask=None,
+                  screen_question: str = "") -> dict:
     """Lease `count` targets, harvest each own site, complete them in the pool.
 
     `grade(route)` (Jev, when the caller names the wanted roles) returns
@@ -199,7 +200,8 @@ def harvest_batch(data_root, *, pool_id: str, worker_id: str, run_id: str, fetch
                 data_root, run_id=run_id, operation_id=op, organization_name=target["name"],
                 organization_key=org_key, url=target["website"], fetch=fetch,
                 max_pages=max_pages, write=True, check_admission=False, grade=grade,
-                time_budget_seconds=HARVEST_TIME_BUDGET_SECONDS, focus=focus)
+                time_budget_seconds=HARVEST_TIME_BUDGET_SECONDS, focus=focus,
+                jev_ask=jev_ask, screen_question=screen_question)
         except ValueError as exc:
             return {"target": target, "outcome": "hold", "org_key": org_key, "record_ids": [],
                     "routes": [], "reason": str(exc).split(":", 1)[0]}
