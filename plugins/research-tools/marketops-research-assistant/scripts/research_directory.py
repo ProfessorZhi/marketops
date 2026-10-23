@@ -29,11 +29,13 @@ __all__ = ["is_directory", "candidates", "split"]
 #: Addresses at this many other domains on one page make it a list of others.
 MIN_OTHER_DOMAINS = 3
 MAX_QUOTE = 600
-WINDOW = 320
+#: Up to what one quote can carry (the gate takes 600 characters), so the club
+#: name and the address it owns fit in the same quote.
+WINDOW = 560
 
 #: Words that say a segment names a club or body, in the languages met so far.
 _BODY = re.compile(
-    r"\b(club|association|asso|team|union|entente|stade|cercle|amicale|olympique|racing|"
+    r"\b(club|association|asso|team|union|entente|cercle|amicale|olympique|racing|"
     r"academie|académie|ecole|école|section|ligue|comite|comité|federation|fédération|"
     r"societe|société|sporting|athletic|ac|as|us|cs|es|sc|fc|rc|asc|usm|jsc|fsgt|ufolep|"
     r"verein|tsv|sv|vfb|vereniging|sportclub|council|trust|academy|school|college|"
@@ -47,8 +49,26 @@ _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 _SEGMENT = re.compile(r"(?:(?!\s[-–—]\s)[^\n•|·;:,()\[\]])+")
 #: Capitalised words, joined by the small words names keep ("Union Sportive du
 #: Gros-Caillou", "Club of the Year"); digits count ("Paris 7", "1er").
-_RUN = re.compile(r"[A-ZÀ-ÖØ-Þ0-9][\w'’.&-]*(?:\s+(?:(?:du|de|des|la|le|les|d'|of|the|and|et|&|sur|en|aux?)\s+)*"
-                  r"[A-ZÀ-ÖØ-Þ0-9][\w'’.&-]*)*")
+_TOKEN = r"[A-ZÀ-ÖØ-Þ0-9][\w'’&-]*(?:\.[\w'’&-]+)*"
+_RUN = re.compile(_TOKEN + r"(?:\s+(?:(?:du|de|des|la|le|les|d'|of|the|and|et|&|sur|en|aux?)\s+)*"
+                  + _TOKEN + r")*")
+#: A bare kind of body ("Comité", "L'association", "Société") names nobody.
+_GENERIC = re.compile(r"^(?:l['’]\s*)?(?:the\s+)?(?:club|association|asso|société|societe|comité|comite|"
+                      r"section|union|ligue|amicale|cercle|team|federation|fédération)s?$", re.IGNORECASE)
+
+
+def _clean(name: str) -> str:
+    """Trim what a rendered list glues onto a name: page numbers, web addresses,
+    and the first word of the description after an all-capitals name."""
+    words = name.split()
+    while words and (re.fullmatch(r"(?i)page|p\.?|\d+", words[0]) or "." in words[0].strip(".")):
+        words = words[1:]
+    caps = 0
+    while caps < len(words) and len(re.sub(r"\W", "", words[caps])) >= 2 and words[caps].isupper():
+        caps += 1
+    if 2 <= caps < len(words) and _BODY.search(" ".join(words[:caps])):
+        words = words[:caps]  # "ASSOCIATION DE DANSE IRITCHA Cours de danse" -> the capitals
+    return " ".join(words)
 
 
 def _registrable(host: str) -> str:
@@ -85,14 +105,15 @@ def candidates(text: str, email: str) -> list[dict]:
         # capitalised words inside a segment, and it must name a kind of body:
         # a person's name printed next to the address is never an organisation.
         for run in _RUN.finditer(segment.group(0)):
-            name = run.group(0).strip(" -–—,.")
+            name = _clean(run.group(0).strip(" -–—,."))
             words = name.split()
-            if not 1 <= len(words) <= 9 or len(name) < 3 or not _BODY.search(name):
+            if (not 1 <= len(words) <= 9 or len(name) < 3 or not _BODY.search(name)
+                    or _GENERIC.match(name)):
                 continue
             if name.casefold() in seen:
                 continue
             seen.add(name.casefold())
-            offset = start + segment.start() + run.start() + (len(run.group(0)) - len(run.group(0).lstrip(" -–—,.")))
+            offset = start + segment.start() + run.start() + run.group(0).find(name)
             found.append({"name": name, "start": offset, "body_word": True})
     return found
 

@@ -398,7 +398,7 @@ def _evidence_artifact(receipt: dict) -> str:
     return ""
 
 
-def _jev_page_work(texts: dict, routes: dict, ask) -> None:
+def _jev_page_work(texts: dict, routes: dict, ask, screen_question: str = "") -> None:
     """Directory split, then name fill, on each saved page's own routes (in place)."""
     import research_grading
     import research_jev_pages
@@ -409,9 +409,12 @@ def _jev_page_work(texts: dict, routes: dict, ask) -> None:
         text = texts.get(artifact_id)
         if not text:
             continue
-        for split in research_jev_pages.split_directory(text, page_routes[0]["url"], page_routes,
-                                                        artifact_id, ask):
-            split["route"].update(directory_org=split["organization"], quote=split["quote"])
+        splits = research_jev_pages.split_directory(text, page_routes[0]["url"], page_routes,
+                                                    artifact_id, ask)
+        research_jev_pages.screen_listed(text, splits, artifact_id, screen_question, ask)
+        for split in splits:
+            split["route"].update(directory_org=split["organization"], quote=split["quote"],
+                                  listed_out_of_scope=split.get("out", False))
         research_jev_pages.fill_names(
             text, page_routes, artifact_id, ask,
             has_name=lambda email, quote: bool(research_grading._name_in_quote(email, [("", quote)])))
@@ -513,7 +516,7 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
                 routes[key] = {**route, "artifact_id": artifact_id, "url": page_url}
 
     if jev_ask is not None and not (screened or {}).get("stop"):
-        _jev_page_work(texts, routes, jev_ask)
+        _jev_page_work(texts, routes, jev_ask, screen_question)
     if grade is not None:
         # Jev tags who each email reaches; a ranking aid, never evidence. The
         # calls are independent, so they run side by side within the host timeout.
@@ -563,6 +566,8 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
                           {"field": "identity", "artifact_id": identity["artifact_id"],
                            "quote": identity["quote"]}]},
                       "artifact_ids": [identity["artifact_id"]]})
+    # A club the screen put out of scope is neither the site's nor staged.
+    result["routes"] = [r for r in result["routes"] if not r.get("listed_out_of_scope")]
     listed = {}
     for route in result["routes"]:
         club = route.get("directory_org")

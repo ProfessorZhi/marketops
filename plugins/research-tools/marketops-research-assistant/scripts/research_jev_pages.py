@@ -123,7 +123,12 @@ def fill_names(text: str, routes: list[dict], artifact_id: str, ask, *, has_name
             continue
         pick = names[int(choice.split("_")[1]) - 1]
         at = text.find(email)
-        quote = _span_quote(text, min(pick["start"], at), max(pick["end"], at + len(email)))
+        start, end = min(pick["start"], at), max(pick["end"], at + len(email))
+        held = text.find(route["quote"])
+        if held >= 0:
+            # Keep what the quote already proves (a club's name from its list entry).
+            start, end = min(start, held), max(end, held + len(route["quote"]))
+        quote = _span_quote(text, start, end)
         if not quote or pick["name"] not in quote or email not in quote:
             continue
         route.update(person_name=pick["name"], quote=quote, name_by="JEV_PICK_LITERAL",
@@ -148,6 +153,21 @@ def split_directory(text: str, site_url: str, routes: list[dict], artifact_id: s
             return int(choice.split("_")[1]) - 1
         return None
     return directory.split(text, routes, choose=choose)
+
+
+def screen_listed(text: str, splits: list[dict], artifact_id: str, question: str, ask) -> None:
+    """A town's guide lists every association; drop the clubs Jev is sure are out of
+    scope (a history society in a sports-venue Run) before they are staged."""
+    if not question:
+        return
+    for split in splits:
+        email = split["route"]["value"]
+        q = (question.replace("Is the organisation whose own website this is a target?", "")
+             + f" Is {split['organization']['name']} (address {email}) a target?")[:480]
+        choice, confidence = _ask(ask, artifact_id, email, q, SCREEN_OPTIONS)
+        split["screen"] = choice or "unavailable"
+        split["out"] = (choice in {"competitor", "out_of_scope"}
+                        and (confidence or 0) >= SCREEN_CONFIDENCE)
 
 
 def screen_question(brief: dict, objective: str) -> str:

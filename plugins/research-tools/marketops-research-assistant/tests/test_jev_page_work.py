@@ -13,7 +13,7 @@ DIRECTORY = (
     "Badminton Club Paris 7 - Président : Jean DUPONT - Tél 01 45 00 00 00 - bcp7@orange.fr\n"
     "Union Sportive du Gros-Caillou | Football | Contact : Marie Lefèvre, secrétaire - "
     "usgc.secretariat@gmail.com\n"
-    "Tennis Club Invalides • Stade Émile Anthoine • contact@tc-invalides.fr\n"
+    "Tennis Club Invalides • Union Sportive Émile Anthoine • contact@tc-invalides.fr\n"
     "Mairie du 7e : sports7@paris.fr\n")
 SITE = "https://mairie07.paris.fr/pages/associations-sportives"
 
@@ -175,3 +175,31 @@ class HarvestWithJev(unittest.TestCase):
 def harvest_admission(root, result):
     import research_site_harvest as harvest
     return harvest.admission_for(root, "jev-run", result["record_ids"])
+
+
+class GuideNames(unittest.TestCase):
+    """Real shapes from a town's association guide (Vincennes, 2025)."""
+
+    def names(self, text):
+        return [c["name"] for c in directory.candidates(text, text.split()[-1])]
+
+    def test_names_are_trimmed_or_left_out_never_guessed(self):
+        self.assertEqual(["ASSOCIATION DE DANSE IRITCHA"],
+                         self.names("ASSOCIATION DE DANSE IRITCHA Cours de danse classique. a@b.fr"))
+        self.assertEqual(["SPORT PICKLEBALL CLUB VINCENNES"],
+                         self.names("PAGE 91 SPORT PICKLEBALL CLUB VINCENNES Activités : c@d.fr"))
+        self.assertEqual(["The Irish Club"], self.names("Irlande. The Irish Club publie g@h.fr"))
+        # A bare "Société"/"Comité" or a venue names no club: the address stays unassigned.
+        self.assertEqual([], self.names("Société des amis de Vincennes. Restauration i@j.fr"))
+        self.assertEqual([], self.names("Stade Léo Lagrange - route de la Pyramide k@l.fr"))
+
+    def test_a_filled_name_keeps_the_club_in_the_quote(self):
+        import research_grading as grading
+        text = "PICKLEBALL CLUB VINCENNES Activités : gymnase. Burton Webb pickleballvincennes@gmail.com"
+        route = {"type": "email", "value": "pickleballvincennes@gmail.com",
+                 "quote": "PICKLEBALL CLUB VINCENNES Activités : gymnase. Burton Webb pickleballvincennes@gmail.com"[0:]}
+        route["quote"] = text[:text.find(" Activités")] + text[text.find(" Activités"):]
+        pages.fill_names(text, [route], "a", Fake({"pickleball": ("name_1", 0.95)}),
+                         has_name=lambda e, q: bool(grading._name_in_quote(e, [("", q)])))
+        self.assertEqual("Burton Webb", route["person_name"])
+        self.assertIn("PICKLEBALL CLUB VINCENNES", route["quote"])
