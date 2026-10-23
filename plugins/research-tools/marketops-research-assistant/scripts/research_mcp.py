@@ -700,7 +700,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         configured_root = None
     if configured_root is not None and runtime_setup.config(configured_root):
         from research_runtime_status import view
-        return {"product": "MarketOps Research MCP", "version": "0.5.11-rc11",
+        return {"product": "MarketOps Research MCP", "version": "0.5.11-rc12",
                 **view(configured_root, task_kind=task_kind),
                 "external_host": _external_inventory(host_observed_tools),
                 "embedded_official_mcp": provider_policy.embedded_official_mcp_capabilities(),
@@ -775,7 +775,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         if task_kind else None)
     return {
         "product": "MarketOps Lite Research MCP",
-        "version": "0.5.11-rc11",
+        "version": "0.5.11-rc12",
         "providers": {
             "serpapi": {"transport": "REST through local MCP", **search["serpapi"]},
             "serper": {"transport": "REST through local MCP", **search["serper"]},
@@ -1452,6 +1452,80 @@ def material_excerpt(run_id, artifact_ids, queries=None):
     return evidence.excerpts(root(), run_id, artifact_ids, queries)
 
 
+def directory_extract(run_id, artifact_id, offset=0, limit=20, stage=False, fields=None):
+    """One local read turns a saved list page into organisation records.
+
+    Excerpts are for evidence snippets: a 40 KB annuaire cost thirty calls and
+    still left the Agent writing its own scraper. This reads the saved page once
+    — the same bytes and decoder the evidence gate uses — splits it by its own
+    repeating labels and returns candidates that quote the page they came from.
+    """
+    import research_extract
+
+    r = root()
+    store._id(run_id, "run_id")
+    if not isinstance(offset, int) or offset < 0:
+        raise ValueError("DIRECTORY_OFFSET_INVALID: offset must be 0 or more")
+    if not isinstance(limit, int) or not 1 <= limit <= 20:
+        raise ValueError("DIRECTORY_LIMIT_INVALID: pass 1-20 items per call and "
+                         "raise offset to read the next page")
+    material = store.read_artifact(r, run_id, artifact_id)
+    if material["material_kind"] == "image":
+        raise ValueError("DIRECTORY_ARTIFACT_IS_IMAGE: save the page as HTML or text first")
+    text = research_extract.page_text(material["material_kind"], material["content"])
+    extracted = research_extract.extract(text, labels=fields)
+    records = extracted["records"]
+    bundles = research_extract.records_to_bundles(text, records, artifact_id)
+
+    page, used, next_offset = [], 0, None
+    for index, bundle in enumerate(bundles[offset:], start=offset):
+        if page and used + len(bundle) > limit:
+            next_offset = index
+            break
+        page.extend(bundle)
+        used += len(bundle)
+
+    public = [{key: value for key, value in record.items() if not key.startswith("_")}
+              for record in records]
+    kept = []
+    for record in public:
+        if len(json.dumps(kept + [record], ensure_ascii=False).encode("utf-8")) > 3_500_000:
+            break
+        kept.append(record)
+    content = json.dumps({"source_artifact_id": artifact_id, "records": kept},
+                         ensure_ascii=False).encode("utf-8")
+    extracted_id = "dir-" + hashlib.sha256(content).hexdigest()[:24]
+    store.save_artifact(r, run_id, extracted_id, "marketops-extract",
+                        material["origin_url"], content, "provider_extracted")
+
+    response = {
+        "status": "DIRECTORY_EXTRACTED_NOT_VERIFIED",
+        "run_id": run_id,
+        "source_artifact_id": artifact_id,
+        "artifact_id": extracted_id,
+        "records": len(records),
+        "with_email": sum(1 for record in records if record.get("email")),
+        "with_person": sum(1 for record in records if record.get("person")),
+        "without_organization": sum(1 for record in records if not record.get("organization")),
+        "anchor": extracted["anchor"],
+        "start_field": extracted.get("start_field"),
+        "dropped_duplicates": extracted["dropped_duplicates"],
+        "warnings": extracted["warnings"],
+        "items_total": sum(len(bundle) for bundle in bundles),
+        "offset": offset,
+        "returned": len(page),
+        "next_offset": next_offset,
+        "items": page,
+        "facts_verified": False,
+        "note": ("items are grouped per record (organisation, person, address) and every "
+                 "quote is exact saved-page text; stage them with marketops_propose_batch "
+                 "or write them to a pool with marketops_pool_import"),
+    }
+    if stage and page:
+        response["staged"] = propose_batch(run_id, page)
+    return response
+
+
 def evidence_audit(run_id, limit=12):
     r = root()
     _, records, artifacts = delivery._read_snapshot(r, run_id)
@@ -1562,7 +1636,7 @@ def handoff(run_id, operation_id, mode="auto"):
     try:
         experience_result = draft_experience(
             r, run_id=run_id, scope=head["scope"],
-            rule_version=head["rule_version"], skill_version="0.5.11-rc11",
+            rule_version=head["rule_version"], skill_version="0.5.11-rc12",
             output=experience_path)
         result["experience_candidate"] = str(experience_path)
         result["experience_incidents"] = experience_result["incidents"]
@@ -1665,7 +1739,9 @@ def _blocked_call_route(fn, args: tuple, kwargs: dict) -> dict | None:
 _TOOL_STAGES = {"marketops_search": "discovery", "marketops_serpapi_mcp_search": "discovery",
                 "marketops_research_step": "acquisition", "marketops_pool_import": "discovery",
                 "marketops_venue_groups": "discovery", "marketops_site_harvest": "acquisition",
-                "marketops_harvest_batch": "acquisition", "marketops_jev_choice": "qualification",
+                "marketops_harvest_batch": "acquisition",
+                "marketops_directory_extract": "entities",
+                "marketops_jev_choice": "qualification",
                 "marketops_jev_triage": "qualification", "marketops_propose_batch": "entities",
                 "marketops_evidence_audit": "review", "marketops_handoff": "handoff",
                 "marketops_material_excerpt": "acquisition"}
@@ -1747,7 +1823,7 @@ PUBLIC_TOOLS = frozenset({
     "marketops_jev_triage", "marketops_suppression", "marketops_feedback_pack",
     "marketops_pool_reopen", "marketops_costs", "marketops_update_check", "marketops_accounts",
     "marketops_crawl4ai_check", "marketops_method", "marketops_venue_groups",
-    "marketops_search_routes",
+    "marketops_search_routes", "marketops_directory_extract",
 })
 
 
@@ -1794,7 +1870,7 @@ def build_server():
         pass
     _ensure_repair_entrypoints()
     from mcp.server import MCPServer
-    mcp = MCPServer("MarketOps Lite Research", version="0.5.11-rc11")
+    mcp = MCPServer("MarketOps Lite Research", version="0.5.11-rc12")
     _quiet_http_logs()  # after the server set up its own logging
 
     def tool(fn):
@@ -2020,6 +2096,24 @@ def build_server():
         if not artifact_ids:
             raise ValueError("EXCERPT_ARTIFACT_LIMIT: pass artifact_ids=[...] (1-3 IDs)")
         return material_excerpt(run_id, artifact_ids, queries)
+
+    @tool
+    def marketops_directory_extract(run_id: str, artifact_id: str, offset: int = 0,
+                                    limit: int = 20, stage: bool = False,
+                                    fields: list[str] | None = None) -> dict:
+        """Read a saved list page in full and return one record per organisation.
+
+        Use it on any saved annuaire, club finder or directory page (an artifact
+        from marketops_research_step or marketops_site_harvest): it splits the page
+        by its own repeating labels ("Nom de la personne à contacter :", "Adresse
+        mail :") and returns ready-to-stage candidates — organisation, person and
+        email — each quoting the page. No excerpt ceiling, no per-page cost.
+
+        Returns 1-20 items per call (one record = 2-3 items); raise offset to read
+        the next page. stage=true writes them as candidates (batches of 20) so the
+        Run can grade them. fields narrows the output; omit it for everything.
+        """
+        return directory_extract(run_id, artifact_id, offset, limit, stage, fields)
 
     @tool
     def marketops_evidence_audit(run_id: str, limit: int = 12) -> dict:
@@ -2589,7 +2683,7 @@ def build_server():
             raise ValueError("EXPERIENCE_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT")
         output.parent.mkdir(parents=True, exist_ok=True)
         return draft_experience(r, run_id=run_id, scope=scope,
-                                rule_version=rule_version, skill_version="0.5.11-rc11",
+                                rule_version=rule_version, skill_version="0.5.11-rc12",
                                 output=output)
 
     @tool

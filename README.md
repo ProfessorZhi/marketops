@@ -12,7 +12,7 @@ MarketOps 是一套市场研究执行系统：**可以机械完成的环节交�
 联系人与公开邮箱，并把结果写成可回读的台账与可交付的表格。真实外联、回复监控与销售
 交接属于独立授权范围，默认关闭（`research_only=true`、`send_authorized=false`）。
 
-> **版本** 0.5.11-rc11（release candidate）。一轮完整研究所需的全部阶段均已实现；
+> **版本** 0.5.11-rc12（release candidate）。一轮完整研究所需的全部阶段均已实现；
 > 无人值守的下一轮触发（Watch / Schedule / ActionItem / Notification）尚未交付，各项
 > 关闭条件见 [`docs/AUTOMATION_WORKFLOW.md`](docs/AUTOMATION_WORKFLOW.md)。在该部分
 > 交付之前，每一轮研究仍由人或外部调度器发起。

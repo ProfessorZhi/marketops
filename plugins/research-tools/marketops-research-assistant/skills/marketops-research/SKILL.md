@@ -36,8 +36,15 @@ the explicitly cumulative `run_cost`. A new context window keeps that checkpoint
 
 ## Hard rules (read first)
 
-1. **Only the `marketops_*` tools.** Do not use Bash, Read, Grep or Python on the plugin's code,
-   its SQLite databases or its data directory. Do not use the host's WebSearch/WebFetch.
+1. **Work through the `marketops_*` tools.** They carry the budget, the evidence chain and the
+   delivery; do not use the host's WebSearch/WebFetch, and never hand-write the workbook.
+   When a page needs something a tool does not do, look for the shipped capability first:
+   `marketops_directory_extract` for list pages (annuaires, club finders, committee pages),
+   `marketops_pool_import` for open-data exports, `marketops_material_excerpt` for quotes.
+   If none fits, you may read the saved artifact with your own code as a last resort — but the
+   facts you stage must still quote that artifact, and every provider call still goes through
+   `marketops_*`. Never read or write the plugin's SQLite databases or its data directory
+   directly, and record the blocker with `marketops_note` so it can become a shipped capability.
 2. **A refusal tells you the fix.** Write caveats such as `QUOTE_NOT_IN_ARTIFACT` show the closest
    text on the page: copy a verbatim 12-600 character span from it and resubmit with a new
    `record_id` and `facts.supersedes`. If it cannot be fixed in two tries, record HOLD and move on.
