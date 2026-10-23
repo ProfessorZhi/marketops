@@ -84,6 +84,7 @@ TOOLING_EXTRAS = {"dev"}
 #: 相反的判决，而两条都会绿。
 TOOLING_IMPORT_NAMES = {
     "pytest": "pytest",
+    "pytest-xdist": "xdist",
     "jsonschema": "jsonschema",
     "ruff": "ruff",
 }
