@@ -127,7 +127,11 @@ class EssexReplayTests(unittest.TestCase):
                 "reason": "Official site blocked (SOURCE_ACCESS_BLOCKED); no other public route."}}])
 
         state = self.call("marketops_next", run_id=RUN)
-        self.assertLess(len(str(state)), 4000, "next must stay small in the Agent's context")
+        # 4000 was reached only while the advisory refused every action: a run
+        # with an unstated request ceiling reported it as zero, so next carried
+        # no query, no method advice and no source advice. A run that may search
+        # carries all three (~5.3 KB here against 11.8 KB uncompacted).
+        self.assertLess(len(str(state)), 6000, "next must stay small in the Agent's context")
         self.assertIn("budget", state["source_selection"])
         self.assertIn("budget_after", results["org-alpha"])
 
