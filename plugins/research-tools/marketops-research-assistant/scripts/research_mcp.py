@@ -1315,9 +1315,22 @@ def _jev_ask(run_id: str):
     return ask
 
 
-def _screen_question(run_id: str) -> str:
-    """The brief's screening question, or "" when the brief switched screening off."""
+def _screen_question(run_id: str, organization_key: str = "") -> str:
+    """The brief's screening question, or "" when screening does not apply.
+
+    The question asks whether the site's owner is a *target*; a pool target is one
+    by construction, and the source that listed it said so. Asking anyway drops
+    whole families: an OPERATORS target (the office or association that runs the
+    venues) reads as "not an indoor sports venue" and is screened out at 0.9+.
+    """
     import research_jev_pages
+    if organization_key:
+        import research_pool
+        try:
+            if research_pool.is_pool_target(root(), organization_key):
+                return ""
+        except Exception:  # noqa: BLE001 - a missing pool is not a reason to stop the harvest
+            pass
     try:
         snapshot = store.list_run(root(), run_id, limit=50)
     except (ValueError, KeyError):
@@ -2219,7 +2232,7 @@ def build_server():
             grade=_role_grader(run_id, roles_wanted),
             time_budget_seconds=HARVEST_TIME_BUDGET_SECONDS,
             focus=roles_wanted.strip() or _brief_roles(run_id),
-            jev_ask=_jev_ask(run_id), screen_question=_screen_question(run_id))
+            jev_ask=_jev_ask(run_id), screen_question=_screen_question(run_id, organization_key))
 
     def _role_grader(run_id, roles_wanted):
         roles_wanted = roles_wanted.strip() or _brief_roles(run_id)
@@ -2554,7 +2567,10 @@ def build_server():
             find_site=lambda target, op: find_official_site(run_id, op, target,
                                                             country, language),
             focus=roles_wanted.strip() or _brief_roles(run_id),
-            jev_ask=_jev_ask(run_id), screen_question=_screen_question(run_id))
+            # Every target in a batch came from the pool: the source that listed it
+            # already said it is a target, so the screen ("is this owner a target?")
+            # has only wrong answers to offer — an OPERATORS batch would be dropped.
+            jev_ask=_jev_ask(run_id), screen_question="")
         if parked["parked"]:
             result["source_gate_parked"] = parked
         return result

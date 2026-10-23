@@ -33,7 +33,7 @@ from urllib.parse import urlsplit
 from research_event_journal import _root
 
 __all__ = ["import_targets", "claim", "complete", "renew", "reopen", "status", "target_key",
-           "list_targets", "OUTCOMES"]
+           "list_targets", "is_pool_target", "OUTCOMES"]
 
 OUTCOMES = frozenset({"done", "hold", "excluded", "duplicate"})
 STATUSES = frozenset({"pending", "claimed"}) | OUTCOMES
@@ -192,6 +192,21 @@ def import_targets(root, *, pool_id: str, source_id: str, source_url: str, provi
             "imported": imported, "duplicates": duplicates, "rejected": rejected[:20],
             "reconciled": listed_count is None or listed_count == accounted,
             "unaccounted": None if listed_count is None else listed_count - accounted}
+
+
+def is_pool_target(root, target_key_value: str) -> bool:
+    """Is this key a target the shared pool already holds?
+
+    Used to skip the "is this owner a target?" screen: a key the pool carries is
+    one by construction, and asking anyway drops whole families.
+    """
+    _id(target_key_value, "organization_key")
+    path = _root(root) / "state" / "research-pool.sqlite3"
+    if not path.is_file():
+        return False
+    with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)) as db:
+        return db.execute("SELECT 1 FROM pool_targets WHERE target_key=? LIMIT 1",
+                          (target_key_value,)).fetchone() is not None
 
 
 def _row(row) -> dict:

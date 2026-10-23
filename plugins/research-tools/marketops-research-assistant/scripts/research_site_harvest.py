@@ -54,7 +54,13 @@ FOCUS_WORD_MIN = 4
 # The local part starts and ends with a letter or digit: "...@antony.fr" is a
 # placeholder in a form ("réservez une adresse ...@antony.fr"), not an address.
 _EMAIL = re.compile(r"(?<![\w.+\ufffd-])[^\W_](?:[\w.%+-]{0,62}[^\W_])?@[A-Za-z0-9.-]+\.[A-Za-z]{2,24}(?![\w-])")
-_PHONE = re.compile(r"(?<![\w+])(?:\+\d{1,3}[\s.-]?|0)(?:\(?\d{2,5}\)?[\s.-]?)\d{3,4}[\s.-]?\d{3,4}(?!\d)")
+#: A French number is printed in ten digits, and very often as five pairs
+#: ("01 45 81 13 13"). The generic arm below wants a 3-4 digit group, so the
+#: pair form — the standard on association and mairie pages — was read as no
+#: phone at all. It is matched first, as its own arm.
+_PHONE = re.compile(
+    r"(?<![\w+])(?:0\d(?:[\s.-]?\d{2}){4}|"
+    r"(?:\+\d{1,3}[\s.-]?|0)(?:\(?\d{2,5}\)?[\s.-]?)\d{3,4}[\s.-]?\d{3,4})(?!\d)")
 _ASSET_SUFFIXES = (".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".css", ".js", ".ico")
 
 
@@ -122,7 +128,10 @@ def candidate_links(page_url: str, html: str, limit: int,
         if href.startswith(("mailto:", "tel:", "javascript:", "#")):
             continue
         url = urljoin(page_url, href).split("#")[0]
-        if url.startswith("http://"):
+        # A page served over https has its plain-http links lifted to https; a page
+        # served over http (a site with no certificate) keeps them on http, or every
+        # link out of it would be refused by the same missing certificate.
+        if page_url.startswith("https://") and url.startswith("http://"):
             url = "https://" + url[len("http://"):]
         parts = urlsplit(url)
         if parts.scheme not in {"http", "https"} or _host(url) != home:
@@ -170,9 +179,12 @@ def _not_a_phone(text: str, start: int, value: str) -> bool:
 
 
 #: Domains forms use to show the shape of an address ("Exemple : nom.prenom@exemple.com").
+#: Site builders ship their own sample address ("info@monsite.fr" on Wix, 2026-10-24);
+#: it is printed as if it were the organisation's, and no person owns it.
 _PLACEHOLDER_DOMAINS = re.compile(
     r"@(?:[\w-]+\.)*(?:example|exemple|beispiel|ejemplo|esempio|voorbeeld|domain|domaine|"
-    r"votre-?domaine|yourdomain|mydomain|email|e-mail|mail|test|sample)\.[a-z]{2,6}$", re.IGNORECASE)
+    r"votre-?domaine|yourdomain|mydomain|email|e-mail|mail|test|sample|monsite|mon-?site|"
+    r"votresite|votre-?site|monweb|siteweb|wixsite|squarespace)\.[a-z]{2,6}$", re.IGNORECASE)
 
 
 def extract_routes(text: str) -> list[dict]:
@@ -387,8 +399,15 @@ def _redirect_target(receipt: dict, url: str) -> str:
     """The page the site redirected to (an http(s) URL other than ``url``), or ""."""
     for attempt in receipt.get("attempts") or []:
         target = attempt.get("redirect_to") or ""
-        if urlsplit(target).scheme in {"http", "https"} and target.rstrip("/") != url.rstrip("/"):
-            return "https://" + target[len("http://"):] if target.startswith("http://") else target
+        if urlsplit(target).scheme not in {"http", "https"} or target.rstrip("/") == url.rstrip("/"):
+            continue
+        # An https page keeps the lift the listing path applies: its http canonical
+        # is usually stale. A page served over http keeps the scheme the site
+        # itself named, or the retry would ask a host without a certificate for
+        # port 443 — which is the unreachable half of the same site.
+        if url.startswith("https://") and target.startswith("http://"):
+            target = "https://" + target[len("http://"):]
+        return target
     return ""
 
 
@@ -460,8 +479,11 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
     if urlsplit(url).scheme not in {"http", "https"}:
         raise ValueError("HARVEST_URL_INVALID: an http(s) page on the organisation's own site")
     name = " ".join(organization_name.split())
-    # Map listings often carry http:// sites; the fetch path accepts HTTPS only.
-    url = "https://" + url[len("http://"):] if url.startswith("http://") else url
+    # Map listings often carry http:// sites; HTTPS is tried first where the site is
+    # likely to have it. The listing also states how the site is actually served, so
+    # that scheme stays available as the one fallback — see ``published_http`` below.
+    published_http = url.startswith("http://")
+    url = "https://" + url[len("http://"):] if published_http else url
     root = Path(store._root(data_root))
 
     pages, queue, routes, identity, obfuscated = [], [url], {}, None, 0
@@ -484,6 +506,15 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
             page_url = _redirect_target(receipt, page_url) or _www_twin(page_url)
             receipt = fetch(page_url, child + "w")
         artifact_id = _evidence_artifact(receipt) if receipt.get("status") == "SUCCESS_CANDIDATE" else ""
+        if not artifact_id and not pages and published_http and page_url.startswith("https://"):
+            # Many association sites never got a certificate: they answer on :80 and
+            # refuse :443 (oms1paris.free.fr answers 200 over http and drops the
+            # https connection). The listing published the http URL, so it is asked
+            # for exactly as published, once, and the page says which scheme answered.
+            page_url = "http://" + page_url[len("https://"):]
+            receipt = fetch(page_url, child + "h")
+            artifact_id = (_evidence_artifact(receipt)
+                           if receipt.get("status") == "SUCCESS_CANDIDATE" else "")
         page = {"url": page_url, "status": receipt.get("status"),
                 "reason_code": receipt.get("reason_code", ""), "artifact_id": artifact_id or None}
         pages.append(page)

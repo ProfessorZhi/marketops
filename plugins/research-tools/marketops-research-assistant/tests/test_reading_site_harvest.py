@@ -119,10 +119,35 @@ class SiteHarvestCase(unittest.TestCase):
         routes = harvest.extract_routes("Registered charity 300123, founded 1921, call 01245 223456 today.")
         self.assertEqual([("phone", "01245 223456")], [(r["type"], r["value"]) for r in routes])
 
+    def test_a_site_builders_sample_address_is_not_a_route(self):
+        # Wix prints "E-mail info@monsite.fr" on a finished contact page; the
+        # association's real address follows it.
+        routes = harvest.extract_routes(
+            "E-mail info@monsite.fr ecrire@actisce.org Tel : 01 45 81 13 13")
+        self.assertEqual([("email", "ecrire@actisce.org"), ("phone", "01 45 81 13 13")],
+                         [(r["type"], r["value"]) for r in routes])
+
     def test_http_site_is_fetched_over_https(self):
         result = self.run_harvest(url="http://www.alphahall.example/")
         self.assertEqual(HOME, self.calls[0])
         self.assertTrue(result["identity"])
+
+    def test_a_site_without_a_certificate_is_read_as_published(self):
+        # oms1paris.free.fr answers 200 on :80 and refuses :443. Lifting the
+        # published http URL to https made the whole site unreachable.
+        http_home = "http://www.alphahall.example/"
+        self.site = {http_home: SITE[HOME]}
+        result = self.run_harvest(url=http_home)
+        self.assertEqual([HOME, http_home], self.calls[:2])
+        self.assertEqual(http_home, result["pages"][0]["url"])
+        self.assertTrue(result["identity"])
+
+    def test_links_out_of_an_http_page_stay_on_http(self):
+        http_home = "http://www.alphahall.example/"
+        html = ('<a href="/contact">Contact</a>'
+                '<a href="https://www.alphahall.example/staff">Staff</a>')
+        self.assertEqual([http_home + "contact", "https://www.alphahall.example/staff"],
+                         harvest.candidate_links(http_home, html, 5))
 
     def test_bounds_are_refused_with_a_fix(self):
         with self.assertRaisesRegex(ValueError, "HARVEST_MAX_PAGES_INVALID"):
