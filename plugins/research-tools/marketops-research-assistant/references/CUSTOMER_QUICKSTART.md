@@ -1,6 +1,6 @@
 # MarketOps 安装与第一次调研
 
-> 本源码包版本为 **0.5.11-rc9（release candidate）**。它不同于既有 `0.5.5` 发行包；请使用本包自己的 ZIP 与 SHA256，不要覆盖或复用 `0.5.5` 的安装目录。
+> 本源码包版本为 **0.5.11-rc10（release candidate）**。它不同于既有 `0.5.5` 发行包；请使用本包自己的 ZIP 与 SHA256，不要覆盖或复用 `0.5.5` 的安装目录。
 
 一次安装包含业务 Skills、一个 MarketOps MCP、内嵌 TinyFish/SerpApi 官方 MCP 客户端，以及 Serper/DeepSeek REST、Crawl4AI 本地 SDK 和 TypeSafe Jev SDK。**不用再安装两家供应商插件。** 账户由自己注册；Crawl4AI 本地无需账号，DeepSeek 是可选的第五把 Key。
 
@@ -52,7 +52,7 @@ python scripts/provider_onboarding.py --client codex --provider all
 
 **Codex**：安装器检测到支持的 CLI 时执行 `codex plugin marketplace add <本机安装目录>` 与 `codex plugin add marketops-research-assistant@marketops-local --json`。旧版不支持 plugin add 时，在 Plugins → marketops-local → MarketOps Research Assistant 点击 Install/启用。完全退出重开，再建新会话。精确命令在生成的 START_HERE；不要使用不存在的 `codex plugin install/enable` 子命令。[官方本地插件说明](https://developers.openai.com/plugins/build/plugins)
 
-**WorkBuddy 4.24.0+**：连接器管理 → 添加/导入自定义连接器，选择生成的 START_HERE 所列本机目录；若只支持 ZIP，则选该目录旁的 ZIP。启用后新建会话。不同版本界面名可能不同，导入状态在实测前保持 `PENDING_HOST_IMPORT`。已存系统凭据库时四 Key 表单可留空。**不能把本机生成的 WorkBuddy connector 给另一台电脑导入**；换机器运行 portable 源码包安装器。
+**WorkBuddy 4.24.0+**：连接器管理 → 添加/导入自定义连接器，选择生成的 START_HERE 所列本机目录；若只支持 ZIP，则选该目录旁的 ZIP。启用后新建会话。不同版本界面名可能不同，导入状态在实测前保持 `PENDING_HOST_IMPORT`。已存系统凭据库时 Key 表单可留空。**不能把本机生成的 WorkBuddy connector 给另一台电脑导入**；换机器运行 portable 源码包安装器。
 
 **Claude Code**：按生成的 `claude_next_argv`，使用 `claude --plugin-dir <安装后的插件目录>` 打开会话。本包也保留 Claude manifest。
 
@@ -62,7 +62,7 @@ python scripts/provider_onboarding.py --client codex --provider all
 
 > 使用 MarketOps。先检查安装、数据位置、账号和本次授权；按我的目标建立 Research Brief。先调查 3 个候选，确认场地、责任组织、相关岗位及有出处的公开联系路线。保存原文和逐字段引文，缺项标 HOLD，导出 Excel，并记录有效方法、卡点与纠正。下一批先检索这些经验。
 
-工具列表应有 `marketops_setup_status` 和研究工具；`marketops_setup_status` 的 `provider_readiness` 列出五个服务是否 READY。随后分别检查真实连接、材料保存、Excel 回读及经验复用。工具名出现、Key 存在、静态测试通过均不能代替这一验收。发布包需要实际测试生成的 `references/BUILD_QA.json`；缺失或过期的开发包只用于诊断。
+工具列表应有 `marketops_setup_status` 和研究工具；`marketops_setup_status` 的 `provider_readiness` 列出各服务（Serper、SerpApi、TinyFish、DeepSeek、Crawl4AI、Jev）是否 READY。随后分别检查真实连接、材料保存、Excel 回读及经验复用。工具名出现、Key 存在、静态测试通过均不能代替这一验收。发布包需要实际测试生成的 `references/BUILD_QA.json`；缺失或过期的开发包只用于诊断。
 
 ## 中断、升级与排障
 

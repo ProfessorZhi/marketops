@@ -47,5 +47,5 @@ After `marketops_handoff` (or when stopping for any reason), call
 
 > 本次的问题和经验已整理成反馈包：`<zip path>`。请把这个文件发给插件维护者，用于改进插件；里面不含邮箱、网址或密钥。
 
-Also tell them which of the five providers (Serper, SerpApi, TinyFish, Crawl4AI, Jev) were not used
+Also tell them which of the providers (Serper, SerpApi, DeepSeek, TinyFish, Crawl4AI, Jev) were not used
 this session and why, from the pack's `unused_providers`.

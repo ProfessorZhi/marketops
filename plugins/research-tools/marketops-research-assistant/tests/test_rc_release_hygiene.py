@@ -1,4 +1,4 @@
-"""Release-hygiene checks for the 0.5.11-rc9 release candidate.
+"""Release-hygiene checks for the 0.5.11-rc10 release candidate.
 
 These tests only read the package.  They exist because the RC previously kept
 the published 0.5.5 version in every manifest while shipping different code:
@@ -23,7 +23,7 @@ sys.path.insert(0, str(SCRIPTS))
 import build_client_bundles  # noqa: E402
 import setup_clients  # noqa: E402
 
-VERSION = "0.5.11-rc9"
+VERSION = "0.5.11-rc10"
 MANIFESTS = (
     ROOT / "plugin.json",
     ROOT / ".claude-plugin" / "plugin.json",

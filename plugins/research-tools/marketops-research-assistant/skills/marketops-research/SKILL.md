@@ -1,6 +1,6 @@
 ---
 name: marketops-research
-description: Single entry for a MarketOps research task (venues, organisations, key contacts, any market). Runs autonomously from brief to audited XLSX using the MarketOps MCP tools, five providers and, where the host supports it, parallel subagents.
+description: Single entry for a MarketOps research task (venues, organisations, key contacts, any market). Runs autonomously from brief to audited XLSX using the MarketOps MCP tools, its providers and, where the host supports it, parallel subagents.
 ---
 
 # MarketOps Research

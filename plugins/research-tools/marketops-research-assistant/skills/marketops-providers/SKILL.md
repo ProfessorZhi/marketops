@@ -3,7 +3,7 @@ name: marketops-providers
 description: Router for the research providers (Serper, SerpApi, DeepSeek, Crawl4AI, TinyFish, Jev) behind the MarketOps MCP - which one each job uses and in what order, how to spend as little as possible, how to check balances and spend, and what to do when a provider runs out. Load at the start of every research task; load a single provider's skill only when you call it.
 ---
 
-# Five providers: right job, cheapest first, never stuck
+# Providers: right job, cheapest first, never stuck
 
 **Budget = red lines.** `marketops_costs(action='budget')` shows, for each account:
 - how much is left now (from the freshest balance reading);

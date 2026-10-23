@@ -1,6 +1,6 @@
 # MarketOps
 
-![version](https://img.shields.io/badge/version-0.5.11--rc9-blue)
+![version](https://img.shields.io/badge/version-0.5.11--rc10-blue)
 ![python](https://img.shields.io/badge/python-3.12-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 ![status](https://img.shields.io/badge/status-release%20candidate-orange)
@@ -12,7 +12,7 @@ MarketOps 是一套市场研究执行系统：**可以机械完成的环节交�
 联系人与公开邮箱，并把结果写成可回读的台账与可交付的表格。真实外联、回复监控与销售
 交接属于独立授权范围，默认关闭（`research_only=true`、`send_authorized=false`）。
 
-> **版本** 0.5.11-rc9（release candidate）。一轮完整研究所需的全部阶段均已实现；
+> **版本** 0.5.11-rc10（release candidate）。一轮完整研究所需的全部阶段均已实现；
 > 无人值守的下一轮触发（Watch / Schedule / ActionItem / Notification）尚未交付，各项
 > 关闭条件见 [`docs/AUTOMATION_WORKFLOW.md`](docs/AUTOMATION_WORKFLOW.md)。在该部分
 > 交付之前，每一轮研究仍由人或外部调度器发起。
@@ -285,25 +285,40 @@ worker** 接手，而 MarketOps 只定义接口，不捆绑具体实现：
 
 ## 安装与更新
 
-**发布与更新都走 GitHub。** 仓库既是源码，也是插件 marketplace；第一次安装和之后的
-升级都从同一个地方取。
+**发布与更新都走 GitHub。** 研究插件需要两样东西：插件本身（Skill + MCP 配置），和一个
+**私有 Python 运行时**（MCP SDK、Jev SDK、本地读页浏览器）。`/plugin install` 只拷贝前者；
+后者由发布包里的安装器一次装好。没有运行时，插件能装上，但 `marketops_*` 工具一个都不会
+出现——会话开始时插件会提示该运行哪个安装器。
 
-### 第一次安装（Claude Code）
+### Windows（推荐给业务用户）
+
+1. 从 [Releases](https://github.com/ProfessorZhi/marketops/releases) 下载最新 ZIP 并解压；
+2. 运行 `Install.cmd`（默认装 Codex + WorkBuddy；只装 Claude Code 用 `Install.cmd -Client claude`，
+   三端都装用 `-Client all`）。安装器会在需要时装 Python 3.12、建私有 venv、按锁定哈希装依赖与
+   Chromium，并把 MCP 配置指向这个 venv 的绝对路径；
+3. Claude Code 用安装器最后打印的那条 `claude --plugin-dir ...` 启动。
+
+Windows 上**不要只用** `/plugin install`：市场版插件用 `sh` 启动 MCP，而 Windows 没有 `sh`。
+
+### macOS / Linux，或已有运行时
 
 ```bash
 /plugin marketplace add ProfessorZhi/marketops
 /plugin install marketops-research-assistant@marketops
 ```
 
-第一次安装后跑一次 `python scripts/preflight.py`，确认依赖与凭据齐；再跑
-`python scripts/client_install_probe.py`，确认客户端配置落到了它真正会读的位置。
+之后还要有运行时：运行发布包里的 `install.sh <安装目录> claude`，或把
+`MARKETOPS_RESEARCH_PYTHON` 设为一个已装好依赖的 Python 的绝对路径。
 
 ### 更新
 
-```bash
-/plugin marketplace update marketops
-/plugin update marketops-research-assistant@marketops
-```
+- 安装器装的：运行安装目录里的 `Update.cmd`（`update.sh`），然后重启客户端。
+- 市场版：
+
+  ```bash
+  /plugin marketplace update marketops
+  /plugin update marketops-research-assistant@marketops
+  ```
 
 版本号以 `plugin.json` 的 `version` 为权威。它没递增时，`claude plugin update` 会判定
 「已是最新」并静默什么都不做——所以发版必须先改这一处。
@@ -316,15 +331,15 @@ worker** 接手，而 MarketOps 只定义接口，不捆绑具体实现：
 凭据库、再启动首次配置窗口。每一步都写明了失败时怎么重跑、以及**什么不许做**（不改包内
 文件、不把 key 写进文件或命令行、不替用户注册或付费）。
 
-### 其它客户端
+### 三个客户端
 
 | 客户端 | 安装方式 | 验证状态 |
 |---|---|---|
-| **Claude Code** | 上面的两条命令；或 `setup_clients.py --client claude --apply --bootstrap-runtime` | 有安装回执 |
-| **Codex** | `setup_clients.py --client codex --register-codex` | 有安装回执 |
-| **WorkBuddy** | `setup_clients.py --client workbuddy`，导入在客户端内完成 | **未验证**（文档里如实标着） |
+| **Claude Code** | `Install.cmd -Client claude` / `install.sh <目录> claude`；或在已有运行时上用市场版 | 安装器有回执；市场版在 Linux 上实测可起 MCP |
+| **Codex** | `Install.cmd`（`-RegisterCodex` 自动登记到 Codex） | 有安装回执 |
+| **WorkBuddy** | `Install.cmd` 生成本机连接器目录，再在 WorkBuddy「连接器管理 → 导入」 | **未验证**：还没有在真实 WorkBuddy 上跑过 |
 
-三端的权威步骤见 [`docs/CLIENT_INSTALL.md`](docs/CLIENT_INSTALL.md)。仓库里其实有
+三端的步骤见 [`docs/CLIENT_INSTALL.md`](docs/CLIENT_INSTALL.md)。仓库里其实有
 **两个**插件包（一个业务 Skill、一个研究插件），装之前先看
 [`plugins/README.md`](plugins/README.md)。
 
@@ -332,7 +347,7 @@ worker** 接手，而 MarketOps 只定义接口，不捆绑具体实现：
 
 | 使用者 | 形态 | 入口 |
 |---|---|---|
-| 业务用户（Claude Code / Codex / WorkBuddy） | **插件**：主 Skill 提供研究方法与流程，连接一个 MarketOps MCP | `/plugin install marketops-research-assistant --marketplace ProfessorZhi/marketops` |
+| 业务用户（Claude Code / Codex / WorkBuddy） | **插件**：主 Skill 提供研究方法与流程，连接一个 MarketOps MCP | 发布包的 `Install.cmd` / `install.sh`，见[安装与更新](#安装与更新) |
 | 系统集成方 | **MCP 服务**：一个 Streamable HTTP 业务接口 | `python -m marketops.interfaces.mcp` |
 | 开发者 | **CLI 与 Python 包**：`marketops` 是唯一对外分发的包 | `python -m marketops.interfaces.cli` |
 

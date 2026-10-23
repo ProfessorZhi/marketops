@@ -102,7 +102,12 @@ def probe(mode: str, *, python: str | None = None, env: dict | None = None,
         stdout, stderr = process.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
         _kill_tree(process)
-        process.communicate()
+        try:
+            # A browser child that survived the kill can hold the pipes open; the
+            # chooser must still move on to the next mode rather than wait forever.
+            process.communicate(timeout=15)
+        except subprocess.TimeoutExpired:
+            pass
         return {"mode": mode, "ok": False, "external_ok": False,
                 "detail": f"no answer within {timeout} s (the browser hung, often on close)",
                 "seconds": round(time.monotonic() - started, 1)}

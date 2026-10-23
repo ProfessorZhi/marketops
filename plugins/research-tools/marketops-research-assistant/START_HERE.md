@@ -1,6 +1,6 @@
 # MarketOps 调研插件：从这里开始
 
-版本 **0.5.9**，适用于 Windows 10/11（64 位）。可以装进 **Codex、WorkBuddy、Claude Code、DeepSeek Harness**，以及其他支持 MCP 的 agent。
+版本 **0.5.11-rc10**，适用于 Windows 10/11（64 位）。可以装进 **Codex、WorkBuddy、Claude Code、DeepSeek Harness**，以及其他支持 MCP 的 agent。
 
 ## 它能做什么
 
@@ -8,7 +8,7 @@
 
 **需求 → 目标名单（母池）→ 场地/组织 → 关键角色和联系方式 → 证据核对 → Excel 交付表 + 报告**
 
-- **五个工具一起用**：Serper、SerpApi（含地图）、TinyFish 负责找目标；Crawl4AI 负责读网站（本地运行，免费）；读不了的交给 TinyFish；Jev 判断「是不是目标客户」以及「这个邮箱属于什么角色」。
+- **六个服务一起用**：Serper、DeepSeek、SerpApi（含地图）、TinyFish 同时搜索找目标；Crawl4AI 读网站（本地运行，免费），读不了的交给 TinyFish 或 DeepSeek；Jev 判断「是不是目标」「名录里的邮箱属于哪个俱乐部、哪个人」以及「这个邮箱属于什么角色」。
 - **每个邮箱都有原文证据**：只收网页上真实出现过的邮箱，绝不编造。被拦截的网站会标 HOLD，并写明原因。
 - **多个对话可以同时干**：所有对话共用本机同一个数据库。一个对话负责建名单，其他对话各自领取一批目标，互不重复、互不覆盖。
 - **长时间自己跑**：不会每做一点就停下来问「要不要继续」，只有在授权、预算、业务定义这几类事情上才会问你。
@@ -67,7 +67,7 @@ Crawl4AI 在本机运行，**不需要账号**。前四家凑齐就能跑完整�
 
 插件发布新版本后（agent 每次开始调研时会自动检查并提醒你），对 agent 说一句：
 
-> 把 MarketOps 更新到 GitHub 最新版本：运行 MarketOps 文件夹里的 Update.cmd，完成后重启你自己，再调用 marketops_setup_status 确认版本号和五个服务都就绪。
+> 把 MarketOps 更新到 GitHub 最新版本：运行 MarketOps 文件夹里的 Update.cmd，完成后重启你自己，再调用 marketops_setup_status 确认版本号和各服务都就绪。
 
 也可以自己双击 `%LOCALAPPDATA%\MarketOps\Update.cmd`。
 
