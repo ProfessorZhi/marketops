@@ -255,6 +255,16 @@ def _isolated_run_dir(
     for name, value in (("work_item_id", work_item_id), ("task_id", task_id)):
         if value in {".", ".."}:
             raise ValueError(f"{name} 是 {value!r} —— 那是一个能上跳的路径成分，不是 id")
+        if any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in value):
+            # ``check_slug_safe`` 拦的是路径分隔符与保留字符，控制字符不在它那一
+            # 张表里（那里校验的是「会被用作文件名」的 id，而不是「会被拿来拼目录的
+            # 外部任务 id」）。这里必须自己拦：NUL 让 ``mkdir`` 抛的是 ``ValueError``
+            # 而不是 ``OSError``，于是它会**穿过**下面那段 ``except OSError`` 变成一段
+            # 抛栈 —— 而 runner 把它读成「这一轮崩溃了」，不是「这个 id 不能当路径」。
+            raise ValueError(
+                f"{name} 含控制字符 —— 它不能当路径成分，"
+                "而且 NUL 会让建目录抛的不是 OSError"
+            )
     stamp = now.astimezone(UTC).strftime("%Y%m%dT%H%M%S%fZ")
     return worker_root / work_item_id / task_id / f"{stamp}-{os.getpid()}"
 
@@ -424,6 +434,7 @@ def run_round(work_item_id: str, *, task_id: str) -> int:
         # 领身份放在**这一段的最末尾**：它是这里唯一一件拿到手却要活到函数出口的
         # 东西，放最后就不必给前面那一串拒绝各写一次放锁。
         stale_token = bool(os.environ.get(TOKEN_ENV, "").strip())
+        prior_token = os.environ.get(TOKEN_ENV)
         identity = _claim_identity()
         os.environ[TOKEN_ENV] = identity.token
     except (ConfigError, ValueError) as exc:
@@ -443,7 +454,11 @@ def run_round(work_item_id: str, *, task_id: str) -> int:
                 identity=identity.payload() | {"launcher_token_replaced": stale_token},
                 now=now,
             )
-        except OSError as exc:
+        except (OSError, ValueError) as exc:
+            # ``ValueError`` 不是多余的：一个含 NUL 的 id 会让 ``mkdir`` 抛它而不是
+            # ``OSError``。上面那条检查拦住了今天已知的那一种，这里兜的是「路径成分
+            # 还有别的形状让 CPython 抛 ValueError」—— 那仍然是一个不能用的目录，
+            # 不是一次崩溃。
             print(f"未派发：隔离运行目录 {run_dir} 用不了：{exc}", file=sys.stderr)
             return EXIT_REFUSED
 
@@ -467,6 +482,15 @@ def run_round(work_item_id: str, *, task_id: str) -> int:
         # 出作用域、被 GC 掉都不会关掉它 —— 于是同一个进程里的第二次派发会撞上自己
         # 的上一轮。进程被 kill 时内核照样放。
         os.close(identity.lock_fd)
+        # 令牌也放回去。同一条理由的另一个形状：这一行是第一轮写进环境的，而
+        # ``dispatch_runner`` 在**同一个进程**里连跑多轮 —— 不还原的话，第二轮看到的
+        # 非空 ``TOKEN_ENV`` 会让它把 `launcher_token_replaced` 记成 true（那是部署
+        # 顺序问题的信号，不是本层自己留下的痕迹），而且那份令牌会一直留在这个进程的
+        # 环境里，任何之后起的子进程都会静默继承它。
+        if prior_token is None:
+            os.environ.pop(TOKEN_ENV, None)
+        else:
+            os.environ[TOKEN_ENV] = prior_token
 
 
 def _parser() -> argparse.ArgumentParser:
