@@ -68,7 +68,7 @@ Claude Code 源码预览可用 `scripts/launch_research_mcp.sh`，缺 MCP SDK �
 
 若用户明确批准安装并允许网络下载开源运行依赖，可在**目标计算机**用 `python3 scripts/setup_clients.py --destination 客户选定的全新绝对目录 --client all --apply --bootstrap-runtime` 一次性准备独立venv、受管MCP、Jev SDK、Crawl4AI SDK、Chromium并打包本机版WorkBuddy；下载依赖 ≠ 批准任何厂商收费调用。若只需要小体积精简版，可选 `--apply --install-deps` 而不装浏览器。**未经授权不得替用户运行 bootstrap、Docker 或官方厂商Plugin的安装命令。**
 
-本地两路径配置仍然是**唯一强制问题**；之后按任务问用户要启用哪一家服务，不要求同时注册五个账号。TinyFish平台OAuth（官方MCP）与具体目标站点Browser Profile登录严格分离；SerpApi官方MCP由用户在宿主安全密钥设置里配置Bearer；Serper/TYPESAFE Key仅在需要时配置；Crawl4AI本地免费开源SDK无Cloud Key。**MarketOps内嵌的TinyFish/SerpApi官方MCP客户端已包含在程序中**，无须再在宿主分别安装这两家的插件；但其认证仍未配置/验证，需要用户在本机提供API Key或使用TinyFish内置OAuth登录命令，项目预算默认禁用。额外的宿主直连MCP仍不自动创建。付款/余额/网站权限缺失都必须明示，不自动升级为收费Agent。
+本地两路径配置仍然是**唯一强制问题**；之后按任务问用户要启用哪一家服务，不要求同时注册所有账号。TinyFish平台OAuth（官方MCP）与具体目标站点Browser Profile登录严格分离；SerpApi官方MCP由用户在宿主安全密钥设置里配置Bearer；Serper/TYPESAFE Key仅在需要时配置；Crawl4AI本地免费开源SDK无Cloud Key。**MarketOps内嵌的TinyFish/SerpApi官方MCP客户端已包含在程序中**，无须再在宿主分别安装这两家的插件；但其认证仍未配置/验证，需要用户在本机提供API Key或使用TinyFish内置OAuth登录命令，项目预算默认禁用。额外的宿主直连MCP仍不自动创建。付款/余额/网站权限缺失都必须明示，不自动升级为收费Agent。
 
 
 TinyFish浏览器OAuth首次登录命令在 `INSTALL_RECEIPT.json.tinyfish_own_mcp_oauth_argv`；需要操作系统安全Keyring后端，成功也不代表目标网站Profile已登录。SerpApi只需要在本客户端安全环境输入 `SERPAPI_API_KEY`，不需再执行`claude mcp add serpapi`。优先按 [内嵌MCP说明](../../references/EMBEDDED_OFFICIAL_MCP.md) 的认证、费用、真实工具Schema做验收；不自动消耗收费额度。

@@ -1,4 +1,4 @@
-# MarketOps Research Assistant 0.5.11-rc9
+# MarketOps Research Assistant 0.5.11-rc10
 
 **Release candidate — 不是正式发行版。** 本包只用于 RC 验收；不得覆盖或重命名既有的
 0.5.5 ZIP，不得据此宣布正式发布。正式发布前仍需完成真实供应商费用与客户授权验收。
@@ -10,13 +10,16 @@
 
 ## 安装和首次启动
 
-Claude Code 一行装（仓库根已带 marketplace 清单）：
+从 [START_HERE](START_HERE.md) 开始。Windows x64 双击 `Install.cmd`；Linux x64 使用 `install.sh`。安装器装好 Python 3.12 私有运行时，并在目标电脑生成 Codex、Claude Code 或 WorkBuddy 配置；WorkBuddy 导入须在客户端完成（尚未在真实 WorkBuddy 上验证）。
+
+Claude Code 也可以从仓库的 marketplace 装插件：
 
 ```bash
-/plugin install marketops-research-assistant --marketplace ProfessorZhi/marketops
+/plugin marketplace add ProfessorZhi/marketops
+/plugin install marketops-research-assistant@marketops
 ```
 
-其余安装方式从 [START_HERE](START_HERE.md) 开始。Windows x64 双击 `Install.cmd`；Linux x64 使用 `install.sh`。运行时为 Python 3.12。安装器在目标电脑生成 Codex、Claude Code 或 WorkBuddy 配置；WorkBuddy 导入须在客户端完成。
+市场版只拷贝插件、不带运行时：先跑一次上面的安装器（或设 `MARKETOPS_RESEARCH_PYTHON`），否则不会出现 `marketops_*` 工具，会话开始时插件会提示缺什么。Windows 上市场版不能单独使用（MCP 用 `sh` 启动）。
 
 [账户指引](references/FOUR_ACCOUNT_START.md)提供注册、API Key、官方赠金及余额入口：Serper、SerpApi、TinyFish、TypeSafe。Crawl4AI 在本地运行，无需账户。**DeepSeek 是第五把可选的 Key**（`DEEPSEEK_API_KEY`），配了它就多一路搜索和一路读页（$0.75/1k 次，失败不计费）；不配只是这条路不出现，其余照常跑。Key 在本地隐藏输入、或由安装 agent 写进系统凭据库，重启后读取。
 

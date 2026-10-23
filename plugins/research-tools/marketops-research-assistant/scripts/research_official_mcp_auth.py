@@ -153,7 +153,11 @@ async def _login():
     from mcp.client.streamable_http import streamable_http_client
     import httpx2
     auth=oauth_provider(interactive=True)
-    async with httpx2.AsyncClient(auth=auth,follow_redirects=False,
+    # Never the machine's ambient proxy (a stale IDE/VPN proxy answers 502): only
+    # the one configured for MarketOps, as for every other provider call.
+    from dual_search_mcp import upstream_proxy
+    async with httpx2.AsyncClient(auth=auth,follow_redirects=False,trust_env=False,
+                                  proxy=upstream_proxy() or None,
                                   timeout=httpx2.Timeout(45.0,connect=10.0)) as http:
         async with streamable_http_client(OAUTH_BASE,http_client=http) as streams:
             async with ClientSession(streams[0],streams[1]) as session:
