@@ -6,8 +6,8 @@ from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from test_account_balances import AccountCase
-from test_wave1_jev_adapter import FakeSDK
+from test_billing_account_balances import AccountCase
+from test_jev_adapter import FakeSDK
 import research_accounts as accounts
 import research_balances as balances
 import research_provider_health as health

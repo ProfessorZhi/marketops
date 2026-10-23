@@ -66,7 +66,7 @@ class ActiveWorkbookTests(unittest.TestCase):
     def _seed_historical_branch(self):
         """Seed a fork directly, as legacy data would have left it.
 
-        New writes refuse this shape (``test_rc4_supersedes_write_guard``); the
+        New writes refuse this shape (``test_grading_supersedes_write_guard``); the
         export path must still keep an *existing* fork in the audit rather than
         picking a winner, which is what this test verifies.
         """

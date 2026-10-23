@@ -45,7 +45,7 @@ organization.artifact_ids`. Binding now requires either:
 A public directory page listing several organisations therefore cannot attach
 A's email to B. Same-page two-organisation controls, short alias/partial-name
 controls, cross-organisation person/role controls and a long-page four-positive
-control are in `tests/test_rc3_evidence_p0.py`.
+control are in `tests/test_grading_evidence_p0.py`.
 
 ### Write-time warning
 

@@ -33,7 +33,7 @@ parent.review_type == child.review_type
   最终 tip 为第三次修订，held → admitted 正常发生，完整历史仍在审计
 - 旧历史 fork 不被修改，导出仍按原逻辑保留审计并拒绝选择分支
 
-测试：`test_rc5_review_type_guard.py` 6 条。
+测试：`test_grading_review_type_guard.py` 6 条。
 
 最小 reproducer（修复前）：note 插入成功，venue 0→1；修复后返回
 `REFUSED:SUPERSEDES_REVIEW_TYPE_MISMATCH`，venue 保持 0。
@@ -56,7 +56,7 @@ phone 只看记录存在，`links.relationship` 也能单独绑定。现在：
 - blocked domain、零预算、UNKNOWN-held、共享目录页不归属、rate/contact 页优先级
   保持原行为；纯 advisory，不发网络请求。
 
-测试：`test_rc5_source_evidence.py` 10 条（rate 4、phone 4、binding 2）。
+测试：`test_grading_source_evidence.py` 10 条（rate 4、phone 4、binding 2）。
 
 ## 4. 验证
 

@@ -117,8 +117,8 @@
 
 - 工作树：`worktrees/marketops/rc-gate-20261020`，分支
   `fix/marketops-rc-delivery-gate-20261020`。
-- 审查时**未提交**：`research_delivery.py` 与 `test_research_delivery.py` 为
-  modified，新增 `test_delivery_admission_gate.py`。
+- 审查时**未提交**：`research_delivery.py` 与 `test_delivery_research_delivery.py` 为
+  modified，新增 `test_grading_admission_gate.py`。
 - 同一组 9 条判据在 Lane A 当前工作树（HEAD 仍为 `4f87bc33`；
   `research_delivery.py` sha256 在 13:10:56 为 `d4dd3729…`，13:15:01 已变为
   `3af5ac9683029d82293520a360015c8777813815a1b10c0772ddedf74ca995cd`，

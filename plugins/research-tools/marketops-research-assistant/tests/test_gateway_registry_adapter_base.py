@@ -163,28 +163,19 @@ class RealAdapterVocabularyTests(unittest.TestCase):
     The adapters are other lanes' modules and are not on this branch, so this
     compares against the vocabulary recorded from the integration tree rather than
     importing them; when they are present (integration scratch), the same check
-    runs against the modules themselves in `test_wave3_gateway_real_ledger`-style
+    runs against the modules themselves in `test_billing_gateway_real_ledger`-style
     probes owned by the integrator.
     """
 
-    ADVERTISED = {
-        "tinyfish": ("tinyfish.search", "tinyfish.fetch_content", "tinyfish.get_run",
-                     "tinyfish.list_runs", "tinyfish.batch_status",
-                     "tinyfish.list_browser_sessions", "tinyfish.get_monitor",
-                     "tinyfish.list_monitors", "tinyfish.get_wallet",
-                     "tinyfish.get_search_usage", "tinyfish.list_fetch_usage",
-                     "tinyfish.run_web_automation", "tinyfish.cancel_run",
-                     "tinyfish.batch_cancel"),
-        "serpapi": ("serpapi.engine_catalog", "serpapi.engine_schema", "serpapi.search"),
-        "serper": ("serper.search",),
-        "deepseek": ("deepseek.search", "deepseek.fetch_page"),
-        "crawl4ai": ("crawl4ai.fetch_page", "crawl4ai.extract", "crawl4ai.deep_crawl",
-                     "crawl4ai.sitemap_seed", "crawl4ai.screenshot", "crawl4ai.pdf"),
-        "typesafe_jev": ("jev.choice", "jev.noul", "jev.score", "jev.box"),
-    }
+    @classmethod
+    def advertised(cls) -> dict:
+        """What each adapter says it serves, read from the adapters themselves: a
+        hand-kept copy here had to be edited for every new capability."""
+        return {provider: tuple(getattr(__import__(module_name), class_name)().capabilities())
+                for module_name, (class_name, provider) in cls.MODULES.items()}
 
     def test_the_registry_covers_every_advertised_capability(self):
-        for provider, ids in self.ADVERTISED.items():
+        for provider, ids in self.advertised().items():
             for capability_id in ids:
                 with self.subTest(capability_id=capability_id):
                     entry = registry_module.DEFAULT_REGISTRY.get(capability_id)
@@ -192,9 +183,12 @@ class RealAdapterVocabularyTests(unittest.TestCase):
                     self.assertEqual(entry.provider, provider)
 
     def test_the_registry_invents_no_capability_the_adapters_do_not_serve(self):
-        advertised = {cap for ids in self.ADVERTISED.values() for cap in ids}
-        reviewed = {entry.capability_id for entry in registry_module.DEFAULT_REGISTRY}
-        self.assertEqual(sorted(reviewed - advertised), [])
+        # A deferred, disabled entry is reviewed for later and may have no adapter
+        # yet; everything that can be called must be served by its adapter.
+        advertised = {cap for ids in self.advertised().values() for cap in ids}
+        enabled = {entry.capability_id for entry in registry_module.DEFAULT_REGISTRY
+                   if entry.availability.value == "ENABLED"}
+        self.assertEqual(sorted(enabled - advertised), [])
 
     MODULES = {
         "research_adapter_tinyfish": ("TinyFishAdapter", "tinyfish"),

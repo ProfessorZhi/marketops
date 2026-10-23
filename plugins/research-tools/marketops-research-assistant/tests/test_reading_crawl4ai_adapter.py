@@ -33,7 +33,7 @@ class StubEgress:
     """一个**不监听任何端口**的出口替身。
 
     它只用来判「绑定形状合格 / 不合格」与「adapter 有没有把出口地址接到浏览器上」。
-    真正的网络路径由 ``test_wave1_crawl4ai_adversarial.py`` 里的夹具代理负责 ——
+    真正的网络路径由 ``test_reading_crawl4ai_adversarial.py`` 里的夹具代理负责 ——
     这两件事是不同的判据，刻意放在两个文件里。
     """
 

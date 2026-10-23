@@ -41,7 +41,7 @@
 | 能力 | 标签 | 证据 | 未完成的部分 |
 |---|---|---|---|
 | 唯一 MCP、无厂商直连工具（IF-1） | `OFFLINE_TESTED` | 真实 stdio `initialize`+`tools/list`：**23 个工具全部 `marketops_*`**，`vendor_named_tools = []`；工具名集合与原始 server 完全一致 | 宿主内 `tools/list` 未取 |
-| 工具描述不含未审核上游文本（IF-2） | `OFFLINE_TESTED` | 既有 `test_research_mcp_tool_refusal.py` 等覆盖；本次未新增断言 | 无独立 QA 复核 |
+| 工具描述不含未审核上游文本（IF-2） | `OFFLINE_TESTED` | 既有 `test_gateway_mcp_tool_refusal.py` 等覆盖；本次未新增断言 | 无独立 QA 复核 |
 | 动态入口不绕过政策（IF-3） | 本 lane 不覆盖 | 该工具在 `research_mcp.py`（本 Wave 冻结只读，归 INTEGRATOR / W-B） | — |
 | 只用宿主兼容 schema 子集（IF-4） | `OFFLINE_TESTED` | 见下 | 未在 Codex/WorkBuddy 上验证 |
 
@@ -229,7 +229,7 @@ launcher**（用一个会记账的"解释器"证实：会话期间零调用）�
 **回归护栏：** `client_install_probe.py` 新增 `CLAUDE_PLUGIN_SERVER_FIELDS` 白名单，
 `.mcp.json` 出现名单外字段即 `HOST_FOREIGN_FIELD`（fatal）；生成器写的 config 里出现
 名单外字段即 `UNEXPECTED_SERVER_FIELD`；`mcp.json` 的同类字段进 `notes`。
-测试 `tests/test_wave1_client_install_smoke.py` 有正向 + 负向各一条。
+测试 `tests/test_install_client_install_smoke.py` 有正向 + 负向各一条。
 
 ### 10.3 另一条独立读数：源码头在隔离 HOME 下**默认起不来**
 
@@ -318,7 +318,7 @@ Codex、WorkBuddy、Windows 三项与 §4 一致：**缺设备授权**，本轮�
 **修 validator 时发现的一个真 bug（值得单独记）：** Codex 的 `source.path` 逃逸检查原先写的是
 `declared.lstrip("./")`。`lstrip` 是**按字符集**剥离，会把 `../../elsewhere` 变成
 `elsewhere`，于是这条检查会**放行它本该拒绝的那个输入**。改成显式剥前缀后，负向对照才红。
-`tests/test_wave1_client_packages.py` 的 6 条负向用例各自钉住一种失败。
+`tests/test_install_client_packages.py` 的 6 条负向用例各自钉住一种失败。
 
 ---
 
@@ -806,7 +806,7 @@ POSIX 形态，属设计；`verified_on_windows=false`）。
 ### 19.1 更正
 
 **§17/§18 记录的 `145 members / 948,658 bytes / sha256 551cbff2…` 不是生产构建器的产物。**
-它是 `tests/test_wave1_client_packages.py::CleanArchiveTests._build()` — 一个**测试助手** —
+它是 `tests/test_install_client_packages.py::CleanArchiveTests._build()` — 一个**测试助手** —
 打出来的归档。两者不是同一个东西，把那个哈希当成发行哈希是错的。
 真正决定顾客拿到什么的是 `scripts/build_client_bundles.py::make_zip()` + `build()`。
 

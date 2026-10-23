@@ -163,9 +163,8 @@ class LocalInstallTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             receipt = bundles.build(Path(tmp) / "bundle")
             self.assertEqual(0, receipt["mcp_servers_bundled"])
-            self.assertEqual(13, receipt["skills"])
-            self.assertEqual(13, len(list((ROOT / "skills").glob("*/SKILL.md"))),
-                             "bundle Skill count must track the plugin source Skills")
+            # The bundle carries every Skill in the plugin source, however many there are.
+            self.assertEqual(len(list((ROOT / "skills").glob("*/SKILL.md"))), receipt["skills"])
 
 
 if __name__ == "__main__":

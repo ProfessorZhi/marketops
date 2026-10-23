@@ -8,7 +8,7 @@ Nothing in `research_official_mcp.py`, `research_wiring.py`,
 
 ## 1. The reported red, reproduced and fixed
 
-W-I10 reported `test_wave1_tinyfish_agent_gate` and `..._protocol` red when run
+W-I10 reported `test_reading_tinyfish_agent_gate` and `..._protocol` red when run
 alone. Reproduced against **integration `fba7b27` + A's seam (`fceaf070`)**:
 
 ```
@@ -80,7 +80,7 @@ reason.
 capability, move its id into `REVIEWED_CAPABILITIES` in the adapter — that is the
 only edit needed; no test encodes the count. If B prefers a different reviewed
 set, the declaration is the single place to change, and
-`tests/test_wave1_tinyfish_review_status.py` asserts the advertisement equals it.
+`tests/test_reading_tinyfish_review_status.py` asserts the advertisement equals it.
 
 ## 3. One behaviour change worth knowing
 

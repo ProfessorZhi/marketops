@@ -29,8 +29,8 @@ opaque transport error is exactly the shape that invites a pointless retry of a 
 charged operation.
 
 `research_official_mcp.py` was **left byte-identical**. Its own test modules
-(`test_research_official_mcp_embedded.py`, `test_research_official_mcp_session_protocol.py`,
-`test_embedded_official_mcp_bridge.py`) assert the old TinyFish contract, and rewriting a
+(`test_reading_official_mcp_embedded.py`, `test_reading_official_mcp_session_protocol.py`,
+`test_reading_embedded_official_mcp_bridge.py`) assert the old TinyFish contract, and rewriting a
 shared file that a concurrent lane may be touching is the failure mode this branch was told
 to avoid. The replacement is isolated, additive, and the Integrator wires it (§6).
 
@@ -254,8 +254,8 @@ Not claimed as integrated. The Integrator owns these steps:
 1. Point the TinyFish branch of `research_mcp.py`'s router at
    `research_adapter_tinyfish.call()`, replacing the `research_official_mcp` TinyFish path.
 2. Retire (or reduce to a shim) the TinyFish section of `research_official_mcp.py`; update
-   `test_research_official_mcp_embedded.py`, `test_research_official_mcp_session_protocol.py`
-   and `test_embedded_official_mcp_bridge.py`, which currently assert the superseded
+   `test_reading_official_mcp_embedded.py`, `test_reading_official_mcp_session_protocol.py`
+   and `test_reading_embedded_official_mcp_bridge.py`, which currently assert the superseded
    contract.
 3. Update the shared policy vocabulary in `research_provider_policy.py`:
    `tinyfish_mcp_wait` (`STATUS_POLL_NO_NEW_AGENT`) describes a `wait_for_run` polling

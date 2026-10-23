@@ -32,11 +32,11 @@
 
 版本 schema：Agent Plugins 1.0.0 的 `version` 字段是 `type: string`，未限制
 semver 后缀，因此采用 `0.5.6-rc1`。新增
-`tests/test_rc_release_hygiene.py` 防止 manifest / builder / installer 再次漂移。
+`tests/test_install_release_hygiene.py` 防止 manifest / builder / installer 再次漂移。
 
 ### 1.2 Lane B 合成私钥夹具的 gitleaks REVIEW
 
-原夹具是 `tests/test_client_view_generation.py` 中的
+原夹具是 `tests/test_delivery_client_view_generation.py` 中的
 一段合成的 RSA 私钥头（仅含 `BEGIN … PRIVATE KEY` 字样，正文是无效 base64），
 用于证明客户视图拒绝私钥材料。此处不重复字面量，避免文档本身触发凭证扫描。
 它不是可用密钥（payload 不是合法 base64），但原先没有按 `REDACTION.md` 的惯例

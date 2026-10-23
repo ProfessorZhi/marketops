@@ -12,9 +12,9 @@
 
 | Lane | 工作树 | 分支 | 拥有的产品路径 | 集成方式 |
 | --- | --- | --- | --- | --- |
-| A 证据门禁 | `rc-gate-20261020` | `fix/marketops-rc-delivery-gate-20261020` | `scripts/research_delivery.py`、`tests/test_research_delivery.py`、`tests/test_delivery_admission_gate.py` | cherry-pick |
-| B 客户视图 | `rc-clientview-20261020` | `fix/marketops-rc-client-view-20261020` | `scripts/research_client_view.py`、`tests/test_client_view_generation.py`、`references/CLIENT_VIEW_CONTRACT.md` | cherry-pick |
-| C 安装器 | `rc-installer-20261020` | `fix/marketops-rc-installer-20261020` | `install.sh`、`scripts/setup_clients.py`、`tests/test_installer_optin_security.py` | cherry-pick |
+| A 证据门禁 | `rc-gate-20261020` | `fix/marketops-rc-delivery-gate-20261020` | `scripts/research_delivery.py`、`tests/test_delivery_research_delivery.py`、`tests/test_grading_admission_gate.py` | cherry-pick |
+| B 客户视图 | `rc-clientview-20261020` | `fix/marketops-rc-client-view-20261020` | `scripts/research_client_view.py`、`tests/test_delivery_client_view_generation.py`、`references/CLIENT_VIEW_CONTRACT.md` | cherry-pick |
+| C 安装器 | `rc-installer-20261020` | `fix/marketops-rc-installer-20261020` | `install.sh`、`scripts/setup_clients.py`、`tests/test_install_optin_security.py` | cherry-pick |
 | D 搜索去重 | `rc-search-cost-20261020` | `fix/marketops-rc-search-cost-20261020` | `scripts/search_canonical.py` 及 Lane 测试 | cherry-pick |
 | E Jev 定位 | `rc-jev-target-20261020` | `fix/marketops-rc-jev-target-20261020` | `scripts/research_adapter_jev.py`、`tests/test_jev_targeted_excerpt.py` | cherry-pick |
 | Q 独立 QA | `rc-independent-qa-20261020` | `qa/marketops-rc-customer-gate-20261020` | `tests/test_customer_delivery_boundary_qa.py`（QA 工件，不入产品分支） | 只取裁决 |
@@ -23,7 +23,7 @@
 
 - `docs/rc-20261020/*`
 - `scripts/rc-20261020/*`
-- `plugins/research-tools/marketops-research-assistant/tests/test_rc_integration_gate.py`
+- `plugins/research-tools/marketops-research-assistant/tests/test_install_integration_gate.py`
 
 ## 2. 跨 Lane 接口
 
@@ -97,12 +97,12 @@ assert client_view.verify_client_view(destination / "client-view")
 
 | ID | 判据 | 执行 |
 | --- | --- | --- |
-| G1 | A 的定向测试 | `python -m unittest tests.test_research_delivery tests.test_delivery_admission_gate -v` |
-| G2 | B 的定向测试 | `python -m unittest tests.test_client_view_generation -v` |
-| G3 | C 的定向测试 | `python -m unittest tests.test_installer_optin_security -v` |
+| G1 | A 的定向测试 | `python -m unittest tests.test_delivery_research_delivery tests.test_grading_admission_gate -v` |
+| G2 | B 的定向测试 | `python -m unittest tests.test_delivery_client_view_generation -v` |
+| G3 | C 的定向测试 | `python -m unittest tests.test_install_optin_security -v` |
 | G4 | D 的定向测试 | Lane D 提交的模块名 |
 | G5 | E 的定向测试 | `python -m unittest tests.test_jev_targeted_excerpt -v` |
-| G6 | A+B 集成 | `tests/test_rc_integration_gate.py` |
+| G6 | A+B 集成 | `tests/test_install_integration_gate.py` |
 | G7 | release manifest/hash | `build_client_bundles.build_source()` 到仓库外临时目录；逐文件哈希 + `.sha256` + zip 一致 |
 | G8 | 完整 offline plugin suite | `python -m unittest discover -s tests -v`（只跑一次，不并发） |
 

@@ -60,7 +60,6 @@ python -m unittest discover -s tests -v
 python scripts/research_pack.py init ~/marketops-research-data/check-one --request-id check-one --country GB --scene gb-demo --objective "Offline schema smoke test"
 python scripts/research_pack.py validate ~/marketops-research-data/check-one
 python scripts/research_pack.py summary ~/marketops-research-data/check-one
-python scripts/export_excel_safe_csv.py ~/marketops-research-data/check-one --output ~/marketops-research-data/check-one-excel-csv
 python scripts/build_client_bundles.py --output ~/marketops-research-bundles
 ```
 
@@ -79,7 +78,7 @@ python scripts/build_client_bundles.py --output ~/marketops-research-bundles
 
 ## E. v0.2.2 本地事件自动保存（待执行并验收）
 
-- [ ] python -m unittest discover -s tests -p 'test_research_event_journal.py' -v 在客户批准的隔离环境中运行。
+- [ ] python -m unittest discover -s tests -p 'test_workflow_event_journal.py' -v 在客户批准的隔离环境中运行。
 - [ ] 在客户数据根外运行CLI init，检查研究包与state/research-events.sqlite3确实落盘；日志中只有非敏感操作元数据。
 - [ ] Excel-safe CSV导出成功时追加export操作事件。
 - [ ] 相同operation的相同状态重复写入幂等；同标识但内容不同拒绝。
@@ -91,7 +90,7 @@ python scripts/build_client_bundles.py --output ~/marketops-research-bundles
 
 ## F. v0.3 双搜索 MCP（已入库、离线和客户端验收待完成）
 
-- [ ] `python -m unittest discover -s tests -p 'test_dual_search_mcp.py' -v` 使用合成密钥/mock 响应，绝不发真实 API 请求。
+- [ ] `python -m unittest discover -s tests -p 'test_search_dual_search_mcp.py' -v` 使用合成密钥/mock 响应，绝不发真实 API 请求。
 - [ ] 安装 Python `mcp>=2.2,<3` 后真实 `tools/list` 可列出 `marketops_search_capabilities` 与 `marketops_search`。
 - [ ] 默认联网关闭 / 额度为 0；能力查询不收费；真实搜索被拒绝。
 - [ ] 两种凭据各进对应官方域名/鉴权方式，不自动切换，不复制另一家 Key。

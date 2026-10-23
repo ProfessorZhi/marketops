@@ -61,7 +61,7 @@ class TestDualSearch(unittest.TestCase):
                 # These cases are about that path's key handling, budget cap and
                 # redaction once it *is* reachable, so they opt in. The default
                 # is asserted separately in
-                # test_dual_search_serper_contract.SerpApiRestAvailabilityTests.
+                # test_search_serper_contract.SerpApiRestAvailabilityTests.
                 "MARKETOPS_SERPAPI_REST_ENABLE": "1",
             },
         )
@@ -198,9 +198,8 @@ class TestDualSearch(unittest.TestCase):
             output = Path(tmp) / "client-package"
             info = bundle.build(output, with_search_mcp=True)
             self.assertEqual(1, info["mcp_servers_bundled"])
-            self.assertEqual(13, info["skills"])
-            self.assertEqual(13, len(list((ROOT / "skills").glob("*/SKILL.md"))),
-                             "bundle Skill count must track the plugin source Skills")
+            # The bundle carries every Skill in the plugin source, however many there are.
+            self.assertEqual(len(list((ROOT / "skills").glob("*/SKILL.md"))), info["skills"])
             target = Path(info["directory"])
             mcp = json.loads((target / "mcp.json").read_text(encoding="utf-8"))
             schema = json.loads((target / "token-schema.json").read_text(encoding="utf-8"))

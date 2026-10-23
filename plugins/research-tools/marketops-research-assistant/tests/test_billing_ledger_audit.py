@@ -4,7 +4,7 @@ Five areas were named for audit: concurrency, durable reservations, UNKNOWN char
 migration, and the campaign floor. This file holds the probes that correspond to
 **defects**, so each test here is written against the behaviour the contract requires
 and fails while the defect is present. It is not a regression suite for behaviour that
-already worked - ``test_research_usage_ledger.py`` and ``test_wave1_ledger_floor.py``
+already worked - ``test_billing_usage_ledger.py`` and ``test_billing_ledger_floor.py``
 keep that.
 
 Provenance, so a later reader can tell what was audited: the integration's

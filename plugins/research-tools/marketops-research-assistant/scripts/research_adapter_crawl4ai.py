@@ -143,7 +143,7 @@ LOCAL_CRAWL_NOT_SAFE_TO_RUN = "LOCAL_CRAWL_NOT_SAFE_TO_RUN"
 
 #: 契约 §5.3 的 ``reason_code`` 闭集，**逐字抄下来**。
 #: 本模块只允许从这个集合 ∪ :data:`_ADAPTER_LOCAL_REASONS` 里取理由码；
-#: 由 ``test_wave1_crawl4ai_adapter.py`` 判死，所以新增一个名字必须同时改这里
+#: 由 ``test_reading_crawl4ai_adapter.py`` 判死，所以新增一个名字必须同时改这里
 #: 与 status 文件里的 CONTRACT-CHANGE-REQUEST。
 CONTRACT_REASON_CODES: frozenset[str] = frozenset({
     "POLICY_TIER_NOT_GRANTED", "POLICY_DOMAIN_NOT_ALLOWED", "POLICY_GRANT_EXPIRED",
@@ -774,9 +774,11 @@ def auxiliary_http_get(
     if not decision.allowed:
         raise _egress_error("EGRESS_REFUSED", detail=f"{decision.refusal} {decision.detail}".strip())
 
+    from research_always_proxy import AlwaysProxyHandler
+    # Through the egress proxy even for a host NO_PROXY names: the guard lives there.
     opener = urllib.request.build_opener(
-        urllib.request.ProxyHandler({"http": binding.proxy_url,
-                                     "https": binding.proxy_url}),
+        AlwaysProxyHandler({"http": binding.proxy_url,
+                            "https": binding.proxy_url}),
         _NoRedirect(),
     )
     request = urllib.request.Request(url, method="GET", headers={

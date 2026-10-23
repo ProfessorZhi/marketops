@@ -104,7 +104,7 @@ helper APIs, avoiding concurrent edits.
 ### D. Bounded research fallback
 
 - Owner: fallback workstream. Own new `scripts/research_fallback.py`,
-  `tests/test_research_fallback.py` and the provider-router Skill. Root integrates
+  `tests/test_reading_fallback_chain.py` and the provider-router Skill. Root integrates
   MCP `marketops_research_step` and injects existing managed-call/admission
   functions; no runtime/policy/ledger core ownership moves.
 - Review this added proposal and plan twice before implementing. Retain markers

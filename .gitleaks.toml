@@ -50,19 +50,19 @@ regexTarget = "match"
 regexes = ['''KEY = "launch-2026-09-29-natural-grass"''']
 
 [[allowlists]]
-description = "plugins/.../tests/test_research_experience_summary.py:201 synthetic credential in a negative-test fixture"
-paths = ['''^plugins/research-tools/marketops-research-assistant/tests/test_research_experience_summary\.py$''']
+description = "plugins/.../tests/test_workflow_experience_summary.py:201 synthetic credential in a negative-test fixture"
+paths = ['''^plugins/research-tools/marketops-research-assistant/tests/test_workflow_experience_summary\.py$''']
 regexTarget = "line"
 regexes = ['''sk-abcdefghijklmnopqrstuvwxyz012345''']
 
 [[allowlists]]
-description = "plugins/.../tests/test_research_lite_integration.py:132 synthetic CRAWL4AI key in an offline fixture"
-paths = ['''^plugins/research-tools/marketops-research-assistant/tests/test_research_lite_integration\.py$''']
+description = "plugins/.../tests/test_workflow_lite_integration.py:132 synthetic CRAWL4AI key in an offline fixture"
+paths = ['''^plugins/research-tools/marketops-research-assistant/tests/test_workflow_lite_integration\.py$''']
 regexTarget = "line"
 regexes = ['''synthetic-secret-crawl4ai''']
 
 [[allowlists]]
-description = "plugins/.../tests/test_client_view_generation.py synthetic, deliberately invalid PEM header used to prove PRIVATE_KEY_MATERIAL refusal"
-paths = ['''^plugins/research-tools/marketops-research-assistant/tests/test_client_view_generation\.py$''']
+description = "plugins/.../tests/test_delivery_client_view_generation.py synthetic, deliberately invalid PEM header used to prove PRIVATE_KEY_MATERIAL refusal"
+paths = ['''^plugins/research-tools/marketops-research-assistant/tests/test_delivery_client_view_generation\.py$''']
 regexTarget = "line"
 regexes = ['''-{5}BEGIN RSA PRIVATE KEY-{5}''']

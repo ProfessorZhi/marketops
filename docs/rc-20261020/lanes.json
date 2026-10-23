@@ -15,8 +15,8 @@
       "worktree": "worktrees/marketops/rc-gate-20261020",
       "owned_paths": [
         "plugins/research-tools/marketops-research-assistant/scripts/research_delivery.py",
-        "plugins/research-tools/marketops-research-assistant/tests/test_research_delivery.py",
-        "plugins/research-tools/marketops-research-assistant/tests/test_delivery_admission_gate.py"
+        "plugins/research-tools/marketops-research-assistant/tests/test_delivery_research_delivery.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_grading_admission_gate.py"
       ],
       "commits": [
         "6b2548991acddc52d1efce0e344b3d8f704ece40"
@@ -29,7 +29,7 @@
       "worktree": "worktrees/marketops/rc-clientview-20261020",
       "owned_paths": [
         "plugins/research-tools/marketops-research-assistant/scripts/research_client_view.py",
-        "plugins/research-tools/marketops-research-assistant/tests/test_client_view_generation.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_delivery_client_view_generation.py",
         "plugins/research-tools/marketops-research-assistant/references/CLIENT_VIEW_CONTRACT.md"
       ],
       "commits": [
@@ -44,7 +44,7 @@
       "owned_paths": [
         "plugins/research-tools/marketops-research-assistant/install.sh",
         "plugins/research-tools/marketops-research-assistant/scripts/setup_clients.py",
-        "plugins/research-tools/marketops-research-assistant/tests/test_installer_optin_security.py"
+        "plugins/research-tools/marketops-research-assistant/tests/test_install_optin_security.py"
       ],
       "commits": [
         "ed4836ba32f17378e61563f2493c5c0fd08beb4a"
@@ -59,7 +59,7 @@
         "plugins/research-tools/marketops-research-assistant/scripts/search_canonical.py",
         "plugins/research-tools/marketops-research-assistant/scripts/dual_search_mcp.py",
         "plugins/research-tools/marketops-research-assistant/scripts/research_provider_extensions.py",
-        "plugins/research-tools/marketops-research-assistant/tests/test_serpapi_cross_transport_no_double_charge.py"
+        "plugins/research-tools/marketops-research-assistant/tests/test_billing_serpapi_no_double_charge.py"
       ],
       "commits": [
         "eefd8b6a4ae14fff7c8e6caed3bc2e1a2027f38c"
@@ -106,7 +106,7 @@
         "plugins/research-tools/marketops-research-assistant/scripts/research_gateway.py",
         "plugins/research-tools/marketops-research-assistant/scripts/research_runtime_setup.py",
         "plugins/research-tools/marketops-research-assistant/scripts/research_usage_ledger.py",
-        "plugins/research-tools/marketops-research-assistant/tests/test_runtime_dollar_cap_contract.py"
+        "plugins/research-tools/marketops-research-assistant/tests/test_billing_dollar_cap_contract.py"
       ],
       "commits": [
         "a3e45df134bc88305a7647d3f8f9f646be317450"
@@ -123,7 +123,7 @@
       "owned_paths": [
         "plugins/research-tools/marketops-research-assistant/scripts/research_adapter_crawl4ai.py",
         "plugins/research-tools/marketops-research-assistant/scripts/research_runtime_transport.py",
-        "plugins/research-tools/marketops-research-assistant/tests/test_crawl_browser_webrtc_egress.py"
+        "plugins/research-tools/marketops-research-assistant/tests/test_reading_crawl_browser_webrtc_egress.py"
       ],
       "commits": [
         "f977c6a149235b68b1388d2bd793f71d86675615"
@@ -147,18 +147,18 @@
         "plugins/research-tools/marketops-research-assistant/scripts/research_evidence_store.py",
         "plugins/research-tools/marketops-research-assistant/scripts/research_runtime_setup.py",
         "plugins/research-tools/marketops-research-assistant/scripts/build_client_bundles.py",
-        "plugins/research-tools/marketops-research-assistant/tests/test_rc2_integration_seams.py",
-        "plugins/research-tools/marketops-research-assistant/tests/test_rc3_evidence_p0.py",
-        "plugins/research-tools/marketops-research-assistant/tests/test_rc3_release_qa.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_gateway_integration_seams_rc2.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_grading_evidence_p0.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_install_release_qa.py",
         "scripts/rc-20261020/check_release_gate.py",
         "scripts/rc-20261020/check_release_hygiene.py",
         "plugins/research-tools/marketops-research-assistant/scripts/research_source_selection.py",
         "plugins/research-tools/marketops-research-assistant/scripts/research_workflow.py",
         "plugins/research-tools/marketops-research-assistant/scripts/research_mcp.py",
-        "plugins/research-tools/marketops-research-assistant/tests/test_rc4_supersedes_write_guard.py",
-        "plugins/research-tools/marketops-research-assistant/tests/test_rc4_source_selection.py",
-        "plugins/research-tools/marketops-research-assistant/tests/test_rc5_review_type_guard.py",
-        "plugins/research-tools/marketops-research-assistant/tests/test_rc5_source_evidence.py"
+        "plugins/research-tools/marketops-research-assistant/tests/test_grading_supersedes_write_guard.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_workflow_source_selection.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_grading_review_type_guard.py",
+        "plugins/research-tools/marketops-research-assistant/tests/test_grading_source_evidence.py"
       ],
       "commits": [],
       "note": "The only lane allowed to edit the seam files after F and G. RC5 closes the review_type supersedes bypass and requires linked quote support for rate/phone/contact binding. Its commit SHA is filled in after the final candidate commit."

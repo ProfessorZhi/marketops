@@ -83,7 +83,7 @@ flowchart LR
 ```bash
 python scripts/experience_pack.py validate /客户授权目录/experience.json
 python scripts/experience_pack.py render /客户授权目录/experience.json --output /客户授权目录/REVIEW.md
-python -m unittest discover -s tests -p 'test_experience_pack.py' -v
+python -m unittest discover -s tests -p 'test_workflow_experience_pack.py' -v
 ```
 
 render不覆盖已有文件；请用新版本文件。工具不读取locator对应文件、不抓网址、不执行回放、不调用四个Provider、不读取客户设备其他目录、不改规则。VALID_CANDIDATE_NOT_VERIFIED只说明结构和声明引用正确；EMPTY_NOT_EVALUATED没有经验样本，不是通过业务验收。

@@ -29,7 +29,7 @@ The new regression tests validate 9-sheet XLSX/CSV creation, saved-artifact SHA 
 ## Real public source test (manual opt-in)
 
 ```bash
-MARKETOPS_LIVE_PUBLIC_E2E=1 python -m unittest discover -s tests -p test_research_live_e2e.py -v
+MARKETOPS_LIVE_PUBLIC_E2E=1 python -m unittest discover -s tests -p test_workflow_live_e2e.py -v
 ```
 
 The test reads `https://www.lincoln.gov.uk/people-community/community-sport-leisure-facilities/4`, requires observable West Common cricket pitch and the department's published work email; creates the Run, records raw HTTP response, writes candidate organization/venue/department route and exports real XLSX, then reopens it and tests the exact evidence/grade status. No post/email/form submit. If site blocks fetching or no longer publishes the data, the test **fails** and records the external dependency; changing the assertion to match a guess is not an acceptable fix.
@@ -72,7 +72,7 @@ Device `tokyo-shared-dev-01`, branch base `7491730`, Python 3.12.14, `mcp==2.3.0
 | L1 | `python -m compileall -q scripts tests` | rc 0 |
 | L1 | `python -m unittest discover -s tests -v` | 68 tests, `OK (skipped=1)` |
 | L1 | `python scripts/preflight.py` | rc 0, `STATIC_PASS_NOT_RUNTIME_VERIFIED` |
-| L2 | `MARKETOPS_LIVE_PUBLIC_E2E=1 python -m unittest discover -s tests -p test_research_live_e2e.py -v` | 1 test, `OK` |
+| L2 | `MARKETOPS_LIVE_PUBLIC_E2E=1 python -m unittest discover -s tests -p test_workflow_live_e2e.py -v` | 1 test, `OK` |
 | L2 | separate 4-source acceptance run over real `www.lincoln.gov.uk` HTTPS pages | 28/28 checks PASS; real 9-sheet XLSX, per-file SHA-256 matched `MANIFEST.json`; DB ↔ workbook counts agreed; a byte-flipped source copy was refused with `ARTIFACT_READBACK_HASH_MISMATCH` |
 | L3 | any Serper/SerpApi/Crawl4AI/TinyFish/Jev call | NOT RUN — not authorized, no key read |
 | L4 | formal A/B/C/D route | NOT CONNECTED — see below |

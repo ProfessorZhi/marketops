@@ -65,7 +65,7 @@ authorized read-only handshake settles it, and until then both sides report
 
 `research_adapter_tinyfish.SHIPPING_CALL_SHAPES` holds the intended shape of each
 shipped call in the integration's own operation vocabulary, and
-`tests/test_wave1_tinyfish_lazy_surface.py::ShippedCallShapes` validates every one
+`tests/test_reading_tinyfish_lazy_surface.py::ShippedCallShapes` validates every one
 against this adapter's argument contract. If our contract moves, that test names
 the shipped call that stopped matching.
 
@@ -138,15 +138,15 @@ SYMBOL_DRIFT.resolution_state: REPAIRED_IN_THIS_PATCH
 **Tests that must change with it** (they pin the old contract; this is the exact
 list, not an estimate):
 
-- `tests/test_research_official_mcp_session_protocol.py`
+- `tests/test_reading_official_mcp_session_protocol.py`
   - `FakeSession.names` tuple contains `"wait_for_run"` (line ~57) → `"get_run"`
   - the branch `elif name == "wait_for_run"` (line ~78) → `"get_run"`
   - the `agent_config` schema fixture (line ~67) is no longer part of the
     contract this test pins
-- `tests/test_research_official_mcp_embedded.py`
+- `tests/test_reading_official_mcp_embedded.py`
   - `agent_config` appears in the paid-agent arguments (~94, ~104, ~142, ~146,
     ~159)
-- `tests/test_embedded_official_mcp_bridge.py`
+- `tests/test_reading_embedded_official_mcp_bridge.py`
   - `agent_config` schema/key fixtures (~100, ~106, ~112, ~144)
 
 I did **not** touch those files; changing them is the Integrator's call, and they
@@ -216,7 +216,7 @@ gateway — a registry decision, not a code defect.
 |---|---|---|
 | 1 | `research_contract.py` / `research_adapter_base.py` absent → my `execute()` duck-types `CapabilityRequest` and returns `ResultView` | W-B |
 | 2 | `AdapterResult` has no `reason_code`; the closed-set channel is `caveats[0]` (your own CONTRACT-CHANGE-REQUEST) | coordinator |
-| 3 | `test_wave1_integration_gateway.py` drives a synthetic `ProbeAdapter`; the real `TinyFishAdapter` is not covered by it | I |
+| 3 | `test_gateway_integration_gateway.py` drives a synthetic `ProbeAdapter`; the real `TinyFishAdapter` is not covered by it | I |
 | 4 | Credential wire (`X-API-Key` vs Bearer) unverified on this account | needs an authorized read-only handshake |
 | 5 | Upstream `_approved_url(resolve=True)` performs DNS, so URL capabilities refuse in a sandbox (fail-closed) | recorded; tests inject the guard |
 | 6 | Three read-only inventory capabilities moved T4→T1 | CONTRACT-CHANGE-REQUEST in `status/W-C.md` |

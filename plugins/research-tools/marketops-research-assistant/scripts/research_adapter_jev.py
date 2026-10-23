@@ -71,9 +71,7 @@ from research_event_journal import _root, append_event
 #: that way, so this adapter must answer to the same name or the conformance probe
 #: reports ``PROVIDER_MISMATCH`` and the gateway never finds it.
 PROVIDER = "typesafe_jev"
-#: The vendor's own short spelling, which the capability ids and W-QA's
-#: `cost-ledger.schema.json` provider enum both use. Kept as a name rather than a
-#: comment so the translation in `research_ledger_bridge` cites something.
+#: The vendor's own short spelling, which the capability ids use.
 LEGACY_PROVIDER = "jev"
 TRANSPORT = "python_sdk"
 
@@ -121,7 +119,7 @@ MAX_LOCATOR_CHARS = 60
 NAME = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
 
 #: The contract's §5.3 closed set. `research_contract.py` (W-B) does not exist yet,
-#: so this is a transcription; `test_wave2_jev_refusal_channel` asserts it equals the
+#: so this is a transcription; `test_jev_refusal_channel` asserts it equals the
 #: integrator's `research_gateway.REASON_CODES` whenever that module is importable,
 #: so the two copies cannot drift silently.
 CONTRACT_REASON_CODES = frozenset({

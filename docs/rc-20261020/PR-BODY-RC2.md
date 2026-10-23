@@ -58,11 +58,11 @@ Cherry-picks (no conflict, no ours/theirs, no reset):
 
 | Gate | Result |
 | --- | --- |
-| F targeted (`test_runtime_dollar_cap_contract.py`) | 16 tests OK |
-| G targeted (`test_crawl_browser_webrtc_egress.py`) | 19 tests OK |
-| RC2 seams (`test_rc2_integration_seams.py`) | 12 tests OK |
-| Cross-transport dedup (`test_serpapi_cross_transport_no_double_charge.py`) | included in the 256-test targeted batch OK |
-| Installer opt-in (`test_installer_optin_security.py`) | 21 tests OK |
+| F targeted (`test_billing_dollar_cap_contract.py`) | 16 tests OK |
+| G targeted (`test_reading_crawl_browser_webrtc_egress.py`) | 19 tests OK |
+| RC2 seams (`test_gateway_integration_seams_rc2.py`) | 12 tests OK |
+| Cross-transport dedup (`test_billing_serpapi_no_double_charge.py`) | included in the 256-test targeted batch OK |
+| Installer opt-in (`test_install_optin_security.py`) | 21 tests OK |
 | Jev header locating (`test_jev_targeted_excerpt.py`) | 19 tests OK |
 | P0 fabricated email/institution + QA #15 | 9/9 OK against the RC plugin root |
 | Plugin full offline suite | `Ran 2187 tests`, 0 failures, 0 errors, 30 skipped |

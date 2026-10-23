@@ -90,7 +90,7 @@ DNS 护栏。它是仓库核心代码，不在本插件的发行 ZIP 中；`buil
 
 - **发行插件**不可调用该 core adapter，G 的护栏覆盖发行面；
 - **核心产品路径**仍存在该缺口，属于“非覆盖风险”，本次不宣称已修；
-- `tests/test_rc2_integration_seams.py::CoreFetcherReachabilityTests` 禁止插件
+- `tests/test_gateway_integration_seams_rc2.py::CoreFetcherReachabilityTests` 禁止插件
   新增到 core adapter 的导入边，避免未来悄悄把未加固路径带进发行包。
 
 ## 3. 版本与打包
@@ -108,9 +108,9 @@ DNS 护栏。它是仓库核心代码，不在本插件的发行 ZIP 中；`buil
 
 | 门 | 结果 |
 | --- | --- |
-| F 定向（`test_runtime_dollar_cap_contract.py`） | 16 tests OK |
-| G 定向（`test_crawl_browser_webrtc_egress.py`） | 19 tests OK |
-| RC2 接缝（`test_rc2_integration_seams.py`） | 12 tests OK |
+| F 定向（`test_billing_dollar_cap_contract.py`） | 16 tests OK |
+| G 定向（`test_reading_crawl_browser_webrtc_egress.py`） | 19 tests OK |
+| RC2 接缝（`test_gateway_integration_seams_rc2.py`） | 12 tests OK |
 | QA #15（独立 QA 工件，只读挂载 RC 插件） | 9/9 OK |
 | 插件全量离线套件 | `Ran 2187 tests`，0 failures，0 errors，30 skipped |
 | release hygiene（构建+解包+stdio+client-view） | PASS；server `0.5.6-rc2`，30 tools，provider calls 0 |

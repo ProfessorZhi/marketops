@@ -93,7 +93,7 @@ class TierAndEnablement(unittest.TestCase):
     def test_the_described_only_tools_are_listed_with_a_reason(self):
         # 14, not 17: the read-only account inventory (list_monitors,
         # get_monitor, list_browser_sessions) was enabled as T1 by
-        # test_wave1_tinyfish_account_reads. What remains described-only is
+        # test_reading_tinyfish_account_reads. What remains described-only is
         # everything that spends, mutates, or reads credentials.
         catalog = tinyfish.capability_catalog()
         described_only = OFFICIAL_TOOLS - set(tinyfish.READ_TOOLS) - set(tinyfish.T3_TOOLS)

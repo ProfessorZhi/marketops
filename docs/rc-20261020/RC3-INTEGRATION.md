@@ -103,9 +103,9 @@
 | 门 | 结果 |
 | --- | --- |
 | 插件全量离线套件 | `Ran 2212 tests`，0 failures，0 errors，30 skipped |
-| P0 证据控制（`test_rc3_evidence_p0.py`） | 19 tests OK；含长页 4 条合法正向 |
-| 发布 QA 控制（`test_rc3_release_qa.py`） | 6 tests OK |
-| Gate readiness 控制（`test_rc3_release_gate_status.py`） | 8 tests OK |
+| P0 证据控制（`test_grading_evidence_p0.py`） | 19 tests OK；含长页 4 条合法正向 |
+| 发布 QA 控制（`test_install_release_qa.py`） | 6 tests OK |
+| Gate readiness 控制（`test_install_release_gate_status.py`） | 8 tests OK |
 | 定向 release gate | 技术检查全 PASS；G15 **BLOCKED**、`ok=false`、overall **BLOCKED / NOT_RELEASE_READY**、退出码 2 |
 | 发布卫生门 | 技术检查 11/11 PASS；`H12-independent-qa` **BLOCKED**；整体 **BLOCKED / NOT_RELEASE_READY** |
 | 自动客户视图 | 4 admitted / 4 held；`client-view/` 8 文件；顶层 MANIFEST 哈希一致 |

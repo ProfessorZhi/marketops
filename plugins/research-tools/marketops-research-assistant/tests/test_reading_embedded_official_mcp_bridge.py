@@ -45,6 +45,10 @@ def event_result(data):
 
 
 class OfficialMCPUnitTests(unittest.TestCase):
+    def setUp(self):
+        from _offline_names import stub_reserved_names
+        stub_reserved_names(self)
+
     def test_urls_and_allowlisted_tools_are_vendor_owned(self):
         self.assertEqual("https://agent.tinyfish.ai/mcp", official.ENDPOINTS["tinyfish"])
         self.assertEqual("https://mcp.serpapi.com/mcp", official.ENDPOINTS["serpapi"])

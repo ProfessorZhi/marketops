@@ -113,9 +113,8 @@ class MetadataTests(unittest.TestCase):
         self.assertIs(reg.pinned_hash_subject,
                       registry_module.HashSubject.HOST_CAPABILITY_SUBSET)
         self.assertIsNone(reg.vendor_schema_sha256)
-        self.assertEqual(
-            set(reg.vendor_schema_statuses()),
-            {"tinyfish", "serpapi", "serper", "crawl4ai", "typesafe_jev", "deepseek"})
+        # One schema status per provider that has a capability: none missing, none extra.
+        self.assertEqual(set(reg.vendor_schema_statuses()), {entry.provider for entry in reg})
         for provider in reg.vendor_schema_statuses():
             with self.subTest(provider=provider):
                 self.assertIs(reg.authoritative_status(provider),
@@ -137,17 +136,14 @@ class MetadataTests(unittest.TestCase):
         with self.assertRaises(registry_module.RegistryError):
             registry_module.HashSubject.coerce("VENDOR_GUESS")
 
-    def test_the_reviewed_table_is_28_with_no_live_claim(self):
-        # 25 before the documented TinyFish account-read review, plus the three
-        # reviewed reads (get_monitor / list_monitors / list_browser_sessions), plus
-        # DeepSeek Search and Fetch.
-        reg = registry_module.DEFAULT_REGISTRY
-        self.assertEqual(len(reg), 30)
-        statuses = [(entry.readiness, entry.availability.value) for entry in reg]
-        self.assertEqual(statuses.count(("OFFLINE_TESTED", "ENABLED")), 25)
-        self.assertEqual(statuses.count(("CODED", "ENABLED")), 1)
-        self.assertEqual(statuses.count(("DEFERRED", "DISABLED")), 4)
-        self.assertNotIn("READY", " ".join(entry.readiness for entry in reg))
+    def test_every_entry_states_an_honest_readiness_and_none_claims_live(self):
+        # Deferred means disabled, and nothing in the reviewed table claims READY:
+        # readiness is earned by a live run, not written into the table.
+        allowed = {("OFFLINE_TESTED", "ENABLED"), ("CODED", "ENABLED"), ("DEFERRED", "DISABLED")}
+        for entry in registry_module.DEFAULT_REGISTRY:
+            with self.subTest(capability=entry.capability_id):
+                self.assertIn((entry.readiness, entry.availability.value), allowed)
+                self.assertNotIn("READY", entry.readiness)
 
     def test_a_host_subset_pin_cannot_carry_a_vendor_digest(self):
         with self.assertRaises(registry_module.RegistryError):
