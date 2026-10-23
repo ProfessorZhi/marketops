@@ -774,9 +774,11 @@ def auxiliary_http_get(
     if not decision.allowed:
         raise _egress_error("EGRESS_REFUSED", detail=f"{decision.refusal} {decision.detail}".strip())
 
+    from research_always_proxy import AlwaysProxyHandler
+    # Through the egress proxy even for a host NO_PROXY names: the guard lives there.
     opener = urllib.request.build_opener(
-        urllib.request.ProxyHandler({"http": binding.proxy_url,
-                                     "https": binding.proxy_url}),
+        AlwaysProxyHandler({"http": binding.proxy_url,
+                            "https": binding.proxy_url}),
         _NoRedirect(),
     )
     request = urllib.request.Request(url, method="GET", headers={

@@ -7,6 +7,8 @@ from typing import Mapping
 from urllib.parse import urlsplit
 import urllib.request
 
+from research_always_proxy import AlwaysProxyHandler
+
 
 class BeforeDispatchRefused(ValueError):
     """A local check before tools/call, safe to settle as no dispatch."""
@@ -167,7 +169,7 @@ def serper_transport(request, timeout):
     if host != "google.serper.dev":
         raise ValueError("EGRESS_REFUSED")
     with open_session(allowlist=frozenset({host})) as session:
-        opener = urllib.request.build_opener(NoRedirect(), urllib.request.ProxyHandler(
+        opener = urllib.request.build_opener(NoRedirect(), AlwaysProxyHandler(
             {"https": session.proxy.url, "http": session.proxy.url}))
         with opener.open(request, timeout=timeout) as response:
             yield response
@@ -181,7 +183,7 @@ def deepseek_transport(request, timeout):
     if host != "api.deepseek.com":
         raise ValueError("EGRESS_REFUSED")
     with open_session(allowlist=frozenset({host})) as session:
-        opener = urllib.request.build_opener(NoRedirect(), urllib.request.ProxyHandler(
+        opener = urllib.request.build_opener(NoRedirect(), AlwaysProxyHandler(
             {"https": session.proxy.url, "http": session.proxy.url}))
         with opener.open(request, timeout=timeout) as response:
             yield response

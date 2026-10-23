@@ -100,6 +100,22 @@ class NetworkPathTests(unittest.TestCase):
         self.assertTrue(any("outside.example.org" in item for item in refused), refused)
 
 
+class NoProxyCannotBypassTheEgress(unittest.TestCase):
+    """A host the machine's NO_PROXY lists still goes through the egress proxy."""
+
+    def test_the_site_is_reached_only_through_the_proxy(self):
+        from unittest.mock import patch
+        site = SyntheticSite().start()
+        self.addCleanup(site.stop)
+        proxy = RecordingProxy(gate=RECORDING_ALLOW_ALL).start()
+        self.addCleanup(proxy.stop)
+        with patch.dict("os.environ", {"NO_PROXY": "127.0.0.1,localhost",
+                                       "no_proxy": "127.0.0.1,localhost"}):
+            response = adapter.auxiliary_http_get(TestEgress(proxy=proxy), site.url("/"))
+        self.assertEqual(200, response.status)
+        self.assertEqual(1, len(proxy.decisions))  # judged by the proxy, not sent around it
+
+
 class RefusalEvidenceTests(unittest.TestCase):
     """IA-4 的反向那一半：被拒时上游**一次连接都没有**。"""
 
@@ -134,8 +150,8 @@ class RefusalEvidenceTests(unittest.TestCase):
         """预检没挡住的请求到了代理，代理那一层也必须拒，且**不连上游**。"""
         proxy = RecordingProxy().start()  # 缺省 gate = 全拒
         self.addCleanup(proxy.stop)
-        opener = urllib.request.build_opener(
-            urllib.request.ProxyHandler({"http": proxy.url}))
+        from research_always_proxy import AlwaysProxyHandler
+        opener = urllib.request.build_opener(AlwaysProxyHandler({"http": proxy.url}))
         with self.assertRaises(urllib.error.HTTPError) as ctx:
             opener.open(self.site.url("/"), timeout=5)
         self.assertEqual(403, ctx.exception.code)

@@ -47,6 +47,8 @@ class FakeResponse:
 
 class LiteTests(unittest.TestCase):
     def setUp(self):
+        from _offline_names import stub_reserved_names
+        stub_reserved_names(self)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name) / "data"

@@ -11,6 +11,7 @@ import json
 import sqlite3
 import sys
 import tempfile
+import os
 import unittest
 from hashlib import sha256
 from pathlib import Path
@@ -190,6 +191,8 @@ class TestNothingIsTouched(MigrationCase):
             self.assertEqual(sorted(item.name for item in
                                     path.parent.glob(path.name + "-*")), [])
 
+    @unittest.skipIf(hasattr(os, "geteuid") and os.geteuid() == 0,
+                     "root reads a mode-000 file, so chmod cannot make the store unreadable")
     def test_a_store_that_cannot_be_read_is_reported_not_raised(self):
         build_legacy(self.root)
         unreadable = self.root / "state" / "dual-search-ledger.sqlite3"

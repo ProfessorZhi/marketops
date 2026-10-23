@@ -269,10 +269,14 @@ class InstalledInterpreterTests(unittest.TestCase):
     @unittest.skipIf(importlib.util.find_spec("mcp") is None,
                      "needs an interpreter without mcp for this control")
     def test_an_interpreter_without_the_sdk_is_a_note_not_a_pass(self):
-        # /usr/bin/python3 is the stock interpreter here: it exists and cannot
-        # import mcp. That is the state an install without --install-deps is in.
+        # An empty venv exists and cannot import mcp: the state an install without
+        # --install-deps is in. (The host's own python3 may well have mcp.)
+        import venv
         with tempfile.TemporaryDirectory() as tmp:
-            dest = self._install_with_command(tmp, "/usr/bin/python3")
+            bare = Path(tmp) / "bare"
+            venv.EnvBuilder(with_pip=False).create(bare)
+            python = bare / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+            dest = self._install_with_command(tmp, str(python))
             result = probe.audit_installed_interpreter(dest)
             self.assertTrue(result["ok"], result["findings"])
             self.assertFalse(result["can_import_mcp"])
@@ -576,7 +580,8 @@ class CleanArchiveTests(unittest.TestCase):
             with zipfile.ZipFile(archive) as z:
                 z.extractall(root)
             tree = root / ROOT.name
-            self.assertEqual(13, len(list((tree / "skills").glob("*/SKILL.md"))))
+            self.assertEqual(len(list((ROOT / "skills").glob("*/SKILL.md"))),
+                             len(list((tree / "skills").glob("*/SKILL.md"))))
             self.assertEqual(1, len(list(tree.rglob("mcp.json"))))
             for config in tree.rglob("*.json"):
                 try:
