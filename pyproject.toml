@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "MarketOps — known-account contact research pipeline (research-only; platform-independent)"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "Proprietary" }
+license = { text = "MIT" }
 
 # 运行依赖刻意保持轻薄：任何一个装不上都不应该阻塞整条链路。
 #
