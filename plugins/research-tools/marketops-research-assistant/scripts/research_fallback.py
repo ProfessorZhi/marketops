@@ -434,6 +434,13 @@ def research_step(data_root, *, run_id, operation_id, task_kind, managed_call, a
                     gateway_invoked=response.get("gateway_invoked") if type(response.get("gateway_invoked")) is bool else None,
                     actual_usd=amount, cost_unknown=amount is None and response.get("gateway_invoked") is not False,
                     charge_state=_code(response.get("charge_state")) or "NOT_REPORTED_USE_USAGE_LEDGER")
+        if "CRAWL_REDIRECT_REFUSED" in diagnostics or item.get("reason_code") == "CRAWL_REDIRECT_REFUSED":
+            # Where the site sent the browser: the caller may ask for that page itself,
+            # as a new request with its own checks; it is never followed here.
+            payload = response.get("payload") if isinstance(response.get("payload"), dict) else {}
+            found = re.search(r"https?://[^\s，,;)）\]\"'<>]+", str(payload.get("detail") or ""))
+            if found:
+                item["redirect_to"] = found.group(0)[:500]
         if capability in LOCAL_CAPABILITIES:
             item["local_reader_down_confirmed"] = bool(response.get("crawl4ai_down"))
             detail = (response.get("payload") or {}).get("detail", "") if isinstance(response.get("payload"), dict) else ""

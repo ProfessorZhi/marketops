@@ -383,6 +383,15 @@ def _redirect_refused(receipt: dict) -> bool:
                for a in receipt.get("attempts") or [])
 
 
+def _redirect_target(receipt: dict, url: str) -> str:
+    """The page the site redirected to (an http(s) URL other than ``url``), or ""."""
+    for attempt in receipt.get("attempts") or []:
+        target = attempt.get("redirect_to") or ""
+        if urlsplit(target).scheme in {"http", "https"} and target.rstrip("/") != url.rstrip("/"):
+            return "https://" + target[len("http://"):] if target.startswith("http://") else target
+    return ""
+
+
 def _www_twin(url: str) -> str:
     parts = urlsplit(url)
     host = parts.hostname or ""
@@ -468,9 +477,11 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
         child = f"{operation_id}-{scope}-p{len(pages) + 1}"
         receipt = fetch(page_url, child)
         if not pages and _redirect_refused(receipt):
-            # club.co.uk -> www.club.co.uk is one site; the browser refuses to follow
-            # any redirect, so ask for the other spelling of the same host once.
-            page_url = _www_twin(page_url)
+            # The browser refuses to follow any redirect. The organisation's own first
+            # page is asked for once more where the site said it lives (ville-x.fr ->
+            # www.x.fr/accueil), or else at the other spelling of the same host; that
+            # is a new request with its own checks, and identity is still required.
+            page_url = _redirect_target(receipt, page_url) or _www_twin(page_url)
             receipt = fetch(page_url, child + "w")
         artifact_id = _evidence_artifact(receipt) if receipt.get("status") == "SUCCESS_CANDIDATE" else ""
         page = {"url": page_url, "status": receipt.get("status"),

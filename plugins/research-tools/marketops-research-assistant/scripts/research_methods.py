@@ -44,6 +44,9 @@ LADDERS = {
                       "buyer, so it counts only when the notice names the site or facilities "
                       "role with an email. Read them with marketops_research_step and "
                       "marketops_material_excerpt."),
+        ("EXPAND_SOURCE", "Widen the sources that gave A or B: the same kind of list for the "
+                          "next sport, département, town or federation (officer pages of "
+                          "committees and clubs pay most); each new list is its own source."),
         ("TINYFISH_AGENT", "TinyFish's paid browser agent for the hard pages that are left, "
                            "only if the user allowed it in the brief."),
     ),

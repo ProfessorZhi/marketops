@@ -12,7 +12,7 @@ so it is measured, not assumed:
   once; the richest reading (most addresses, then most text, local first on a
   tie) is the one used, and every reading is logged;
 * **order** - after the probe, the fallback chain tries the readers in the order
-  of what they delivered in this Run (pages read x addresses per page); the
+  of what they delivered in this Run (share of pages that gave addresses); the
   per-domain memory in ``research_walls`` still starts a known-hard site at the
   reader that worked there;
 * **report** - per reader: pages tried, read, failed by reason, addresses found,
@@ -92,12 +92,14 @@ def order(root, run_id: str) -> tuple[str, ...] | None:
     if db is None:
         return None
     with closing(db):
-        rows = db.execute("SELECT reader, COUNT(*), SUM(outcome='READ'), SUM(emails) "
+        rows = db.execute("SELECT reader, COUNT(*), SUM(outcome='READ'), SUM(emails > 0) "
                           "FROM fetch_readings WHERE run_id=? GROUP BY reader", (run_id,)).fetchall()
     if not rows:
         return None
-    score = {reader: (emails or 0) / tried + 0.01 * (read or 0) / tried
-             for reader, tried, read, emails in rows}
+    # Share of pages that gave addresses, then share read: one guide with 200
+    # addresses must not put a reader that fails most pages first.
+    score = {reader: (with_emails or 0) / tried + 0.01 * (read or 0) / tried
+             for reader, tried, read, with_emails in rows}
     # A reader never tried keeps its place after the measured ones.
     return tuple(sorted(READERS, key=lambda r: (-score.get(r, -1), READERS.index(r))))
 

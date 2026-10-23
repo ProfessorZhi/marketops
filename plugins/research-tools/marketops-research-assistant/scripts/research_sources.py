@@ -199,6 +199,13 @@ def yields(root, run_id: str, *, grades: dict | None = None, brief: dict | None 
     gate = settings(brief or {})
     ab_orgs = {g["organization_id"] for g in grades.values()
                if g["grade"] in {"A", "B"} and g["organization_id"]}
+    # A club split from a target's list page earns its A/B for that target's source:
+    # the list is what the source delivered.
+    for record in _records(root, run_id):
+        data = record.get("data") or {}
+        if (record["kind"] == "organization" and record["entity_key"] in ab_orgs
+                and data.get("listed_by_organization_id")):
+            ab_orgs.add(data["listed_by_organization_id"])
     table: dict[tuple[str, str], dict] = {}
     for pool_id, source_id, status, rid, org, reason in _pool_rows(root, run_id):
         row = table.setdefault((pool_id, source_id), {
@@ -216,9 +223,12 @@ def yields(root, run_id: str, *, grades: dict | None = None, brief: dict | None 
         row["ab_rate"] = round(row["with_ab"] / n, 3) if n else None
         if gate is None:
             row["verdict"] = "GATE_OFF"
-        elif n < gate["pilot"]:
+        elif n < gate["pilot"] and row["pending"]:
             row["verdict"] = "PILOT"
             row["needs"] = gate["pilot"] - n
+        elif n < gate["pilot"]:
+            # A short list, all done: judged on what it gave, never left in pilot.
+            row["verdict"] = "PROMOTE" if n and row["ab_rate"] >= gate["promote"] else "SMALL_DONE"
         elif row["ab_rate"] >= gate["promote"]:
             row["verdict"] = "PROMOTE"
         elif n >= 2 * gate["pilot"] or row["ab_rate"] < gate["stop"]:

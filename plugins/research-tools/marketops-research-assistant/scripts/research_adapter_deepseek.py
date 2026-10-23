@@ -91,8 +91,21 @@ def capabilities() -> tuple[str, ...]:
     return CAPABILITIES
 
 
+def _shorten(text: str, limit: int) -> str:
+    """Cut at a word boundary, never mid-word, and never on a dangling OR/AND."""
+    if len(text) <= limit:
+        return text
+    words = text[:limit + 1].split()[:-1] if text[limit:limit + 1] != " " else text[:limit].split()
+    while words and words[-1].upper() in {"OR", "AND", "|"}:
+        words.pop()
+    return " ".join(words)
+
+
 def _query(value: Any, language: str) -> str:
-    text = " ".join(str(value or "").split())
+    # The API takes 128 characters; a longer query (agents write long OR chains)
+    # is shortened at a word boundary rather than refused, so this route still
+    # answers in a multi-route search. The payload says it was shortened.
+    text = _shorten(" ".join(str(value or "").split()), MAX_QUERY_CHARS)
     # Language as DeepSeek's own operator, when the caller gave one and the query
     # does not already say it; the API has no separate locale field.
     if language and "lang:" not in text:
@@ -209,6 +222,7 @@ class DeepSeekAdapter:
             "run_id": str(getattr(req, "run_id", "") or ""),
             "operation_id": str(getattr(req, "operation_id", "") or ""),
             "mode": "web", "query": query, "limit": limit, "result_count": len(hits),
+            "query_shortened": len(" ".join(str(params.get("query") or "").split())) > MAX_QUERY_CHARS,
             "results": hits, "source_status": "discovered_not_verified",
             "business_evidence": False,
             # Empty searches are not billed by DeepSeek.

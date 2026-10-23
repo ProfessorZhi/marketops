@@ -64,7 +64,16 @@ class Adapter(unittest.TestCase):
         self.assertEqual("BLOCKED", adapter.execute(request(query="anything")).outcome)
         adapter, sent = self.adapter({"results": []})
         self.assertEqual("BLOCKED", adapter.execute(request(query="x", mode="maps")).outcome)
-        self.assertEqual("BLOCKED", adapter.execute(request(query="q" * 200)).outcome)
+        self.assertEqual("BLOCKED", adapter.execute(request(query="q" * 200)).outcome)  # one word, no cut
+        long = ("comité départemental judo Hauts-de-Seine OR Val-de-Marne OR Seine-Saint-Denis OR "
+                "Yvelines OR Essonne bureau exécutif président directeur technique email")
+        adapter, sent = self.adapter({"results": [{"url": "https://x.fr/", "title": "x"}]})
+        result = adapter.execute(request(query=long))
+        self.assertEqual("OK", result.outcome)
+        self.assertTrue(result.payload["query_shortened"])
+        self.assertLessEqual(len(sent[0]["query"]), 128)
+        self.assertFalse(sent[0]["query"].endswith(" OR"))
+        adapter, sent = self.adapter({"results": []})
         self.assertEqual([], sent)
         broke = urllib.error.HTTPError(deepseek.ENDPOINT, 402, "Payment Required", {}, None)
         adapter, _ = self.adapter(error=broke)
@@ -167,6 +176,18 @@ class Readers(unittest.TestCase):
                 "primary_artifact_ids": [artifact], "selected_capability": reader,
                 "attempts": [{"capability_id": reader, "status": "OK"}]}
 
+    def test_one_huge_page_does_not_put_a_failing_reader_first(self):
+        import research_fetch_routes as readers
+        for i in range(10):
+            readers.record(self.root, "run-r", f"https://p{i}.fr/", "crawl4ai.fetch_page",
+                           {"status": "SUCCESS_CANDIDATE"}, probe=True, used=True,
+                           measured={"chars": 900, "emails": 2})
+            ok = i == 0
+            readers.record(self.root, "run-r", f"https://p{i}.fr/", "tinyfish.fetch_content",
+                           {"status": "SUCCESS_CANDIDATE" if ok else "HOLD"}, probe=True, used=False,
+                           measured={"chars": 90000 if ok else 0, "emails": 200 if ok else 0})
+        self.assertEqual("crawl4ai.fetch_page", readers.order(self.root, "run-r")[0])
+
     def test_probe_reads_with_all_and_keeps_the_richest_then_orders_by_yield(self):
         import research_fetch_routes as readers
         receipt = readers.fetch(self.root, "run-r", "https://club.fr/", "p1", self.step)
@@ -174,14 +195,14 @@ class Readers(unittest.TestCase):
         self.assertEqual(2, receipt["reader_probe"]["deepseek.fetch_page"]["emails"])
         report = readers.report(self.root, "run-r")
         self.assertEqual({"LOCAL_CRAWL_FAILED": 1}, report["readers"]["crawl4ai.fetch_page"]["failed"])
-        self.assertEqual(("deepseek.fetch_page", "tinyfish.fetch_content", "crawl4ai.fetch_page"),
+        self.assertEqual(("tinyfish.fetch_content", "deepseek.fetch_page", "crawl4ai.fetch_page"),
                          readers.order(self.root, "run-r"))
         # After the probe window the chain gets the measured order.
         seen = []
         with patch.object(readers, "PROBE_PAGES", 1):
             readers.fetch(self.root, "run-r", "https://other.fr/", "p2",
                           lambda url, op, routes: seen.append(routes) or self.step(url, op, routes))
-        self.assertEqual([("deepseek.fetch_page", "tinyfish.fetch_content", "crawl4ai.fetch_page")], seen)
+        self.assertEqual([("tinyfish.fetch_content", "deepseek.fetch_page", "crawl4ai.fetch_page")], seen)
 
 
 if __name__ == "__main__":

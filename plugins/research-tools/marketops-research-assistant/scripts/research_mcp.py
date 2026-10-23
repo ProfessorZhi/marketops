@@ -691,7 +691,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         configured_root = None
     if configured_root is not None and runtime_setup.config(configured_root):
         from research_runtime_status import view
-        return {"product": "MarketOps Research MCP", "version": "0.5.11-rc7",
+        return {"product": "MarketOps Research MCP", "version": "0.5.11-rc8",
                 **view(configured_root, task_kind=task_kind),
                 "external_host": _external_inventory(host_observed_tools),
                 "embedded_official_mcp": provider_policy.embedded_official_mcp_capabilities(),
@@ -766,7 +766,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         if task_kind else None)
     return {
         "product": "MarketOps Lite Research MCP",
-        "version": "0.5.11-rc7",
+        "version": "0.5.11-rc8",
         "providers": {
             "serpapi": {"transport": "REST through local MCP", **search["serpapi"]},
             "serper": {"transport": "REST through local MCP", **search["serper"]},
@@ -1553,7 +1553,7 @@ def handoff(run_id, operation_id, mode="auto"):
     try:
         experience_result = draft_experience(
             r, run_id=run_id, scope=head["scope"],
-            rule_version=head["rule_version"], skill_version="0.5.11-rc7",
+            rule_version=head["rule_version"], skill_version="0.5.11-rc8",
             output=experience_path)
         result["experience_candidate"] = str(experience_path)
         result["experience_incidents"] = experience_result["incidents"]
@@ -1785,7 +1785,7 @@ def build_server():
         pass
     _ensure_repair_entrypoints()
     from mcp.server import MCPServer
-    mcp = MCPServer("MarketOps Lite Research", version="0.5.11-rc7")
+    mcp = MCPServer("MarketOps Lite Research", version="0.5.11-rc8")
     _quiet_http_logs()  # after the server set up its own logging
 
     def tool(fn):
@@ -1997,13 +1997,19 @@ def build_server():
         return propose_batch(run_id, items)
 
     @tool
-    def marketops_material_excerpt(run_id: str, artifact_ids: list[str],
-                                   queries: list[str] | None = None) -> dict:
+    def marketops_material_excerpt(run_id: str, artifact_ids: list[str] | None = None,
+                                   queries: list[str] | None = None,
+                                   artifact_id: str = "") -> dict:
         """Get SHA-checked snippets: 1–3 artifact IDs and at most 3 query strings (2–60 chars each).
 
-        The total excerpt is capped at 1200 characters; make a separate focused
-        read if more evidence is needed, rather than requesting four queries.
+        artifact_id (one ID) is accepted in place of artifact_ids. The total excerpt
+        is capped at 1200 characters; make a separate focused read if more evidence
+        is needed, rather than requesting four queries.
         """
+        if artifact_id and not artifact_ids:
+            artifact_ids = [artifact_id]
+        if not artifact_ids:
+            raise ValueError("EXCERPT_ARTIFACT_LIMIT: pass artifact_ids=[...] (1-3 IDs)")
         return material_excerpt(run_id, artifact_ids, queries)
 
     @tool
@@ -2574,7 +2580,7 @@ def build_server():
             raise ValueError("EXPERIENCE_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT")
         output.parent.mkdir(parents=True, exist_ok=True)
         return draft_experience(r, run_id=run_id, scope=scope,
-                                rule_version=rule_version, skill_version="0.5.11-rc7",
+                                rule_version=rule_version, skill_version="0.5.11-rc8",
                                 output=output)
 
     @tool

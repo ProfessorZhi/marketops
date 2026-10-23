@@ -4,6 +4,17 @@ from pathlib import Path
 import sqlite3
 
 
+#: A contacts brief with no number ("dozens to hundreds") still has a bar to clear.
+DEFAULT_MINIMUM_AB = 50
+
+
+def expansion_spent(base, run_id) -> bool:
+    """The agent recorded EXPAND_SOURCE exhausted: new lists stopped paying."""
+    import research_methods
+    tried = research_methods.status(base, run_id)["contacts"]["tried"]
+    return any(t["method"] == "EXPAND_SOURCE" and t["outcome"] == "exhausted" for t in tried)
+
+
 def rules_ok(kpi) -> bool:
     return bool(kpi and kpi.get("rules_source"))
 
@@ -34,6 +45,7 @@ def assess(root, run_id, *, goal, budget=None):
     # better sources (or closes) instead of researching the rest of a poor list.
     import research_grading as grading
     import research_sources as sources
+    brief = {}
     try:
         parked = sources.park_stopped(base, run_id)
         grades, rules, brief = sources.graded(base, run_id)
@@ -108,11 +120,30 @@ def assess(root, run_id, *, goal, budget=None):
             and state in {"FINAL_METHODS_EXHAUSTED", "FINAL_KNOWN_TARGETS_RESEARCHED",
                           "CHECKPOINT_CONTINUE_RESEARCH"} and not pending):
         state, action, final = ("CHECKPOINT_CONTINUE_RESEARCH", "IMPORT_NEXT_TARGET_FAMILY", False)
+    # A source that pays is widened before anything closes: more lists of the same
+    # kind (next sport, département, town). The first live Claude Code run found its
+    # A/B on committee officer pages, said so, and stopped at 12 people.
+    try:
+        wanted_ab = int(brief.get("minimum_ab") or 0) or None
+    except (TypeError, ValueError):
+        wanted_ab = None
+    if wanted_ab is None and brief.get("goal") == "contacts":
+        wanted_ab = DEFAULT_MINIMUM_AB
+    ab_now = (kpi or {}).get("ab_people") or 0
+    productive = [r for r in source_yield["sources"] if r.get("verdict") == "PROMOTE"]
+    if wanted_ab and ab_now >= wanted_ab:
+        reached = True
+    expand = bool(productive and wanted_ab and ab_now < wanted_ab and remaining != 0
+                  and not pending and not expansion_spent(base, run_id)
+                  and state in {"FINAL_METHODS_EXHAUSTED", "FINAL_KNOWN_TARGETS_RESEARCHED",
+                                "CHECKPOINT_CONTINUE_RESEARCH"})
+    if expand:
+        state, action, final = ("CHECKPOINT_CONTINUE_RESEARCH", "EXPAND_PRODUCTIVE_SOURCE", False)
     out = {"state": state, "is_final": final, "continuation_required": not final,
             "next_action": action, "remaining_requests": remaining,
             "pending_pool_targets": pending, "running_batch_jobs": running,
             "saved_results_to_finalize": saved, "sources_reconciled": reconciled,
-            "goal_satisfied": reached, "coverage_scope": "known_targets_not_an_exhaustive_market_claim",
+            "goal_satisfied": reached, "ab_goal": wanted_ab, "coverage_scope": "known_targets_not_an_exhaustive_market_claim",
             "pools": [{"pool_id": p["pool_id"], "queue": p["by_status"], "queue_complete": p["queue_complete"]} for p in pools],
             "methods": methods,
             "venue_operator_groups": None if groups is None else {
@@ -138,6 +169,17 @@ def assess(root, run_id, *, goal, budget=None):
             advice.append(f"Source {row['source_id']} stopped at {row['with_ab']}/{row['finished']} "
                           "targets with A or B; its pending targets are parked. Find a better source "
                           "for this target type (see the scene's source order).")
+    if expand:
+        best = sorted(productive, key=lambda r: -(r["ab_rate"] or 0))[:3]
+        advice.insert(0, f"{ab_now} A+B people of the {wanted_ab} wanted. These sources pay: "
+                      + "; ".join(f"{r['source_id']} ({r['with_ab']}/{r['finished']} targets with A or B)"
+                                  for r in best)
+                      + ". Find more lists of the same kind before anything else: the same search "
+                        "with the next sport, département, town or federation (DeepSeek search is "
+                        "cheap), import each new list as its own source "
+                        "(source_id '<same-kind>-<value>') and harvest it. Keep going while new "
+                        "lists keep giving A or B; when a round of 10 new lists gives none, record "
+                        "marketops_method(method='EXPAND_SOURCE', outcome='exhausted', note=...).")
     if family_state and family_state["missing"] and not final:
         nxt = family_state["next_family"]
         advice.append(f"Target family {nxt} has not been piloted: {family_state['next_family_how']}. "
