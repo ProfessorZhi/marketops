@@ -44,6 +44,17 @@ Opendatasoft example:
   count against it.
 - Field names differ between datasets: preview the schema first.
 
+**A contacts goal researches every kind of organisation tied to the targets, not one.**
+Unless the brief limits it, build one pool source per family and let the source gate compare
+them after 30 targets each:
+- operators and owners (town sports departments, management companies, chains);
+- clubs and associations based at the venues or in the area (committee pages name officers
+  with their own addresses: in the live Paris run they gave most of the A and B);
+- schools, universities and their sports services;
+- the federation or league's club list for each sport in the area.
+A venue inventory alone leads only to operators, and operators mostly publish service
+inboxes. Never spend the whole budget on one family before the others had their pilot.
+
 **Map who runs each venue.** When the source has operator/manager and owner fields, map
 them as `operator`, `operator_type` and `owner_type`.
 - Contacts sit with the operator: the municipality's sports department for public
