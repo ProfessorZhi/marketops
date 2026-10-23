@@ -41,7 +41,10 @@ is the balance; held and unknown charges since it still count. Under the envelop
 model a newer reading can only tighten.
 
 Balances read automatically: SerpApi (Account API), Serper
-(`google.serper.dev/account`) and the TinyFish wallet. Jev publishes no balance API;
+(`google.serper.dev/account`), the TinyFish wallet and DeepSeek
+(`api.deepseek.com/user/balance`, when that optional route is configured; its
+balance is money that also pays for model tokens, so it is shown as the number of
+$0.75/1k search/fetch requests it would buy). Jev publishes no balance API;
 enter the console figure once and usage is computed from tokens. Serper credits use
 their conservative credit-value equivalent, separately from cash invoices. A free SerpApi allowance is bounded in vendor searches. Jev uses
 the [official input-token rate](https://typesafe.ai/), $0.042 per million with

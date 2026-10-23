@@ -22,15 +22,15 @@
    - 没有 Python 3.12 时，会问是否自动安装，输入 `y` 回车。
    - 「Install directory」直接回车，使用默认位置。
    - 「Add this install to your global Codex CLI now?」用 Codex 就输入 `y`。
-   - 依次输入四个 API Key。输入时屏幕上**不会显示字符**，这是正常的；粘贴后直接回车即可。Key 存在 Windows 凭据管理器里，不会写进文件或安装目录。
-   - 如果让 agent 代装（见 `AGENT_INSTALL.md`），四个 Key 直接发给它就行，安装器里这四项一路回车跳过。
+   - 依次输入 API Key：Serper、SerpApi、TinyFish、TypeSafe 四家，最后一项是**可选的 DeepSeek**（没有就直接回车跳过，只少一路搜索和一路读页）。输入时屏幕上**不会显示字符**，这是正常的；粘贴后直接回车即可。Key 存在 Windows 凭据管理器里，不会写进文件或安装目录。
+   - 如果让 agent 代装（见 `AGENT_INSTALL.md`），Key 直接发给它就行，安装器里这些项一路回车跳过。
    - 「研究数据保存目录」「经验汇总文件」直接回车，使用默认位置。
    - 「现在开通联网调研？」输入 `y`；「允许抓取……公开网站」输入 `y`；「请求次数上限」直接回车（默认 2000）。
 3. 安装完成后会自动打开一份**本机专属**的 `START_HERE.md`，里面是在 Codex / WorkBuddy / 其他 agent 中启用插件的具体步骤和路径。
 
 也可以让 agent 帮你装，见 `AGENT_INSTALL.md`。
 
-## 二、申请四个 API Key（每个大约 2 分钟）
+## 二、申请 API Key（每个大约 2 分钟）
 
 | 服务 | 去哪里申请 | 新用户额度 |
 |---|---|---|
@@ -38,8 +38,9 @@
 | SerpApi（谷歌地图 / 搜索） | https://serpapi.com/users/sign_up 注册 → https://serpapi.com/manage-api-key 复制 | 免费版每月 250 次 |
 | TinyFish（搜索 + 网页读取） | https://agent.tinyfish.ai/sign-up 注册 → https://agent.tinyfish.ai/api-keys 创建 Key | 搜索和读取免费；Agent 收费功能默认关闭 |
 | TypeSafe / Jev（智能判断） | https://console.typesafe.ai/ 注册 → 按页面指引创建 API Key | 以控制台显示为准（Settings → Billing） |
+| DeepSeek（**可选**：多一路搜索 + 一路读页） | https://platform.deepseek.com/ 注册 → https://platform.deepseek.com/api_keys 创建 Key | 按量付费，$0.75 / 1,000 次，失败不计费；不配不影响其余服务 |
 
-Crawl4AI 在本机运行，**不需要账号**。更详细的说明见 `references/FOUR_ACCOUNT_START.md`。
+Crawl4AI 在本机运行，**不需要账号**。前四家凑齐就能跑完整调研；DeepSeek 只是让搜索多一路独立索引、读页多一路候选。更详细的说明见 `references/FOUR_ACCOUNT_START.md`。
 
 以后想换 Key：在安装目录的 `START_HERE.md` 里找到「本地账号与数据设置」那条命令，重新运行即可。
 

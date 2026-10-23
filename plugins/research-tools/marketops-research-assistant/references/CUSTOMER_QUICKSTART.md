@@ -2,7 +2,7 @@
 
 > 本源码包版本为 **0.5.11-rc8（release candidate）**。它不同于既有 `0.5.5` 发行包；请使用本包自己的 ZIP 与 SHA256，不要覆盖或复用 `0.5.5` 的安装目录。
 
-一次安装包含业务 Skills、一个 MarketOps MCP、内嵌 TinyFish/SerpApi 官方 MCP 客户端，以及 Serper REST、Crawl4AI 本地 SDK 和 TypeSafe Jev SDK。**不用再安装两家供应商插件。** 四家账户由自己注册；Crawl4AI 本地无需账号。
+一次安装包含业务 Skills、一个 MarketOps MCP、内嵌 TinyFish/SerpApi 官方 MCP 客户端，以及 Serper/DeepSeek REST、Crawl4AI 本地 SDK 和 TypeSafe Jev SDK。**不用再安装两家供应商插件。** 账户由自己注册；Crawl4AI 本地无需账号，DeepSeek 是可选的第五把 Key。
 
 ## 1. 安装源码包
 
@@ -26,9 +26,9 @@ python scripts/setup_clients.py --destination /你的/安装目录 --client all 
 
 Windows 用 `py -3.12` 代替 `python`，安装路径放在引号内，含空格的目录也必须完整加引号。`--client` 可选 `codex`、`workbuddy`、`both`（前两种）、`claude` 或 `all`。支持的 Codex CLI 可加 `--register-codex` 自动添加 marketplace 并安装插件。仅看计划则去掉 `--apply --bootstrap-runtime`；只装核心 SDK 可用 `--install-deps`，之后本地 Crawl4AI 仍需完整安装。
 
-## 2. 四账户、赠金与本地 Key
+## 2. 账户、赠金与本地 Key
 
-查看[四账户启动指南](FOUR_ACCOUNT_START.md)，注册、按官方条件领取新用户额度、创建四个 API Key。已有账户直接使用。安装后的本地向导通过隐藏输入保存 Key 到系统凭据库，不写入插件目录；也可以把 Key 直接交给本机帮你安装的 agent，它用 `configure --stdin` 写进同一个凭据库。Key 不要发到邮件、工单、群聊或其他外部系统。
+查看[账户启动指南](FOUR_ACCOUNT_START.md)，注册、按官方条件领取新用户额度、创建四个 API Key；DeepSeek 是可选的第五把（`DEEPSEEK_API_KEY`），不填只少一路搜索和一路读页。已有账户直接使用。安装后的本地向导通过隐藏输入保存 Key 到系统凭据库，不写入插件目录；也可以把 Key 直接交给本机帮你安装的 agent，它用 `configure --stdin` 写进同一个凭据库。Key 不要发到邮件、工单、群聊或其他外部系统。
 
 安装目录的 `INSTALL_RECEIPT.json` 包含 `customer_setup_argv` 和 `credentials_configure_argv`，根目录 `START_HERE.md` 已转换成可直接执行的本机命令。
 
@@ -38,7 +38,7 @@ Windows 用 `py -3.12` 代替 `python`，安装路径放在引号内，含空格
 python scripts/provider_onboarding.py --client codex --provider all
 ```
 
-请使用安装回执中的 venv Python；该报告只查本地线索，不进行真实认证，不显示 Key。`--client` 为 `claude|codex|workbuddy`，`--provider all` 显示五种能力，其中只有四家需云账户。
+请使用安装回执中的 venv Python；该报告只查本地线索，不进行真实认证，不显示 Key。`--client` 为 `claude|codex|workbuddy`，`--provider all` 显示六种能力，其中四家必有云账户、DeepSeek 为可选。
 
 ## 3. 选择集中数据位置
 

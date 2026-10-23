@@ -78,9 +78,16 @@ def report() -> dict:
             catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
             entries = catalog.get("providers", [])
             ids = [item["id"] for item in entries]
+            # The five required providers must all be present. An extra entry is
+            # allowed only when it is marked optional, so a typo cannot smuggle in
+            # a provider the guide would then present as a required account.
+            extra_ok = all(item.get("optional") is True for item in entries
+                           if item.get("id") not in
+                           {"tinyfish", "serpapi", "serper", "crawl4ai", "jev"})
             if (catalog.get("schema") != "marketops.provider-setup.v1"
-                    or len(ids) != 5
-                    or set(ids) != {"tinyfish", "serpapi", "serper", "crawl4ai", "jev"}
+                    or len(ids) != len(set(ids))
+                    or not {"tinyfish", "serpapi", "serper", "crawl4ai", "jev"} <= set(ids)
+                    or not extra_ok
                     or any(catalog.get("default_policy", {}).get(key) is not False
                            for key in ("network_enabled", "paid_provider_calls_enabled",
                                        "import_official_mcp", "site_profiles_enabled",

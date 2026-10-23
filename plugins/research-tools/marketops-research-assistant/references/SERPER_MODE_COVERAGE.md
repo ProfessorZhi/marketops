@@ -103,4 +103,4 @@ Wave-1 验收清单要求「`num>10` 双倍 credit 规则**进入计价**」。�
 - 任何「Serper 支持 N 类搜索」的说法都必须带上：声明九类、核实零类。
 
 相关：[双搜索接入](DUAL_SEARCH_SETUP.md)、[Provider 路由](PROVIDER_ROUTING.md)、
-[五家 Provider 申请与鉴权指南](PROVIDER_ONBOARDING.md)。
+[Provider 申请与鉴权指南](PROVIDER_ONBOARDING.md)。

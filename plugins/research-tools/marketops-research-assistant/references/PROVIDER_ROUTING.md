@@ -1,10 +1,11 @@
-# 五 Provider 能力路由合同（2026-10-16）
+# 六 Provider 能力路由合同（2026-10-23）
 
 本页是**已开发代码/能力约束**，不是厂商官方Skill本身；账户注册、授权、令牌、价格与完整官方连接器安装见 [PROVIDER_ONBOARDING](PROVIDER_ONBOARDING.md)。
 
 ## 设计现状
 
-- 一个MarketOps Lite stdio MCP；受管基础能力：Serper/SerpApi 受管Google Web/Maps/Images/News/Videos/Shopping/Scholar/Patents/Autocomplete、TinyFish Search/Fetch、Crawl4AI Local/Cloud /scrape、Jev Choice/Noul/Score。不同接入独立Key/钱包/调用上限，外部统一客户Store。
+- 一个MarketOps Lite stdio MCP；受管基础能力：Serper/SerpApi 受管Google Web/Maps/Images/News/Videos/Shopping/Scholar/Patents/Autocomplete、**DeepSeek Search/Fetch**、TinyFish Search/Fetch、Crawl4AI Local/Cloud /scrape、Jev Choice/Noul/Score。不同接入独立Key/钱包/调用上限，外部统一客户Store。
+- **来源发现默认是四路并集，不是四选一。** `marketops_search(provider='all')` 把同一条 query 同时发给 `serper`、`deepseek`、`serpapi`、`tinyfish`（`SEARCH_ROUTES`），按 URL 去重合并，并在回执里给出逐路找到的页数与去重后的实际贡献。四家是彼此独立的网页索引；某一路没额度、被拒、超时，只退出它自己，本次搜索仍返回其余结果。项目可用运行设置 `search_routes` 收窄这条并集，未配置的 provider 不会出现在里面。
 - **TinyFish/SerpApi官方MCP现在由MarketOps内嵌Python MCP Client直接连接**，经本地受管预算预约和证据存储；Crawl4AI官方Docker/Cloud MCP才属于宿主可选连接器。不能从当前客户端的官方 MCP 存在推断用户的另一个项目也已连接、授权或拥有额度。
 - 本地主 Skill 按需读当前阶段资料；调用 `marketops_capabilities(task_kind=...)` 获取**只读** matrix 和路由候选列表。宿主报来的 TinyFish 工具名仍只证明“被报告”，并非余额/凭据/登录态验证。
 
@@ -13,8 +14,8 @@
 | 任务 | 优先 | 条件性升档 | 禁止 |
 |---|---|---|---|
 | 有效已有证据 | 缓存/Store | 只在缺新证据时调用 | 同 URL 换ID重复抓 |
-| 来源发现 | 已核价的 TinyFish Search 或受管 Serper/SerpApi | 特殊引擎使用MarketOps内嵌官方SerpApi MCP的通用search工具 | 无用户批准自动付费双搜 |
-| 已知URL正文 | 已核价 TinyFish Fetch / 本地 Crawl4AI | 已授权的 Cloud/Selfhosted | 普通页面直接Web Agent |
+| 来源发现 | `provider='all'`：Serper + DeepSeek + SerpApi + TinyFish 并集 | 特殊引擎使用MarketOps内嵌官方SerpApi MCP的通用search工具 | 无用户批准扩大搜索路数或额度 |
+| 已知URL正文 | 已核价 TinyFish Fetch / 本地 Crawl4AI / DeepSeek Fetch | 已授权的 Cloud/Selfhosted | 普通页面直接Web Agent |
 | 稳定目录/批量 | Crawl4AI 本地/自托管 | 有凭证时 Cloud batch/jobs | 拿抓取量充当事实有效率 |
 | 必须点击/翻页 | 可控本地浏览器、用户自建脚本 | TinyFish按分钟 Browser或按step Agent（收费） | 预算不足、未登录便启动 |
 | 用户授权登录态 | 官方 Profile/Vault只存于厂商 | 仅指定site、账号范围、动作、过期策略 | 用Google Cookie推断所有站点都有权限 |
@@ -34,8 +35,14 @@
 2. 本地SDK/浏览器缺失 → 免费预检、请求用户配置已安装解释器/浏览器目录，不反复消耗请求额度。
 3. 当前某 **meter** 余额不足/402 → 只暂停该付费 meter，例如TinyFish Agent；免费 Search/Fetch 是否可用单独评估，严禁错误把整个Provider失效。
 4. 某来源403/CAPTCHA/Cloudflare → 不换代理/IP/服务商绕访问控制，查另一个独立合法公开来源或HOLD。
-5. Serper/SerpApi/Jev额度未知 → 本批次不自动升付费，不通过第二家隐式扣费。
+5. Serper/SerpApi/DeepSeek/Jev额度未知 → 本批次不自动升付费，不通过第二家隐式扣费。
 6. 任务要求正式业务审批/外联 → Lite只能候选，人工和获批准的业务引擎处理。
+
+## DeepSeek 路由（rc8 起）
+
+DeepSeek 在这里是**搜索与读页**供应商，不是模型替代品：`DEEPSEEK_API_KEY` 走 `SEARCH_QUERY_ACCOUNT_RATE`，按成功且非空的结果计费（$0.75 / 1,000 次），**失败不计费**；它和 Serper 不是同一个索引，`provider='all'` 时分头检索再按 URL 合并。读页时 DeepSeek Fetch 与 Crawl4AI、TinyFish 一起读同一页，**按这次 Run 里实测的交付效果排序**取用，不按厂商默认优先级。余额经 `api.deepseek.com` 账户接口直接读取，折算成“还能买多少次搜索/读页”，钱和次数分开展示。
+
+未配置 Key 或该路被限额时，`marketops_search` 的回执里这一路是失败行，其余路的结果照常合并——**不要**把一次四路搜索的成败写成整体成败，也不要在缺这一路时改称其他 provider 不可用。
 
 ## 统一证据写回
 

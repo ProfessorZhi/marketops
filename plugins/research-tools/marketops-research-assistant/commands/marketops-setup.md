@@ -9,12 +9,14 @@ one back, never put one in a file, a command argument, a URL or a commit.
 1. Call `marketops_setup_status`. If it is `CONFIGURED` and the providers they need show keys,
    say so and stop.
 2. If the user has not given you keys yet, ask for the four (Serper, SerpApi, TinyFish,
-   TypeSafe/Jev) and point them at `references/FOUR_ACCOUNT_START.md` for the sign-up pages. A
-   provider they leave out stays unavailable and everything else still works.
+   TypeSafe/Jev) and mention DeepSeek as optional (`DEEPSEEK_API_KEY`) - it adds a fourth
+   parallel search route and a third page reader. Point them at
+   `references/FOUR_ACCOUNT_START.md` for the sign-up pages. A provider they leave out stays
+   unavailable and everything else still works.
 3. Store them as one JSON object of provider id to key on stdin:
 
    ```
-   @{ serper = '<key>'; serpapi = '<key>'; tinyfish = '<key>'; typesafe = '<key>' } |
+   @{ serper = '<key>'; serpapi = '<key>'; tinyfish = '<key>'; typesafe = '<key>'; deepseek = '<key>' } |
        ConvertTo-Json -Compress | & "<install dir>\.venv\Scripts\python.exe" "<install dir>\plugins\marketops-research-assistant\scripts\research_credentials.py" configure --stdin
    ```
 

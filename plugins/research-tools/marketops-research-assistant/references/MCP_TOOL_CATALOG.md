@@ -11,8 +11,8 @@
 | 有界降级 | `marketops_research_step` | 在已准入渠道中有限尝试，保留每次原因、结果和回执 |
 | 官网挖掘 | `marketops_site_harvest` | 一次调用抓取机构自有官网的联系/人员/租用页，切出原文引文，写入候选并返回每条准入结论 |
 | 单次调用 | `marketops_managed_call` | 统一 Registry/Policy/Ledger/Adapter，返回业务数据和持久资料引用 |
-| 搜索 | `marketops_search`、`marketops_serpapi_mcp_search` | Serper REST / SerpApi 内嵌官方 MCP，兼容名称使用同一调用链 |
-| 抓取 | `marketops_crawl`、`marketops_tinyfish` | 本地 Crawl4AI / TinyFish 内嵌 MCP；保留来源种类、时间和 hash |
+| 搜索 | `marketops_search`、`marketops_serpapi_mcp_search` | `provider='all'` 同时发 Serper / DeepSeek / SerpApi / TinyFish 四路并集；也可指定单家。SerpApi 可用内嵌官方 MCP，兼容名称使用同一调用链 |
+| 抓取 | `marketops_crawl`、`marketops_tinyfish` | 本地 Crawl4AI / TinyFish 内嵌 MCP，DeepSeek Fetch 作为第三路读页；保留来源种类、时间和 hash |
 | 语义判断 | `marketops_jev_choice` | Choice/Noul/Score 绑定已保存材料；结果不是事实审批 |
 | 保存候选 | `marketops_propose`、`marketops_propose_batch` | 幂等、原子写入；关键字段有 `claims[{field,artifact_id,quote}]` |
 | 读证据 | `marketops_material_excerpt`、`marketops_evidence_audit` | 有界原文摘录和缺口检查；文本匹配不证明语义 |
