@@ -39,7 +39,9 @@
 * **工具面由部署的 delegate 参数拼出来，本层只核对它**（见
   :func:`_require_mcp_surface`）：除了 ``marketops`` 之外的 MCP server 一律拒绝，
   因为让子进程**看不到**那些工具比让它「被要求不要用」强 —— 后者的执行器是一个
-  提示词。
+  提示词。核对的是三格：``--mcp-config`` 恰好一次且是绝对路径、
+  ``--strict-mcp-config`` 在场、``mcpServers`` 恰好是 ``marketops``。少了 strict
+  那一格，前两格推出的结论不成立 —— CLI 会把这份配置与宿主、项目、插件来源合并。
 
 ## 为什么「本层加载的 marketops 是不是服务那一份」是一道闸（§15(b)）
 
@@ -269,23 +271,91 @@ def _isolated_run_dir(
     return worker_root / work_item_id / task_id / f"{stamp}-{os.getpid()}"
 
 
-def _read_mcp_servers(args: Sequence[str]) -> tuple[str, ...]:
-    """从 delegate 参数里的 ``--mcp-config`` 读出它会看见哪些 MCP server。
+STRICT_MCP_FLAG = "--strict-mcp-config"
+MCP_CONFIG_FLAG = "--mcp-config"
 
-    读不出来（没有这个旗标、文件不在、JSON 读不懂）**都是拒绝**：这一层被授予的
-    权力是「核对工具面」，而不是「假设部署已经核对过」。
+
+@dataclass(frozen=True)
+class McpSurface:
+    """核对**通过之后**的工具面读数：哪一份配置、strict 在不在、开着哪些 server。
+
+    `strict` 不是「我们希望的取值」而是一条**读数**：它有值，是因为参数里真的有
+    ``--strict-mcp-config``（缺了就在 :func:`_read_mcp_surface` 里拒了）。把这一格
+    写成常量的话，部署漏了旗标时记录仍然主张 ``strict: true`` —— 而这时子进程
+    实际上把 ``--mcp-config`` 与宿主、项目、插件来源**合并**了，工具面比记录里宽。
     """
-    try:
-        index = list(args).index("--mcp-config")
-    except ValueError as exc:
+
+    path: Path
+    servers: tuple[str, ...]
+    strict: bool
+
+    def payload(self) -> dict[str, Any]:
+        """进 ``run.json`` 的那一格。三格都来自放行时核对过的那份参数。"""
+        return {
+            "source": str(self.path),
+            "strict": self.strict,
+            "servers": list(self.servers),
+        }
+
+
+def _mcp_config_path(args: Sequence[str]) -> Path:
+    """参数里那一个 ``--mcp-config`` 指向的**绝对**路径。
+
+    三件事各自拒绝一次，因为它们的坏法不同：
+
+    * **没有这个旗标** —— 子 agent 会与宿主上一切可用来源合并，而这条参数上
+      看不出合并了什么；
+    * **出现两次** —— CLI 通常是后者覆盖前者，于是本层核对的那一份与 delegate
+      打开的那一份可以不是同一个文件；
+    * **相对路径** —— 本层按启动器的 cwd 解析，delegate 按隔离运行目录（它的
+      cwd）解析，同一个字符串在两次解析里能落到两个不同的文件上。``WORKER_ROOT_ENV``
+      拒绝相对路径是同一个理由。
+    """
+    occurrences = [index for index, value in enumerate(args) if value == MCP_CONFIG_FLAG]
+    if not occurrences:
         raise ConfigError(
             f"delegate 参数里没有 ``--mcp-config``（{DELEGATE_ARGS_ENV}）—— 本层核对不了"
             "这一轮的工具面。一个不写明工具面的子 agent 会与宿主上一切可用来源合并，"
             "而多出来的工具是**在提示词之外**放宽的权限。"
-        ) from exc
+        )
+    if len(occurrences) > 1:
+        raise ConfigError(
+            f"``--mcp-config`` 在 delegate 参数里出现了 {len(occurrences)} 次 —— 本层只读"
+            "得懂一份。多份时 CLI 通常后者覆盖前者，于是核对过的与真正打开的可以不是"
+            "同一个文件；请在部署配置里只写一份。"
+        )
+    index = occurrences[0]
     if index + 1 >= len(args):
         raise ConfigError("``--mcp-config`` 后面没有路径")
     path = Path(args[index + 1])
+    if not path.is_absolute():
+        raise ConfigError(
+            f"``--mcp-config`` 的路径是相对的（{str(path)!r}）—— 本层按启动器的 cwd 读它，"
+            "delegate 按隔离运行目录解析同一个字符串，两次解析可以落在两个不同的文件上。"
+            "请在部署配置里写绝对路径。"
+        )
+    return path
+
+
+def _read_mcp_surface(args: Sequence[str]) -> McpSurface:
+    """从 delegate 参数里读出它会看见什么工具面（配置、strict、server 名单）。
+
+    读不出来（没有这个旗标、旗标重复、路径是相对的、文件不在、JSON 读不懂）**都是
+    拒绝**：这一层被授予的权力是「核对工具面」，而不是「假设部署已经核对过」。
+
+    ``--strict-mcp-config`` 缺席同样是拒绝，而且它与 ``--mcp-config`` 是成对的两个
+    前提：没有 strict 时，``mcpServers`` 恰好是 ``{"marketops"}`` **推不出**子进程只
+    看得到 marketops —— CLI 会把这份配置与宿主、项目、插件来源合并，多出来的工具是
+    在提示词之外放宽的权限。缺了它，「核对过工具面」这句话本身不成立。
+    """
+    path = _mcp_config_path(args)
+    if STRICT_MCP_FLAG not in args:
+        raise ConfigError(
+            f"delegate 参数里没有 ``{STRICT_MCP_FLAG}`` —— 没有它，CLI 会把 "
+            "``--mcp-config`` 与宿主、项目、插件来源的 MCP 配置**合并**，于是"
+            "「配置里只有 marketops」推不出「子进程只看得见 marketops」。"
+            f"请在部署配置（{DELEGATE_ARGS_ENV}）里补上这个旗标。"
+        )
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
@@ -293,17 +363,18 @@ def _read_mcp_servers(args: Sequence[str]) -> tuple[str, ...]:
     servers = payload.get("mcpServers")
     if not isinstance(servers, dict):
         raise ConfigError(f"{path} 里没有 ``mcpServers`` 对象")
-    return tuple(sorted(servers))
+    return McpSurface(path=path, servers=tuple(sorted(servers)), strict=True)
 
 
-def _require_mcp_surface(args: Sequence[str]) -> tuple[str, ...]:
-    """delegate 的参数必须恰好开出 ``REQUIRED_MCP_SERVERS``，并把它交回去。
+def _require_mcp_surface(args: Sequence[str]) -> McpSurface:
+    """delegate 的参数必须恰好开出 ``REQUIRED_MCP_SERVERS``，并把读数交回去。
 
     在**启动 delegate 之前**抛，所以一次工具面变宽的派发不是「跑起来再发现」。
     返回值是**核对过的那一份**，写进 ``run.json`` 的那一格与刚才放行的依据是同一个
     读数 —— 分成两次读，某一天会出现「放行的是 A、记下来的是 B」。
     """
-    servers = _read_mcp_servers(args)
+    surface = _read_mcp_surface(args)
+    servers = surface.servers
     if tuple(servers) != tuple(sorted(REQUIRED_MCP_SERVERS)):
         extra = [name for name in servers if name not in REQUIRED_MCP_SERVERS]
         missing = [name for name in REQUIRED_MCP_SERVERS if name not in servers]
@@ -312,7 +383,7 @@ def _require_mcp_surface(args: Sequence[str]) -> tuple[str, ...]:
             f"{list(REQUIRED_MCP_SERVERS)}（多出 {extra}、缺 {missing}）。"
             "多出来的工具面是**在提示词之外**放宽的权限，所以这里停下。"
         )
-    return servers
+    return surface
 
 
 @dataclass(frozen=True)
@@ -378,7 +449,7 @@ def _write_run_record(
     task_id: str,
     work_item_id: str,
     delegate: str,
-    servers: Sequence[str],
+    surface: McpSurface,
     build: BuildCheck,
     identity: dict[str, object],
     now: datetime,
@@ -398,17 +469,26 @@ def _write_run_record(
         },
         "build_consistency": build.payload(),
         "identity": identity,
-        "mcp": {"source": "--mcp-config（由部署给出，本层核对）", "strict": True,
-                "servers": list(servers)},
+        "mcp": surface.payload(),
         "why_no_attempt_id": (
             "租约（attempt）由 worker 第一次 get_assignment 铸造，启动这一刻还不存在；"
             "所以目录按真正持有的两个身份命名，而不是按一个猜出来的编号。"
         ),
     }
-    (run_dir / "run.json").write_text(
-        json.dumps(record, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
+    # 先写旁路再 ``os.replace``：写到一半失败时盘上留下的是一个 ``.tmp``，而不是一份
+    # **截断的** ``run.json``。后者才是最坏的那种：它读得出前半段，「这一轮跑过」于是
+    # 成立，而记录里缺的那几格没有任何东西说明它们缺。
+    body = json.dumps(record, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    staging = run_dir / "run.json.tmp"
+    try:
+        staging.write_text(body, encoding="utf-8")
+        os.replace(staging, run_dir / "run.json")
+    except OSError:
+        try:
+            staging.unlink(missing_ok=True)
+        except OSError:  # pragma: no cover - 清不掉的旁路不该盖过真正的原因
+            pass
+        raise
 
 
 def run_round(work_item_id: str, *, task_id: str) -> int:
@@ -424,7 +504,7 @@ def run_round(work_item_id: str, *, task_id: str) -> int:
     try:
         delegate = _delegate_program()
         delegate_args = _delegate_args()
-        servers = _require_mcp_surface(delegate_args)
+        surface = _require_mcp_surface(delegate_args)
         build = _require_build_consistency()
         now = datetime.now(UTC)
         run_dir = _isolated_run_dir(
@@ -441,15 +521,17 @@ def run_round(work_item_id: str, *, task_id: str) -> int:
         print(f"未派发：{exc}", file=sys.stderr)
         return EXIT_REFUSED
 
+    placed = False
     try:
         try:
             run_dir.mkdir(parents=True, exist_ok=False)
+            placed = True
             _write_run_record(
                 run_dir,
                 task_id=task_id,
                 work_item_id=work_item_id,
                 delegate=delegate,
-                servers=servers,
+                surface=surface,
                 build=build,
                 identity=identity.payload() | {"launcher_token_replaced": stale_token},
                 now=now,
@@ -460,6 +542,15 @@ def run_round(work_item_id: str, *, task_id: str) -> int:
             # 还有别的形状让 CPython 抛 ValueError」—— 那仍然是一个不能用的目录，
             # 不是一次崩溃。
             print(f"未派发：隔离运行目录 {run_dir} 用不了：{exc}", file=sys.stderr)
+            if placed:
+                # 只清**这一轮自己刚建出来的**那个目录（``placed`` 只在 ``mkdir`` 成功
+                # 之后为真；``exist_ok=False`` 抛出的那一支说明它是别人先占下的，碰不得）。
+                # ``rmdir`` 在非空时失败，于是已经写下去的东西留在原处 —— 清理失败不能
+                # 盖过真正的原因。
+                try:
+                    run_dir.rmdir()
+                except OSError:
+                    pass
             return EXIT_REFUSED
 
         print(
