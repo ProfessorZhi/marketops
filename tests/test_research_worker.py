@@ -634,6 +634,28 @@ def test_an_item_id_that_cannot_be_a_path_component_is_refused(
     assert not run.worker_root.exists(), "拒绝发生在落位之前：隔离根不该出现"
 
 
+@pytest.mark.parametrize("item", ["a\x00b", "a\nb", "a\x7fb"])
+def test_an_item_id_with_a_control_character_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, item: str
+) -> None:
+    """控制字符不是「不能用的 id」，它是**不能当路径成分**的 id。
+
+    ``check_slug_safe`` 拦的是路径分隔符与保留字符，控制字符不在它那张表里。而 NUL
+    让 ``mkdir`` 抛的是 ``ValueError`` 而不是 ``OSError`` —— 于是它会穿过落位那段
+    ``except OSError``，把「这个 id 不能当路径」报成一段抛栈。经由 CLI 走不到（``execve``
+    传不了 NUL），但 ``run_round`` 是 runner 在同一个进程里反复调用的入口。
+
+    断三件事：退出码是 ``EXIT_REFUSED`` 而不是抛出去、delegate 没被启动、隔离根没被建。
+    """
+    run = Run(tmp_path, monkeypatch, item_id=item)
+
+    code = run()
+
+    assert code == EXIT_REFUSED
+    assert not record_path(tmp_path).exists()
+    assert not run.worker_root.exists(), "拒绝发生在落位之前：隔离根不该出现"
+
+
 @pytest.mark.parametrize("task", ["..", ".", "a/b", "a\\b", ""])
 def test_a_task_id_that_cannot_be_a_path_component_is_refused(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, task: str
@@ -1098,6 +1120,31 @@ def test_the_identity_is_released_when_the_round_ends(
     again = claim_identity(run.ring, lock_root=lock_root)
     os.close(again.lock_fd)
     assert again.principal == PRINCIPAL
+
+
+def test_the_launcher_token_is_put_back_when_the_round_ends(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """令牌写进环境之后要还原 —— 同一个进程里连跑两轮时，这一点是判据。
+
+    ``dispatch_runner`` 正是那个形状：一个进程里一轮接一轮。不还原的话，第二轮看到的
+    非空 ``TOKEN_ENV`` 会让它把 ``launcher_token_replaced`` 记成 true —— 那是「部署还
+    在按老顺序上线」的信号，不是本层自己留下的痕迹；而那份令牌会一直躺在这个进程的
+    环境里，之后起的任何子进程都静默继承它。
+    """
+    run = Run(tmp_path, monkeypatch)
+
+    assert run() == 0
+    assert TOKEN_ENV not in os.environ, "本轮结束后，令牌不该留在拉起它的那个进程里"
+    assert run() == 0
+
+    records = [json.loads(path.read_text(encoding="utf-8")) for path in run_records(tmp_path)]
+    assert len(records) == 2, "两个独立的隔离目录，各写一份 run.json"
+    assert [record["identity"]["launcher_token_replaced"] for record in records] == [
+        False,
+        False,
+    ]
+    assert TOKEN_ENV not in os.environ
 
 
 # ----------------------------------------------------------------------
