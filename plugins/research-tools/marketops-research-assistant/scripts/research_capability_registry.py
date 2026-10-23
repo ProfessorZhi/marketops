@@ -1238,6 +1238,14 @@ DEFAULT_REGISTRY = CapabilityRegistry((
             "language": "string", "page": "integer"},
            "search", description="Metered Google SERP; num>10 costs a second credit."),
 
+    # -- DeepSeek: REST search ----------------------------------------------
+    build_entry("deepseek.search", "deepseek", "search", "rest", EffectClass.BILLABLE_READ, Tier.T2,
+           "deepseek:search", "search_query",
+           {"query": "string", "mode": "string", "limit": "integer", "country": "string",
+            "language": "string"},
+           "search", description="DeepSeek's own web index; up to 50 results per billed request, "
+                                 "empty searches not billed."),
+
     # -- Crawl4AI: local SDK, through the egress proxy ----------------------
     build_entry("crawl4ai.fetch_page", "crawl4ai", "fetch_page", "local_sdk",
            EffectClass.READ_ONLY, Tier.T1, "crawl4ai:local", "local_page",

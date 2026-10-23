@@ -30,7 +30,7 @@ class CredentialTests(unittest.TestCase):
             def set_password(self, service, name, value): values[(service, name)] = value
             def get_password(self, service, name): return values.get((service, name))
         with patch.object(c, "_backend", return_value=Store()), patch.object(c.sys.stdin, "isatty", return_value=True), patch.object(
-                c.getpass, "getpass", side_effect=["test-serper-value", "", "", ""]):
+                c.getpass, "getpass", side_effect=["test-serper-value", "", "", "", ""]):
             receipt = c.configure_keys()
             env = {}
             loaded = c.load_into_environment(env)

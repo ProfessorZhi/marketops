@@ -14,7 +14,7 @@ import sqlite3
 
 FREE = frozenset({("crawl4ai", "render"), ("crawl4ai", "extract"),
                   ("tinyfish", "search"), ("tinyfish", "fetch")})
-PROVIDERS = ("serper", "serpapi", "typesafe_jev", "tinyfish")
+PROVIDERS = ("serper", "serpapi", "deepseek", "typesafe_jev", "tinyfish")
 MAX_AGE_SECONDS = 7 * 24 * 3600
 #: The total red line when the owner sets none: no research spends more than this
 #: across all accounts without the local setup saying so (--total-usd).
@@ -164,6 +164,7 @@ def pricing_entries():
     pairs = [(p, c, 0, True, "local_or_published_free_fetch") for p, c in sorted(FREE)]
     pairs += [("serper", "search", 1000, False, "https://serper.dev/"),
               ("serpapi", "search", 0, True, "observed_free_search_quota"),
+              ("deepseek", "search", 750, False, "https://api-docs.deepseek.com/guides/search/"),
               ("typesafe_jev", "judge", 200000, False, "https://typesafe.ai/")]
     return [{"provider": p, "capability": c, "unit_micros": amount,
              "free_tier": free, "quota_unit": "requests", "quota_per_call": 1,
@@ -323,6 +324,49 @@ def _history(root, entry: dict) -> None:
                    encoding="utf-8") as handle:
         handle.write(json.dumps({"at": datetime.now(timezone.utc).isoformat(), **entry},
                                 ensure_ascii=False, sort_keys=True) + "\n")
+
+
+def adopt_new_providers(root) -> list[str]:
+    """Give a red line to an account whose balance became readable after setup.
+
+    A provider enabled later (DeepSeek after the policy existed) or one whose first
+    reading failed had no entry, and every call to it was refused as 'balance
+    unknown'. Only absent or unknown entries are filled, with the default red line;
+    an entry the user set (a limit, a red line) is never touched.
+    """
+    import research_runtime_setup as runtime
+    root = Path(root).resolve()
+    settings = runtime.config(root) or {}
+    plan = settings.get("spending") or {}
+    if plan.get("mode") != "MONEY" or plan.get("model") != "RED_LINE":
+        return []
+    from research_balances import readings
+    latest, adopted = readings(root), []
+    keep = 1 - Decimal(DEFAULT_RED_LINE_FRACTION)
+    for name in PROVIDERS:
+        entry = plan.setdefault("providers", {}).get(name)
+        if entry and entry.get("status") not in {None, "BALANCE_UNKNOWN_OR_STALE"}:
+            continue
+        reading = latest.get(name) or {}
+        try:
+            left = Decimal(str(reading.get("left")))
+        except InvalidOperation:
+            continue
+        unit = reading.get("unit")
+        if not (left.is_finite() and left >= 0 and _fresh(reading.get("observed_at"))
+                and unit in {"USD", "credit", "search", "request"}):
+            continue
+        plan["providers"][name] = {
+            "status": "CONFIGURED", "observed_at": reading["observed_at"], "unit": unit,
+            "balance_at_start": str(left), "reserve_units": str(left * keep),
+            "quota_budget": None, "budget_micros": 0,
+            "balance_evidence": reading.get("evidence", "UNKNOWN"),
+            "amount_basis": "USD" if unit == "USD" else "UNITS", "adopted_after_setup": True}
+        adopted.append(name)
+    if adopted:
+        runtime._write(runtime._path(root, runtime.CONFIG_NAME), settings)
+        _history(root, {"adopted": adopted, "red_line_fraction_kept": str(keep)})
+    return adopted
 
 
 def set_limit(root, *, provider="", limit, user_words=""):

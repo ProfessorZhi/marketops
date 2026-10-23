@@ -14,6 +14,7 @@ import json
 import os
 import re
 import shutil
+import sqlite3
 import sys
 import tempfile
 import zipfile
@@ -1076,6 +1077,7 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
     return sheets, {
         "_contact_pack": {"routes": pack_rows, "no_route": no_route, "leads": lead_rows},
         "named_leads_without_email": len(lead_rows),
+        "search_routes": _route_report(root, run_id, pack_rows),
         "run_id": run_id, "scope": run["scope"], "rule_version": run["rule_version"],
         "status": "PARTIAL_CANDIDATE_ONLY_NOT_FORMAL_CONTACTS",
         "counts": {name: len(collected[name]) for name, _ in TABLES},
@@ -1123,6 +1125,17 @@ def _readback_xlsx(path: Path, sheets: list[Sheet]) -> None:
             observed = [c.findtext(".//x:t", "", NAMESPACE) for c in header_cells]
             if observed != list(sheet.headers):
                 raise ValueError(f"XLSX_HEADER_MISMATCH:{sheet.name}")
+
+
+def _route_report(root, run_id, pack_rows) -> dict:
+    """Which search route found the sites the A/B routes came from."""
+    import research_search_routes
+    hosts = {(urlsplit(r[8]).hostname or "").casefold().removeprefix("www.")
+             for r in pack_rows if r[0] in {"A", "B"} and r[8]}
+    try:
+        return research_search_routes.report(root, run_id, hosts - {""})
+    except sqlite3.Error as exc:
+        return {"status": "UNAVAILABLE", "reason": type(exc).__name__}
 
 
 CONTACT_PACK_HEADERS = ("grade", "organisation_id", "organisation", "person", "role",

@@ -47,7 +47,7 @@ case "$PLUGIN_DIR" in /*) ;; *) printf 'PLUGIN_DIR_MUST_BE_ABSOLUTE\n' >&2; exit
 command -v claude >/dev/null 2>&1 || { printf 'CLAUDE_CLI_UNAVAILABLE: install Claude Code first\n' >&2; exit 3; }
 
 for name in SERPAPI_API_KEY SERPER_API_KEY CRAWL4AI_API_KEY TINYFISH_API_KEY \
-            TYPESAFE_API_KEY TINYFISH_MCP_ACCESS_TOKEN; do
+            TYPESAFE_API_KEY TINYFISH_MCP_ACCESS_TOKEN DEEPSEEK_API_KEY; do
     unset "$name" 2>/dev/null || true
 done
 

@@ -99,6 +99,7 @@ class AllFiveTakePartTests(unittest.TestCase):
         real = mcp.search
         with tempfile.TemporaryDirectory() as tmp, \
                 mock.patch.object(mcp, "root", return_value=Path(tmp)), \
+                mock.patch.object(mcp, "_search_routes", return_value=("serper", "tinyfish")), \
                 mock.patch.object(mcp, "search", side_effect=fake):
             out = mcp.search("all", "coworking Austin", "us", "en", "r", "s1")
         self.assertEqual(["https://a.example/", "https://b.example/", "https://c.example/"],

@@ -26,6 +26,7 @@ PROVIDER_KEYS = {
     "serpapi": "SERPAPI_API_KEY",
     "tinyfish": "TINYFISH_API_KEY",
     "typesafe": "TYPESAFE_API_KEY",
+    "deepseek": "DEEPSEEK_API_KEY",
 }
 
 

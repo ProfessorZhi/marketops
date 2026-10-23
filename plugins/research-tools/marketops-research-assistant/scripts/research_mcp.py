@@ -166,7 +166,8 @@ def provider_events(run_id: str) -> dict:
 
 
 PROVIDER_KEYS = {"serper": "SERPER_API_KEY", "serpapi": "SERPAPI_API_KEY",
-                 "tinyfish": "TINYFISH_API_KEY", "typesafe_jev": "TYPESAFE_API_KEY"}
+                 "tinyfish": "TINYFISH_API_KEY", "typesafe_jev": "TYPESAFE_API_KEY",
+                 "deepseek": "DEEPSEEK_API_KEY"}
 
 
 def provider_readiness() -> dict:
@@ -953,7 +954,7 @@ def managed_call(capability_id, params, run_id, operation_id, account_ref="",
         raise ValueError("CAPABILITY_PARAM_NOT_ALLOWED: account alias is deployment-owned")
     if not isinstance(params, dict):
         raise ValueError("CAPABILITY_PARAM_NOT_ALLOWED")
-    if capability_id in {"serper.search", "serpapi.search"}:
+    if capability_id in {"serper.search", "serpapi.search", "deepseek.search"}:
         import research_locale
         params = {**params}
         for key, convert in (("country", research_locale.country_code),
@@ -1092,6 +1093,15 @@ def search(provider, query, country, language, run_id, operation_id, mode="web",
         return {**answer, **(answer.get("payload") or {}),
                 "invocation": provider_policy.invocation_receipt(
                     "tinyfish_mcp_search", reservation="ONE_ATTEMPT_RESERVED_NOT_BILL_VERIFIED")}
+    if provider == "deepseek":
+        answer = managed_call("deepseek.search", {"query": query, "country": country,
+                                                  "language": language, "limit": limit,
+                                                  "mode": mode}, run_id, operation_id)
+        if answer["status"] != "OK":
+            raise ValueError(_refusal_text(answer))
+        return {**answer, **(answer.get("payload") or {}),
+                "invocation": provider_policy.invocation_receipt(
+                    "deepseek", reservation="ONE_ATTEMPT_RESERVED_NOT_BILL_VERIFIED")}
     if provider not in {"serper", "serpapi"}:
         raise ValueError("CAPABILITY_UNKNOWN")
     if provider == "serpapi" and mode != "web":
@@ -1144,8 +1154,24 @@ def _simple_site_query(query: str) -> str:
     return " ".join(sites[:1] + words)
 
 
+#: Independent web indexes asked side by side by provider='all'. Each finds pages the
+#: others miss; one that fails, is out of money or at its red line drops out of that
+#: search only. Configurable per project: runtime setting search_routes.
+SEARCH_ROUTES = ("serper", "deepseek", "serpapi", "tinyfish")
+
+
+def _search_routes() -> tuple[str, ...]:
+    import research_runtime_setup as runtime
+    settings = runtime.config(root()) or {}
+    chosen = settings.get("search_routes")
+    enabled = set(settings.get("providers") or SEARCH_ROUTES)
+    routes = tuple(r for r in (chosen if isinstance(chosen, list) else SEARCH_ROUTES)
+                   if r in SEARCH_ROUTES and r in enabled)
+    return routes or ("serper", "tinyfish")
+
+
 def _search_all(query, country, language, run_id, operation_id, limit, _retried=False):
-    """Serper and TinyFish search on the same query at once; results merged by URL."""
+    """Every search route on the same query at once; results merged by URL."""
     from concurrent.futures import ThreadPoolExecutor
     def one(provider):
         try:
@@ -1153,7 +1179,7 @@ def _search_all(query, country, language, run_id, operation_id, limit, _retried=
                                     f"{operation_id}-{provider}", limit=limit)
         except ValueError as exc:
             import research_provider_health as health
-            if provider == "serper" and health.blocked(root(), "serper"):
+            if provider == "serper" and health.blocked(root(), "serper") and "serpapi" not in routes:
                 # Serper is out of credit: SerpApi answers the same Google query.
                 try:
                     return provider, {**search("serpapi", query, country, language, run_id,
@@ -1164,8 +1190,14 @@ def _search_all(query, country, language, run_id, operation_id, limit, _retried=
                                       "substitute_failed": "serpapi"}
             # The whole message: "IDENTITY_VALUE_INVALID" alone hid which field was wrong.
             return provider, {"error": str(exc)[:160]}
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        answers = dict(pool.map(one, ("serper", "tinyfish")))
+    routes = _search_routes()
+    with ThreadPoolExecutor(max_workers=len(routes)) as pool:
+        answers = dict(pool.map(one, routes))
+    try:
+        import research_search_routes
+        research_search_routes.record(root(), run_id, query, answers)
+    except Exception:  # noqa: BLE001 - the recall log never stops a search
+        pass
     merged, seen = [], set()
     for provider, answer in answers.items():
         for hit in _hits(answer):
@@ -1673,6 +1705,7 @@ PUBLIC_TOOLS = frozenset({
     "marketops_jev_triage", "marketops_suppression", "marketops_feedback_pack",
     "marketops_pool_reopen", "marketops_costs", "marketops_update_check", "marketops_accounts",
     "marketops_crawl4ai_check", "marketops_method", "marketops_venue_groups",
+    "marketops_search_routes",
 })
 
 
@@ -1784,6 +1817,26 @@ def build_server():
         the same query and merges results with found_by; or one of serper, serpapi,
         tinyfish. Snippets are leads, not facts."""
         return search(provider, query, country, language, run_id, operation_id, mode, limit)
+
+    @tool
+    def marketops_search_routes(run_id: str) -> dict:
+        """Recall per search route in this Run: pages found, pages only it found, and
+        which route found the sites the A/B routes came from. Read-only; use it to
+        decide which routes to keep when money is short."""
+        import research_search_routes
+        import research_sources
+        grades, _, _ = research_sources.graded(root(), run_id)
+        _, records, artifacts = delivery._read_snapshot(root(), run_id)
+        urls = {a["artifact_id"]: a["url"] for a in artifacts}
+        by_id = {r["record_id"]: r for r in records}
+        hosts = set()
+        for record_id, grade in grades.items():
+            if grade["grade"] in {"A", "B"}:
+                for artifact in by_id.get(record_id, {}).get("artifact_ids") or ():
+                    host = (urlsplit(urls.get(artifact, "")).hostname or "").casefold()
+                    if host:
+                        hosts.add(host.removeprefix("www."))
+        return research_search_routes.report(root(), run_id, hosts)
 
     @tool
     def marketops_crawl(run_id: str, operation_id: str, url: str,

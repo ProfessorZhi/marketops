@@ -138,7 +138,8 @@ def main(argv=None):
             import os
             task = input("调研项目名称或范围（例如 英国运动场关键联系人）: ").strip() or "MarketOps research"
             keyed = {"serper": "SERPER_API_KEY", "serpapi": "SERPAPI_API_KEY",
-                     "tinyfish": "TINYFISH_API_KEY", "typesafe_jev": "TYPESAFE_API_KEY"}
+                     "tinyfish": "TINYFISH_API_KEY", "typesafe_jev": "TYPESAFE_API_KEY",
+                     "deepseek": "DEEPSEEK_API_KEY"}
             providers = [p for p, var in keyed.items() if os.environ.get(var)] + ["crawl4ai"]
             print("将启用：" + ", ".join(providers) + "（有 Key 的服务 + 本地 Crawl4AI）")
             public = input("允许抓取调研中发现的任何公开网站？内网、IP 地址和验证码页面始终拒绝 [Y/n]: ")

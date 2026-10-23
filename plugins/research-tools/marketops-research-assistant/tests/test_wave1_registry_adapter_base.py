@@ -177,6 +177,7 @@ class RealAdapterVocabularyTests(unittest.TestCase):
                      "tinyfish.batch_cancel"),
         "serpapi": ("serpapi.engine_catalog", "serpapi.engine_schema", "serpapi.search"),
         "serper": ("serper.search",),
+        "deepseek": ("deepseek.search",),
         "crawl4ai": ("crawl4ai.fetch_page", "crawl4ai.extract", "crawl4ai.deep_crawl",
                      "crawl4ai.sitemap_seed", "crawl4ai.screenshot", "crawl4ai.pdf"),
         "typesafe_jev": ("jev.choice", "jev.noul", "jev.score", "jev.box"),
@@ -199,6 +200,7 @@ class RealAdapterVocabularyTests(unittest.TestCase):
         "research_adapter_tinyfish": ("TinyFishAdapter", "tinyfish"),
         "research_adapter_serpapi": ("SerpApiAdapter", "serpapi"),
         "research_adapter_serper": ("SerperAdapter", "serper"),
+        "research_adapter_deepseek": ("DeepSeekAdapter", "deepseek"),
         "research_adapter_crawl4ai": ("Crawl4AIAdapter", "crawl4ai"),
         "research_adapter_jev": ("JevAdapter", "typesafe_jev"),
     }
