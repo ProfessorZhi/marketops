@@ -233,7 +233,7 @@ def build_server(
     runs: Mapping[str, Handler] | None = None,
     decisions: Mapping[str, DecisionProvider] | None = None,
     advisory: DecisionProvider | None = None,
-    quay: Dispatcher | None = None,
+    dispatcher: Dispatcher | None = None,
     jobs: Callable[[], JobStore] | None = None,
     ledger_factory: Callable[[], BudgetLedger] | None = None,
     worker_outcomes: Callable[[str], tuple[WorkerExitRecord, ...]] | None = None,
@@ -504,18 +504,18 @@ def build_server(
             注意事项**。
             这里刻意不提供「拿内存存储兜底」的缺省，因为那会让一个受理了却在
             重启后消失的作业看起来完全正常。
-        quay: 本实例构造出来的外部执行器（§6）。它**不是**一个工具落点 ——
+        dispatcher: 本实例构造出来的执行器（§6）。它**不是**一个工具落点 ——
             没有哪条工具因为没有它就退回 stub；缺它的时候 ``submit_research``
             照常受理与编译，只是那一批工作一件都不交出去（回执里的 ``dispatch``
             如实这么说）。所以它在这一层有两个作用：接线（传给
             ``submit_research`` 与 ``control_job(resume)``）与让
-            ``get_capabilities`` 的 quay 行答得出「**这个进程**装起来没有」——
+            ``get_capabilities`` 的 dispatch 行答得出「**这个进程**装起来没有」——
             那一格不从 ``Settings`` 重推（理由见 ``tools.control_handlers``
-            的 ``quay`` 一段）。
+            的 ``dispatcher`` 一段）。
         ledger_factory: 账本工厂，``get_job`` 与 ``get_assignment`` 用它读用量。
             ``None`` 时那一格如实报告「这个实例没有账本可读」—— 而**不是**报 0。
         worker_outcomes: 外部那本 worker 退出账的读器（§1 的研究终态回执）。
-            与 ``quay`` 同源但**分开传**：一个是写入口（派发与回传），一个是读入口
+            与 ``dispatcher`` 分开传：一个是写入口（派发与回传），一个是读入口
             （外面怎么判那一次退出）。把它们合成一个参数会让「借一个只读的读器
             就要拿到派发权」成为一种自然的写法。``None`` 时 ``get_job`` 的
             ``research_terminals`` 那一段如实报读不到 —— 报告其余部分照出。
@@ -590,7 +590,7 @@ def build_server(
             wired=frozenset(extra),
             decisions=decisions,
             advisory=advisory,
-            quay=quay,
+            dispatcher=dispatcher,
             jobs=jobs,
             ledger_factory=ledger_factory,
             worker_outcomes=worker_outcomes,

@@ -3371,7 +3371,7 @@ def test_admitting_a_round_reserves_nothing_from_the_budget(
 #
 # 落在「受理一行 Run」上（条件 4 那句「不创建下一 Run」的同一口径）。这一节**不**声称
 # 「这条 Run 跑起来真的去维护那些到期格子」：全仓没有把一行 ``Run`` 变成工作中的
-# 执行器 —— Run 内部跑 Job / WorkItem / Quay attempt 那一层接的是别的面。条件 5 逐字
+# 执行器 —— Run 内部跑 Job / WorkItem / 执行器 attempt 那一层接的是别的面。条件 5 逐字
 # 说的是「**创建**维护 Run」，而这一节判的正是这一个动词。
 #
 # ## 为什么这一节要写一份账号清单

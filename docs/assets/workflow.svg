@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 580" width="1000" height="580"
-     role="img" aria-label="MarketOps 自动化工作流：已自动的六段与仍在建设中的无人值守部分">
+     role="img" aria-label="MarketOps 研究流程：六个已交付阶段，加一个已交付的执行面与四条尚未交付的无人值守能力">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
       <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
@@ -98,8 +98,8 @@
 
   <!-- 建设中：无人值守部分 -->
   <rect class="band" x="30" y="270" width="930" height="270" rx="18"/>
-  <text class="bandtitle" x="54" y="300">正在建设：把上面这条链变成无人值守</text>
-  <text class="desc" x="54" y="322">今天的六段能跑完一次研究，但「什么时候该再跑一次」仍然靠人开新任务。下面五项是把这件事接过去的部分。</text>
+  <text class="bandtitle" x="54" y="300">执行面（已交付）与无人值守环路（尚未交付）</text>
+  <text class="desc" x="54" y="322">六个阶段可以跑完一次完整研究；下一轮由谁发起仍由人或外部调度器决定。前四项负责把这件事接过去，第五项是执行面本身。</text>
 
   <g>
     <rect class="chip" x="54"  y="344" width="168" height="70" rx="12"/>
@@ -119,14 +119,14 @@
     <text class="chips" x="622" y="391">Inbox / 飞书群</text>
 
     <rect class="chip" x="790" y="344" width="152" height="70" rx="12"/>
-    <text class="chipt" x="806" y="370">Quay</text>
-    <text class="chips" x="806" y="391">动态研究调度</text>
+    <text class="chipt" x="806" y="370">派发执行</text>
+    <text class="chips" x="806" y="391">本机任务板 + worker</text>
   </g>
 
   <g>
     <rect class="chip" x="54" y="432" width="888" height="88" rx="12"/>
-    <text class="chipt" x="74" y="460">为什么慢：每一步都要能举证</text>
-    <text class="chips" x="74" y="482">关闭条件是可测的句子，不是「做完了」。例如「保存/查询 View 零网络/模型调用」、</text>
+    <text class="chipt" x="74" y="460">进度口径：每一步都要能举证</text>
+    <text class="chips" x="74" y="482">关闭条件是可测的句子。例如「保存/查询 View 零网络/模型调用」、</text>
     <text class="chips" x="74" y="501">「同 Account 出现在 3 个 View 仍只有一份事实和一次兼容 refresh」。见 docs/AUTOMATION_WORKFLOW.md。</text>
   </g>
 </svg>

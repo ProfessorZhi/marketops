@@ -1,6 +1,6 @@
 """厂商模块只准从 ``adapters/`` 里 import —— 由本测试执行。
 
-§2 逐字：「业务代码不得直接依赖 Serper / Jev / Laya / Crawl4AI / Quay 的 API」。
+§2 逐字：「业务代码不得直接依赖 Serper / Jev / Laya / Crawl4AI 或任何执行器的 API」。
 ``tests/test_ports_are_contracts_only.py`` 守的是**另一半** —— 端口有没有被某一个
 实现污染。两条判据容易混为一谈（今天都指向 ``adapters/``），但它们守的是不同的
 失败：
@@ -108,12 +108,13 @@ VENDOR_MODULES: frozenset[str] = frozenset(
         # 网络 / HTTP 客户端
         "httpx", "requests", "aiohttp", "urllib3", "httpcore", "socket",
         # 起外部进程。与 ``socket`` 同一条理由进这份清单：它是**标准库**，也是
-        # 「怎么够到一个外部提供者」那条路本身。Quay 没有 Python SDK，本仓与它
-        # 的全部界面就是一个子进程（``adapters/quay_cli.py``），所以「谁 import
-        # 得到 subprocess」与「谁 import 得到 httpx」问的是同一件事 —— 只是换了一个
-        # 外部提供者。不加这一条的话，``marketops.adapters.quay_cli`` 会落到
-        # **闭包之外**（它一个厂商 SDK 都不 import），于是组合根那条规则对它说不出
-        # 一个字：``application/`` 可以直接 import 它而没有任何一条判据会响。
+        # 「怎么够到一个外部提供者」那条路本身。受限 worker 是外部程序，没有
+        # Python SDK，本仓与它的全部界面就是一个子进程
+        # （``adapters/agent_runtime.py``），所以「谁 import 得到 subprocess」与
+        # 「谁 import 得到 httpx」问的是同一件事 —— 只是换了一个外部提供者。不加
+        # 这一条的话，``agent_runtime`` 会落到**闭包之外**（它一个厂商 SDK 都不
+        # import），于是组合根那条规则对它说不出一个字：``application/`` 可以直接
+        # import 它而没有任何一条判据会响。
         "subprocess",
         # 浏览器与采集
         "crawl4ai", "playwright", "patchright", "selenium", "pyppeteer",
@@ -165,7 +166,6 @@ MUST_BE_VENDOR_ADAPTERS: tuple[str, ...] = (
     "marketops.adapters.laya",
     "marketops.adapters.mcp_server.server",
     "marketops.adapters.mineru_adapter",
-    "marketops.adapters.quay_cli",
     "marketops.adapters.serper",
     "marketops.adapters.sqlite.db",
     "marketops.adapters.text_pdf",
@@ -510,11 +510,10 @@ def test_the_criterion_sees_the_composition_roots() -> None:
     执行器：哪天 SDK 的 import 从 adapter 挪回入口层，上面那条判据会当场红。
 
     ``research_worker.py`` 是 **Stage B** 新增的第四个：它 ``from
-    marketops.adapters.quay_cli import split_worker_argv, worker_prompt_target,
-    read_task_labels`` 与 ``from marketops.adapters.agent_runtime import
-    run_delegate``。这个文件**曾经**自己 ``import subprocess``，被上面那条判据报了
-    出来 —— 于是那处绑定搬进 ``adapters/agent_runtime.py``，与 Phase C 那次是同一个
-    动作。这条清单是那件事的执行器：哪天 ``subprocess`` 回到入口层，它会当场红。
+    marketops.adapters.agent_runtime import run_delegate``。这个文件**曾经**自己
+    ``import subprocess``，被上面那条判据报了出来 —— 于是那处绑定搬进
+    ``adapters/agent_runtime.py``，与 Phase C 那次是同一个动作。这条清单是那件事的
+    执行器：哪天 ``subprocess`` 回到入口层，它会当场红。
 
     ``controller.py`` 是 **§B21** 新增的第五个：它 ``from
     marketops.adapters.sqlite.jobs import SqliteJobStore`` 与 ``from
@@ -538,6 +537,13 @@ def test_the_criterion_sees_the_composition_roots() -> None:
     逐字同一条；点名的理由是「一次受理」那一趟的实现本身就住在适配层
     （``adapters/mcp_server/runs.py::_preamble``），入口层点它，与
     ``mcp/__main__.py`` 点 ``build_server`` 是同一个动作。
+
+    ``dispatch_runner.py`` 是第七个：它 ``from marketops.adapters.local_board import
+    LocalBoardDispatcher``（见证链 ``-> adapters.sqlite.db -> sqlite3``）、
+    ``adapters/dispatch_outcomes`` 与 ``adapters.sqlite.jobs``。与 ``controller.py``
+    同一条理由 —— 什么时候醒、跑几轮、间隔多少是**这个部署**的性质，不是业务规则；
+    而它读的是与派发完全同一张板，所以那处点名不能搬到 ``application/`` 里，
+    否则「谁在领」会有两个答案。
     """
     sites = _vendor_adapter_import_sites(_scanned_files(), _vendor_adapter_closure())
     named = {path.relative_to(REPO_ROOT).as_posix() for path, _ in sites}
@@ -549,11 +555,13 @@ def test_the_criterion_sees_the_composition_roots() -> None:
     assert "marketops/interfaces/research_worker.py" in named
     assert "marketops/interfaces/controller.py" in named
     assert "marketops/interfaces/trigger_driver.py" in named
+    assert "marketops/interfaces/dispatch_runner.py" in named
     outside = {name for name in named if not name.startswith("marketops/adapters/")}
     assert outside == {
         "marketops/interfaces/cli.py",
         "marketops/interfaces/composition.py",
         "marketops/interfaces/controller.py",
+        "marketops/interfaces/dispatch_runner.py",
         "marketops/interfaces/mcp/__main__.py",
         "marketops/interfaces/research_worker.py",
         "marketops/interfaces/trigger_driver.py",

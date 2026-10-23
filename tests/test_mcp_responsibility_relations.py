@@ -157,7 +157,7 @@ def session(settings: Settings, tmp_path: Path):
             research=decision_handlers(settings=settings, advisory=provider, records=records),
             scenes=scenes,
             jobs=lambda: SqliteJobStore(settings.database_path),
-            quay=dispatcher,
+            dispatcher=dispatcher,
             decisions={"jev": provider},
             advisory=provider,
             assets=assets,

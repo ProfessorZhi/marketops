@@ -25,16 +25,16 @@ Member-A / 获授权用户
        |-- Scene/Workstream、SavedView/Watch、ActionItem、Review Inbox
        |-- 资产、组织、责任关系、证据、唯一路线、Cohort、草稿
        |-- 持久 continuation / Schedule / Notification / 预算与恢复
-       |-- Quay -> 独立受限 Claude research workers
+       |-- 派发执行器 -> 独立受限 research workers
        |-- Serper / HTTP-PDF / Crawl4AI / Jev
        `-- SQLite 事务状态 + 不可变证据文件
 ```
 
 MCP 是协议接口，不是 CC 本身，也不自动提供后台调度。调度由 MarketOps 服务中的 durable Schedule + 唯一受管 trigger driver 执行，MCP 只提供配置/读取/控制入口。控制端 session 与研究 worker 分开身份；客户端关闭后，已持久受理的任务、Watch 和 Schedule 继续存在。
 
-Quay 调度需要动态判断的有界研究，普通程序处理导入、获取、解析、去重、预算、投影与刷新。MarketOps 负责业务完成定义；软件代码 landing 不代表研究完成。供应商 adapter 不各自对外成为业务 MCP。Codex/WorkBuddy 的真实Member-A语料证明它们是当前主要工作面；MUC/Hosting是目标正式入口，三者共享同一服务端状态与权限，不各建业务后端。
+派发执行器调度需要动态判断的有界研究，普通程序处理导入、获取、解析、去重、预算、投影与刷新。MarketOps 负责业务完成定义；软件代码 landing 不代表研究完成。供应商 adapter 不各自对外成为业务 MCP。Codex/WorkBuddy 的真实Member-A语料证明它们是当前主要工作面；MUC/Hosting是目标正式入口，三者共享同一服务端状态与权限，不各建业务后端。
 
-研究执行增加一层 **Scene-aware Research Router**：客户端不选择供应商，服务端把 Member-A 的地区/语言/对象/场景/目标/可选产品上下文解析为 ResearchContext，并从 Geo/Locale、Scenario、Objective、Access、Product overlay 编译冻结的 EffectiveResearchPlan，再选择结构化来源、Serper、HTTP/PDF、Crawl4AI、Jev 与 Quay/Claude。细粒度 context 可动态识别，长期 Workstream 不因每个细标签自动分裂；影响硬范围/权限的歧义必须人工确认。
+研究执行增加一层 **Scene-aware Research Router**：客户端不选择供应商，服务端把 Member-A 的地区/语言/对象/场景/目标/可选产品上下文解析为 ResearchContext，并从 Geo/Locale、Scenario、Objective、Access、Product overlay 编译冻结的 EffectiveResearchPlan，再选择结构化来源、Serper、HTTP/PDF、Crawl4AI、Jev 与受限 worker。细粒度 context 可动态识别，长期 Workstream 不因每个细标签自动分裂；影响硬范围/权限的歧义必须人工确认。
 
 ## 3. 当前范围与未来范围
 
@@ -70,14 +70,14 @@ Member-A 的业务纠正同样进入服务端：对象事实走 append/supersess
 
 母池支持Asset-driven与Account-driven；候选人、任职事实、规范职能、责任影响力推断、公开ContactPoint与Scene路线等级/排序分开。产品原件放受管资料存储，产品版本/主张授权在服务端；Git不自动收私有资料。不同产品Scene共享授权范围内事实，但评价/文案/结果归因独立。
 
-Serper负责发现，HTTP/PDF先获取，Crawl4AI只解决允许的渲染问题，Jev做有界辅助语义，Quay/Claude做开放路径研究，代码管状态/预算/权限。Cloudflare Ray ID不证明封IP；访问受限的解决路径是精确诊断、有限重试、修复自有批准配置、合法替代来源/站点许可和保留进度，不是保证绕过。
+Serper负责发现，HTTP/PDF先获取，Crawl4AI只解决允许的渲染问题，Jev做有界辅助语义，受限 worker做开放路径研究，代码管状态/预算/权限。Cloudflare Ray ID不证明封IP；访问受限的解决路径是精确诊断、有限重试、修复自有批准配置、合法替代来源/站点许可和保留进度，不是保证绕过。
 
 角色策略可以依据经验调整，但不得用raw reply rate替代客户资格或产品事实。低样本/观察窗口/分母和选择偏差须显式，策略提议经评估/适用批准后版本化生效；当前R1/R2只接研究与纠错信号，真实外联效果仍需R3授权数据。
 
 
 先关闭 R1 接缝：正确身份与官网归属、范围准入、唯一路线、产品 Cohort、独立草稿与拒收回执。再把已批准规则、Review Inbox、持久续跑、真实刷新和复用接成 R2。
 
-不新建平行 Policy 平台：扩展已有 SceneVersion/影响计算；不新建第二个 Quay：仅增加缺失的业务 continuation 与时间唤醒；不把 Jev DecisionRecord 当人工裁决。
+不新建平行 Policy 平台：扩展已有 SceneVersion/影响计算；不新建第二个调度器：仅增加缺失的业务 continuation 与时间唤醒；不把 Jev DecisionRecord 当人工裁决。
 
 **本地证据盘点不等于外部事实更新；同一 run 的所有 key 相等不等于找对客户；关闭所有人工判断不等于自动化成功。**
 

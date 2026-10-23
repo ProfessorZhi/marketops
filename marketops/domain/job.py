@@ -1,4 +1,4 @@
-"""作业、可执行单元、Quay 映射与租约的值对象，以及**身份的推导规则**。
+"""作业、可执行单元、派发映射与租约的值对象，以及**身份的推导规则**。
 
 分家情况：枚举与状态转移表在 ``domain/enums.py``，存储的契约在
 ``ports/jobs.py``，实现分别在 ``adapters/sqlite/jobs.py`` 与
@@ -15,15 +15,15 @@
 
     ResearchJob
       → WorkItem[]
-      → ExecutionRef (Quay task/run)
+      → ExecutionRef (执行器 task/run)
       → artifacts
       → deterministic validation
       → business-state mutation
 
-同一节逐字写着「Quay state is execution metadata, not business truth」，而
-Phase G 的事实基础（``docs/MVP_MIGRATION_PLAN.md`` §2.9）证实了 Quay 那侧
+同一节逐字写着「dispatch state is execution metadata, not business truth」，而
+Phase G 的事实基础（``docs/MVP_MIGRATION_PLAN.md`` §2.9）证实了 外部执行器那侧
 **连 attempt 和 lease 都没有** —— 所以这四个概念必须是 MarketOps 自己的一等
-记录，Quay 侧只留映射。这一节是本模块存在的理由，不是装饰。
+记录，执行器 侧只留映射。这一节是本模块存在的理由，不是装饰。
 
 ## 为什么 id 的推导在领域层
 
@@ -46,7 +46,7 @@ Phase G 的事实基础（``docs/MVP_MIGRATION_PLAN.md`` §2.9）证实了 Quay 
   看不出来。
 * **没有 ``lease_expires_at``**。理由见 ``domain/enums.py::AttemptState``：猜错
   「那个 worker 死了」的代价是两个 worker 跑同一件昂贵的事。
-* **没有作业级的 ``quay_task_id``**。映射挂在 work item 上，因为
+* **没有作业级的 ``dispatch_task_id``**。映射挂在 work item 上，因为
   ``docs/DATA_MODEL.md`` 的血缘就是这么写的（``WorkItem → ExecutionRef``）。
   挂一份在作业上会让「这个 task 是哪个 work item 的」变成一个可以答错的问题。
 """
@@ -170,7 +170,7 @@ class WorkItem:
     """一个可执行单元 —— §3 ``get_assignment`` 的主语。
 
     ``subject_ref`` 是这件事**针对谁**（一个账号 id、一个发现范围里的一段），
-    不是它的内容。内容由 ``ExecutionRef`` 指向的 Quay 任务携带 —— 于是
+    不是它的内容。内容由 ``ExecutionRef`` 指向的 派发任务携带 —— 于是
     「同一批输入编译两次得到什么」这个问题只需要一个答案：同样的 work item。
 
     ``stop_reason`` 为 ``None`` 表示还没停。**没有单独的「进行中」状态**：
@@ -198,21 +198,21 @@ class WorkItem:
 
 @dataclass(frozen=True)
 class ExecutionRef:
-    """``WorkItem`` → Quay 任务的映射。
+    """``WorkItem`` → 派发任务的映射。
 
-    ``docs/DATA_MODEL.md`` 写的是「Quay task/run/gate」，本记录**只有 task**。
+    ``docs/DATA_MODEL.md`` 写的是「执行器 task/run/gate」，本记录**只有 task**。
     这是刻意的：只有 task 有生产者（派发时那一次 CAS 写入），而 run 与 gate
-    今天还没有——``quay adjudicate`` 是只读的、永远退 0、不碰状态（§2.9 实测），
+    今天还没有——外部执行器的 adjudicate 是只读的、永远退 0、不碰状态（§2.9 实测），
     worker driver 的 ``run_id`` 只出现在运行期遥测里。先声明两列没人写的字段，
     会让「这个映射完整吗」有一个永远为空的答案。
 
     映射是**写一次**的：主键就是 ``work_item_id``。两个派发者抢同一个 work item
-    时，第二个会撞在主键上而不是悄悄建出第二个 Quay 任务 —— 那正是 §8B 说的
+    时，第二个会撞在主键上而不是悄悄建出第二个 派发任务 —— 那正是 §8B 说的
     「no duplicate expensive work」。
     """
 
     work_item_id: str
-    quay_task_id: str
+    dispatch_task_id: str
     mapped_at: str
 
 
@@ -264,9 +264,9 @@ class WorkItemSnapshot:
 
 @dataclass(frozen=True)
 class JobAttempt:
-    """一次租约 —— §6 的「attempt/lease protection」，Quay 那侧不存在的东西。
+    """一次租约 —— §6 的「attempt/lease protection」，外部执行器那侧不存在的东西。
 
-    ``holder`` 是**谁**在跑，必须由调用方给出（worker 的稳定标识）。Quay 那侧
+    ``holder`` 是**谁**在跑，必须由调用方给出（worker 的稳定标识）。外部执行器那侧
     没有 attempt，所以这里没有「租约号」可以继承；holder 是我们唯一的归属依据，
     而 §6 要求「real process/task ownership」可核。
 

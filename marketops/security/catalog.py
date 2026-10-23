@@ -315,7 +315,7 @@ _TOOL_CATALOG: dict[str, ToolSpec] = dict(
             "get_job",
             _CONTROL,
             "G",
-            "读真实的 Quay task/attempt 链接、进度、部分结果、用量与能力评估状态",
+            "读真实的 执行器 task/attempt 链接、进度、部分结果、用量与能力评估状态",
         ),
         _spec(
             "get_account",

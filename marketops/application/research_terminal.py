@@ -2,12 +2,12 @@
 
 ## 这一条修的是哪一种不一致
 
-外部那套（Quay）判一件工作「做完了没有」，问的是**软件工程**的问题：worker 的
+外部那套（执行器）判一件工作「做完了没有」，问的是**软件工程**的问题：worker 的
 产出有没有合进 ``develop``、有没有留下 worktree（``computeLandingState``：状态是
 ``done`` **且**查不到 worktree 才算落地）。本仓的研究工作单元不产出提交、不跑
 fan-in、也没有 worktree，于是那个判据在它身上**恒为假**：
 
-    2026-09-23 实测（``artifacts/marketops-mvp-quay/.quay/worker-outcome.jsonl``）：
+    2026-09-23 实测（那一次运行的 worker 退出账）：
     {"task": "MOPS-11ed121a-688a5fe8", "final_state": "exited-not-landed",
      "failure_reason": "worktree state unreadable (git worktree list failed)"}
 
@@ -16,10 +16,10 @@ fan-in、也没有 worktree，于是那个判据在它身上**恒为假**：
 
 ## 为什么不改外部
 
-改外部的落地语义要动 ``computeLandingState``，那是 Quay 的上游核心。它有一处
+改外部的落地语义要动 ``computeLandingState``，那是 执行器的上游核心。它有一处
 formula 上的扩展点（``landedSha``），而用它的前提是**真的有一个提交落在了
 ``develop`` 上** —— 研究件没有提交，能填进去的只有一个编出来的 sha。§1 逐字禁止
-伪造 worktree 与 commit，也禁止改 Quay 上游核心。所以这里不加一个「让判据通过」
+伪造 worktree 与 commit，也禁止改 执行器上游核心。所以这里不加一个「让判据通过」
 的开关，而是**换一个说话算数的主体**：本仓写自己的 execution receipt，报告以它
 为准，外部那一格标 **N/A**。
 
@@ -85,7 +85,7 @@ CODE_LANDING_REASON = (
 #: 第三、第四环为什么合成一个字段。写进回执，理由同上（读者没有本仓）。
 CHAIN_NOTE = (
     "链条逐字是 work_item → active attempt → submit_findings accepted → "
-    "settlement persisted → board_sync synced to terminal Quay state。中间两环在"
+    "settlement persisted → board_sync synced to terminal 执行器 state。中间两环在"
     "本仓是同一次写入（settle 在一个写事务里定局租约、写停止理由、落盘产出），"
     "所以报成一个 settlement 链接 —— 给同一个事实起两个名字，两个名字迟早会有"
     "一个开始说谎。"
@@ -124,12 +124,12 @@ class ExternalVerdict:
     def payload(self) -> dict[str, Any]:
         return {
             "task_id": self.task_id,
-            "quay_final_state": self.final_state,
-            "quay_failure_reason": self.reason,
-            "quay_exit_code": self.exit_code,
-            "quay_wall_clock_ms": self.wall_clock_ms,
-            "quay_recorded_at": self.recorded_at,
-            "quay_records": self.records,
+            "dispatch_final_state": self.final_state,
+            "dispatch_failure_reason": self.reason,
+            "dispatch_exit_code": self.exit_code,
+            "dispatch_wall_clock_ms": self.wall_clock_ms,
+            "dispatch_recorded_at": self.recorded_at,
+            "dispatch_records": self.records,
             "code_landing": self.code_landing,
             "code_landing_reason": self.code_landing_reason,
         }
@@ -249,7 +249,7 @@ def research_terminal(
             ),
         },
         external=ExternalVerdict(
-            task_id=None if ref is None else ref.quay_task_id,
+            task_id=None if ref is None else ref.dispatch_task_id,
             final_state=None if last is None else last.final_state,
             reason=None if last is None else last.reason,
             exit_code=None if last is None else last.exit_code,

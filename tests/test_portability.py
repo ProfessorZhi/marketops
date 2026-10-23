@@ -133,15 +133,12 @@ ALLOWLIST: dict[tuple[str, str], Allowance] = {
         hits=1,
     ),
     (
-        "tests/test_quay_cli_adapter.py",
-        "posix-user-home-path",
+        "tests/test_research_worker.py",
+        "backslash-path-literal",
     ): Allowance(
         reason=(
-            "该文件逐字转写了 driver 的实测输出：``buildWorkerPrompt`` 产出的那句任务"
-            "身份、以及 ``launchArgv`` 的 ``--settings`` 值。三处命中出自**同一份原文**"
-            "的两行常量。改写这个根就是改写证据 —— 与 ``sources/`` 不纳入扫描是同一条"
-            "理由，见 test_evidence_tree_is_outside_the_scanned_roots。``hits`` 是这三处，"
-            "不再多。"
+            "路径成分校验的样本表：这两个参数化用例断言 ``a\\b`` 会被拒绝，"
+            "样本本身必须是真的反斜杠，换成别的写法就不再验证那一条。"
         ),
         hits=3,
     ),

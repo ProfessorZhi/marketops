@@ -140,7 +140,7 @@ def _settled(jobs: JobStore, *, scene_id: str = SCENE) -> WorkItem:
     """一件真的跑完的活 —— 它的结算欠下一次维护复核。"""
     job = _admitted(jobs, scene_id=scene_id)
     items = jobs.compile_work_items(job.job_id, DOSSIERS, scene=SCENE_FILES)
-    jobs.map_execution(items[0].work_item_id, quay_task_id="TASK-001")
+    jobs.map_execution(items[0].work_item_id, dispatch_task_id="TASK-001")
     attempt = jobs.lease(items[0].work_item_id, holder="worker-a")
     jobs.settle(attempt.attempt_id, stop_reason=StopReason.GOAL_MET, findings=FOUND)
     return items[0]

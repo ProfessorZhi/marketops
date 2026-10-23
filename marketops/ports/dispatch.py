@@ -2,7 +2,7 @@
 
 ## 它守的是哪一条
 
-§6 逐字：**「Store admission and dispatch intent transactionally, reconcile Quay
+§6 逐字：**「Store admission and dispatch intent transactionally, reconcile 执行器
 task mapping …」**。前半句由 ``JobStore`` 守（``admit`` / ``compile_work_items``
 在一个写事务里），后半句「reconcile … task mapping」是一个**跨系统**的动作，
 所以它需要一份自己的契约：本地有一个 work item，外部有一个任务，两者之间那条

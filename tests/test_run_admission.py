@@ -907,7 +907,7 @@ def test_the_module_cannot_reach_the_adapters_or_dispatch() -> None:
     assert leaked == [], f"受理这一层进口了适配层：{leaked}"
 
     params = set(inspect.signature(admit_run).parameters)
-    assert not (params & {"dispatcher", "quay", "search", "acquisition", "router"}), params
+    assert not (params & {"dispatcher", "search", "acquisition", "router"}), params
 
 
 def test_the_module_is_listed_in_the_application_table() -> None:

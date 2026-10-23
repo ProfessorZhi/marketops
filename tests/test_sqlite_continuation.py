@@ -155,7 +155,7 @@ def _leased(db_path: Path) -> tuple[SqliteJobStore, str, str]:
     store = SqliteJobStore(db_path)
     job_id = _admit(store)
     items = store.compile_work_items(job_id, DOSSIERS, scene=SCENE_FILES)
-    store.map_execution(items[0].work_item_id, quay_task_id="TASK-001")
+    store.map_execution(items[0].work_item_id, dispatch_task_id="TASK-001")
     attempt = store.lease(items[0].work_item_id, holder="worker-a")
     return store, attempt.attempt_id, items[0].work_item_id
 
@@ -336,7 +336,7 @@ def test_two_connections_acquiring_at_once_share_one_row(db_path: Path) -> None:
     """两个新进程同时起：只能有一个拿到归属，另一个拿到 ``None``（然后等一会儿再来）。
 
     这条判据的**第二半**才是要紧的：输的那个不是「拿到一个自己的归属」，因为那样
-    两个进程都在驱动同一批共享资源（模型预算、执行器、Quay 任务）。
+    两个进程都在驱动同一批共享资源（模型预算、执行器、派发任务）。
     """
     at = utc_now()
     a, b = SqliteWakeupRegistry(db_path), SqliteWakeupRegistry(db_path)

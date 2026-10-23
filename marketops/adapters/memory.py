@@ -880,8 +880,8 @@ class InMemoryJobStore(JobStore):
     # ------------------------------------------------------------------
     # 派发
     # ------------------------------------------------------------------
-    def map_execution(self, work_item_id: str, *, quay_task_id: str) -> ExecutionRef:
-        _require_text(quay_task_id, "quay_task_id")
+    def map_execution(self, work_item_id: str, *, dispatch_task_id: str) -> ExecutionRef:
+        _require_text(dispatch_task_id, "dispatch_task_id")
         item = self._items.get(work_item_id)
         if item is None:
             raise JobStateError(f"没有这个 work item：{work_item_id}")
@@ -895,17 +895,17 @@ class InMemoryJobStore(JobStore):
             )
         existing = self._refs.get(work_item_id)
         if existing is not None:
-            if existing.quay_task_id != quay_task_id:
+            if existing.dispatch_task_id != dispatch_task_id:
                 raise JobStateError(
-                    f"work item {work_item_id} 已经映射到 Quay 任务 "
-                    f"{existing.quay_task_id!r}，不能再映射到 {quay_task_id!r}。\n"
+                    f"work item {work_item_id} 已经映射到 派发任务 "
+                    f"{existing.dispatch_task_id!r}，不能再映射到 {dispatch_task_id!r}。\n"
                     "映射是写一次的：同一件昂贵的事被派发两遍时，**两边都会正常跑完**，"
                     "而报告上只会显示花了两次。"
                 )
             return existing
         created = ExecutionRef(
             work_item_id=work_item_id,
-            quay_task_id=quay_task_id,
+            dispatch_task_id=dispatch_task_id,
             mapped_at=utc_now().isoformat(),
         )
         self._refs[work_item_id] = created
@@ -941,10 +941,10 @@ class InMemoryJobStore(JobStore):
             )
         if work_item_id not in self._refs:
             raise LeaseError(
-                f"work item {work_item_id} 还没有派发到 Quay，不能出租。\n"
+                f"work item {work_item_id} 还没有派发到执行器，不能出租。\n"
                 "没有 ExecutionRef 就没有租约 —— 这是 §6 那句「the controller cannot "
-                "substitute an outer-shell worker launch for Quay dispatch」的可执行"
-                "形式：绕过 Quay 直接开一个 worker 在代码里写不出来。"
+                "substitute an outer-shell worker launch for dispatch」的可执行"
+                "形式：绕过派发 直接开一个 worker 在代码里写不出来。"
             )
         if item.is_stopped:
             raise LeaseError(

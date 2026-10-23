@@ -360,68 +360,50 @@ def advisory_decision_provider(
 
 
 def default_dispatcher(settings: Settings) -> Dispatcher | None:
-    """外部执行器（§6 的派发路径）。``None`` = 本部署没有执行器。
+    """派发执行器（§6 的派发路径）。``None`` = 本部署**写下了**「不派发」。
 
-    ## 三样全没配 与 只配了两样，不是同一件事
+    ## 两种「没有执行器」是两句话
 
-    ``None`` 只对应**三样一个都没给**：那是「本部署没有执行器」这条事实，它有
-    一个明确的处置 —— 不派发 —— 于是它不是一个异常。``wire_research`` 不接没配
-    key 的检索提供方是同一条取向，``build_server`` 的 ``research=None`` 也是：
-    **没有的入口优于有入口再加一条注意事项**。
+    * ``MARKETOPS_DISPATCH_EXECUTOR=none`` —— 一次部署决定，处置是「不派发」，
+      于是返回 ``None``。能力表、受理回执与自检都按这句话说，不猜。
+    * 闭集之外的取值 —— **配错了**的部署，抛 ``ConfigError``。按「不派发」处置会让
+      它在能力表上长成一格 ``runtime_ready: false``，而那格读起来与上一个项目符号
+      逐字相同。
 
-    **只给了一两样则抛 ``ConfigError``。** 那不是一个「没配」的部署，是一个
-    **配错了**的部署 —— 三样缺一不可而这里只给了两样，说明有人以为自己配好了。
-    按「没配」处置会把它降级成能力表上一格 ``runtime_ready: false``，而那格
-    读起来与「本部署没打算派发」逐字相同。这正是 ``Settings.quay_enabled``
-    的 docstring 里那句「两样为假是对的 —— 但对运维是两句不同的话」的落点。
+    装载期（``config._dispatch_executor``）已经拦过闭集之外的取值；这里再判一次，
+    是因为 ``Settings`` 可以被直接构造（测试、以及把本仓库当库用的调用方），而
+    那条路径不经过 ``load_settings``。
 
-    三样齐了而路径本身不合法（相对路径 / 不在盘上）由构造器抛 ``ConfigError`` ——
-    与它自己那条纪律一致：「在构造时抛，不在第一次调用时抛」，否则一个「建得起来、
-    派发时才炸」的执行器在部署自检里是完全隐形的。本函数不吞它。
+    ## 正式执行器是**本机任务板**
+
+    ``local`` 走 ``adapters/local_board.py``：一张 SQLite 任务板，不需要任何第三方
+    服务。它缺的只是目录（``<data_root>/dispatch``，或 ``MARKETOPS_DISPATCH_ROOT``），
+    而目录建不出来、或盘上那个文件不是一张能用的库，由构造器抛 ``ConfigError`` ——
+    「在构造时抛，不在第一次调用时抛」，否则一个「建得起来、派发时才炸」的执行器
+    在部署自检里完全隐形。
+
+    本函数里没有「配齐了某几样就自动换一个执行器」的分支，也没有「本地坏了退到
+    别处」的兜底 —— 回退会让两张状态互不相通的板在同一个服务里各记一半，而两边
+    都正常。
 
     ## ``Settings`` → 构造参数的那次映射只有这一处
 
     这是本函数存在的第二个理由：若 ``get_capabilities`` 自己也映射一遍，两处把
-    哪一样接到哪个参数上搞反时，能力表会报「就绪」而派发用的是另一个文件 ——
+    哪一样接到哪个参数上搞反时，能力表会报「就绪」而派发用的是另一张板 ——
     而两份映射在代码里长得一模一样。
     """
-    supplied = [
-        (name, value)
-        for name, value in (
-            (_QUAY_CLI_VARIABLE, settings.quay_cli_path),
-            (_QUAY_NODE_VARIABLE, settings.quay_node_path),
-            (_QUAY_ROOT_VARIABLE, settings.quay_root),
-        )
-        if value is not None
-    ]
-    if not supplied:
+    kind = (settings.dispatch_executor or "").strip() or "local"
+    if kind == "none":
         return None
-    if len(supplied) < 3:
-        given = [name for name, _ in supplied]
-        missing = [name for name in _QUAY_VARIABLES if name not in given]
+    if kind != "local":
         raise ConfigError(
-            f"外部执行器配了一半：给全了 {given}，缺 {'、'.join(missing)}。\n"
-            "  三样缺一不可（入口脚本、解释器、工作区根）。这里**不**按「没配执行器」"
-            "处置：那会让一个配错了的部署在能力表上长成「本部署不派发」，"
-            "而这两句话对运维是两件事。"
+            f"MARKETOPS_DISPATCH_EXECUTOR={settings.dispatch_executor!r} 不是可识别的"
+            "执行器。取值只有 local（本机任务板，默认）与 none（本部署不派发），"
+            "没有第三个可选值。"
         )
-    from ..adapters.quay_cli import QuayCliDispatcher
+    from ..adapters.local_board import LocalBoardDispatcher
 
-    return QuayCliDispatcher(
-        cli_path=settings.quay_cli_path,
-        node_path=settings.quay_node_path,
-        root=settings.quay_root,
-        timeout_seconds=settings.quay_timeout_seconds,
-    )
-
-
-#: 三样配置的**变量名**。写在这里是为了让上面那条「配了一半」的消息点名环境变量，
-#: 而不是点名 ``Settings`` 的字段 —— 看到那条消息的人手里有环境变量，没有这个类。
-_QUAY_CLI_VARIABLE = "MARKETOPS_QUAY_CLI"
-_QUAY_NODE_VARIABLE = "MARKETOPS_QUAY_NODE"
-_QUAY_ROOT_VARIABLE = "MARKETOPS_QUAY_ROOT"
-
-_QUAY_VARIABLES = (_QUAY_CLI_VARIABLE, _QUAY_NODE_VARIABLE, _QUAY_ROOT_VARIABLE)
+    return LocalBoardDispatcher(root=settings.dispatch_root_resolved)
 
 
 def default_scene_store(settings: Settings) -> Callable[[], SceneStore]:
@@ -1095,7 +1077,7 @@ def default_correspondence_source(
     ``MailCaptureSource`` 要一个 ``sendbox`` 才算得出「这条回信是回给哪一次的」
     （提供方消息 id 只在 ``(信箱, id)`` 上唯一）。没有发送箱时它要么报错、要么
     把归属猜成空 —— 而后者会让一次收信在报告上看起来完成了，实际每一条都关联不上
-    任何一次发送。这与 ``default_dispatcher`` 对 ``MARKETOPS_QUAY_*`` 「配了一半」
+    任何一次发送。这与 ``default_dispatcher`` 对不认识的那个执行器取值**拒绝**
     的处置**逐字同一条**（那边也抛，理由写在它的 docstring 里）。
     """
     if settings.mail_capture_dir is None:

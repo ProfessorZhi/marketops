@@ -885,7 +885,7 @@ def test_search_web_leaves_the_step_null_when_it_is_not_given(researcher) -> Non
     **它不守后半句**（「没需要的 provider 不为『集成完整』而强制调用」）。那半句要
     的是「这次 Run 开了哪几条路」的读数，而它在两处都还接不上：``RunSpec.plan_ref``
     是内容摘要、无消费者（``docs/B16_ACCEPTANCE_MATRIX_2026-09-28.md`` 关闭条件 7
-    缺口 2），而这一条路上的 provider 调用点（本文件那几条工具、``decide``、Quay 的
+    缺口 2），而这一条路上的 provider 调用点（本文件那几条工具、``decide``、执行器的
     ``_dispatch_block``）手上**没有 Run** —— 全文不碰 ``run_id``、不碰 ``plan_ref``、
     不数 provider 调用次数。此前这里的 docstring 逐字引了后半句而断的是前半，是一句
     自述它守 A、实际守 B 的话，已改。
@@ -2409,7 +2409,7 @@ def _dispatched_work_item(settings: Settings, *, account_id: str, organisation: 
     (item,) = store.compile_work_items(
         job.job_id, (dossier,), scene=load_profile(settings).scene_files
     )
-    store.map_execution(item.work_item_id, quay_task_id="quay-task-0001")
+    store.map_execution(item.work_item_id, dispatch_task_id="dispatch-task-0001")
     return item.work_item_id
 
 

@@ -2,7 +2,7 @@
 
 ## 本阶段只落地**有背书**的那些
 
-目录里共 15 个工具，Phase C 只落地其中五个 —— 其余十个的背书（Quay 作业存储、
+目录里共 15 个工具，Phase C 只落地其中五个 —— 其余十个的背书（执行器 作业存储、
 决策提供方、Crawl4AI 多页遍历、检索分配）当时都还没落地，写出来会是一份按想象编
 的接口。哪一个属于哪一阶段写在 ``marketops/security/catalog.py`` 的 ``phase`` 字段
 里，是一个可以被读出来、也可以被数出来的事实。
@@ -22,7 +22,6 @@ import ast
 import inspect
 import json
 import re
-import sys
 from dataclasses import replace
 from pathlib import Path
 
@@ -33,7 +32,7 @@ from marketops.adapters.hashing import sha256_file
 from marketops.adapters.mcp_server import tools as mcp_tools
 from marketops.adapters.mcp_server.tools import control_handlers
 from marketops.adapters.page_mirror import page_path
-from marketops.adapters.quay_cli import QuayCliDispatcher
+from marketops.adapters.local_board import LocalBoardDispatcher
 from marketops.config import REPO_ROOT, Settings
 from marketops.domain.enums import Cohort
 from marketops.domain.evidence import AccountRecord, Evidence
@@ -80,7 +79,7 @@ def control(settings: Settings, tmp_path):
 #: 表上应当有的**七**行：五件集成（四件 Phase D/E + 派发）+ 两个决策后端。
 #: 决策那两行的名字来自 ``tools._DECISION_NAMES``（没构造后端时它照样答得出
 #: 「本该有哪几个」）；本用例的驱动器不传后端，所以看到的就是那两个名字。
-_EXPECTED_ROWS = {"serper", "http", "crawl4ai", "mineru", "quay", "jev", "laya"}
+_EXPECTED_ROWS = {"serper", "http", "crawl4ai", "mineru", "dispatch", "jev", "laya"}
 
 
 def test_capabilities_reports_the_seven_mandatory_integrations(settings, control) -> None:
@@ -255,79 +254,75 @@ def test_capabilities_carries_the_build_this_process_loaded(settings, control) -
 
 
 # ----------------------------------------------------------------------
-# get_capabilities · quay 那一行（Phase G5c）
+# get_capabilities · dispatch 那一行（Phase G5c）
 # ----------------------------------------------------------------------
 def _capabilities_row(
     settings: Settings,
     *,
-    quay: object = None,
+    dispatcher: object = None,
     wired: frozenset[str] = frozenset(),
     jobs: object = None,
 ) -> dict[str, object]:
-    """不经服务面直接读表上的 quay 行。
+    """不经服务面直接读表上的 dispatch 行。
 
     这一行要问的三个问题里有两个（``configured`` / ``runtime_ready``）取决于
     **谁来构造这个服务面**，而 ``control`` 那条路径（``drive_with_settings``）
-    永远不传 ``quay`` —— 于是它测不到「配置齐了、这个进程也装了」那一格。
+    永远不传 ``dispatcher`` —— 于是它测不到「配置齐了、这个进程也装了」那一格。
 
     ``jobs`` 同理，而且更要紧：``wired`` 那一格问的是「**这个实例**里有没有一条
     工具会走到派发」，而 G 那五条进不进表由 ``jobs`` 决定。缺省 ``None``（没有
     作业存储）是**一个合法部署**，也是本文件缺省的被测对象。
     """
-    caps = control_handlers(settings=settings, wired=wired, quay=quay, jobs=jobs)[
+    caps = control_handlers(settings=settings, wired=wired, dispatcher=dispatcher, jobs=jobs)[
         "get_capabilities"
     ]()
-    return next(row for row in caps["integrations"] if row["name"] == "quay")
+    return next(row for row in caps["integrations"] if row["name"] == "dispatch")
 
 
 @pytest.fixture
-def quay_configured(settings: Settings, tmp_path: Path) -> Settings:
-    """三样都给了、且都真的在盘上的 Settings（假 CLI 也是真的可执行的子进程）。"""
-    store = tmp_path / "store"
-    (store / ".quay").mkdir(parents=True)
-    (store / ".quay" / "config.yml").write_text("provider: native\n", encoding="utf-8")
+def dispatch_configured(settings: Settings, tmp_path: Path) -> Settings:
+    """本部署**选择派发**，且任务板的根是这一个用例自己的目录。"""
     return replace(
         settings,
-        quay_cli_path=Path(__file__).with_name("fake_quay_cli.py"),
-        quay_node_path=Path(sys.executable),
-        quay_root=store,
+        dispatch_executor="local",
+        dispatch_root=tmp_path / "board",
     )
 
 
 def test_an_unconfigured_executor_row_names_what_is_missing(settings: Settings) -> None:
-    """三样一个都没给：两格都是假，且 blocker 点名要加哪几个变量。
+    """本部署选择不派发：两格都是假，且 blocker 点名要改哪一个变量。
 
-    不写一句「外部执行器不可用」：读到它的人手里有环境变量，需要知道的是加哪几个。
+    不写一句「外部执行器不可用」：读到它的人手里有环境变量，需要知道的是改哪一个。
     """
-    row = _capabilities_row(settings)
+    row = _capabilities_row(replace(settings, dispatch_executor="none"))
     assert row["configured"] is False
     assert row["runtime_ready"] is False
-    assert "MARKETOPS_QUAY_CLI" in str(row["blocker"])
+    assert "MARKETOPS_DISPATCH_EXECUTOR" in str(row["blocker"])
 
 
-def test_the_quay_row_reads_the_object_not_the_settings(quay_configured: Settings) -> None:
+def test_the_dispatch_row_reads_the_object_not_the_settings(dispatch_configured: Settings) -> None:
     """``configured`` 问配置，``runtime_ready`` 问**这个进程**。
 
     两者在这条路径上恰好一致（``_serve`` 一定构造，构造不出来就退 2），所以
     如果这一格是从 ``Settings`` 重推的，本用例**不会红** —— 上半段与下半段会
-    给出同一个答案。让它们分开的正是「谁来构造这个服务面」：一个不传 ``quay``
+    给出同一个答案。让它们分开的正是「谁来构造这个服务面」：一个不传 ``dispatcher``
     的调用方得到的是「配置齐了但这个进程没有」，而那件事是真的。
 
     下半段是**正对照**：真的把组合根构造出来的对象递进去，那一格翻真。
     """
-    without = _capabilities_row(quay_configured, quay=None)
+    without = _capabilities_row(dispatch_configured, dispatcher=None)
     assert without["configured"] is True, "三样都给了"
     assert without["runtime_ready"] is False, "可这个进程没有把它装起来"
     assert without["blocker"], "两句话不同，不能合成一句空 blocker"
 
-    built = default_dispatcher(quay_configured)
-    assert isinstance(built, QuayCliDispatcher)
-    with_object = _capabilities_row(quay_configured, quay=built)
+    built = default_dispatcher(dispatch_configured)
+    assert isinstance(built, LocalBoardDispatcher)
+    with_object = _capabilities_row(dispatch_configured, dispatcher=built)
     assert with_object["runtime_ready"] is True
 
 
-def test_the_quay_row_says_which_kind_of_not_wired_it_is(
-    quay_configured: Settings, monkeypatch: pytest.MonkeyPatch
+def test_the_dispatch_row_says_which_kind_of_not_wired_it_is(
+    dispatch_configured: Settings, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """``wired`` 为假时，那句话必须说清是**哪一种**没有调用路径。
 
@@ -341,21 +336,21 @@ def test_the_quay_row_says_which_kind_of_not_wired_it_is(
     与一条恒真的健康旗同类）。
     """
     monkeypatch.setattr(mcp_tools, "_DISPATCH_TOOL", "")
-    no_landing = _capabilities_row(quay_configured, quay=default_dispatcher(quay_configured))
+    no_landing = _capabilities_row(dispatch_configured, dispatcher=default_dispatcher(dispatch_configured))
     assert no_landing["wired"] is False
     assert "没有工具落点" in str(no_landing["blocker"])
     assert "尚未接线" not in str(no_landing["blocker"])
 
     monkeypatch.undo()
     # 有落点、但这个实例没有作业存储 ⇒ 那五条 G 工具没进表。
-    no_store = _capabilities_row(quay_configured, quay=default_dispatcher(quay_configured))
+    no_store = _capabilities_row(dispatch_configured, dispatcher=default_dispatcher(dispatch_configured))
     assert no_store["wired"] is False
     assert f"{mcp_tools._DISPATCH_TOOL!r} 在这个进程里尚未接线" in str(no_store["blocker"])
     assert "没有工具落点" not in str(no_store["blocker"])
 
 
-def test_the_quay_row_flips_to_wired_when_the_job_tools_are_there(
-    quay_configured: Settings,
+def test_the_dispatch_row_flips_to_wired_when_the_job_tools_are_there(
+    dispatch_configured: Settings,
 ) -> None:
     """**正对照**：把作业存储装上，那一格真的翻面，blocker 真的空。
 
@@ -371,8 +366,8 @@ def test_the_quay_row_flips_to_wired_when_the_job_tools_are_there(
         raise AssertionError("能力表不该打开作业存储")
 
     row = _capabilities_row(
-        quay_configured,
-        quay=default_dispatcher(quay_configured),
+        dispatch_configured,
+        dispatcher=default_dispatcher(dispatch_configured),
         jobs=jobs,
     )
     assert row["wired"] is True
@@ -475,7 +470,7 @@ def test_the_dispatch_tool_constant_flips_when_somebody_wires_dispatch() -> None
     """``_DISPATCH_TOOL`` 为空 ⟺ 今天没有任何一处会派发。**两边一起变。**
 
     这是一条会自己翻面的判据：接线的人（在 ``marketops/`` 里引用 ``WorkDispatch``）
-    必须同时把那条工具名填进 ``_DISPATCH_TOOL``，否则 ``get_capabilities`` 的 quay
+    必须同时把那条工具名填进 ``_DISPATCH_TOOL``，否则 ``get_capabilities`` 的 dispatch
     行会一边报 ``wired: false`` 一边有调用路径 —— 而那一刻这张表就在说谎，且没有
     任何一处看得出来。
 

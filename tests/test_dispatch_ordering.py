@@ -153,7 +153,7 @@ def test_a_first_dispatch_creates_and_writes_the_mapping(
     assert outside.created_units[0].job_id == job_id
     # 本地那一行真的落下了 —— 回执里的 ``ref`` 与存储里的是同一条。
     assert store.execution_ref(work_item_id) == receipt.ref
-    assert receipt.ref.quay_task_id == receipt.external.external_id
+    assert receipt.ref.dispatch_task_id == receipt.external.external_id
     assert outside.calls == ["find", "create"], "顺序是先问后建，不是先建后问"
 
 
@@ -223,7 +223,7 @@ _NON_POINTER_WORKER_TOOLS = (
 
 #: 正文里**允许**出现的全部小节名。允许清单**只有一条**，而它不是格式偏好 ——
 #: 这一节是派发器判断「两件工作能不能同时跑」的唯一输入。实测（2026-09-23，
-#: Quay 0.11.0 的 ``concurrent-batch-scheduler``，喂的是本仓真的写下去的那两条
+#: 执行器 0.11.0 的 ``concurrent-batch-scheduler``，喂的是本仓真的写下去的那两条
 #: 任务正文）：
 #:
 #:   * 没有这一节 → ``BATCH (0-wide, concurrent): (none)``，两件都被
@@ -326,7 +326,7 @@ def test_the_declared_touch_is_this_task_s_own_file(
     assert not [entry for entry in section if "*" in entry or "?" in entry]
 
 
-#: 这一对 id 取**实测形状**（32 位十六进制、两位不同），与 ``tests/test_quay_cli_adapter.py``
+#: 这一对 id 取**实测形状**（32 位十六进制、两位不同），与 既有派发适配器用例
 #: 里那对同源。它们只是外部 id 的输入，不是任何作业的身份。
 _JOB = "0123456789abcdef"
 _UNIT = "fedcba9876543210"
@@ -511,7 +511,7 @@ def test_a_task_that_is_already_out_there_is_adopted_not_created_again(
     assert receipt.outcome is DispatchOutcome.ADOPTED
     assert "create" not in outside.calls
     assert len(outside.tasks) == 1, "认领不该在外部留下第二行"
-    assert receipt.ref.quay_task_id == "EXT-already-there"
+    assert receipt.ref.dispatch_task_id == "EXT-already-there"
     assert store.execution_ref(work_item_id) == receipt.ref
     assert receipt.external is not None
     assert "somebody-elses-tag" in receipt.external.labels, (
@@ -797,7 +797,7 @@ def test_the_two_arguments_are_not_interchangeable() -> None:
 # 入站的反向：从一组 label 读回那个工作单元 id
 #
 # 出站那半（``link_labels``）只保证「写下去的是两个」。反向读是**第三个**消费者：
-# ``marketops-research-worker`` 收到一条 Quay 任务，手上只有它的 label，而它要回答
+# ``marketops-research-worker`` 收到一条 派发任务，手上只有它的 label，而它要回答
 # 的是「这件工作单元是谁」。读错的表现是 worker 去领一件不属于这条任务的工作，
 # 而两次调用各自的日志都正常 —— 所以下面每一条都拒绝，不回落。
 # ----------------------------------------------------------------------
@@ -861,7 +861,7 @@ def test_a_task_with_no_item_label_at_all_is_refused() -> None:
 def test_two_different_item_labels_are_refused_rather_than_resolved() -> None:
     """两条不同的工作单元 ⇒ 挑一条就是猜。
 
-    这条任务到底是哪一件，这件事在**入站**这边没有第二个来源：Quay 的 ``-p`` 里
+    这条任务到底是哪一件，这件事在**入站**这边没有第二个来源：执行器的 ``-p`` 里
     那句身份只有 task id，没有 work item id。
     """
     with pytest.raises(ValueError):

@@ -330,7 +330,7 @@ def test_a_job_that_is_not_admitted_is_refused_not_reported(store, outside) -> N
 def test_the_mapping_row_answers_found_and_drift_from_one_read(store, outside) -> None:
     """``found`` 说在不在，``drift`` 说对不对 —— 同一行，同一次读。"""
     job_id, items = _dispatched(store, outside)
-    task_id = store.execution_ref(items[0].work_item_id).quay_task_id
+    task_id = store.execution_ref(items[0].work_item_id).dispatch_task_id
     _restatus(outside, task_id, "done")
 
     report = reconcile_job(
@@ -346,7 +346,7 @@ def test_an_external_row_that_is_gone_is_missing_not_unreadable(store, outside) 
     """外面那一行没了 → ``missing``。**与「这一次没读成」分开**：一个是外面的
     结论，一个是我们这一侧的结论，而处置不同（去看谁删的 vs 去看执行器）。"""
     job_id, items = _dispatched(store, outside)
-    del outside.tasks[store.execution_ref(items[0].work_item_id).quay_task_id]
+    del outside.tasks[store.execution_ref(items[0].work_item_id).dispatch_task_id]
 
     report = reconcile_job(
         jobs=store, dispatcher=outside, job_id=job_id, classes=(ReconcileClass.MAPPING,)
@@ -462,7 +462,7 @@ def test_only_settled_items_get_a_board_conclusion(store, outside) -> None:
     report = reconcile_job(jobs=store, dispatcher=outside, job_id=job_id, dry_run=True)
 
     assert len(report.board) == 1
-    assert report.board[0].task_id == store.execution_ref(items[0].work_item_id).quay_task_id
+    assert report.board[0].task_id == store.execution_ref(items[0].work_item_id).dispatch_task_id
     assert len(report.mappings) == 1, "没派发过的那件没有映射，不该出现在映射报告里"
 
 

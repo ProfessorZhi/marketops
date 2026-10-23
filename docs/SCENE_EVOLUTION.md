@@ -63,7 +63,7 @@ Responsibilities:
 
 It should **not** perform every deep Account research job itself.
 
-### B. Quay-driven Claude Code Research Worker
+### B. Dispatched, restricted research worker
 
 Short-lived, task-facing.
 
@@ -77,7 +77,7 @@ Responsibilities:
 
 It should be isolated, budgeted, and have no outreach authority.
 
-Claude Code is the initial strong worker choice because the Quay research POC already targets isolated Claude execution. Hermes/DSH remain replaceable executor candidates and can be benchmarked later.
+Claude Code is the initial strong worker choice because the research worker path already targets isolated Claude execution. Hermes/DSH remain replaceable executor candidates and can be benchmarked later.
 
 ---
 
@@ -108,7 +108,7 @@ Not every file must exist in V1. The important rule is that Scene-specific learn
 
 - MarketOps owns the canonical ScenePack/version.
 - MUC/Hermes may receive a Scene Skill / knowledge projection for the user-facing Scene Steward.
-- Quay-launched Claude workers receive the exact frozen ScenePack version attached to their WorkItem.
+- Dispatched Claude workers receive the exact frozen ScenePack version attached to their WorkItem.
 
 This prevents Hosting and worker guidance from drifting independently.
 
@@ -180,7 +180,7 @@ Scene Improvement WorkItem
    ↓
 Claude Code proposes ScenePatch
    ↓
-Quay evaluation / replay / gates
+executor evaluation / replay / gates
    ↓
 promote | hold | reject
    ↓
@@ -204,7 +204,7 @@ Every normal run already produces useful labels:
 
 ### Step 2 — Propose improvements
 
-After enough new signal (for example N completed Accounts, N failed cases, a recurring error cluster, or a periodic cadence), Quay creates a meta WorkItem.
+After enough new signal (for example N completed Accounts, N failed cases, a recurring error cluster, or a periodic cadence), the executor creates a meta WorkItem.
 
 The same Claude Code runtime can act under a different role: **Scene Curator**.
 
@@ -315,7 +315,7 @@ Skill/experience candidate
         ↓
 MarketOps Scene improvement queue
         ↓
-Quay replay/gate
+executor replay/gate
         ↓
 approved ScenePack update
         ↓
@@ -351,9 +351,9 @@ Scene evolution needs quality labels and rollback.
 
 ---
 
-## 8. Quay's role in evolution
+## 8. The executor's role in evolution
 
-Quay is valuable twice:
+The dispatch executor is valuable twice:
 
 ### Normal operation
 
@@ -409,7 +409,7 @@ A Scene may learn to **do less work** when that is the better policy.
 
 1. Introduce `ScenePackVersion` and attach it to every SceneRun/WorkItem.
 2. Add structured `ExperienceCandidate` records from normal research diagnostics.
-3. Create a manually-triggered Quay `SceneImprove` compound task.
+3. Create a manually-triggered `SceneImprove` compound task through the executor.
 4. Claude Code proposes a patch; it cannot apply it directly.
 5. Replay current vs candidate on a frozen small benchmark.
 6. Store benchmark receipt and human promotion decision.

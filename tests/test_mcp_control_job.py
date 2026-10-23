@@ -123,7 +123,7 @@ def control(
             token=token,
             calls=((tool, arguments or {}),),
             want_tool_list=False,
-            quay=outside if with_dispatcher else None,
+            dispatcher=outside if with_dispatcher else None,
             jobs=store_factory,
         )
         assert not outcome.handshake_error, outcome.handshake_error
@@ -269,7 +269,7 @@ def test_resume_carries_the_plan_step_and_refuses_one_this_plan_never_opened(
 ) -> None:
     """§B16 关闭条件 7 在 **resume** 上的落点：回执回显那一步，而且拒绝发生在写状态之前。
 
-    正控：``resume`` 是 Quay 那一锚的第二条来路（``submit_research`` 是第一条）——
+    正控：``resume`` 是 派发那一锚的第二条来路（``submit_research`` 是第一条）——
     它同样真的去外部建任务，所以同样要说得出服务的是计划里的哪一步。只断「回执里有
     这一格」会让一个恒填常量的实现全绿，所以这里同时断 ``outside.calls``。
 
@@ -343,7 +343,7 @@ def test_resume_that_hands_out_nothing_says_so(settings, store_factory, control)
     assert body["job"]["state"] == "queued"
     assert body["dispatch"]["executor_configured"] is False
     assert body["dispatch"]["handed_out"] == 0
-    assert "MARKETOPS_QUAY_CLI" in body["dispatch"]["blocker"]
+    assert "没有把执行器构造出来" in body["dispatch"]["blocker"]
 
 
 def test_resume_rereads_the_inputs_that_were_missing(settings, store_factory, control) -> None:
@@ -521,7 +521,7 @@ def test_the_receipt_says_what_is_still_running(settings, store_factory, control
     (item,) = store.compile_work_items(
         job.job_id, synthetic_dossiers(SUBJECT), scene=_scene(settings)
     )
-    store.map_execution(item.work_item_id, quay_task_id="quay-task-0001")
+    store.map_execution(item.work_item_id, dispatch_task_id="dispatch-task-0001")
     store.lease(item.work_item_id, holder=HOLDER)
 
     body = control(
@@ -552,8 +552,8 @@ def test_observed_separates_settled_from_in_flight(settings, store_factory, cont
         synthetic_dossiers(SUBJECT, "acme-devon-02", "acme-devon-03"),
         scene=_scene(settings),
     )
-    store.map_execution(first.work_item_id, quay_task_id="quay-task-0001")
-    store.map_execution(second.work_item_id, quay_task_id="quay-task-0002")
+    store.map_execution(first.work_item_id, dispatch_task_id="dispatch-task-0001")
+    store.map_execution(second.work_item_id, dispatch_task_id="dispatch-task-0002")
     attempt = store.lease(first.work_item_id, holder=HOLDER)
     store.settle(
         attempt.attempt_id,
@@ -589,8 +589,8 @@ def test_observed_reports_the_holder_not_a_count_of_leases(settings, store_facto
     first, second = store.compile_work_items(
         job.job_id, synthetic_dossiers(SUBJECT, "acme-devon-02"), scene=_scene(settings)
     )
-    for item, task in ((first, "quay-task-0001"), (second, "quay-task-0002")):
-        store.map_execution(item.work_item_id, quay_task_id=task)
+    for item, task in ((first, "dispatch-task-0001"), (second, "dispatch-task-0002")):
+        store.map_execution(item.work_item_id, dispatch_task_id=task)
     store.lease(first.work_item_id, holder=HOLDER)
     store.lease(second.work_item_id, holder="worker-b")
 
@@ -623,7 +623,7 @@ def test_pause_actually_blocks_new_dispatch(settings, store_factory, control) ->
     )
 
     with pytest.raises(JobStateError) as refused:
-        store.map_execution(item.work_item_id, quay_task_id="quay-task-0001")
+        store.map_execution(item.work_item_id, dispatch_task_id="dispatch-task-0001")
 
     # 消息里带**理由**（"停住"）—— 一句只说「不放行」的拒绝会让人去查配置。
     assert "不放行新的派发" in str(refused.value)
@@ -633,7 +633,7 @@ def test_pause_actually_blocks_new_dispatch(settings, store_factory, control) ->
         "control_job",
         {"job_id": job.job_id, "action": "resume", "expected_state": "paused"},
     )
-    assert store.map_execution(item.work_item_id, quay_task_id="quay-task-0001")
+    assert store.map_execution(item.work_item_id, dispatch_task_id="dispatch-task-0001")
 
 
 def test_cancel_blocks_new_leases_too(settings, store_factory, control) -> None:
@@ -648,7 +648,7 @@ def test_cancel_blocks_new_leases_too(settings, store_factory, control) -> None:
     (item,) = store.compile_work_items(
         job.job_id, synthetic_dossiers(SUBJECT), scene=_scene(settings)
     )
-    store.map_execution(item.work_item_id, quay_task_id="quay-task-0001")
+    store.map_execution(item.work_item_id, dispatch_task_id="dispatch-task-0001")
     control(
         "control_job",
         {"job_id": job.job_id, "action": "cancel", "expected_state": "queued", "reason": "不做了"},
@@ -726,7 +726,7 @@ def test_resume_lands_a_settlement_whose_write_back_never_happened(
     (item,) = store.work_items(job.job_id)
     ref = store.execution_ref(item.work_item_id)
     assert ref is not None
-    task_id = ref.quay_task_id
+    task_id = ref.dispatch_task_id
     attempt = store.lease(item.work_item_id, holder=HOLDER)
     store.settle(
         attempt.attempt_id,

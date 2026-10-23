@@ -197,7 +197,7 @@ def control_handlers(
     wired: frozenset[str] = frozenset(),
     decisions: Mapping[str, DecisionProvider] | None = None,
     advisory: DecisionProvider | None = None,
-    quay: Dispatcher | None = None,
+    dispatcher: Dispatcher | None = None,
     jobs: Callable[[], JobStore] | None = None,
     ledger_factory: Callable[[], BudgetLedger] | None = None,
     worker_outcomes: Callable[[str], tuple[WorkerExitRecord, ...]] | None = None,
@@ -232,7 +232,7 @@ def control_handlers(
             不是从 ``Settings`` 重推一遍 —— 重推意味着「配置说什么」与
             「真的会调谁」有两份实现，而它们漂移的那天，表会照着配置说话、
             接线会照着别的东西调用。
-        quay: 本实例构造出来的外部执行器（§6 的派发路径）。``None`` 表示这个
+        dispatcher: 本实例构造出来的执行器（§6 的派发路径）。``None`` 表示这个
             进程没有把它装起来 —— 与 ``decisions`` 同一条：**表要说的是这个
             进程里有什么**，不是配置里写了什么。
             ``None`` 时 ``submit_research`` 照常受理与编译，只是那一批工作
@@ -348,7 +348,7 @@ def control_handlers(
             return _submit_research(
                 settings=settings,
                 jobs=jobs,
-                dispatcher=quay,
+                dispatcher=dispatcher,
                 # 与 ``get_scene`` 传的是**同一个**工厂（``build_server`` 的
                 # ``scenes``）。两份的话，「读记录的那一份」与「判闸门的那一份」
                 # 是两个库 —— 而它们漂移的那天，受理按 A 库判定、报告按 B 库念。
@@ -368,7 +368,7 @@ def control_handlers(
                 settings=settings,
                 jobs=jobs,
                 ledger_factory=ledger_factory,
-                dispatcher=quay,
+                dispatcher=dispatcher,
                 worker_outcomes=worker_outcomes,
                 job_id=job_id,
             )
@@ -393,7 +393,7 @@ def control_handlers(
             return _submit_findings(
                 settings=settings,
                 jobs=jobs,
-                dispatcher=quay,
+                dispatcher=dispatcher,
                 work_item_id=work_item_id,
                 attempt_id=attempt_id,
                 stop_reason=stop_reason,
@@ -417,7 +417,7 @@ def control_handlers(
             return _control_job(
                 settings=settings,
                 jobs=jobs,
-                dispatcher=quay,
+                dispatcher=dispatcher,
                 accounts=accounts,
                 cohorts=cohorts,
                 review=review,
@@ -446,7 +446,7 @@ def control_handlers(
             wired=wired | frozenset(table),
             decisions=decisions,
             advisory=advisory,
-            quay=quay,
+            dispatcher=dispatcher,
         )
 
     table["get_capabilities"] = get_capabilities
@@ -743,13 +743,13 @@ def _dispatch_block(
       「外面现在对不对」—— 那个问题的答案在一次进程死掉之后仍然问得出来，而
       「上一次回传成功了没有」问不出来（本仓不记它，记了会撒谎）。
 
-    **外部的标识不在这里。** ``work_item_id → quay_task_id`` 那条映射由 ``get_job``
+    **外部的标识不在这里。** ``work_item_id → dispatch_task_id`` 那条映射由 ``get_job``
     的 ``work_items[].execution`` 一处报告 —— 两处各报一次，漂移的那天调用方会
     拿到两个都像真的答案。
 
     ## ``step``：这一批工作是被**计划里的哪一步**交出去的
 
-    §B16 关闭条件 7 的五个被选者里，Quay 是最后一段：这一趟真的去外部建/认领了
+    §B16 关闭条件 7 的五个被选者里，执行器 是最后一段：这一趟真的去外部建/认领了
     任务，那件事要说得出服务的是哪一步。这一格因此与三条研究工具上那一格**同一个
     形状**、用**同一个** ``plan_step`` 校验，理由也一样 —— 没有它，一次派发在计划
     上是悬空的。
@@ -780,7 +780,7 @@ def _dispatch_block(
             # 那句话从能力表那一处取，不在这里另写一句：它已经把「没配」与
             # 「配了、但这个进程没装起来」分开了，而这两句的处置不同。
             "blocker": (
-                _why_quay_not_ready(settings, dispatcher)
+                _why_dispatch_not_ready(settings, dispatcher)
                 + "所以这一批工作没有被交出去 —— 它们仍然是持久的 work item，"
                 "执行器到位之后 control_job(action=resume) 会把它们派出去。"
             ),
@@ -881,11 +881,15 @@ def _capabilities(
     wired: frozenset[str],
     decisions: Mapping[str, DecisionProvider] | None = None,
     advisory: DecisionProvider | None = None,
-    quay: Dispatcher | None = None,
+    dispatcher: Dispatcher | None = None,
 ) -> dict[str, Any]:
     return {
         "integrations": _integrations(
-            settings=settings, wired=wired, decisions=decisions, advisory=advisory, quay=quay
+            settings=settings,
+            wired=wired,
+            decisions=decisions,
+            advisory=advisory,
+            dispatcher=dispatcher,
         ),
         "research_only": settings.research_only,
         "send_authorized": settings.send_authorized,
@@ -925,7 +929,7 @@ def _integrations(
     wired: frozenset[str],
     decisions: Mapping[str, DecisionProvider] | None = None,
     advisory: DecisionProvider | None = None,
-    quay: Dispatcher | None = None,
+    dispatcher: Dispatcher | None = None,
 ) -> list[dict[str, Any]]:
     """七件套逐项报告。
 
@@ -941,8 +945,8 @@ def _integrations(
     不写成「三者都真才算可用」。
 
     决策那两行不在这里写死，而是从 ``decisions`` 上的对象读（见 ``_decision_rows``）；
-    quay 那一行的 ``runtime_ready`` 同源 —— 从 ``quay`` 这个**对象**读，不从
-    ``Settings`` 重推（见 ``_why_quay_not_ready``）。七件套里唯独这两族曾经是
+    dispatch 那一行的 ``runtime_ready`` 同源 —— 从 ``dispatcher`` 这个**对象**读，不从
+    ``Settings`` 重推（见 ``_why_dispatch_not_ready``）。七件套里唯独这两族曾经是
     一句常量，而常量报的是**写它那天**的事实。
     """
     crawl_ok = crawl4ai_available()
@@ -1028,36 +1032,31 @@ def _integrations(
             ),
         },
         {
-            "name": "quay",
+            "name": "dispatch",
             "kind": "dispatch",
-            "configured": settings.quay_enabled,
+            "configured": settings.dispatch_enabled,
+            "executor": settings.dispatch_executor,
             # 从**对象**读，不从 Settings 重推：重推意味着「配置说什么」与
             # 「这个进程装起来了什么」有两份实现（与 decisions 同一条）。
-            # 这一格今天在部署路径上恰好等于 configured，而在**嵌在别处构造**
-            # 服务面的调用方那里不等 —— 一个直接 new 服务面、不传 quay 的
-            # 调用方会得到 configured: true / runtime_ready: false，而那正是
-            # 事实（与 _decision_rows 的「配置里可能配了，但这个进程没把它
-            # 装起来」是同一句话）。
-            "runtime_ready": quay is not None,
+            "runtime_ready": dispatcher is not None,
             "wired": bool(_DISPATCH_TOOL) and _DISPATCH_TOOL in wired,
             "phase": "G",
             "last_live_verification": None,
             "blocker": _join_blockers(
-                _why_quay_not_ready(settings, quay), _why_dispatch_not_called(wired)
+                _why_dispatch_not_ready(settings, dispatcher), _why_dispatch_not_called(wired)
             ),
             "detail": (
-                "派发是 §6 的那条跨系统动作：把一件工作单元交给 Quay，并维持"
+                "派发是 §6 的那条跨系统动作：把一件工作单元交给执行器，并维持"
                 "那条映射（application/dispatch.py）。走的工具是 "
                 "``submit_research``（受理那一刻）与 ``control_job(action=resume)``"
-                "（恢复那一刻）—— 触发它的是**控制面**，执行它的是 worker 侧。"
-                "docs/MCP_SERVICE.md §1 的流程图里，「actual Quay task dispatch」"
-                "是准入与 worker 之间的一步。\n"
-                "与 Quay 的交互只有两样：建/改任务时的 --expect-status CAS，"
-                "和门。**不读退出码**：同一个门的同一个裁决在两个构建上给出"
-                "两个退出码（0.4.0 退 1、0.11.0 退 0），那个数字不承载判断。\n"
-                "last_live_verification 恒为 null，与上面两行同理：派发过一百件"
-                "工作单元也不改这一格 —— §5 要的是「actual driver/task/attempt "
-                "records」那种活体校验，而本构建没有任何一处记录过它。"
+                "（恢复那一刻）—— 触发它的是**控制面**，执行它的是 worker 侧。\n"
+                "执行器只有两种取值，都在本仓里：``local``（默认）是一张本机 "
+                "SQLite 任务板（adapters/local_board.py），服务进程写、runner 进程领，"
+                "跨进程可见而并发靠事务；``none`` 是一个写下来的决定，表示这个部署"
+                "不派发。**没有第三种取值**，也没有外部工作区可配 —— 那条路已经在 "
+                "Issue #2 里整段移除，缺执行器时本仓拒绝派发，从不回退。\n"
+                "last_live_verification 恒为 null：派发过一百件工作单元也不改这一格 —— "
+                "它要的是有人真的把「派发 → 领取 → 结算」这条链跑通并记下来。"
             ),
         },
         *_decision_rows(decisions, wired, advisory),
@@ -1078,23 +1077,23 @@ def _integrations(
 _DISPATCH_TOOL = "submit_research"
 
 
-def _why_quay_not_ready(settings: Settings, quay: Dispatcher | None) -> str:
+def _why_dispatch_not_ready(settings: Settings, dispatcher: Dispatcher | None) -> str:
     """这一行为什么不是「就绪」；是就绪时返回空串。
 
     两句话对应**两件事**（``_why_not_called`` 的第 1、2 种是同一个形状）：
-    「本部署没配执行器」的处置是加三个环境变量，而「配置齐了、这个进程没把
-    它装起来」的处置是看服务面是怎么构造的 —— 合成一句会让运维去配一个已经
-    配好的东西。
+    「本部署选择了不派发」的处置是改一个环境变量，而「配置说要派发、这个进程
+    没把执行器装起来」的处置是看服务面是怎么构造的 —— 合成一句会让运维去改
+    一个已经改好的东西。
     """
-    if not settings.quay_enabled:
+    if not settings.dispatch_enabled:
         return (
-            "本部署没有配置外部执行器（MARKETOPS_QUAY_CLI / _NODE / _ROOT "
-            "三样缺一不可），所以派发在这个部署上不存在。"
+            f"本部署选择不派发（MARKETOPS_DISPATCH_EXECUTOR={settings.dispatch_executor!r}），"
+            "所以派发在这个部署上不存在。"
         )
-    if quay is None:
+    if dispatcher is None:
         return (
-            "配置里三样都齐了，但**这个进程**没有把执行器构造出来 —— "
-            "与「没配」是两件事。"
+            "配置说这个部署要派发，但**这个进程**没有把执行器构造出来 —— "
+            "与「选择不派发」是两件事。"
         )
     return ""
 
@@ -1368,7 +1367,7 @@ def require_known_step(value: str) -> str | None:
 def plan_step(value: str, *, steps: tuple[str, ...]) -> str | None:
     """这次调用声称的**计划步骤** —— 通过时返回归一化后的 id，空着时返回 ``None``。
 
-    §B16 关闭条件 7 逐字要的是「Serper / HTTP / Crawl4AI / Jev / Quay 的调用能反查
+    §B16 关闭条件 7 逐字要的是「Serper / HTTP / Crawl4AI / Jev / 执行器的调用能反查
     是谁因哪一个 plan 步骤被选择」。反查要有一格的起点，而这一格在适配器上原本
     **不存在**：一个自由字符串说得出「这次搜的是 contact 页」，说不出「这次搜的是
     计划里的哪一步」，于是每一条 provider 调用在那份计划上都是悬空的。
@@ -2126,7 +2125,7 @@ def _submit_research(
     ## 受理之后立刻做的两件事：编译，然后交出去
 
     第一件，``input_ref`` 说的工作集变成 durable 的 ``work_item`` 行 —— 不碰网络、
-    不建 Quay 任务、不花一分钱。第二件是派发（§6）：把这一批工作交出去，每一件
+    不建 派发任务、不花一分钱。第二件是派发（§6）：把这一批工作交出去，每一件
     在本地留下一条 ``map_execution`` 的映射。受理与派发**在同一次调用里**，因为
     §6 逐字要求 "Store admission and dispatch intent transactionally"：分两次调，
     「受理了、没派出去」就会与「受理了、正要去派」在报告上长得一样，而两者的处置
@@ -2168,8 +2167,8 @@ def _submit_research(
     它是一次调用的事实，别的工具读不到。
 
     三格里的 ``executor_configured`` 是唯一一句带部署味道的，而它说的是这个进程
-    手里有没有那个**对象**（与能力表 quay 行的 ``runtime_ready`` 同源：都是从
-    ``quay`` 这个参数读的，不重推 ``Settings``）。
+    手里有没有那个**对象**（与能力表 dispatch 行的 ``runtime_ready`` 同源：都是从
+    ``dispatcher`` 这个参数读的，不重推 ``Settings``）。
     """
     scene = require_scene(settings, scene_id)
     # 两问挨着写：**名字对不对**（``require_scene``）与**这个场景现在让不让开工**
@@ -2257,7 +2256,7 @@ def _submit_research(
         raise ToolError(str(exc)) from exc
 
     # 受理之后立刻编译：``input_ref`` 说的工作集在这一步变成 durable 的 work item。
-    # 这一步不碰网络、不建 Quay 任务 —— 交出去是下一段。
+    # 这一步不碰网络、不建 派发任务 —— 交出去是下一段。
     try:
         items, blocker = _resolve_and_compile(
             settings, store, job, accounts=accounts, cohorts=cohorts, review=review
@@ -2329,7 +2328,7 @@ def _job(
     worker_outcomes: Callable[[str], tuple[WorkerExitRecord, ...]] | None,
     job_id: str,
 ) -> dict[str, Any]:
-    """读一个作业的真实状态：work item、Quay 映射、租约、进度、用量、终态回执（§2）。"""
+    """读一个作业的真实状态：work item、派发映射、租约、进度、用量、终态回执（§2）。"""
     key = (job_id or "").strip()
     store = jobs()
     job = store.get(key)
@@ -2362,7 +2361,7 @@ def _job(
                 "execution": (
                     None
                     if ref is None
-                    else {"quay_task_id": ref.quay_task_id, "mapped_at": ref.mapped_at}
+                    else {"dispatch_task_id": ref.dispatch_task_id, "mapped_at": ref.mapped_at}
                 ),
                 "attempts": [
                     {
@@ -2461,7 +2460,7 @@ def _control_job(
     因为一次 pause / cancel 是**两个控制端可以同时按下**的那个动作。不带 CAS 的
     写法（读、判、写）在两个控制端同时按下时最后一个写的赢，而**两边都以为自己
     成功了** —— 报告里留下的是第二次按下，第一次按下的那个人看不到自己的命令
-    被吃掉了。这与 Quay 的 ``--expect-status`` 是同一条纪律，理由也一样。
+    被吃掉了。这与 执行器的 ``--expect-status`` 是同一条纪律，理由也一样。
 
     调用方手上本来就有这个值（``get_job`` 返回 ``job.state``），所以这不是多要一个
     参数，是要求它把「我据以决定的那次读」写下来。不匹配时整次拒绝，并把读到的
@@ -2470,7 +2469,7 @@ def _control_job(
     ## 闭集是三个动词，不是四个
 
     ``blocked`` 在 ``JOB_TRANSITIONS`` 里，但**不是**一个控制端动词。一个作业被
-    阻塞是**观察到**的一件事（某个上游说不、额度不够、Quay 任务失败了），不是谁的
+    阻塞是**观察到**的一件事（某个上游说不、额度不够、派发任务失败了），不是谁的
     一句命令。把它做成一个可调的动作，调用方就能声明一个没有任何证据的阻塞，而
     报告里它与一次真的阻塞长得一样 —— 而 §6 要求 cancel 说明「what actually
     stopped」，同一条纪律对 blocked 只会更严。
@@ -2820,7 +2819,7 @@ def _job_usage(
 # get_assignment / submit_findings（Phase G3，§3 的 worker 侧）
 # ----------------------------------------------------------------------
 #: 这几句话是**同一件事**的三个阶段，所以写在一个地方：
-#: 「一个 work item 要能被领走，先得派发到 Quay；派发之后由 ``get_assignment``
+#: 「一个 work item 要能被领走，先得派发到执行器；派发之后由 ``get_assignment``
 #: 当场领，再由 ``submit_findings`` 结算」。``get_assignment`` 与
 #: ``submit_findings`` 都要过这条链，而两处各写一遍会先漂移一处 ——
 #: 漂移的形态是一个签得下的租约、却读不出它的任务。
@@ -3091,11 +3090,11 @@ def _assignment(
 
     ## 「领」这个动词真的在这里发生
 
-    一件已经派发到 Quay、但还没有人持着的工作，**这一次调用就把租约租给调用方**
+    一件已经派发到执行器、但还没有人持着的工作，**这一次调用就把租约租给调用方**
     （见 ``_claim``）。§3 的工具目录里没有一条 ``lease``，所以如果这里只肯回答
     「没有活的租约」，那件工作就永远没有人能持着 —— 一句读起来像事实的死循环。
     派发（control 面）与领活（worker 面）因此是同一件事的两端：前者把工作交给
-    Quay，后者把 Quay 上的那份工作认领到某个具体主体名下。
+    执行器，后者把 执行器 上的那份工作认领到某个具体主体名下。
 
     ## 「已受理的前置条件」在这一层是**拒绝**，不是一个勾选清单
 
@@ -3135,9 +3134,9 @@ def _assignment(
     ref = store.execution_ref(item.work_item_id)
     if ref is None:
         raise ToolError(
-            f"work item {item.work_item_id} 还没有派发到 Quay，所以它不是一个 assignment。\n"
+            f"work item {item.work_item_id} 还没有派发到执行器，所以它不是一个 assignment。\n"
             "§6 逐字：the controller cannot substitute an outer-shell worker launch "
-            "for Quay dispatch —— 而这条链是由 ``lease`` 反过来守的（没有 ExecutionRef "
+            "for 执行器 dispatch —— 而这条链是由 ``lease`` 反过来守的（没有 ExecutionRef "
             "就没有租约），所以它不该出现；出现了说明这个 work item 的记录被改过。"
         )
     # 快照是**这条记录够不够格当 assignment** 的第二个问题，所以它紧跟着 §6 那条判、
@@ -3304,7 +3303,7 @@ def _assignment(
                 {"path": entry.path, "sha256": entry.sha256, "bytes": len(entry.content)}
                 for entry in (pinned_scene or bundle.scene_files).entries
             ],
-            # §B16 关闭条件 7 逐字要的是「Serper / HTTP / Crawl4AI / Jev / Quay 的调用
+            # §B16 关闭条件 7 逐字要的是「Serper / HTTP / Crawl4AI / Jev / 执行器的调用
             # 能反查是谁因哪一个 plan 步骤被选择」。反查的锚点是
             # ``EffectiveResearchPlan.source_methods``，而 **worker 拿不到那份计划**
             # （它在服务端，随受理那一刻的 ``ResearchContext`` 现编）—— 于是「这一步」在
@@ -3339,7 +3338,7 @@ def _assignment(
         # 能跑，而没有任何一处把 spec_id 交出去，于是台账上 decision_record 恒零行，
         # 与「这份 profile 没有声明过判定」不可区分。这是 §F 那条 FAIL 的根因。
         "decision_specs": decision_specs,
-        "execution": {"quay_task_id": ref.quay_task_id, "mapped_at": ref.mapped_at},
+        "execution": {"dispatch_task_id": ref.dispatch_task_id, "mapped_at": ref.mapped_at},
         "attempt": {
             "attempt_id": attempt.attempt_id,
             "ordinal": attempt.ordinal,
@@ -4090,7 +4089,7 @@ def _sync_board(
 
     那不是一次「同步失败」，是**这个进程**没有可同步的对象。两件事的处置不同
     （一个去看外面，一个去看服务面是怎么构造的），所以它有自己的那句话，与能力
-    表 quay 行的 ``runtime_ready`` 同源 —— 都从 ``dispatcher`` 这个**对象**读，
+    表 dispatch 行的 ``runtime_ready`` 同源 —— 都从 ``dispatcher`` 这个**对象**读，
     不重推 ``Settings``。这一格里的目标状态照报，来源与别处**同一个**
     （:func:`~marketops.application.dispatch.board_target`，读已落库的那条结局）。
 
@@ -4148,7 +4147,7 @@ def _research_terminals(
     与它同一批主语）。另立一条工具会让同一件工作有两个读法，而两个读法漂移的那天，
     验收看哪一个就成了一个问题。
 
-    ## 权威在 ``authoritative``，不在 ``external.quay_final_state``
+    ## 权威在 ``authoritative``，不在 ``external.dispatch_final_state``
 
     见 :mod:`marketops.application.research_terminal`。这里只做三件 I/O：读库、读
     看板（``dry_run=True``，**一次写入都不发**）、读外部那本退出账。**报告路径不得
@@ -4156,8 +4155,8 @@ def _research_terminals(
 
     ## 读不出来 ≠ 没记过
 
-    外部那本账读不出来（文件在、但有一行坏了）时 ``quay_records`` 报 ``None`` 并
-    带上 ``quay_read_error``；``0`` 只表示「读成功了，关于这个任务一行都没有」。
+    外部那本账读不出来（文件在、但有一行坏了）时 ``dispatch_records`` 报 ``None`` 并
+    带上 ``dispatch_read_error``；``0`` 只表示「读成功了，关于这个任务一行都没有」。
     两者合成一个之后，「外面判了没落地」与「外面什么都没说」就长得一样了 —— 而
     这一格存在的全部理由就是让前者可见。
 
@@ -4195,7 +4194,7 @@ def _research_terminals(
         outcomes: tuple[WorkerExitRecord, ...] = ()
         if ref is not None:
             try:
-                outcomes = worker_outcomes(ref.quay_task_id)
+                outcomes = worker_outcomes(ref.dispatch_task_id)
             except ConfigError as exc:
                 # 读坏了。回执照常出，但**分母要改成「不知道」** —— 喂一个空元组
                 # 进去会让它报 ``records: 0``，那是「外面一行都没记过」的意思，
@@ -4211,8 +4210,8 @@ def _research_terminals(
             outcomes=outcomes,
         ).payload()
         if read_error is not None:
-            payload["external"]["quay_records"] = None
-            payload["external"]["quay_read_error"] = read_error
+            payload["external"]["dispatch_records"] = None
+            payload["external"]["dispatch_read_error"] = read_error
         terminals.append(payload)
 
     return {

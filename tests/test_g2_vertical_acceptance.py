@@ -66,7 +66,7 @@ tick**（可能合理有工作）、**真实到期后外部 revalidation**（需
   「团队 digest 算出来了」与 ``inbox.jsonl`` 真的落了盘这两格**取不到读数**。
 * **某 provider 缺席 / 跨 Scene 同源 / timeout 后未知计费 / 真实到期后的外部
   revalidation。** ``trial preflight`` 的 ``provider`` 行是 ``BLOCKED_EXTERNAL``
-  （本机缺 ``serper`` / ``quay``）⇒ 没有能发起外调的提供方，这一半取不到真读数。
+  （本机缺 ``serper`` / 派发执行器）⇒ 没有能发起外调的提供方，这一半取不到真读数。
 * **长期运行稳定性。** 计划逐字另行标注「未观测」。**不**读成通过。
 
 ## fixture 身份
