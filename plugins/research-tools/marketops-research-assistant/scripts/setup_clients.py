@@ -651,7 +651,7 @@ def _start_here(result):
                       result["skills_directory"], "```", ""])
     lines.extend(["## 开始第一次调研", "",
                   "> 使用 MarketOps，先检查数据路径、凭据、授权额度和供应商连接。按我的目标保存 Research Brief，先做 3 个候选；保存原文、事实引文和责任关系，无法核实的标 HOLD。导出 Excel，记录此次方法和卡点，并在下一批检索可复用经验。", "",
-                  "先在新会话调用 marketops_setup_status，看 provider_readiness 里五个服务是否 READY，再做第一次小规模调研。仅代码复制成功不等于宿主与账号验收通过。",
+                  "先在新会话调用 marketops_setup_status，看 provider_readiness 里每一路（Serper、DeepSeek、SerpApi、TinyFish、Crawl4AI、Jev）是否 READY，再做第一次小规模调研。仅代码复制成功不等于宿主与账号验收通过。",
                   "完整安装与实际检查状态见 INSTALL_RECEIPT.json；没有有效 BUILD_QA 的开发包只能诊断，不能据此启用真实调用。", ""])
     return "\n".join(lines)
 

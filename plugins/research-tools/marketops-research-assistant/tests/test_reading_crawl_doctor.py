@@ -175,6 +175,47 @@ class Entrypoints(unittest.TestCase):
 
 
 class Server(unittest.TestCase):
+    def test_every_provider_with_a_key_is_also_reported(self):
+        """The key table and the reported table must name the same providers.
+
+        They were maintained apart, so DeepSeek could have a key variable and no
+        line on the panel: a customer who never set ``DEEPSEEK_API_KEY`` saw
+        nothing about it, and a missing route is indistinguishable from a working
+        one that simply found nothing.
+        """
+        import research_mcp
+
+        keyed = set(research_mcp.PROVIDER_KEYS)
+        reported = set(research_mcp.READINESS_PROVIDERS)
+        self.assertEqual(set(), keyed - reported, "有 key 的 provider 必须有读数")
+        self.assertEqual({"crawl4ai"}, reported - keyed, "只有 crawl4ai 是不要 key 的那一个")
+
+    def test_a_missing_deepseek_key_is_reported_rather_than_omitted(self):
+        import research_mcp
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch.object(research_mcp, "root", return_value=Path(tmp)), \
+                patch("research_runtime_setup.config", return_value={}), \
+                patch("research_credentials.load_into_environment"), \
+                patch("research_balances.warnings", return_value=[]), \
+                patch("research_provider_health.status", return_value={}), \
+                patch.object(research_mcp, "configured", side_effect=lambda name: False):
+            result = research_mcp.provider_readiness()
+        self.assertIn("deepseek", result["providers"])
+        self.assertEqual("KEY_MISSING", result["providers"]["deepseek"])
+
+    def test_a_present_deepseek_key_follows_the_same_enablement_rule(self):
+        import research_mcp
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch.object(research_mcp, "root", return_value=Path(tmp)), \
+                patch("research_runtime_setup.config", return_value={"providers": []}), \
+                patch("research_credentials.load_into_environment"), \
+                patch("research_balances.warnings", return_value=[]), \
+                patch("research_provider_health.status", return_value={}), \
+                patch.object(research_mcp, "configured", side_effect=lambda name: True):
+            result = research_mcp.provider_readiness()
+        # 钥匙在，但这份项目没有开任何一路：与其它 provider 同一条规则。
+        self.assertEqual("NOT_ENABLED_FOR_PROJECT", result["providers"]["deepseek"])
+
     def test_readiness_shows_exhausted_local_budget_separately_from_provider_keys(self):
         import research_mcp
         with tempfile.TemporaryDirectory() as tmp, \

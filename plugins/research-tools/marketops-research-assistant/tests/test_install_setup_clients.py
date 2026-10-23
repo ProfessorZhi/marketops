@@ -138,7 +138,7 @@ class LocalInstallTests(unittest.TestCase):
                 self.assertNotIn("cwd", server, "Codex cached plugin root must not inherit external cwd")
             wb = result["workbuddy_bundle"]
             self.assertEqual(1, wb["mcp_servers_bundled"])
-            self.assertEqual(13, wb["skills"])
+            self.assertEqual(len(list((ROOT / "skills").glob("*/SKILL.md"))), wb["skills"])
             connector = Path(wb["directory"])
             wmeta = json.loads((connector / "connector-meta.json").read_text(encoding="utf-8"))
             self.assertEqual("mcp", wmeta["type"])

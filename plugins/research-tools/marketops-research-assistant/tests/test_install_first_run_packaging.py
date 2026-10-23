@@ -57,7 +57,9 @@ class ManifestTests(unittest.TestCase):
         self.assertIn("MARKETOPS_RESEARCH_CONFIG", preflight.EXPECTED_VARS)
         outcome = preflight.report()
         self.assertEqual([], outcome["errors"])
-        self.assertEqual(13, outcome["skills"])
+        # Derived, not written down: a literal here reported 13 while the tree
+        # shipped 14, and the preflight it was guarding had the same stale set.
+        self.assertEqual(len(list((ROOT / "skills").glob("*/SKILL.md"))), outcome["skills"])
 
 
 if __name__ == "__main__":
