@@ -13,7 +13,8 @@ module is that scraper, shipped inside the plugin:
    takes the most reliable one as the record anchor and reads each block
    between two anchors;
 3. the organisation name is the run of words printed immediately before the
-   block's first label, cleaned the same way `research_directory` cleans it;
+   block's first label, with a street, a schedule or a label the page glued
+   on refused rather than kept as part of the name;
 4. it emits, per record, the fields plus exact quotes for name, person and
    email, ready for `marketops_propose_batch`.
 
@@ -27,8 +28,6 @@ import json
 import re
 import sys
 from pathlib import Path
-
-import research_directory as directory
 
 __all__ = ["FIELDS", "extract", "items_for_batch", "render", "main"]
 
