@@ -1,4 +1,4 @@
-# MarketOps Research Assistant 0.5.11-rc12
+# MarketOps Research Assistant 0.5.11-rc13
 
 **Release candidate — 不是正式发行版。** 本包只用于 RC 验收；不得覆盖或重命名既有的
 0.5.5 ZIP，不得据此宣布正式发布。正式发布前仍需完成真实供应商费用与客户授权验收。
@@ -21,7 +21,7 @@ Claude Code 也可以从仓库的 marketplace 装插件：
 
 市场版只拷贝插件、不带运行时：先跑一次上面的安装器（或设 `MARKETOPS_RESEARCH_PYTHON`），否则不会出现 `marketops_*` 工具，会话开始时插件会提示缺什么。Windows 上市场版不能单独使用（MCP 用 `sh` 启动）。
 
-### 本机环境体检（0.5.11-rc12 新增）
+### 本机环境体检（0.5.11-rc13 新增）
 
 "装好了却用不了"多数时候不是插件坏了，而是**跑服务的那个解释器**缺东西——工具起不来、
 读页降级到付费路、或者停在 HOLD。`marketops-doctor` 技能对应
@@ -29,7 +29,7 @@ Claude Code 也可以从仓库的 marketplace 装插件：
 `--repair` 只做不丢数据的修复（建已配置的数据根、复位 crawl 缓存），`--install` 才装包且
 装进目标解释器。退出码 `20` 表示还有 blocker。详见 `skills/marketops-doctor/SKILL.md`。
 
-### 名录页提取（0.5.11-rc12 新增）
+### 名录页提取（0.5.11-rc13 新增）
 
 名录、协会列表、组委会页面这类「一条一条印着联系人」的页，过去只能靠 `material_excerpt`
 一次 1200 字地读，读完整页要几十次调用，剩下的还得 Agent 自己写解析。现在

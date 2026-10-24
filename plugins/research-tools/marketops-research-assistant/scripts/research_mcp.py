@@ -729,7 +729,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         configured_root = None
     if configured_root is not None and runtime_setup.config(configured_root):
         from research_runtime_status import view
-        return {"product": "MarketOps Research MCP", "version": "0.5.11-rc12",
+        return {"product": "MarketOps Research MCP", "version": "0.5.11-rc13",
                 **view(configured_root, task_kind=task_kind),
                 "external_host": _external_inventory(host_observed_tools),
                 "embedded_official_mcp": provider_policy.embedded_official_mcp_capabilities(),
@@ -804,7 +804,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         if task_kind else None)
     return {
         "product": "MarketOps Lite Research MCP",
-        "version": "0.5.11-rc12",
+        "version": "0.5.11-rc13",
         "providers": {
             "serpapi": {"transport": "REST through local MCP", **search["serpapi"]},
             "serper": {"transport": "REST through local MCP", **search["serper"]},
@@ -1678,7 +1678,7 @@ def handoff(run_id, operation_id, mode="auto"):
     try:
         experience_result = draft_experience(
             r, run_id=run_id, scope=head["scope"],
-            rule_version=head["rule_version"], skill_version="0.5.11-rc12",
+            rule_version=head["rule_version"], skill_version="0.5.11-rc13",
             output=experience_path)
         result["experience_candidate"] = str(experience_path)
         result["experience_incidents"] = experience_result["incidents"]
@@ -1893,6 +1893,7 @@ def _with_budget(fn):
 
 
 def build_server():
+    import research_code_drift  # noqa: F401 - the fingerprint is taken at server start
     from research_credentials import load_into_environment
     load_into_environment()
     try:
@@ -1912,7 +1913,7 @@ def build_server():
         pass
     _ensure_repair_entrypoints()
     from mcp.server import MCPServer
-    mcp = MCPServer("MarketOps Lite Research", version="0.5.11-rc12")
+    mcp = MCPServer("MarketOps Lite Research", version="0.5.11-rc13")
     _quiet_http_logs()  # after the server set up its own logging
 
     def tool(fn):
@@ -1925,7 +1926,9 @@ def build_server():
     @tool
     def marketops_setup_status() -> dict:
         """Read-only: are the two first-use paths chosen? Never creates or changes anything."""
-        return setup_status()
+        changed = research_code_drift.drift()
+        status = setup_status()
+        return {**status, "restart_required": changed} if changed else status
 
     @tool
     def marketops_setup_configure(data_root: str, experience_file: str,
@@ -2277,8 +2280,15 @@ def build_server():
                               artifact_id: str = "", mapping: dict | None = None,
                               filters: dict | None = None, offset: int = 0,
                               limit: int = 500, preview: bool = False,
-                              family: str = "") -> dict:
+                              family: str = "",
+                              operator_covered_types: list[str] | None = None) -> dict:
         """Add one source's targets to the shared pool every window works from.
+
+        operator_covered_types (saved-JSON imports): the source's own values for
+        venues run by a public body or chain whose staff sit at the operator (Data
+        ES equip_gest_type e.g. ["Commune", "Etat", "Département", "Région"]). Such a
+        venue without its own website is kept as a venue but not queued: research
+        its operator with marketops_venue_groups instead.
 
         family: which kind of organisation this source lists (OPERATORS,
         CLUBS_ASSOCIATIONS, SCHOOLS_UNIVERSITIES, FEDERATION_LISTS). A contacts goal
@@ -2302,7 +2312,8 @@ def build_server():
             import research_bulk
             return research_bulk.import_saved(root(), run_id=run_id, artifact_id=artifact_id,
                 pool_id=pool_id, source_id=source_id, mapping=mapping, filters=filters,
-                offset=offset, limit=limit, preview=preview, objective=objective, scene=scene)
+                offset=offset, limit=limit, preview=preview, objective=objective, scene=scene,
+                operator_covered_types=operator_covered_types)
         return research_pool.import_targets(
             root(), pool_id=pool_id, source_id=source_id, source_url=source_url,
             provider=provider, listed_count=listed_count, targets=targets,
@@ -2467,7 +2478,8 @@ def build_server():
     @tool
     def marketops_venue_groups(run_id: str, by: str = "operator", operator_types: list[str] | None = None,
                                limit: int = 50, import_to_pool: str = "",
-                               country_hint: str = "", name_template: str = "") -> dict:
+                               country_hint: str = "", name_template: str = "",
+                               park_covered_in_pool: str = "") -> dict:
         """The Run's venues grouped by who runs them, largest groups first; no network.
 
         A venue's decision-makers usually sit at its operator: the municipality's
@@ -2478,15 +2490,22 @@ def build_server():
         public/municipal management). name_template names each town's target in the
         local language, e.g. "City of {group}". import_to_pool=<pool_id> adds the
         largest uncovered groups as organisation targets; research them with
-        marketops_harvest_batch.
+        marketops_harvest_batch. park_covered_in_pool=<pool_id> (with operator_types)
+        first holds that pool's pending venue rows that have no website and such an
+        operator, so the run stops waiting on venue-by-venue searches.
         """
         import research_bulk
         store.list_run(root(), run_id, limit=1)
-        return research_bulk.venue_groups(root(), run_id=run_id, by=by,
-                                          operator_types=operator_types, limit=limit,
-                                          import_to_pool=import_to_pool,
-                                          country_hint=country_hint,
-                                          name_template=name_template)
+        parked = None
+        if park_covered_in_pool:
+            parked = research_bulk.park_operator_covered(
+                root(), run_id=run_id, pool_id=park_covered_in_pool, operator_types=operator_types)
+        result = research_bulk.venue_groups(root(), run_id=run_id, by=by,
+                                            operator_types=operator_types, limit=limit,
+                                            import_to_pool=import_to_pool,
+                                            country_hint=country_hint,
+                                            name_template=name_template)
+        return {**result, "parked_venue_targets": parked} if parked else result
 
     @tool
     def marketops_crawl4ai_check(run_id: str = "", repair: bool = False) -> dict:
@@ -2632,7 +2651,9 @@ def build_server():
         Pass the previous snapshot_id with after_attempt=true after a provider
         call: NO_NEW_PERSISTED_RECORD_AFTER_ATTEMPT means change source or target.
         """
-        return compact_next(next_step(run_id, limit, previous_snapshot_id, after_attempt))
+        result = compact_next(next_step(run_id, limit, previous_snapshot_id, after_attempt))
+        changed = research_code_drift.drift()
+        return {**result, "restart_required": changed} if changed else result
 
     @tool
     def marketops_events(run_id: str) -> dict:
@@ -2728,7 +2749,7 @@ def build_server():
             raise ValueError("EXPERIENCE_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT")
         output.parent.mkdir(parents=True, exist_ok=True)
         return draft_experience(r, run_id=run_id, scope=scope,
-                                rule_version=rule_version, skill_version="0.5.11-rc12",
+                                rule_version=rule_version, skill_version="0.5.11-rc13",
                                 output=output)
 
     @tool

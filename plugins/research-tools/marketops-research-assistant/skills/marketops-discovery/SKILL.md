@@ -9,7 +9,13 @@ For saved JSON use artifact-mode `marketops_pool_import`: preview its schema,
 then map exact fields and apply literal filters locally. Import local pages
 without new provider requests; upstream pagination is separate. France Data ES
 has `equip_nature` for indoor/outdoor: never filter only on INTERIEUR in the
-name. Verify commune fields instead of assuming `lib_bdv` is a city. A mixed
+name. Map `operator_type` to `equip_gest_type` and pass
+`operator_covered_types=["Commune", "Etat", "Département", "Région"]` (the source's own
+values for public management): a municipal gym without its own website is then kept as a
+venue but not queued as a contact target, and `marketops_venue_groups(by='city',
+operator_types=[...], name_template='Ville de {group}', import_to_pool=...)` makes its town
+the target. A pool imported without it: the same call with `park_covered_in_pool=<pool_id>`
+holds those rows (the rc12 Paris run waited on 707 of them). Verify commune fields instead of assuming `lib_bdv` is a city. A mixed
 directory does not prove every venue indoors. Supply an `indoor` source claim
 and require it in the brief for indoor venue eligibility.
 
