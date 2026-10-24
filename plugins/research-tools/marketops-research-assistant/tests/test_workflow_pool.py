@@ -58,6 +58,19 @@ class PoolTests(unittest.TestCase):
         self.assertEqual((2, 1, 1), (result["imported"], result["duplicates"], len(result["rejected"])))
         self.assertTrue(result["reconciled"])
 
+    def test_a_pool_target_is_known_to_be_a_target(self):
+        self.load(HALLS[:2])
+        import sqlite3  # noqa: PLC0415 - only this assertion reads sqlite directly
+        with closing(sqlite3.connect(
+                (self.root / "state" / "research-pool.sqlite3").as_uri() + "?mode=ro",
+                uri=True)) as db:
+            key = db.execute("SELECT target_key FROM pool_targets LIMIT 1").fetchone()[0]
+        self.assertTrue(pool.is_pool_target(self.root, key))
+        self.assertFalse(pool.is_pool_target(self.root, "t-00000000000000000000"))
+        # A data root with no pool at all answers False rather than raising.
+        self.assertFalse(pool.is_pool_target(Path(tempfile.mkdtemp()) / "empty",
+                                             "t-00000000000000000000"))
+
     def test_unaccounted_rows_are_reported(self):
         result = self.load(HALLS[:5], listed=7)
         self.assertFalse(result["reconciled"])

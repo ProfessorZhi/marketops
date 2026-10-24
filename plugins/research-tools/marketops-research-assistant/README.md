@@ -1,4 +1,4 @@
-# MarketOps Research Assistant 0.5.11-rc11
+# MarketOps Research Assistant 0.5.11-rc12
 
 **Release candidate — 不是正式发行版。** 本包只用于 RC 验收；不得覆盖或重命名既有的
 0.5.5 ZIP，不得据此宣布正式发布。正式发布前仍需完成真实供应商费用与客户授权验收。
@@ -21,13 +21,24 @@ Claude Code 也可以从仓库的 marketplace 装插件：
 
 市场版只拷贝插件、不带运行时：先跑一次上面的安装器（或设 `MARKETOPS_RESEARCH_PYTHON`），否则不会出现 `marketops_*` 工具，会话开始时插件会提示缺什么。Windows 上市场版不能单独使用（MCP 用 `sh` 启动）。
 
-### 本机环境体检（0.5.11-rc11 新增）
+### 本机环境体检（0.5.11-rc12 新增）
 
 "装好了却用不了"多数时候不是插件坏了，而是**跑服务的那个解释器**缺东西——工具起不来、
 读页降级到付费路、或者停在 HOLD。`marketops-doctor` 技能对应
 `scripts/research_doctor.py`：它从解释器外部探服务真正会用的那个，Key 只报名字不打印值，
 `--repair` 只做不丢数据的修复（建已配置的数据根、复位 crawl 缓存），`--install` 才装包且
 装进目标解释器。退出码 `20` 表示还有 blocker。详见 `skills/marketops-doctor/SKILL.md`。
+
+### 名录页提取（0.5.11-rc12 新增）
+
+名录、协会列表、组委会页面这类「一条一条印着联系人」的页，过去只能靠 `material_excerpt`
+一次 1200 字地读，读完整页要几十次调用，剩下的还得 Agent 自己写解析。现在
+`marketops_directory_extract(run_id, artifact_id)` 一次读完整张已保存的页：用证据门同一套解码器
+和去标签逻辑取文，按页面上重复出现的字段标签切分记录，返回「单位 + 联系人 + 邮箱」成组的候选，
+每条引文都是页面原文的精确片段。一页超过 20 个条目就用 `offset` 翻页，成组切分不会把一条记录拆开；
+`stage=true` 直接写入候选。结果状态是 `DIRECTORY_EXTRACTED_NOT_VERIFIED`——提取不等于核实，
+分数仍由场景规则在交付时判定。页型认不出来时它返回 `warnings` 和较少的记录，技能
+`marketops-directories` 说明怎么判断和继续。
 
 [账户指引](references/FOUR_ACCOUNT_START.md)提供注册、API Key、官方赠金及余额入口：Serper、SerpApi、TinyFish、TypeSafe。Crawl4AI 在本地运行，无需账户。**DeepSeek 是第五把可选的 Key**（`DEEPSEEK_API_KEY`），配了它就多一路搜索和一路读页（$0.75/1k 次，失败不计费）；不配只是这条路不出现，其余照常跑。Key 在本地隐藏输入、或由安装 agent 写进系统凭据库，重启后读取。
 

@@ -350,5 +350,61 @@ class BalanceShape(unittest.TestCase):
             self.assertEqual(1, balances.readings(root)["tinyfish"]["left"])
 
 
+class AdvisoryBudget(unittest.TestCase):
+    """The next-action budget must not report a funded run as exhausted."""
+
+    def test_red_line_policy_keeps_the_managed_budget(self):
+        from unittest.mock import patch
+        import research_config
+        import research_mcp as mcp
+
+        money = {"budget_mode": "MONEY", "model": "RED_LINE", "configured": True,
+                 "request_limit_active": False, "total_red_line_usd": "500",
+                 "spent_since_policy_usd": "0.113889", "providers": {}}
+        snapshot = {"remaining": None, "unknown_charge_operations": 4, "reserved_operations": 0,
+                    "ambiguous_outcome_operations": 3}
+        with patch.object(research_config, "data_root", return_value=Path("/nonexistent")), \
+             patch.object(runtime, "config", return_value={"max_calls": 200,
+                                                           "spending": {"mode": "MONEY"}}), \
+             patch.object(spending, "status", return_value=money), \
+             patch("research_runtime_status.usage", return_value=snapshot):
+            budget = mcp._source_selection_budget("run-a")
+        self.assertEqual("RUNTIME_CONFIG", budget["source"])
+        self.assertEqual("MONEY", budget["budget_mode"])
+        self.assertEqual("499.886111", budget["remaining_usd"])
+        # A money policy states no request ceiling; that is unknown, not zero.
+        self.assertIsNone(budget["search_remaining"])
+        self.assertIsNone(budget["provider_remaining"])
+        self.assertEqual(3, budget["unknown_held"])
+        self.assertEqual(1, budget["unbilled_successes"])
+
+    def test_an_environment_that_states_no_ceiling_is_unknown_not_zero(self):
+        from unittest.mock import patch
+        import research_config
+        import research_mcp as mcp
+
+        with patch.object(research_config, "data_root", side_effect=ValueError("CONFIG_REQUIRED")), \
+             patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("MARKETOPS_SEARCH_MAX_CALLS", None)
+            os.environ.pop("MARKETOPS_RESEARCH_MAX_EXTERNAL_CALLS", None)
+            budget = mcp._source_selection_budget("run-a")
+        self.assertEqual("ENV", budget["source"])
+        self.assertIsNone(budget["search_remaining"])
+        self.assertIsNone(budget["provider_remaining"])
+
+    def test_a_stated_environment_ceiling_still_counts_down(self):
+        from unittest.mock import patch
+        import research_config
+        import research_mcp as mcp
+
+        with patch.object(research_config, "data_root", side_effect=ValueError("CONFIG_REQUIRED")), \
+             patch.dict(os.environ, {"MARKETOPS_SEARCH_MAX_CALLS": "5",
+                                     "MARKETOPS_RESEARCH_MAX_EXTERNAL_CALLS": "9"}), \
+             patch.object(mcp, "_ledger_usage", return_value=2):
+            budget = mcp._source_selection_budget("run-a")
+        self.assertEqual(3, budget["search_remaining"])
+        self.assertEqual(7, budget["provider_remaining"])
+
+
 if __name__ == "__main__":
     unittest.main()

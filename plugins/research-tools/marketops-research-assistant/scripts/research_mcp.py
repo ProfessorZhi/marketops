@@ -497,6 +497,28 @@ def _unknown_held(run_id: str) -> int | None:
         return None
 
 
+def _money_remaining(money: dict):
+    """Headroom under the active money policy, in whichever shape it reports.
+
+    An envelope policy reports ``remaining_usd`` directly. A red-line policy
+    states an amount to keep instead, so its headroom is the distance between
+    that line and what has been spent since the policy began. A policy that
+    reports neither is unknown, not zero — and reading a key the red-line shape
+    does not carry raises, which used to drop the whole managed budget to the
+    environment view and report a run with plenty of money as exhausted.
+    """
+    if "remaining_usd" in money:
+        return money["remaining_usd"]
+    line, spent = money.get("total_red_line_usd"), money.get("spent_since_policy_usd")
+    if line is None or spent is None:
+        return None
+    from decimal import Decimal, InvalidOperation
+    try:
+        return str(Decimal(str(line)) - Decimal(str(spent)))
+    except (InvalidOperation, ValueError):
+        return None
+
+
 def _source_selection_budget(run_id: str) -> dict:
     """Local budget facts for the advisory; a missing value stays None, never 0.
 
@@ -521,7 +543,8 @@ def _source_selection_budget(run_id: str) -> dict:
                 import research_spending
                 money = research_spending.status(data_root)
                 monetary = {"budget_mode": "MONEY", "request_limit_active": False,
-                            "remaining_usd": money["remaining_usd"], "free_page_reads_available": True}
+                            "remaining_usd": _money_remaining(money),
+                            "free_page_reads_available": True}
             return {**monetary, "search_remaining": snapshot["remaining"],
                     "provider_remaining": snapshot["remaining"],
                     "unknown_held": snapshot.get("ambiguous_outcome_operations",
@@ -532,17 +555,23 @@ def _source_selection_budget(run_id: str) -> dict:
         except Exception:  # noqa: BLE001 - fall through to the env view
             pass
     try:
-        search = dual_search_mcp._configuration()
-        search_remaining = _capacity(
-            search["max_total_reserved_calls"],
-            _ledger_usage("dual-search-ledger.sqlite3", "search_attempts"))["remaining"]
+        ceiling = dual_search_mcp._configuration()["max_total_reserved_calls"]
+        # The adapters read an unset ceiling variable as 0. A ceiling of zero can
+        # never be approved — every caller refuses one below 1 — so 0 means "the
+        # environment stated no ceiling", which is unknown. Reporting that as 0
+        # made every advisory on a managed deployment say BUDGET_EXHAUSTED.
+        search_remaining = (
+            _capacity(ceiling, _ledger_usage("dual-search-ledger.sqlite3",
+                                             "search_attempts"))["remaining"]
+            if ceiling and ceiling > 0 else None)
     except Exception:  # noqa: BLE001 - an unavailable budget is unknown, not zero
         search_remaining = None
     try:
-        provider_remaining = _capacity(
-            extra._limit(),
-            _ledger_usage("provider-reservations.sqlite3",
-                          "provider_reservations"))["remaining"]
+        ceiling = extra._limit()
+        provider_remaining = (
+            _capacity(ceiling, _ledger_usage("provider-reservations.sqlite3",
+                                             "provider_reservations"))["remaining"]
+            if ceiling and ceiling > 0 else None)
     except Exception:  # noqa: BLE001
         provider_remaining = None
     return {"search_remaining": search_remaining,
@@ -700,7 +729,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         configured_root = None
     if configured_root is not None and runtime_setup.config(configured_root):
         from research_runtime_status import view
-        return {"product": "MarketOps Research MCP", "version": "0.5.11-rc11",
+        return {"product": "MarketOps Research MCP", "version": "0.5.11-rc12",
                 **view(configured_root, task_kind=task_kind),
                 "external_host": _external_inventory(host_observed_tools),
                 "embedded_official_mcp": provider_policy.embedded_official_mcp_capabilities(),
@@ -775,7 +804,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         if task_kind else None)
     return {
         "product": "MarketOps Lite Research MCP",
-        "version": "0.5.11-rc11",
+        "version": "0.5.11-rc12",
         "providers": {
             "serpapi": {"transport": "REST through local MCP", **search["serpapi"]},
             "serper": {"transport": "REST through local MCP", **search["serper"]},
@@ -1286,9 +1315,22 @@ def _jev_ask(run_id: str):
     return ask
 
 
-def _screen_question(run_id: str) -> str:
-    """The brief's screening question, or "" when the brief switched screening off."""
+def _screen_question(run_id: str, organization_key: str = "") -> str:
+    """The brief's screening question, or "" when screening does not apply.
+
+    The question asks whether the site's owner is a *target*; a pool target is one
+    by construction, and the source that listed it said so. Asking anyway drops
+    whole families: an OPERATORS target (the office or association that runs the
+    venues) reads as "not an indoor sports venue" and is screened out at 0.9+.
+    """
     import research_jev_pages
+    if organization_key:
+        import research_pool
+        try:
+            if research_pool.is_pool_target(root(), organization_key):
+                return ""
+        except Exception:  # noqa: BLE001 - a missing pool is not a reason to stop the harvest
+            pass
     try:
         snapshot = store.list_run(root(), run_id, limit=50)
     except (ValueError, KeyError):
@@ -1452,6 +1494,80 @@ def material_excerpt(run_id, artifact_ids, queries=None):
     return evidence.excerpts(root(), run_id, artifact_ids, queries)
 
 
+def directory_extract(run_id, artifact_id, offset=0, limit=20, stage=False, fields=None):
+    """One local read turns a saved list page into organisation records.
+
+    Excerpts are for evidence snippets: a 40 KB annuaire cost thirty calls and
+    still left the Agent writing its own scraper. This reads the saved page once
+    — the same bytes and decoder the evidence gate uses — splits it by its own
+    repeating labels and returns candidates that quote the page they came from.
+    """
+    import research_extract
+
+    r = root()
+    store._id(run_id, "run_id")
+    if not isinstance(offset, int) or offset < 0:
+        raise ValueError("DIRECTORY_OFFSET_INVALID: offset must be 0 or more")
+    if not isinstance(limit, int) or not 1 <= limit <= 20:
+        raise ValueError("DIRECTORY_LIMIT_INVALID: pass 1-20 items per call and "
+                         "raise offset to read the next page")
+    material = store.read_artifact(r, run_id, artifact_id)
+    if material["material_kind"] == "image":
+        raise ValueError("DIRECTORY_ARTIFACT_IS_IMAGE: save the page as HTML or text first")
+    text = research_extract.page_text(material["material_kind"], material["content"])
+    extracted = research_extract.extract(text, labels=fields)
+    records = extracted["records"]
+    bundles = research_extract.records_to_bundles(text, records, artifact_id)
+
+    page, used, next_offset = [], 0, None
+    for index, bundle in enumerate(bundles[offset:], start=offset):
+        if page and used + len(bundle) > limit:
+            next_offset = index
+            break
+        page.extend(bundle)
+        used += len(bundle)
+
+    public = [{key: value for key, value in record.items() if not key.startswith("_")}
+              for record in records]
+    kept = []
+    for record in public:
+        if len(json.dumps(kept + [record], ensure_ascii=False).encode("utf-8")) > 3_500_000:
+            break
+        kept.append(record)
+    content = json.dumps({"source_artifact_id": artifact_id, "records": kept},
+                         ensure_ascii=False).encode("utf-8")
+    extracted_id = "dir-" + hashlib.sha256(content).hexdigest()[:24]
+    store.save_artifact(r, run_id, extracted_id, "marketops-extract",
+                        material["origin_url"], content, "provider_extracted")
+
+    response = {
+        "status": "DIRECTORY_EXTRACTED_NOT_VERIFIED",
+        "run_id": run_id,
+        "source_artifact_id": artifact_id,
+        "artifact_id": extracted_id,
+        "records": len(records),
+        "with_email": sum(1 for record in records if record.get("email")),
+        "with_person": sum(1 for record in records if record.get("person")),
+        "without_organization": sum(1 for record in records if not record.get("organization")),
+        "anchor": extracted["anchor"],
+        "start_field": extracted.get("start_field"),
+        "dropped_duplicates": extracted["dropped_duplicates"],
+        "warnings": extracted["warnings"],
+        "items_total": sum(len(bundle) for bundle in bundles),
+        "offset": offset,
+        "returned": len(page),
+        "next_offset": next_offset,
+        "items": page,
+        "facts_verified": False,
+        "note": ("items are grouped per record (organisation, person, address) and every "
+                 "quote is exact saved-page text; stage them with marketops_propose_batch "
+                 "or write them to a pool with marketops_pool_import"),
+    }
+    if stage and page:
+        response["staged"] = propose_batch(run_id, page)
+    return response
+
+
 def evidence_audit(run_id, limit=12):
     r = root()
     _, records, artifacts = delivery._read_snapshot(r, run_id)
@@ -1562,7 +1678,7 @@ def handoff(run_id, operation_id, mode="auto"):
     try:
         experience_result = draft_experience(
             r, run_id=run_id, scope=head["scope"],
-            rule_version=head["rule_version"], skill_version="0.5.11-rc11",
+            rule_version=head["rule_version"], skill_version="0.5.11-rc12",
             output=experience_path)
         result["experience_candidate"] = str(experience_path)
         result["experience_incidents"] = experience_result["incidents"]
@@ -1665,7 +1781,9 @@ def _blocked_call_route(fn, args: tuple, kwargs: dict) -> dict | None:
 _TOOL_STAGES = {"marketops_search": "discovery", "marketops_serpapi_mcp_search": "discovery",
                 "marketops_research_step": "acquisition", "marketops_pool_import": "discovery",
                 "marketops_venue_groups": "discovery", "marketops_site_harvest": "acquisition",
-                "marketops_harvest_batch": "acquisition", "marketops_jev_choice": "qualification",
+                "marketops_harvest_batch": "acquisition",
+                "marketops_directory_extract": "entities",
+                "marketops_jev_choice": "qualification",
                 "marketops_jev_triage": "qualification", "marketops_propose_batch": "entities",
                 "marketops_evidence_audit": "review", "marketops_handoff": "handoff",
                 "marketops_material_excerpt": "acquisition"}
@@ -1747,7 +1865,7 @@ PUBLIC_TOOLS = frozenset({
     "marketops_jev_triage", "marketops_suppression", "marketops_feedback_pack",
     "marketops_pool_reopen", "marketops_costs", "marketops_update_check", "marketops_accounts",
     "marketops_crawl4ai_check", "marketops_method", "marketops_venue_groups",
-    "marketops_search_routes",
+    "marketops_search_routes", "marketops_directory_extract",
 })
 
 
@@ -1794,7 +1912,7 @@ def build_server():
         pass
     _ensure_repair_entrypoints()
     from mcp.server import MCPServer
-    mcp = MCPServer("MarketOps Lite Research", version="0.5.11-rc11")
+    mcp = MCPServer("MarketOps Lite Research", version="0.5.11-rc12")
     _quiet_http_logs()  # after the server set up its own logging
 
     def tool(fn):
@@ -2022,6 +2140,24 @@ def build_server():
         return material_excerpt(run_id, artifact_ids, queries)
 
     @tool
+    def marketops_directory_extract(run_id: str, artifact_id: str, offset: int = 0,
+                                    limit: int = 20, stage: bool = False,
+                                    fields: list[str] | None = None) -> dict:
+        """Read a saved list page in full and return one record per organisation.
+
+        Use it on any saved annuaire, club finder or directory page (an artifact
+        from marketops_research_step or marketops_site_harvest): it splits the page
+        by its own repeating labels ("Nom de la personne à contacter :", "Adresse
+        mail :") and returns ready-to-stage candidates — organisation, person and
+        email — each quoting the page. No excerpt ceiling, no per-page cost.
+
+        Returns 1-20 items per call (one record = 2-3 items); raise offset to read
+        the next page. stage=true writes them as candidates (batches of 20) so the
+        Run can grade them. fields narrows the output; omit it for everything.
+        """
+        return directory_extract(run_id, artifact_id, offset, limit, stage, fields)
+
+    @tool
     def marketops_evidence_audit(run_id: str, limit: int = 12) -> dict:
         """Compact, generic claim-to-source mismatch report, not a fact certification."""
         return evidence_audit(run_id, limit)
@@ -2096,7 +2232,7 @@ def build_server():
             grade=_role_grader(run_id, roles_wanted),
             time_budget_seconds=HARVEST_TIME_BUDGET_SECONDS,
             focus=roles_wanted.strip() or _brief_roles(run_id),
-            jev_ask=_jev_ask(run_id), screen_question=_screen_question(run_id))
+            jev_ask=_jev_ask(run_id), screen_question=_screen_question(run_id, organization_key))
 
     def _role_grader(run_id, roles_wanted):
         roles_wanted = roles_wanted.strip() or _brief_roles(run_id)
@@ -2431,7 +2567,10 @@ def build_server():
             find_site=lambda target, op: find_official_site(run_id, op, target,
                                                             country, language),
             focus=roles_wanted.strip() or _brief_roles(run_id),
-            jev_ask=_jev_ask(run_id), screen_question=_screen_question(run_id))
+            # Every target in a batch came from the pool: the source that listed it
+            # already said it is a target, so the screen ("is this owner a target?")
+            # has only wrong answers to offer — an OPERATORS batch would be dropped.
+            jev_ask=_jev_ask(run_id), screen_question="")
         if parked["parked"]:
             result["source_gate_parked"] = parked
         return result
@@ -2589,7 +2728,7 @@ def build_server():
             raise ValueError("EXPERIENCE_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT")
         output.parent.mkdir(parents=True, exist_ok=True)
         return draft_experience(r, run_id=run_id, scope=scope,
-                                rule_version=rule_version, skill_version="0.5.11-rc11",
+                                rule_version=rule_version, skill_version="0.5.11-rc12",
                                 output=output)
 
     @tool

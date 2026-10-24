@@ -13,10 +13,13 @@ build the source and venue/organisation pools, triage, dispatch organisations to
 `account-researcher` subagent in batches of 5–10 (or work through them yourself if subagents
 are unavailable), have `research-verifier` check a sample, and deliver with `marketops_handoff`.
 
-Work only through the `marketops_*` tools: no Bash, file reads or Python on the plugin or its
-data, no hand-written workbook. When a tool refuses, follow its message (for quotes, copy the
-closest page text it shows); after two failed tries on a target, record HOLD and continue. Always
-end with `marketops_handoff`, even for a partial result.
+Work through the `marketops_*` tools: no hand-written workbook, no direct reads of the plugin's
+databases or data directory. Directory and annuaire pages: `marketops_directory_extract`. Open-data
+exports: `marketops_pool_import`. If a tool genuinely cannot do what the page needs, you may read the
+saved artifact with your own code — the facts you stage must still quote that artifact, and provider
+calls still go through `marketops_*`; record the blocker with `marketops_note`. When a tool refuses,
+follow its message (for quotes, copy the closest page text it shows); after two failed tries on a
+target, record HOLD and continue. Always end with `marketops_handoff`, even for a partial result.
 
 Stop early only if the budget cap is about to be reached, a paid tier needs authorisation,
 the same rule conflict keeps recurring, or a credential is missing. Report at the end:

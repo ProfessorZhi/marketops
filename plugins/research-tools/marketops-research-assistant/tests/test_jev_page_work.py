@@ -204,6 +204,11 @@ class GuideNames(unittest.TestCase):
         self.assertEqual(["SPORT PICKLEBALL CLUB VINCENNES"],
                          self.names("PAGE 91 SPORT PICKLEBALL CLUB VINCENNES Activités : c@d.fr"))
         self.assertEqual(["The Irish Club"], self.names("Irlande. The Irish Club publie g@h.fr"))
+        # A mairie annuaire prints "Discipline(s) pratiquée(s) :" right after the
+        # club; the capitalised label was glued onto the name (mairie 13, 2026-10-24).
+        self.assertEqual(["Association Tsunagari"],
+                         self.names("Association Tsunagari Discipline(s) pratiquée(s) : "
+                                    "Aïkiryu Nom de la personne à contacter : t@u.fr"))
         # A bare "Société"/"Comité" or a venue names no club: the address stays unassigned.
         self.assertEqual([], self.names("Société des amis de Vincennes. Restauration i@j.fr"))
         self.assertEqual([], self.names("Stade Léo Lagrange - route de la Pyramide k@l.fr"))
