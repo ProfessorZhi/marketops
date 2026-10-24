@@ -71,8 +71,22 @@ def _quote(text, field, value):
     return ""
 
 
+#: The pool reason for a venue whose staff sit at its operator.
+COVERED_REASON = "VENUE_COVERED_BY_OPERATOR"
+
+
 def import_saved(root, *, run_id, artifact_id, pool_id, source_id, mapping=None,
-                 filters=None, offset=0, limit=500, preview=False, objective="", scene=""):
+                 filters=None, offset=0, limit=500, preview=False, objective="", scene="",
+                 operator_covered_types=None):
+    """Import a saved JSON list as venue records and pool targets.
+
+    operator_covered_types: the source's own values for operators whose staff are
+    found at the operator, not at the venue (Data ES `equip_gest_type` "Commune",
+    "Etat", ...). A venue row with one of them and no website of its own is kept
+    as a venue record but not queued as a contact target: the Paris run left 707
+    such rows pending, each a separate search for a site that does not exist.
+    marketops_venue_groups turns their operators into targets instead.
+    """
     pool._id(pool_id, "pool_id")
     pool._id(source_id, "source_id")
     if type(offset) is not int or offset < 0 or type(limit) is not int or not 1 <= limit <= 1000:
@@ -127,6 +141,7 @@ def import_saved(root, *, run_id, artifact_id, pool_id, source_id, mapping=None,
     if prior:
         return {**json.loads(prior[0]), "replayed": True}
     targets, excluded, candidates = [], [], []
+    covered_types = {_label(t).casefold() for t in (operator_covered_types or []) if _label(t)}
     with closing(store._connection(root)) as db:
         known_venues = {r[0] for r in db.execute("SELECT entity_key FROM records WHERE run_id=? AND kind='venue'", (run_id,))}
     for index, row in enumerate(page, offset):
@@ -156,6 +171,10 @@ def import_saved(root, *, run_id, artifact_id, pool_id, source_id, mapping=None,
         if key not in known_venues:
             candidates.append({"record_id": key + "-" + digest[:8], "entity_key": key,
                 "kind": "venue", "stage": "entities", "facts": facts, "artifact_ids": [artifact_id]})
+        operator_type = _label(values.get("operator_type") or values.get("owner_type")).casefold()
+        if covered_types and operator_type in covered_types and not values.get("website"):
+            excluded.append({"index": index, "reason": COVERED_REASON})
+            continue
         targets.append({"name": name, "website": values.get("website") or "", "address": address,
             "kind": "venue", "venue_entity_key": key, "source_artifact_id": artifact_id,
             "source_row": index, "source_key": values.get("source_key"), "source_label": source_id})
@@ -190,6 +209,44 @@ def import_saved(root, *, run_id, artifact_id, pool_id, source_id, mapping=None,
     store.put_candidate(root, run_id, receipt_id, "entities", "observation", receipt_id,
                         result, [artifact_id])
     return result
+
+
+def park_operator_covered(root, *, run_id: str, pool_id: str, operator_types) -> dict:
+    """Hold pending venue targets that have no website and an operator of these types.
+
+    For a pool imported before operator_covered_types existed: the venues stay in the
+    inventory, their operators are researched through marketops_venue_groups, and the
+    pool no longer waits on hundreds of venue-by-venue searches.
+    """
+    wanted = {_label(t).casefold() for t in (operator_types or []) if _label(t)}
+    if not wanted:
+        raise ValueError("VENUE_OPERATOR_TYPES_REQUIRED: the source's own values, e.g. ['Commune']")
+    from contextlib import closing
+    from datetime import datetime, timezone
+    with closing(store._connection(root)) as db:
+        types = {key: _label(json.loads(body).get("operator_type")
+                             or json.loads(body).get("owner_type")).casefold()
+                 for key, body in db.execute(
+                     "SELECT entity_key, payload_json FROM records WHERE run_id=? AND kind='venue'",
+                     (run_id,))}
+    now = datetime.now(timezone.utc).isoformat()
+    parked = 0
+    with closing(pool._db(pool._root(root))) as db:
+        db.execute("BEGIN IMMEDIATE")
+        rows = db.execute("SELECT target_key, extra_json FROM pool_targets WHERE pool_id=? "
+                          "AND status='pending' AND kind='venue' AND website=''", (pool_id,)).fetchall()
+        for target_key, extra in rows:
+            venue = (json.loads(extra or "{}") or {}).get("venue_entity_key", "")
+            if types.get(venue) in wanted:
+                parked += db.execute(
+                    "UPDATE pool_targets SET status='hold', reason=?, run_id=?, updated_at=? "
+                    "WHERE pool_id=? AND target_key=? AND status='pending'",
+                    (f"{COVERED_REASON}: research its operator (marketops_venue_groups)",
+                     run_id, now, pool_id, target_key)).rowcount
+        db.commit()
+    return {"pool_id": pool_id, "parked": parked, "operator_types": sorted(wanted),
+            "next": "marketops_venue_groups(run_id, by='city' or 'operator', operator_types=..., "
+                    "import_to_pool=...) and harvest the operators"}
 
 
 def _label(text) -> str:

@@ -30,10 +30,12 @@ LADDERS = {
                      "listing, address or legal notice; import the operator as an "
                      "organisation and harvest its site. Public venues rarely have their "
                      "own site; their staff are listed by the operator."),
-        ("ROLE_SEARCH", "Serper searches for the wanted role titles at each operator, in the "
-                        "local language (e.g. 'directeur des sports', 'responsable des "
-                        "équipements sportifs' + town), and site: searches on the operator's "
-                        "domain; harvest the pages found."),
+        ("ROLE_SEARCH", "Searches for the scene's own decision/operational titles at each "
+                        "operator, in the local language and always with a venue word and the "
+                        "town (e.g. 'directeur des sports' Créteil, 'responsable des équipements "
+                        "sportifs', 'chef de bassin' piscine), and site: searches on the "
+                        "operator's domain; harvest the pages found. A bare generic title finds "
+                        "other trades: French 'directeur de salle' is a restaurant manager."),
         ("OFFICIAL_DIRECTORIES", "Official staff and organisation directories (public "
                                  "administration directories, federation and league club "
                                  "directories, municipal organisation charts)."),
