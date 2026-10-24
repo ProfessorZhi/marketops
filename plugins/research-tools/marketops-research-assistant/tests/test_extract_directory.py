@@ -25,9 +25,9 @@ PAGE = """<html><body>
 <div class="entry"><h3>Club de Judo Paris 13</h3>
 <p>Discipline(s) pratiquée(s) : Judo</p>
 <p>Équipement(s) utilisé(s) : Gymnase Caillaux (3, rue Caillaux)</p>
-<p>Nom de la personne à contacter : Mme Christine BILLEBAUD</p>
-<p>Adresse mail : christine.billebaud@laposte.net</p>
-<p>Numéro de téléphone : 01 45 65 15 86</p></div>
+<p>Nom de la personne à contacter : Mme Camille DURAND</p>
+<p>Adresse mail : camille.durand@laposte.net</p>
+<p>Numéro de téléphone : 01 45 00 00 86</p></div>
 <div class="entry"><h3>Association Sportive et Culturelle du 13ème arrondissement (A.S.C. 13)</h3>
 <p>Discipline(s) pratiquée(s) : Aïkido</p>
 <p>Équipement(s) utilisé(s) : Gymnase Charcot (88, rue du Chevaleret)</p>
@@ -58,8 +58,8 @@ class ExtractPageTests(unittest.TestCase):
         self.assertEqual(["Club de Judo Paris 13",
                           "Association Sportive et Culturelle du 13ème arrondissement",
                           "ASJJ"], names)
-        self.assertEqual("Mme Christine BILLEBAUD", result["records"][0]["person"])
-        self.assertEqual("christine.billebaud@laposte.net", result["records"][0]["email"])
+        self.assertEqual("Mme Camille DURAND", result["records"][0]["person"])
+        self.assertEqual("camille.durand@laposte.net", result["records"][0]["email"])
         self.assertEqual("www.asc13.fr", result["records"][1]["website"])
         self.assertEqual(3, sum(1 for record in result["records"] if record["email"]))
 
@@ -141,14 +141,14 @@ class CorrespondentLayoutTests(unittest.TestCase):
 
     PAGE = """<html><body>
 <p>ARMORIQUE</p><p>Lieu des cours : 5, rue du Moulin Vert</p>
-<p>Correspondant : Jacqueline GOUJON</p><p>Adresse postale : 5, rue du Moulin Vert</p>
-<p>Tél : 01 45 40 43 90</p><p>Adresse du site : www.armoriquesports.free.fr</p>
+<p>Correspondant : Jacqueline MOREAU</p><p>Adresse postale : 5, rue du Moulin Vert</p>
+<p>Tél : 01 45 00 00 90</p><p>Adresse du site : www.armoriquesports.free.fr</p>
 <p>COEGF</p><p>Lieu des cours : Institut du Judo 21-23 avenue Porte de Châtillon</p>
-<p>Correspondant : Florian Mégard</p><p>Adresse postale : 3 rue des jonquilles 75014 PARIS</p>
-<p>Tél : 06 61 66 66 17</p><p>Adresse du site : www.coegf.fr</p>
+<p>Correspondant : Florian Berger</p><p>Adresse postale : 3 rue des jonquilles 75014 PARIS</p>
+<p>Tél : 06 00 00 00 17</p><p>Adresse du site : www.coegf.fr</p>
 <p>WTEO PARIS 14</p><p>Lieu des cours : Centres Paris Anim’ Vercingétorix</p>
-<p>Correspondant : Olivier Rullé</p><p>Adresse postale : 20, avenue Marc Sangnier</p>
-<p>Tél : 01 45 41 00 96</p><p>Adresse du site : www.wteoparis14.org</p>
+<p>Correspondant : Olivier Renard</p><p>Adresse postale : 20, avenue Marc Sangnier</p>
+<p>Tél : 01 45 00 00 96</p><p>Adresse du site : www.wteoparis14.org</p>
 </body></html>""".encode("utf-8")
 
     def records(self):
@@ -160,11 +160,11 @@ class CorrespondentLayoutTests(unittest.TestCase):
 
     def test_the_person_venue_and_website_are_read_from_their_own_labels(self):
         first = self.records()[0]
-        self.assertEqual("Jacqueline GOUJON", first["person"])
+        self.assertEqual("Jacqueline MOREAU", first["person"])
         self.assertEqual("5, rue du Moulin Vert", first["venue"])
         self.assertEqual("5, rue du Moulin Vert", first["address"])
         self.assertEqual("www.armoriquesports.free.fr", first["website"])
-        self.assertEqual("01 45 40 43 90", first["phone"])
+        self.assertEqual("01 45 00 00 90", first["phone"])
 
     def test_a_street_is_never_taken_for_a_name(self):
         for record in self.records():
