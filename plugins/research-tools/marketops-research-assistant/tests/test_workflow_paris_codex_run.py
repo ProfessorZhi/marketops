@@ -64,6 +64,28 @@ class Inventory(unittest.TestCase):
         again = bulk.venue_groups(self.root, run_id="run-a", by="operator")
         self.assertEqual(0, again["groups_uncovered"])
 
+    def test_municipal_venues_without_a_site_are_not_queued_one_by_one(self):
+        # The rc12 Paris run left 707 such rows pending: each a search for a website
+        # a municipal gymnasium does not have. Their staff sit at the town.
+        out = bulk.import_saved(self.root, run_id="run-a", artifact_id="export", pool_id="venues",
+                                source_id="data-es", mapping=self.mapping, limit=20,
+                                operator_covered_types=["Commune"])
+        self.assertEqual(15, out["exclusion_reasons"][bulk.COVERED_REASON])
+        self.assertEqual(5, out["imported"])            # the private ones stay targets
+        self.assertTrue(out["reconciled"])
+        groups = bulk.venue_groups(self.root, run_id="run-a", by="city", operator_types=["Commune"])
+        self.assertEqual(15, sum(g["venues"] for g in groups["groups"]))  # still in the inventory
+
+    def test_an_existing_pool_parks_its_covered_venue_rows(self):
+        self.load(count=20)
+        parked = bulk.park_operator_covered(self.root, run_id="run-a", pool_id="venues",
+                                            operator_types=["commune"])
+        self.assertEqual(15, parked["parked"])
+        status = pool.status(self.root, pool_id="venues", read_only=True)
+        self.assertEqual((5, 15), (status["by_status"]["pending"], status["by_status"]["hold"]))
+        with self.assertRaisesRegex(ValueError, "VENUE_OPERATOR_TYPES_REQUIRED"):
+            bulk.park_operator_covered(self.root, run_id="run-a", pool_id="venues", operator_types=[])
+
     def test_municipal_venues_group_by_town(self):
         self.load()
         towns = bulk.venue_groups(self.root, run_id="run-a", by="city", operator_types=["Commune"])
