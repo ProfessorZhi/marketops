@@ -228,6 +228,37 @@ class DirectoryToolTests(unittest.TestCase):
                          for claim in record["data"]["claims"]}
             self.assertEqual({"art-page", "art-page-2"}, artifacts)
 
+    def test_one_club_listed_twice_stages_both_readings_of_one_identity(self):
+        # "Paris Université Club" prints thirteen sections on the mairie 13
+        # annuaire: one organisation, thirteen venues and contacts. The entity
+        # is shared; each reading gets its own record id, so the second does
+        # not collide with the first.
+        page = ("<html><body>"
+                "<div><h3>Paris Université Club</h3>"
+                "<p>Discipline(s) pratiquée(s) : Judo</p>"
+                "<p>Nom de la personne à contacter : M. Jean DUPONT</p>"
+                "<p>Adresse mail : jean.dupont@orange.fr</p></div>"
+                "<div><h3>Paris Université Club</h3>"
+                "<p>Discipline(s) pratiquée(s) : Escrime</p>"
+                "<p>Nom de la personne à contacter : Mme Ada LEROY</p>"
+                "<p>Adresse mail : ada.leroy@orange.fr</p></div>"
+                "<div><h3>Club de Judo Paris 13</h3>"
+                "<p>Discipline(s) pratiquée(s) : Judo</p>"
+                "<p>Nom de la personne à contacter : Mme Camille DURAND</p>"
+                "<p>Adresse mail : camille.durand@laposte.net</p></div>"
+                "</body></html>").encode("utf-8")
+        store.save_artifact(self.root, "run-dir", "art-sections", "fixture",
+                            "https://example.org/annuaire", page, "rendered_html")
+        reply = mcp.directory_extract("run-dir", "art-sections", stage=True)
+        self.assertEqual(9, reply["staged"]["created"])
+        records = store.list_run(self.root, "run-dir", limit=100)["records"]
+        orgs = [r for r in records if r["kind"] == "organization"]
+        self.assertEqual(3, len(orgs))
+        self.assertTrue(all(record["record_id"].startswith("org-") for record in orgs))
+        self.assertEqual(len({record["record_id"] for record in orgs}), len(orgs))
+        self.assertEqual(2, sum(1 for record in orgs if record["data"]["name"]
+                                == "Paris Université Club"))
+
     def test_pagination_never_breaks_a_record_apart(self):
         first = mcp.directory_extract("run-dir", "art-page", offset=0, limit=3)
         self.assertEqual(3, first["returned"])

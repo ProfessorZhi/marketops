@@ -502,12 +502,17 @@ def records_to_bundles(text: str, records: list[dict], artifact_id: str) -> list
     reported when a fixed extractor met its own earlier output).
     """
     bundles = []
-    for record in records:
+    for ordinal, record in enumerate(records):
         name = (record.get("organization") or "").strip()
         if not name:
             continue
         org_key = _key("org", name.casefold())
-        org_record = _key("org", artifact_id, name.casefold())
+        # Two records can print the same name ("Paris Université Club" lists
+        # thirteen sections, each with its own venue and contact). The identity
+        # is one organisation; the readings are distinct, so the ordinal is
+        # part of the version id and the entity key is not.
+        reading = str(ordinal)
+        org_record = _key("org", artifact_id, reading, name.casefold())
         spans = record.get("_spans") if isinstance(record.get("_spans"), dict) else {}
         items = []
         org_facts = {"name": name}
@@ -547,7 +552,7 @@ def records_to_bundles(text: str, records: list[dict], artifact_id: str) -> list
             if person_quote:
                 person_facts["claims"] = [{"artifact_id": artifact_id,
                                            "field": "name", "quote": person_quote}]
-            items.append({"record_id": _key("person", artifact_id, name.casefold(),
+            items.append({"record_id": _key("person", artifact_id, reading, name.casefold(),
                                             person.casefold()),
                           "stage": "entities", "kind": "person",
                           "entity_key": person_key, "facts": person_facts,
@@ -564,7 +569,8 @@ def records_to_bundles(text: str, records: list[dict], artifact_id: str) -> list
             if person_key:
                 contact_facts["person_id"] = person_key
                 contact_facts["person_name"] = person
-            items.append({"record_id": _key("contact", artifact_id, org_key, email.casefold()),
+            items.append({"record_id": _key("contact", artifact_id, reading, org_key,
+                                            email.casefold()),
                           "stage": "routes", "kind": "contact_point",
                           "entity_key": contact_key,
                           "facts": contact_facts, "artifact_ids": [artifact_id]})
