@@ -228,11 +228,13 @@ class DirectoryToolTests(unittest.TestCase):
                          for claim in record["data"]["claims"]}
             self.assertEqual({"art-page", "art-page-2"}, artifacts)
 
-    def test_one_club_listed_twice_stages_both_readings_of_one_identity(self):
-        # "Paris Université Club" prints thirteen sections on the mairie 13
-        # annuaire: one organisation, thirteen venues and contacts. The entity
-        # is shared; each reading gets its own record id, so the second does
-        # not collide with the first.
+    def test_one_club_listed_twice_is_staged_once_with_both_contacts(self):
+        # "Paris Université Club" prints twenty-two sections on the mairie 13
+        # annuaire: one organisation, twenty-two venues and contacts. Twenty-two
+        # organisation rows with one entity_key are twenty-two live roots of one
+        # identity, and the delivery view drops a group like that rather than
+        # choose between them — so the second section stages its person and
+        # address and not a second organisation.
         page = ("<html><body>"
                 "<div><h3>Paris Université Club</h3>"
                 "<p>Discipline(s) pratiquée(s) : Judo</p>"
@@ -250,14 +252,42 @@ class DirectoryToolTests(unittest.TestCase):
         store.save_artifact(self.root, "run-dir", "art-sections", "fixture",
                             "https://example.org/annuaire", page, "rendered_html")
         reply = mcp.directory_extract("run-dir", "art-sections", stage=True)
-        self.assertEqual(9, reply["staged"]["created"])
+        self.assertEqual(8, reply["staged"]["created"])
+        self.assertEqual(1, reply["duplicate_entity_readings"])
         records = store.list_run(self.root, "run-dir", limit=100)["records"]
         orgs = [r for r in records if r["kind"] == "organization"]
-        self.assertEqual(3, len(orgs))
+        self.assertEqual(2, len(orgs))
         self.assertTrue(all(record["record_id"].startswith("org-") for record in orgs))
-        self.assertEqual(len({record["record_id"] for record in orgs}), len(orgs))
-        self.assertEqual(2, sum(1 for record in orgs if record["data"]["name"]
+        self.assertEqual(1, sum(1 for record in orgs if record["data"]["name"]
                                 == "Paris Université Club"))
+        people = [r["data"]["name"] for r in records if r["kind"] == "person"]
+        self.assertEqual(["M. Jean DUPONT", "Mme Ada LEROY", "Mme Camille DURAND"], people)
+        self.assertEqual(3, sum(1 for r in records if r["kind"] == "contact_point"))
+
+    def test_a_re_read_replaces_the_live_version_instead_of_forking_it(self):
+        # Two roots of one identity are dropped from the customer sheet by the
+        # delivery view, so a re-read names the row it replaces. Without
+        # supersedes this run reports an entity_version_conflict per entity and
+        # loses them all.
+        mcp.directory_extract("run-dir", "art-page", stage=True)
+        store.save_artifact(self.root, "run-dir", "art-page-2", "fixture",
+                            "https://example.org/annuaire", PAGE, "rendered_html")
+        mcp.directory_extract("run-dir", "art-page-2", stage=True)
+        records = store.list_run(self.root, "run-dir", limit=100)["records"]
+        import research_workflow as workflow
+        effective, conflicts = workflow.active_records(records)
+        self.assertEqual([], conflicts)
+        self.assertEqual(3, sum(1 for r in effective if r["kind"] == "organization"))
+        for record in effective:
+            self.assertEqual(["art-page-2"], record["artifact_ids"])
+
+    def test_staging_the_same_artifact_twice_appends_nothing(self):
+        first = mcp.directory_extract("run-dir", "art-page", stage=True)
+        second = mcp.directory_extract("run-dir", "art-page", stage=True)
+        self.assertEqual(9, first["staged"]["created"])
+        self.assertEqual(9, second["staged"]["idempotent"])
+        records = store.list_run(self.root, "run-dir", limit=100)["records"]
+        self.assertEqual(9, len(records))
 
     def test_pagination_never_breaks_a_record_apart(self):
         first = mcp.directory_extract("run-dir", "art-page", offset=0, limit=3)
