@@ -452,7 +452,7 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
             organization_key: str, url: str, fetch, max_pages: int = 6,
             write: bool = True, check_admission: bool = True, grade=None,
             time_budget_seconds: float | None = None, focus: str = "",
-            jev_ask=None, screen_question: str = "") -> dict:
+            jev_ask=None, screen_question: str = "", hard_page=None) -> dict:
     """Fetch, extract and (optionally) stage one organisation's own-site routes.
 
     ``fetch(url, operation_id)`` is the managed known-public-URL step; it must
@@ -587,6 +587,17 @@ def harvest(data_root, *, run_id: str, operation_id: str, organization_name: str
     if not pages[0]["artifact_id"]:
         result["next_action"] = ("SITE_UNREACHABLE: " + (pages[0]["reason_code"] or "NO_MATERIAL")
                                  + "; record HOLD with this cause or use another authorised source")
+        if hard_page is not None and pages[0]["reason_code"] != "FALLBACK_SOURCE_OR_POLICY_REFUSED":
+            # Every free reader failed for a technical reason (rendering, scripts),
+            # not a block: TinyFish Agent reads it in the background. A challenge
+            # page or a 403 never reaches here.
+            try:
+                result["hard_page"] = hard_page(pages[0]["url"])
+                result["next_action"] = ("HARD_PAGE_QUEUED: TinyFish Agent is reading this site in "
+                                         "the background; check marketops_hard_pages(run_id) later, "
+                                         "carry on with other targets")
+            except ValueError as exc:
+                result["hard_page"] = {"queued": False, "reason": str(exc).split(":", 1)[0]}
         return result
     if not identity:
         result["next_action"] = ("NAME_NOT_FOUND_ON_SITE: check the published name or the URL; "

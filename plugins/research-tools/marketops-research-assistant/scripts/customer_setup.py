@@ -72,7 +72,8 @@ def offer_crawl4ai() -> None:
     print("Crawl4AI 和浏览器已安装。")
 
 
-def configure_research(root, *, providers, domains, max_calls, task, public_web=False):
+def configure_research(root, *, providers, domains, max_calls, task, public_web=False,
+                       paid_agent=False):
     import research_runtime_setup as runtime
     previous = runtime.config(root)
     if previous:
@@ -88,8 +89,21 @@ def configure_research(root, *, providers, domains, max_calls, task, public_web=
             return False
     runtime.configure(root, providers=providers, domains=domains, max_calls=max_calls,
                       task=task, confirm=True, amend=bool(previous),
-                      public_web_fetch=public_web)
+                      public_web_fetch=public_web, paid_agent=paid_agent)
     return True
+
+
+def configure_red_lines(root, *, total_usd=None):
+    """Default spending policy: each account keeps a red line (10% of its balance);
+    no call count and no total cap unless the user named one."""
+    import research_costs
+    import research_spending
+    try:
+        research_costs.balances(root, read=True)  # one balance reading per account, if it has an API
+    except Exception:  # noqa: BLE001 - an unreadable balance only means no red line for that account
+        pass
+    return research_spending.configure(root, confirm=True, model="RED_LINE", total_usd=total_usd,
+                                       renew=True)
 
 
 def main(argv=None):
@@ -147,15 +161,23 @@ def main(argv=None):
             domains = []
             if not public_web:
                 domains = [x.strip() for x in input("允许抓取的域名（逗号分隔）: ").split(",") if x.strip()]
-            value = input("本项目累计请求次数上限 [2000]（最多 100000）: ").strip() or "2000"
-            if not value.isdigit() or not 1 <= int(value) <= 100_000 or (not public_web and not domains):
+            if not public_web and not domains:
                 raise ValueError("INVALID_FINITE_SETUP_LIMIT")
+            print("预算：默认没有次数上限、没有总金额上限；每个账户只保留红线（余额的 10%），"
+                  "读不到余额的账户以它自己的“额度用完”为底线，届时自动换别家。")
+            total = input("如需总金额上限，输入美元数（回车 = 不设上限）: ").strip()
+            agent = input("允许 TinyFish Agent（付费浏览器，按步计费）处理要登录/交互/动态渲染的难站？"
+                          "受 TinyFish 账户红线保护；验证码与拦截页仍不绕过 [Y/n]: ")
+            paid_agent = "tinyfish" in providers and agent.strip().lower() in {"", "y", "yes"}
             helper = HERE / "research_runtime_setup.py"
             if not helper.is_file():
                 raise ValueError("RUNTIME_SETUP_HELPER_MISSING")
+            import research_runtime_setup as runtime
             if not configure_research(root, providers=providers, domains=domains,
-                                      max_calls=int(value), task=task, public_web=public_web):
+                                      max_calls=runtime.MAX_CALLS_CEILING, task=task,
+                                      public_web=public_web, paid_agent=paid_agent):
                 return 0
+            configure_red_lines(root, total_usd=total or None)
             for provider in providers:
                 if provider in {"tinyfish", "serpapi"}:
                     probe = subprocess.run([sys.executable, str(helper), "bootstrap", "--data-root", str(root),

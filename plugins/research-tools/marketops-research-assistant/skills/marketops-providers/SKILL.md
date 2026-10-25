@@ -12,8 +12,10 @@ description: Router for the research providers (Serper, SerpApi, DeepSeek, Crawl
 - how much can still be used above the red line.
 
 Rules:
-- Spend freely above the red line. Free Crawl4AI and TinyFish search/fetch cost nothing.
-  The total red line (default $500) is a safety stop.
+- There is no call count and no total cap unless the owner set one. Spend freely above
+  each red line. Free Crawl4AI and TinyFish search/fetch cost nothing.
+- An account whose balance cannot be read (Jev) has no red line: it runs until the
+  account itself says it is out of credit, then the chain moves to the next provider.
 - An account at its red line (`BUDGET_PROVIDER_CEILING`, dimension `red_line`) switches
   provider or method; it never stops free research.
 - **Limits and red lines can change mid-Run; never answer "it cannot be raised".**
@@ -45,7 +47,7 @@ and deduplicated across windows. Each call takes `run_id` and a fresh `operation
 | List places in an area | **Serper** `maps` | SerpApi `google_maps` | — | SerpApi only where Serper's places are incomplete (it is 250 free searches a month) |
 | Read a page / an organisation's site | **Crawl4AI** (local, free) | TinyFish fetch (free) | DeepSeek Fetch ($0.75/1k, failures free) | inside `site_harvest` / `harvest_batch`: the first 12 pages of a Run are read by all three at once (the richest reading is used), then the order follows what each delivered; DeepSeek reaches sites this machine cannot. Report: `marketops_search_routes` → `page_readers` |
 | Judge many pages (in scope? whose email?) | **Jev** | you, on the short excerpt | — | `marketops_jev_triage`, `harvest_batch(roles_wanted=...)` |
-| Hard pages (click-to-reveal, paginated portals) | TinyFish paid Agent | — | — | only if this user said yes at the start (see below) |
+| Hard pages (rendering, tabs, "show more", paginated portals) | TinyFish paid Agent, in the background | — | — | only if the owner turned it on in setup (see below) |
 
 Search engines other than Google (Bing, Baidu, Yandex, Naver, Google Jobs) exist only in SerpApi:
 use it for those, sparingly.
@@ -109,15 +111,21 @@ does not reset project, Run or provider caps. Serper remains one billing account
 creation for promotional credits or restriction avoidance. Local setup and exact semantics:
 [accounts and balances](../../references/ACCOUNT_BALANCES.md).
 
-## TinyFish paid Agent: ask each user, default off
+## TinyFish paid Agent: hard pages, in the background
 
-At the start of a task ask once, in the user's language: "Some sites only show contacts after
-clicking or paging. TinyFish's paid browser agent can do that (about $0.016 per step, your wallet).
-Allow it for this task? If yes: how many targets at most, and a total USD limit?" Record the answer
-in the brief as `hard_case: {allowed, max_targets, max_steps_per_target, max_usd}`; default
-`allowed: false`. In this release the paid Agent stays switched off in the plugin even when allowed:
-list those targets in the report as "would need the paid agent" with the reason, so the user can
-decide later. Never use it for CAPTCHAs, challenge pages, logins that are not the user's own, or
+The owner turns it on once in local setup; its spend is bounded by the TinyFish account's red
+line (about $0.016 per step). Do not ask again per task. When it is on:
+- `site_harvest` / `harvest_batch` queue an organisation's site automatically when every free
+  reader failed for a technical reason (`HARD_PAGE_QUEUED`); a challenge page or a 403 is never
+  queued.
+- For a page you know needs it (member search, "show email", tabs), call
+  `marketops_hard_page(run_id, url, goal)`. It returns at once; the Agent can take minutes.
+- Keep working on other targets. Later `marketops_hard_pages(run_id)` lists done pages with
+  artifact ids: quote from them like any page (re-harvest or `propose_batch`), and reopen the
+  target in the pool if it was held.
+- Each URL runs once per Run; a run interrupted by a restart is reported UNKNOWN, never resent.
+When it is off (`TINYFISH_AGENT_OFF`), record HOLD with "needs the paid agent" so the owner can
+decide. Never use it for CAPTCHAs, challenge pages, logins that are not the user's own, or
 anything a site forbids.
 
 ## When a site refuses

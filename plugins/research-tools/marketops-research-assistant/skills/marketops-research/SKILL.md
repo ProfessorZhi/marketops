@@ -81,9 +81,10 @@ the explicitly cumulative `run_cost`. A new context window keeps that checkpoint
   `marketops-providers`. Put the repair offer, or the question about going on with TinyFish
   only, into the same single message as the questions below.
 - Ask **once**, in one message, only for what is missing: scope (area, entity type, roles wanted),
-  what the user sells and who buys it (customer vs competitor), delivery format, budget cap, and
-  whether TinyFish's paid browser agent may be used for hard pages (default no; see
-  `marketops-providers`). Do not ask for anything the user already said.
+  what the user sells and who buys it (customer vs competitor) and delivery format. Do not ask
+  about a budget cap or the paid agent: by default there is no cap (each account keeps its red
+  line) and the owner already decided about TinyFish Agent in setup. Do not ask for anything the
+  user already said.
 - `marketops_start(run_id, scope, objective, rule_version, brief={record_type:'research_brief',
   target_kind:'venue'|'organization', goal:'pool'|'contacts', require_named_person:false,
   roles_wanted:[<the roles the user named>], hard_case:{allowed:<the user's answer, default false>},
@@ -148,7 +149,7 @@ methods, and `marketops_method(run_id)` says which one is next:
 3. Role searches.
 4. Official directories.
 5. Documents such as minutes, tenders and organisation charts.
-6. TinyFish agent, only if allowed.
+6. TinyFish Agent for hard pages (`marketops_hard_page`, background), when the owner turned it on.
 
 After a method has been tried on about 20–30 targets with little result (the plugin only accepts
 `exhausted` after 20 finished targets or 15 provider calls since the method started, or once
@@ -210,7 +211,7 @@ checkpoint handoff is not the end. If a reply carries `do_not_stop` or `executio
 carry out its `next_action` and `next_method` straight away, without an interim summary.
 
 The research ends only when one of these holds:
-- the budget is spent;
+- every paid account is at its red line or out of credit and free methods are exhausted;
 - the goal is met;
 - `execution.state` is `FINAL_METHODS_EXHAUSTED` (every method recorded as exhausted);
 - one of the reasons below for asking the user.
@@ -231,8 +232,7 @@ switchboards and forms". Then offer the user concrete choices in one message:
 
 Do not keep importing more targets of a kind that has already yielded nothing.
 
-Ask the user only when: the budget cap is about to be reached; a paid tier (TinyFish Agent) is needed but not
-authorised; the same rule conflict keeps recurring (many `RULES_UNKNOWN`); a credential or
+Ask the user only when: every paid account is at its red line and the goal needs more; the same rule conflict keeps recurring (many `RULES_UNKNOWN`); a credential or
 configuration is missing; Crawl4AI stopped working (`crawl4ai_down`) and the user has not yet
 agreed to TinyFish-only reading. Everything else: pick another authorised source or record HOLD with the
 reason, and continue with the next target. Report all of it at the end.

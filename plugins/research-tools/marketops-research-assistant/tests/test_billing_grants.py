@@ -80,7 +80,11 @@ class TestRegistryAndTiers(unittest.TestCase):
         cheap = grants.policy_decision(grants.DEFAULT_REGISTRY, "serper", "search")
         self.assertTrue(cheap.allowed)
         self.assertEqual(cheap.tier, grants.Tier.T2)
-        paid = grants.policy_decision(grants.DEFAULT_REGISTRY, "tinyfish", "agent_run")
+        # The public-page Agent is a T2 paid read under the owner's local consent
+        # (2026-10-25); a browser session that outlives one call is still T3.
+        agent = grants.policy_decision(grants.DEFAULT_REGISTRY, "tinyfish", "agent_run")
+        self.assertEqual(agent.tier, grants.Tier.T2)
+        paid = grants.policy_decision(grants.DEFAULT_REGISTRY, "tinyfish", "browser_session")
         self.assertFalse(paid.allowed)
         self.assertEqual(paid.code, "GRANT_REQUIRED")
         self.assertEqual(paid.required_grant_tier, grants.Tier.T3)

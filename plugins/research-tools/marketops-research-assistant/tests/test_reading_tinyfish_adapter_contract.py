@@ -244,16 +244,17 @@ class ExecuteRequiresAnAuthorizedRequest(AdapterSurface):
         self.assertEqual("CAPABILITY_UNKNOWN", result["reason_code"])
         self.assertEqual([], self.calls)
 
-    def test_execute_refuses_a_tier_three_capability_without_a_grant(self):
-        # The adapter does not re-run the paid policy (IA-2); it requires the
-        # caller to show that Policy already ran and produced a grant.
+    def test_the_agent_is_never_submitted_without_a_readable_wallet(self):
+        # T2 under the owner's local consent (admission and the ledger's red line
+        # decide); the adapter still reads the wallet first and submits nothing
+        # when it cannot.
         req = Request("tinyfish.run_web_automation",
                       {"url": "https://public.example.org/x",
                        "goal": "Read the publicly listed venue names"})
         result = tinyfish.execute(req, runner=self.runner())
         self.assertEqual("BLOCKED", result["outcome"])
-        self.assertEqual("POLICY_TIER_NOT_GRANTED", result["reason_code"])
-        self.assertEqual([], self.calls)
+        self.assertEqual("WALLET_PRECONDITION_FAILED", result["reason_code"])
+        self.assertNotIn("run_web_automation", [call[0] for call in self.calls])
 
     def test_execute_does_not_consult_the_project_paid_switch(self):
         # MARKETOPS_TINYFISH_AGENT_ALLOW_PAID is "0" in setUp; a granted request

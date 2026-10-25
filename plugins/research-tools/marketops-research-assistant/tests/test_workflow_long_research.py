@@ -200,7 +200,8 @@ class RedLine(Money):
         self.assertEqual("30", state["limit"])
 
     def test_an_account_with_no_balance_api_runs_under_a_limit(self):
-        # Jev reports no balance: without a limit it cannot spend at all.
+        # Jev reports no balance: it runs with no red line, and a limit the user sets
+        # is the ceiling from then on.
         def judge(count, start):
             ledger, done = self.ledger(), 0
             for n in range(start, start + count):
@@ -213,13 +214,19 @@ class RedLine(Money):
                 except usage.LedgerRefused:
                     break
             return done
-        self.assertEqual(0, judge(3, 0))
-        with self.assertRaisesRegex(ValueError, "USER_WORDS_REQUIRED"):
-            spending.set_limit(self.root, provider="jev", limit="4")
+        self.assertEqual(3, judge(3, 0))
         spending.set_limit(self.root, provider="jev", limit="4", user_words="你自己注意下额度")
-        self.assertEqual(4, judge(10, 300))
+        self.assertEqual(1, judge(10, 300))
         state = spending.status(self.root)["providers"]["typesafe_jev"]
         self.assertEqual(("4", "AT_LIMIT"), (state["limit"], state["state"]))
+
+    def test_unknown_balance_blocks_paid_judgment_but_not_free_fetch(self):
+        # Red lines only (owner decision 2026-10-25): an account whose balance cannot
+        # be read has no red line to keep; its own "out of credit" answer is the floor.
+        ledger = self.ledger()
+        ledger.reserve(usage.OperationRequest(project=self.project, run_id="run-a",
+            operation_id="judge", provider="typesafe_jev", capability="judge",
+            account_ref="typesafe_jev", transport="python_sdk", intent="unknown-balance", args={}))
 
     # The ENVELOPE-only cases of the parent class do not apply to the red line.
     test_free_pages_outlive_old_request_cap_and_keep_audit_history = None

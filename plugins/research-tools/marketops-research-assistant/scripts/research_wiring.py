@@ -544,8 +544,11 @@ class _GatewayAfterTheGate:
                     # A provider enabled after the money policy was set up had no row
                     # to inherit from; its ceiling is the total red line like the others.
                     envelope = settings["spending"]
-                    money = envelope["ledger_money_baseline"] + envelope["total_budget_micros"]
-                    enforced = True
+                    total = envelope.get("total_budget_micros")
+                    money = None if total is None else envelope["ledger_money_baseline"] + total
+                    enforced = total is not None
+                    if money is None:
+                        provider_ceiling = runtime.NO_TOTAL_CAP_CALLS
                 self._built.ledger.set_cap("provider_account", aggregate_key,
                     ceiling_calls=provider_ceiling, ceiling_micros=money,
                     usd_enforced=enforced, ceiling_seconds=seconds, source="LOCAL_CONSENT",
@@ -558,9 +561,11 @@ class _GatewayAfterTheGate:
                     ("operation", f"{project}/*", 1)):
                 if plan["budget_mode"] == "MONEY" and kind == "provider_account":
                     envelope = settings["spending"]
-                    self._built.ledger.set_cap(kind, key, ceiling_calls=None,
-                        ceiling_micros=envelope["ledger_money_baseline"] + envelope["total_budget_micros"],
-                        usd_enforced=True, source="LOCAL_MONETARY_ENVELOPE")
+                    total = envelope.get("total_budget_micros")
+                    self._built.ledger.set_cap(kind, key,
+                        ceiling_calls=runtime.NO_TOTAL_CAP_CALLS if total is None else None,
+                        ceiling_micros=None if total is None else envelope["ledger_money_baseline"] + total,
+                        usd_enforced=total is not None, source="LOCAL_MONETARY_ENVELOPE")
                     continue
                 runtime.set_call_cap_preserving_money(
                     self._built.ledger, kind, key, ceiling_calls=limit,

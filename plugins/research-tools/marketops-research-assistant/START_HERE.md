@@ -1,6 +1,6 @@
 # MarketOps 调研插件：从这里开始
 
-版本 **0.5.11-rc13**，适用于 Windows 10/11（64 位）。可以装进 **Codex、WorkBuddy、Claude Code、DeepSeek Harness**，以及其他支持 MCP 的 agent。
+版本 **0.5.11-rc14**，适用于 Windows 10/11（64 位）。可以装进 **Codex、WorkBuddy、Claude Code、DeepSeek Harness**，以及其他支持 MCP 的 agent。
 
 ## 它能做什么
 

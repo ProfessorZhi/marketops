@@ -15,8 +15,9 @@ After reading the account balances, local setup opts into money mode with
 - `--money-model RED_LINE` (default): spending is checked against the freshest
   balance reading. A refreshed or topped-up balance is usable at once, down to the
   red line. `ENVELOPE` keeps the older frozen share of the balance at setup.
-- `--total-usd AMOUNT`: the total red line across all accounts. The default is $500,
-  a safety stop.
+- `--total-usd AMOUNT`: an optional total cap across all accounts. The default is
+  none: red lines only. An account with no readable balance runs until it reports
+  it is out of credit; provider health then routes around it.
 - `--provider-usd PROVIDER=AMOUNT`: a lower supplier ceiling, repeatable.
 - `--renew-budget`: explicit renewal of the policy. It never clears the ledger.
 
@@ -51,8 +52,10 @@ the [official input-token rate](https://typesafe.ai/), $0.042 per million with
 free output, and records derived charges from SDK-reported input tokens. Its
 reservation is deliberately larger than a bounded text judgment; missing usage
 keeps the reservation instead of inventing a zero charge. TinyFish paid Agent
-remains disabled in the research profile; setting a wallet budget does not
-enable a paid capability or grant target-site access.
+(`tinyfish.run_web_automation`, T2) opens only with the owner's one-time consent
+in setup (`paid_agent_enabled`), reserves $0.50 per run against the TinyFish red
+line and runs in the background (`marketops_hard_page` / `marketops_hard_pages`);
+its actual charge stays UNKNOWN until the wallet is read again.
 
 `marketops_costs(action='budget')` reads each account's balance, red line and the
 amount usable above it. `action='set_budget'` narrows; `action='set_red_line'`

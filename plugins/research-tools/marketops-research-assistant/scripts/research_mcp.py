@@ -729,7 +729,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         configured_root = None
     if configured_root is not None and runtime_setup.config(configured_root):
         from research_runtime_status import view
-        return {"product": "MarketOps Research MCP", "version": "0.5.11-rc13",
+        return {"product": "MarketOps Research MCP", "version": "0.5.11-rc14",
                 **view(configured_root, task_kind=task_kind),
                 "external_host": _external_inventory(host_observed_tools),
                 "embedded_official_mcp": provider_policy.embedded_official_mcp_capabilities(),
@@ -804,7 +804,7 @@ def capabilities(host_observed_tools: list[str] | None = None,
         if task_kind else None)
     return {
         "product": "MarketOps Lite Research MCP",
-        "version": "0.5.11-rc13",
+        "version": "0.5.11-rc14",
         "providers": {
             "serpapi": {"transport": "REST through local MCP", **search["serpapi"]},
             "serper": {"transport": "REST through local MCP", **search["serper"]},
@@ -1071,6 +1071,36 @@ def managed_call(capability_id, params, run_id, operation_id, account_ref="",
     if claimed:
         accounts.finish_intent(r, run_id, entry.provider, fingerprint, answer)
     return answer
+
+
+def paid_agent_enabled() -> bool:
+    import research_runtime_setup as runtime
+    try:
+        return runtime.config(root()).get("paid_agent_enabled") is True
+    except (ValueError, OSError):
+        return False
+
+
+def hard_page(run_id: str, url: str, goal: str = "") -> dict:
+    """Queue one hard page for TinyFish Agent; it runs in the background."""
+    import research_hard_pages as hard
+    if not paid_agent_enabled():
+        raise ValueError("TINYFISH_AGENT_OFF: the owner turns it on once in customer_setup; "
+                         "until then record HOLD with the reason")
+    _require_brief_for_network(root(), run_id)
+    return hard.enqueue(root(), run_id, url, goal=goal, runner=_agent_runner)
+
+
+def _agent_runner(run_id, url, goal, operation_id):
+    return managed_call("tinyfish.run_web_automation", {"url": url, "goal": goal},
+                        run_id, operation_id)
+
+
+def _hard_page_hook(run_id: str):
+    """For site harvests: queue an unreachable site's page when the Agent is on."""
+    if not paid_agent_enabled():
+        return None
+    return lambda url: hard_page(run_id, url)
 
 
 def crawl4ai_down_notice(data_root) -> dict:
@@ -1678,7 +1708,7 @@ def handoff(run_id, operation_id, mode="auto"):
     try:
         experience_result = draft_experience(
             r, run_id=run_id, scope=head["scope"],
-            rule_version=head["rule_version"], skill_version="0.5.11-rc13",
+            rule_version=head["rule_version"], skill_version="0.5.11-rc14",
             output=experience_path)
         result["experience_candidate"] = str(experience_path)
         result["experience_incidents"] = experience_result["incidents"]
@@ -1866,6 +1896,7 @@ PUBLIC_TOOLS = frozenset({
     "marketops_pool_reopen", "marketops_costs", "marketops_update_check", "marketops_accounts",
     "marketops_crawl4ai_check", "marketops_method", "marketops_venue_groups",
     "marketops_search_routes", "marketops_directory_extract",
+    "marketops_hard_page", "marketops_hard_pages",
 })
 
 
@@ -1874,7 +1905,7 @@ PUBLIC_TOOLS = frozenset({
 BUDGETED_TOOLS = frozenset({
     "marketops_search", "marketops_serpapi_mcp_search", "marketops_research_step",
     "marketops_site_harvest", "marketops_jev_choice", "marketops_harvest_batch",
-    "marketops_jev_triage",
+    "marketops_jev_triage", "marketops_hard_page",
 })
 
 
@@ -1903,6 +1934,11 @@ def build_server():
         pass  # no data root yet: slot 1, as configured
     # Direct by default; only an explicitly configured proxy changes that.
     research_config.load_upstream_proxy_into_environment()
+    try:
+        import research_hard_pages
+        research_hard_pages.recover(root())  # in-flight Agent runs: UNKNOWN, never resent
+    except (ValueError, OSError):
+        pass
     _use_installed_browser()
     try:
         # A launch mode chosen on this computer (installer, check or repair) applies
@@ -1913,7 +1949,7 @@ def build_server():
         pass
     _ensure_repair_entrypoints()
     from mcp.server import MCPServer
-    mcp = MCPServer("MarketOps Lite Research", version="0.5.11-rc13")
+    mcp = MCPServer("MarketOps Lite Research", version="0.5.11-rc14")
     _quiet_http_logs()  # after the server set up its own logging
 
     def tool(fn):
@@ -2210,6 +2246,22 @@ def build_server():
         return result
 
     @tool
+    def marketops_hard_page(run_id: str, url: str, goal: str = "") -> dict:
+        """Hard page (needs rendering, tabs, 'show more', interaction): TinyFish Agent
+        reads it in the background and saves the page text as material. Returns at
+        once; check marketops_hard_pages later and keep working meanwhile. Never for a
+        challenge page, a 403 or a login. Each URL runs once per Run. Paid per step,
+        bounded by the TinyFish account's red line; off until the owner turned it on."""
+        return hard_page(run_id, url, goal)
+
+    @tool
+    def marketops_hard_pages(run_id: str) -> dict:
+        """Status of this Run's hard pages: queued / running / done (with artifact ids
+        to harvest) / failed / unknown. A run interrupted by a restart is never resent."""
+        import research_hard_pages as hard
+        return hard.status(root(), run_id)
+
+    @tool
     def marketops_site_harvest(run_id: str, operation_id: str, organization_name: str,
                                organization_key: str, url: str, max_pages: int = 6,
                                write: bool = True, roles_wanted: str = "") -> dict:
@@ -2235,7 +2287,8 @@ def build_server():
             grade=_role_grader(run_id, roles_wanted),
             time_budget_seconds=HARVEST_TIME_BUDGET_SECONDS,
             focus=roles_wanted.strip() or _brief_roles(run_id),
-            jev_ask=_jev_ask(run_id), screen_question=_screen_question(run_id, organization_key))
+            jev_ask=_jev_ask(run_id), screen_question=_screen_question(run_id, organization_key),
+            hard_page=_hard_page_hook(run_id))
 
     def _role_grader(run_id, roles_wanted):
         roles_wanted = roles_wanted.strip() or _brief_roles(run_id)
@@ -2589,7 +2642,7 @@ def build_server():
             # Every target in a batch came from the pool: the source that listed it
             # already said it is a target, so the screen ("is this owner a target?")
             # has only wrong answers to offer — an OPERATORS batch would be dropped.
-            jev_ask=_jev_ask(run_id), screen_question="")
+            jev_ask=_jev_ask(run_id), screen_question="", hard_page=_hard_page_hook(run_id))
         if parked["parked"]:
             result["source_gate_parked"] = parked
         return result
@@ -2749,7 +2802,7 @@ def build_server():
             raise ValueError("EXPERIENCE_MUST_BE_WITHIN_CUSTOMER_DATA_ROOT")
         output.parent.mkdir(parents=True, exist_ok=True)
         return draft_experience(r, run_id=run_id, scope=scope,
-                                rule_version=rule_version, skill_version="0.5.11-rc13",
+                                rule_version=rule_version, skill_version="0.5.11-rc14",
                                 output=output)
 
     @tool
