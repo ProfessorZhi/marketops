@@ -27,7 +27,11 @@ def coverage(root, run_id, *, limit=10):
             continue
         groups[(kind, key)].append({"record_id": rid, "kind": kind, "entity_key": key,
                                    "data": data, "artifact_ids": json.loads(artifacts)})
-    active = [tip for versions in groups.values() if (tip := _tip(versions)) is not None]
+    from research_workflow import resolved_tip
+    # The brief stays strict (a forked brief is a real ambiguity); entities resolve.
+    active = [tip for (kind, _), versions in groups.items()
+              if (tip := (_tip(versions) if kind == "observation"
+                          else resolved_tip(versions)[0])) is not None]
     brief = next((r["data"] for r in active if r["kind"] == "observation"), {})
     wanted = brief.get("role_groups_wanted", [])
     if not wanted:

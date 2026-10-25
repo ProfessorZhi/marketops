@@ -89,24 +89,59 @@ def _tip(rows: list[dict]) -> dict | None:
     return tip if len(seen) == len(index) else None
 
 
-def active_records(records: list[dict]) -> tuple[list[dict], list[dict]]:
-    """Select only unambiguous live tips for business-facing views.
+def resolved_tip(rows: list[dict]) -> tuple[dict | None, bool]:
+    """(live version of one entity, whether its history forked).
 
-    History is NOT deleted. A version fork is not resolved by created_at, so
-    neither conflicting candidate enters the customer sheet. The caller's
-    complete snapshot stays available in the audit sheet and manifest.
+    An unbroken supersedes chain gives its tip. A fork (two readings that each
+    lack a parent: one page printing a club 22 times, a re-read that forgot
+    `supersedes`) used to drop the whole entity and, through it, every person and
+    route bound to it - a re-read made the delivery smaller. Now the reading with
+    the most quoted claims wins, then the most material, then the latest; the
+    others stay in the audit sheet and the fork is reported. Only a group that
+    cannot name any live version (a cycle) stays unresolved.
+    """
+    strict = _tip(rows)
+    if strict is not None:
+        return strict, False
+    if not rows or len({(r["kind"], r["entity_key"]) for r in rows}) != 1:
+        return None, True
+    parents = {r["data"].get("supersedes") for r in rows if r["data"].get("supersedes")}
+    tips = [r for r in rows if r["record_id"] not in parents]
+    if not tips:
+        return None, True  # every reading is someone's parent: a cycle
+    order = {id(r): i for i, r in enumerate(rows)}
+
+    def weight(row):
+        claims = row["data"].get("claims")
+        return (len(claims) if isinstance(claims, list) else 0,
+                len(row.get("artifact_ids") or []), order[id(row)])
+    return max(tips, key=weight), True
+
+
+def active_records(records: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Select one live version per entity for business-facing views.
+
+    History is NOT deleted: superseded and losing fork versions stay in the
+    audit sheet and manifest. A resolved fork is reported with `resolved_to`
+    (record_ids then lists only the versions it replaced); an unresolved one
+    lists every version and none of them enters the customer sheet.
     """
     versions = defaultdict(list)
     for row in records:
         versions[(row["kind"], row["entity_key"])].append(row)
     selected, conflicts = [], []
     for (kind, entity_key), group in versions.items():
-        tip = _tip(group)
+        tip, forked = resolved_tip(group)
         if tip is None:
             conflicts.append({"kind": kind, "entity_key": entity_key,
                               "record_ids": sorted(row["record_id"] for row in group)})
-        else:
-            selected.append(tip)
+            continue
+        selected.append(tip)
+        if forked:
+            conflicts.append({"kind": kind, "entity_key": entity_key,
+                              "resolved_to": tip["record_id"],
+                              "record_ids": sorted(r["record_id"] for r in group
+                                                   if r["record_id"] != tip["record_id"])})
     return selected, conflicts
 
 
@@ -214,7 +249,7 @@ def assess_records(run_id: str, records: list[dict], *, limit: int = 25) -> dict
             if isinstance(key, str):
                 dispositions[key].append(row)
     for versions in related_groups.values():
-        active = _tip(versions)
+        active, _ = resolved_tip(versions)
         if active is None:
             for row in versions:
                 org = row["data"].get("organization_id")
@@ -228,7 +263,7 @@ def assess_records(run_id: str, records: list[dict], *, limit: int = 25) -> dict
     tasks, gaps, outcomes = [], Counter(), Counter()
     researched = blocked = 0
     for key in sorted(grouped):
-        row = _tip(grouped[key])
+        row, _ = resolved_tip(grouped[key])
         review_rows = dispositions.get(key, [])
         disposition = _tip(review_rows)
         missing, stage = [], "review"

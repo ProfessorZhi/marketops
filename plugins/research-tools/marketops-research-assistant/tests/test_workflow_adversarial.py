@@ -85,14 +85,32 @@ class AdversarialWorkflowTests(unittest.TestCase):
         result = workflow.assess_records("synthetic-run", rows)
         self.assertIn("person_linked_role_candidate_with_source", result["gap_counts"])
 
-    def test_related_fork_is_explicit_conflict(self):
+    def test_a_duplicated_related_reading_resolves_instead_of_blocking(self):
         rows = fixture()
         duplicate = copy.deepcopy(rows[4])
         duplicate["record_id"] = "c2"
         rows.append(duplicate)
         result = workflow.assess_records("synthetic-run", rows)
-        self.assertIn("related_entity_version_conflict", result["gap_counts"])
-        self.assertFalse(result["goal_satisfied"])
+        self.assertNotIn("related_entity_version_conflict", result["gap_counts"])
+
+    def test_a_cycle_is_still_an_unresolved_conflict(self):
+        rows = [{"record_id": "a", "kind": "venue", "entity_key": "v", "artifact_ids": [],
+                 "data": {"supersedes": "b"}},
+                {"record_id": "b", "kind": "venue", "entity_key": "v", "artifact_ids": [],
+                 "data": {"supersedes": "a"}}]
+        active, conflicts = workflow.active_records(rows)
+        self.assertEqual([], active)
+        self.assertNotIn("resolved_to", conflicts[0])
+
+    def test_the_reading_with_more_quoted_claims_wins_a_fork(self):
+        thin = {"record_id": "thin", "kind": "organization", "entity_key": "o",
+                "artifact_ids": ["p"], "data": {"name": "Club", "claims": [{"field": "identity"}]}}
+        rich = {"record_id": "rich", "kind": "organization", "entity_key": "o",
+                "artifact_ids": ["p"], "data": {"name": "Club", "claims": [
+                    {"field": "identity"}, {"field": "address"}]}}
+        for order in ([thin, rich], [rich, thin]):
+            active, _ = workflow.active_records(order)
+            self.assertEqual("rich", active[0]["record_id"])
 
     def test_unknown_name_is_not_a_named_person(self):
         rows = fixture()

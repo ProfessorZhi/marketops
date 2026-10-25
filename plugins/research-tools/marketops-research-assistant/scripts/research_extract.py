@@ -486,19 +486,52 @@ def _block_quote(text: str, org_span: list[int] | None, span: list[int] | None,
     return quote
 
 
-def records_to_bundles(text: str, records: list[dict], artifact_id: str) -> list[list[dict]]:
+def records_to_bundles(text: str, records: list[dict], artifact_id: str,
+                       stats: dict | None = None) -> list[list[dict]]:
     """Ready-to-stage candidates, grouped per record: organisation, person, address.
 
     Grading reads an address from a ``contact_point`` whose ``organization_id``
     names its organisation, so one flat organisation row would lose the email.
     Each bundle stays together and inside the store's 20-item batch bound.
+
+    ``entity_key`` is the identity the gates and the grading join on, so it is
+    derived from the printed name alone. ``record_id`` names *this reading of
+    the page* and carries the artifact: re-reading a page from a fresh fetch
+    after the extractor changes appends a version of the same entity instead of
+    colliding with the row already stored (the store refuses to rewrite a row
+    whose artifact differs, which is what RECORD_ID_COLLISION_OR_CROSS_RUN
+    reported when a fixed extractor met its own earlier output).
+
+    Within one page an identity is staged once. "Paris Université Club" prints
+    twenty-two sections; twenty-two organisation rows with one ``entity_key``
+    are twenty-two live roots of the same identity, and the delivery view drops
+    such a group rather than choose between its readings — the whole
+    organisation disappears from the customer sheet. The sections differ in
+    their contacts, and those records carry the difference; the organisation row
+    itself is the same organisation.
     """
     bundles = []
-    for record in records:
+    staged: set[str] = set()
+
+    def first_reading(entity_key: str) -> bool:
+        if entity_key in staged:
+            if stats is not None:
+                stats["duplicate_entity_readings"] = stats.get("duplicate_entity_readings", 0) + 1
+            return False
+        staged.add(entity_key)
+        return True
+
+    for ordinal, record in enumerate(records):
         name = (record.get("organization") or "").strip()
         if not name:
             continue
         org_key = _key("org", name.casefold())
+        # Two records can print the same name ("Paris Université Club" lists
+        # thirteen sections, each with its own venue and contact). The identity
+        # is one organisation; the readings are distinct, so the ordinal is
+        # part of the version id and the entity key is not.
+        reading = str(ordinal)
+        org_record = _key("org", artifact_id, reading, name.casefold())
         spans = record.get("_spans") if isinstance(record.get("_spans"), dict) else {}
         items = []
         org_facts = {"name": name}
@@ -524,9 +557,10 @@ def records_to_bundles(text: str, records: list[dict], artifact_id: str) -> list
             org_facts["address"] = record["address"]
         if claims:
             org_facts["claims"] = claims
-        items.append({"record_id": org_key, "stage": "entities", "kind": "organization",
-                      "entity_key": org_key, "facts": org_facts,
-                      "artifact_ids": [artifact_id]})
+        if first_reading(org_key):
+            items.append({"record_id": org_record, "stage": "entities", "kind": "organization",
+                          "entity_key": org_key, "facts": org_facts,
+                          "artifact_ids": [artifact_id]})
         person = (record.get("person") or "").strip()
         person_key = ""
         if person:
@@ -538,9 +572,12 @@ def records_to_bundles(text: str, records: list[dict], artifact_id: str) -> list
             if person_quote:
                 person_facts["claims"] = [{"artifact_id": artifact_id,
                                            "field": "name", "quote": person_quote}]
-            items.append({"record_id": person_key, "stage": "entities", "kind": "person",
-                          "entity_key": person_key, "facts": person_facts,
-                          "artifact_ids": [artifact_id]})
+            if first_reading(person_key):
+                items.append({"record_id": _key("person", artifact_id, reading, name.casefold(),
+                                                person.casefold()),
+                              "stage": "entities", "kind": "person",
+                              "entity_key": person_key, "facts": person_facts,
+                              "artifact_ids": [artifact_id]})
         email = (record.get("email") or "").strip()
         contact_quote = (_block_quote(text, spans.get("organization"), spans.get("email"),
                                       name, email)
@@ -553,10 +590,14 @@ def records_to_bundles(text: str, records: list[dict], artifact_id: str) -> list
             if person_key:
                 contact_facts["person_id"] = person_key
                 contact_facts["person_name"] = person
-            items.append({"record_id": contact_key, "stage": "routes",
-                          "kind": "contact_point", "entity_key": contact_key,
-                          "facts": contact_facts, "artifact_ids": [artifact_id]})
-        bundles.append(items)
+            if first_reading(contact_key):
+                items.append({"record_id": _key("contact", artifact_id, reading, org_key,
+                                                email.casefold()),
+                              "stage": "routes", "kind": "contact_point",
+                              "entity_key": contact_key,
+                              "facts": contact_facts, "artifact_ids": [artifact_id]})
+        if items:
+            bundles.append(items)
     return bundles
 
 
