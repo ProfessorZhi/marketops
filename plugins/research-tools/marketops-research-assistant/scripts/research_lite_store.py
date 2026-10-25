@@ -634,6 +634,49 @@ def put_candidates_batch(root: Path | str | None, run_id: str,
         report["caveats"] = caveats[:12]
     return report
 
+def live_versions(root: Path | str | None, run_id: str,
+                  keys: list[tuple[str, str, str]]) -> dict:
+    """The live tip(s) of each staged identity, read-only.
+
+    ``kind``/``entity_key`` names an identity; ``record_id`` names one reading
+    of it. A group with one parentless row has a single tip and may be
+    extended with ``facts.supersedes``. A group with two parentless rows is a
+    fork: the delivery view drops such a group instead of choosing between its
+    readings, so a caller about to append reads here first rather than create a
+    third root and lose the entity a second time.
+    """
+    _id(run_id, "run_id")
+    if type(keys) is not list or len(keys) > 64:
+        raise ValueError("ENTITY_KEYS_BOUNDED_TO_64")
+    store_root = _root(root)
+    path = store_root / "state" / "research-lite.sqlite3"
+    if not path.is_file():
+        return {}
+    found = {}
+    with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=20)) as db:
+        for stage, kind, entity_key in keys:
+            _id(kind, "kind")
+            _id(entity_key, "entity_key")
+            rows = db.execute(
+                "SELECT record_id,stage,payload_json,artifact_ids_json FROM records "
+                "WHERE run_id=? AND kind=? AND entity_key=?",
+                (run_id, kind, entity_key)).fetchall()
+            parents = set()
+            for _, _, body, _ in rows:
+                try:
+                    data = json.loads(body)
+                except (TypeError, ValueError):
+                    data = {}
+                parent = data.get("supersedes") if isinstance(data, dict) else None
+                if isinstance(parent, str) and parent:
+                    parents.add(parent)
+            found[(stage, kind, entity_key)] = [
+                {"record_id": rid, "stage": row_stage, "data": json.loads(body),
+                 "artifact_ids": json.loads(arts or "[]")}
+                for rid, row_stage, body, arts in rows if rid not in parents]
+    return found
+
+
 def list_run(root: Path | str | None, run_id: str, limit: int = 300) -> dict:
     _id(run_id, "run_id")
     if not 1 <= limit <= 500:

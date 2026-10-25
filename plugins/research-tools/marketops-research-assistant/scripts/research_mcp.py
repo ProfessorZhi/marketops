@@ -1507,12 +1507,62 @@ def propose(run_id, record_id, stage, kind, entity_key, facts, artifact_ids=None
     return result
 
 
+ENTITY_KINDS = frozenset({"organization", "person", "contact_point"})
+
+
+def _attach_revision_parents(r, run_id, items):
+    """Stage a second reading of an identity as a revision, not a second root.
+
+    ``entity_key`` names the identity; ``record_id`` names one reading of it.
+    Two readings with no ``supersedes`` between them are a fork, and the
+    delivery view drops the whole group rather than choose a winner — so
+    re-reading a page quietly removes the entity from the customer sheet while
+    the Run still looks larger. The caller staging the row is the only place
+    that knows it is a new reading, so it names the row it replaces here, which
+    is the store's own documented correction path.
+    """
+    wanted = {}
+    for item in items:
+        facts = item.get("facts")
+        if (item.get("kind") not in ENTITY_KINDS or not isinstance(facts, dict)
+                or facts.get("supersedes")
+                or not isinstance(item.get("entity_key"), str)):
+            continue
+        wanted.setdefault((item.get("stage"), item["kind"], item["entity_key"]), []).append(item)
+    if not wanted:
+        return {}
+    tips = store.live_versions(r, run_id, list(wanted))
+    counts = {"revisions": 0, "already_staged": 0, "forked_groups_left_alone": 0}
+    for key, group in wanted.items():
+        current = tips.get(key) or []
+        if len(current) > 1:
+            # Two roots already. Choosing one is the guess delivery refuses to
+            # make, and a third root loses the group again, so say so instead.
+            counts["forked_groups_left_alone"] += 1
+            continue
+        if not current or current[0]["stage"] != key[0]:
+            continue
+        tip = current[0]
+        for item in group:
+            if item["facts"] == tip["data"] and list(item.get("artifact_ids") or ()) == tip["artifact_ids"]:
+                counts["already_staged"] += 1
+                continue
+            item["facts"]["supersedes"] = tip["record_id"]
+            item["record_id"] = (item["record_id"] + "-r"
+                                 + hashlib.sha256(tip["record_id"].encode()).hexdigest()[:6])
+            counts["revisions"] += 1
+    return counts
+
+
 def propose_batch(run_id, items):
     """Atomic append-only candidates, at most 20 per transaction/tool call."""
     r = root()
     for item in items if isinstance(items, list) else ():
         _check_scene_fields(item.get("facts") if isinstance(item, dict) else None)
+    revisions = _attach_revision_parents(r, run_id, items) if isinstance(items, list) else {}
     result = store.put_candidates_batch(r, run_id, items)
+    if revisions and any(revisions.values()):
+        result["revisions"] = revisions
     operation_id = "batch-" + hashlib.sha256(
         json.dumps([item["record_id"] for item in items], sort_keys=True).encode()).hexdigest()[:24]
     append_event(r, run_id=run_id, operation_id=operation_id,
@@ -1547,7 +1597,8 @@ def directory_extract(run_id, artifact_id, offset=0, limit=20, stage=False, fiel
     text = research_extract.page_text(material["material_kind"], material["content"])
     extracted = research_extract.extract(text, labels=fields)
     records = extracted["records"]
-    bundles = research_extract.records_to_bundles(text, records, artifact_id)
+    extract_stats: dict = {}
+    bundles = research_extract.records_to_bundles(text, records, artifact_id, extract_stats)
 
     page, used, next_offset = [], 0, None
     for index, bundle in enumerate(bundles[offset:], start=offset):
@@ -1582,6 +1633,7 @@ def directory_extract(run_id, artifact_id, offset=0, limit=20, stage=False, fiel
         "anchor": extracted["anchor"],
         "start_field": extracted.get("start_field"),
         "dropped_duplicates": extracted["dropped_duplicates"],
+        "duplicate_entity_readings": extract_stats.get("duplicate_entity_readings", 0),
         "warnings": extracted["warnings"],
         "items_total": sum(len(bundle) for bundle in bundles),
         "offset": offset,
