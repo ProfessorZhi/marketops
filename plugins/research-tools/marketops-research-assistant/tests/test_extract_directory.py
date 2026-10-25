@@ -208,6 +208,26 @@ class DirectoryToolTests(unittest.TestCase):
         self.assertEqual(3, kinds.count("person"))
         self.assertEqual(3, kinds.count("contact_point"))
 
+    def test_re_reading_the_page_from_a_new_fetch_appends_a_version(self):
+        # A fixed extractor is pointed at a page it already read two days ago:
+        # the entity is the same, the reading is not, and the store refuses to
+        # rewrite a row whose artifact differs. The id carries the artifact.
+        first = mcp.directory_extract("run-dir", "art-page", stage=True)
+        store.save_artifact(self.root, "run-dir", "art-page-2", "fixture",
+                            "https://example.org/annuaire", PAGE, "rendered_html")
+        second = mcp.directory_extract("run-dir", "art-page-2", stage=True)
+        self.assertEqual(9, second["staged"]["created"])
+        self.assertNotEqual(first["artifact_id"], second["artifact_id"])
+        records = store.list_run(self.root, "run-dir", limit=100)["records"]
+        orgs = [record for record in records if record["kind"] == "organization"]
+        self.assertEqual(6, len(orgs))
+        self.assertEqual(3, len({record["entity_key"] for record in orgs}))
+        for entity_key in {record["entity_key"] for record in orgs}:
+            artifacts = {claim["artifact_id"] for record in orgs
+                         if record["entity_key"] == entity_key
+                         for claim in record["data"]["claims"]}
+            self.assertEqual({"art-page", "art-page-2"}, artifacts)
+
     def test_pagination_never_breaks_a_record_apart(self):
         first = mcp.directory_extract("run-dir", "art-page", offset=0, limit=3)
         self.assertEqual(3, first["returned"])

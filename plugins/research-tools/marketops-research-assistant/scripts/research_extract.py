@@ -492,6 +492,14 @@ def records_to_bundles(text: str, records: list[dict], artifact_id: str) -> list
     Grading reads an address from a ``contact_point`` whose ``organization_id``
     names its organisation, so one flat organisation row would lose the email.
     Each bundle stays together and inside the store's 20-item batch bound.
+
+    ``entity_key`` is the identity the gates and the grading join on, so it is
+    derived from the printed name alone. ``record_id`` names *this reading of
+    the page* and carries the artifact: re-reading a page from a fresh fetch
+    after the extractor changes appends a version of the same entity instead of
+    colliding with the row already stored (the store refuses to rewrite a row
+    whose artifact differs, which is what RECORD_ID_COLLISION_OR_CROSS_RUN
+    reported when a fixed extractor met its own earlier output).
     """
     bundles = []
     for record in records:
@@ -499,6 +507,7 @@ def records_to_bundles(text: str, records: list[dict], artifact_id: str) -> list
         if not name:
             continue
         org_key = _key("org", name.casefold())
+        org_record = _key("org", artifact_id, name.casefold())
         spans = record.get("_spans") if isinstance(record.get("_spans"), dict) else {}
         items = []
         org_facts = {"name": name}
@@ -524,7 +533,7 @@ def records_to_bundles(text: str, records: list[dict], artifact_id: str) -> list
             org_facts["address"] = record["address"]
         if claims:
             org_facts["claims"] = claims
-        items.append({"record_id": org_key, "stage": "entities", "kind": "organization",
+        items.append({"record_id": org_record, "stage": "entities", "kind": "organization",
                       "entity_key": org_key, "facts": org_facts,
                       "artifact_ids": [artifact_id]})
         person = (record.get("person") or "").strip()
@@ -538,7 +547,9 @@ def records_to_bundles(text: str, records: list[dict], artifact_id: str) -> list
             if person_quote:
                 person_facts["claims"] = [{"artifact_id": artifact_id,
                                            "field": "name", "quote": person_quote}]
-            items.append({"record_id": person_key, "stage": "entities", "kind": "person",
+            items.append({"record_id": _key("person", artifact_id, name.casefold(),
+                                            person.casefold()),
+                          "stage": "entities", "kind": "person",
                           "entity_key": person_key, "facts": person_facts,
                           "artifact_ids": [artifact_id]})
         email = (record.get("email") or "").strip()
@@ -553,8 +564,9 @@ def records_to_bundles(text: str, records: list[dict], artifact_id: str) -> list
             if person_key:
                 contact_facts["person_id"] = person_key
                 contact_facts["person_name"] = person
-            items.append({"record_id": contact_key, "stage": "routes",
-                          "kind": "contact_point", "entity_key": contact_key,
+            items.append({"record_id": _key("contact", artifact_id, org_key, email.casefold()),
+                          "stage": "routes", "kind": "contact_point",
+                          "entity_key": contact_key,
                           "facts": contact_facts, "artifact_ids": [artifact_id]})
         bundles.append(items)
     return bundles
