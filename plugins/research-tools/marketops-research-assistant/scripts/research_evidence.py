@@ -123,7 +123,6 @@ def audit_records(records: list[dict], artifacts: dict[str, dict],
     reasons, samples = Counter(), []
     checked = anchored_rendered = anchored_vendor_html = 0
     normalized_sources = {aid: _text(a) for aid, a in artifacts.items()}
-    from research_workflow import _tip
     related = defaultdict(list)
     for row in records:
         if row["kind"] in {"person", "role"} and row.get("entity_key"):
