@@ -4,7 +4,7 @@
 这里只告诉你该读哪一段、以及**哪一端还没被验证过**。
 
 包版本以 `plugins/research-tools/marketops-research-assistant/.claude-plugin/plugin.json`
-为准；当前 `0.5.11-rc13`，是 release candidate，不是正式发行版。
+为准；当前 `0.5.11-rc14`，是 release candidate，不是正式发行版。
 
 ## 一句话对照
 

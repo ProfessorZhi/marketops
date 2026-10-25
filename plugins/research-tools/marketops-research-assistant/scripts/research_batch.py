@@ -137,7 +137,7 @@ def harvest_batch(data_root, *, pool_id: str, worker_id: str, run_id: str, fetch
                   count: int = 20, concurrency: int = 4, max_pages: int = 5,
                   lease_minutes: int = 10, grade=None, find_site=None, focus: str = "",
                   deadline_seconds: float = DEADLINE_SECONDS, jev_ask=None,
-                  screen_question: str = "") -> dict:
+                  screen_question: str = "", hard_page=None) -> dict:
     """Lease `count` targets, harvest each own site, complete them in the pool.
 
     `grade(route)` (Jev, when the caller names the wanted roles) returns
@@ -201,7 +201,7 @@ def harvest_batch(data_root, *, pool_id: str, worker_id: str, run_id: str, fetch
                 organization_key=org_key, url=target["website"], fetch=fetch,
                 max_pages=max_pages, write=True, check_admission=False, grade=grade,
                 time_budget_seconds=HARVEST_TIME_BUDGET_SECONDS, focus=focus,
-                jev_ask=jev_ask, screen_question=screen_question)
+                jev_ask=jev_ask, screen_question=screen_question, hard_page=hard_page)
         except ValueError as exc:
             return {"target": target, "outcome": "hold", "org_key": org_key, "record_ids": [],
                     "routes": [], "reason": str(exc).split(":", 1)[0]}

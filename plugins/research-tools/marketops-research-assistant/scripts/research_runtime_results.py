@@ -117,6 +117,28 @@ def _actual_ledger_id(root, run_id, capability_id, provider, outcome):
     return identifier if row is not None and tuple(row) == expected else None
 
 
+def agent_text(payload) -> str:
+    """Every string the TinyFish Agent reported about the page, one per line."""
+    lines: list[str] = []
+    skip = {"run_id", "id", "session_id", "status", "url", "created_at", "updated_at",
+            "streaming_url", "browser_profile"}
+
+    def walk(node, key=""):
+        if len(lines) > 2000:
+            return
+        if isinstance(node, dict):
+            for name, value in node.items():
+                if name not in skip:
+                    walk(value, name)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value, key)
+        elif isinstance(node, str) and node.strip():
+            lines.append((key + ": " if key and len(node) < 300 else "") + node.strip())
+    walk(payload.get("result", payload) if isinstance(payload, dict) else payload)
+    return "\n".join(lines)[:400_000]
+
+
 def persist(root, run_id, operation_id, guarded, *, params):
     outcome = guarded.outcome
     result = getattr(outcome, "result", None)
@@ -140,6 +162,7 @@ def persist(root, run_id, operation_id, guarded, *, params):
              "deepseek.search": "deepseek", "deepseek.fetch_page": "deepseek",
              "tinyfish.search": "tinyfish_mcp_search", "tinyfish.fetch_content": "tinyfish_mcp_fetch",
              "crawl4ai.fetch_page": "crawl4ai_local", "crawl4ai.extract": "crawl4ai_local",
+             "tinyfish.run_web_automation": "tinyfish_agent",
              "jev.choice": "jev_choice", "jev.noul": "jev_choice", "jev.score": "jev_choice"
              }.get(guarded.capability_id, provider)
     saved = None
@@ -171,6 +194,23 @@ def persist(root, run_id, operation_id, guarded, *, params):
                         "browser_dom_verified": False, "business_verified": False,
                         "method": "tinyfish.fetch_content.format_html",
                         "vendor_envelope_artifact_id": saved["artifact_id"]})
+        if guarded.capability_id == "tinyfish.run_web_automation" and url:
+            # The Agent's answer becomes a quotable page bound to the URL it opened,
+            # labelled vendor-mediated like TinyFish fetch HTML.
+            text = agent_text(payload)
+            if text:
+                from html import escape
+                identifier = _id(run_id, operation_id + ":agent:" + url, "vendor-html")
+                item = store.save_artifact(root, run_id, identifier, provider, url,
+                                           ("<html><body><pre>" + escape(text)
+                                            + "</pre></body></html>").encode("utf-8"),
+                                           "provider_html")
+                artifacts.append(identifier)
+                source_materials.append({**item, "url": url, "vendor_mediated": True,
+                    "transform": "agent_reported_page_text", "raw_http_verified": False,
+                    "browser_dom_verified": False, "business_verified": False,
+                    "method": "tinyfish.run_web_automation",
+                    "vendor_envelope_artifact_id": saved["artifact_id"]})
         if isinstance(payload, dict) and status == "OK":
             hits = payload.get("results") or payload.get("organic") or payload.get("matches") or []
             if source_materials:

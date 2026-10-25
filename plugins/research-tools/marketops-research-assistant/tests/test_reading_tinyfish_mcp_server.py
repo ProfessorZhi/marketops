@@ -253,8 +253,8 @@ class PromptInjectionIsDataNotInstruction(RealServerBase):
                      {"url": "https://public.example.org/x",
                       "goal": "Read the publicly listed venue names"}))
         self.assertEqual("BLOCKED", out["outcome"])
-        self.assertEqual("POLICY_TIER_NOT_GRANTED", out["reason_code"])
-        self.assertEqual([], self.fake.calls)
+        self.assertEqual("WALLET_PRECONDITION_FAILED", out["reason_code"])
+        self.assertNotIn("run_web_automation", [c[0] for c in self.fake.calls])
 
     def test_the_adapter_states_that_descriptions_are_untrusted(self):
         self.assertTrue(tinyfish.DESCRIPTIONS_ARE_UNTRUSTED)
@@ -397,15 +397,15 @@ class ToolsListDiscoveryOverTheRealServer(RealServerBase):
         self.assertEqual("DRIFT", out["schema_verdict"])
         self.assertNotIn("tinyfish.wait_for_run", tinyfish.capabilities())
 
-    def test_a_tier_three_capability_without_a_grant_is_denied_and_not_called(self):
+    def test_the_agent_without_a_readable_wallet_is_refused_and_not_submitted(self):
         out = self.adapter().execute(
             _request("tinyfish.run_web_automation",
                      {"url": "https://public.example.org/x",
                       "goal": "Read the publicly listed venue names"}))
         self.assertEqual("BLOCKED", out["outcome"])
-        self.assertEqual("POLICY_TIER_NOT_GRANTED", out["reason_code"])
+        self.assertEqual("WALLET_PRECONDITION_FAILED", out["reason_code"])
         self.assertEqual("NO_CHARGE_PROVEN", out["charge_state"])
-        self.assertEqual([], self.fake.calls)
+        self.assertNotIn("run_web_automation", [c[0] for c in self.fake.calls])
 
 
 class ErrorCodesOverTheRealServer(RealServerBase):

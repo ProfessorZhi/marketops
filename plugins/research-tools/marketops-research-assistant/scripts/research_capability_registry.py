@@ -1191,8 +1191,11 @@ DEFAULT_REGISTRY = CapabilityRegistry((
                        "read; limit/page carry documented defaults. Creating or "
                        "closing a session stays DISABLED/T4."),
 
+    # A public page read through TinyFish's browser: billable like the other paid
+    # reads, opened by the owner's one-time consent and bounded by the TinyFish
+    # account's red line. Login state, vault credentials and webhooks stay T4.
     build_entry("tinyfish.run_web_automation", "tinyfish", "run_web_automation", "official_mcp",
-           EffectClass.BILLABLE_ACT, Tier.T3, "tinyfish:agent", "agent_step",
+           EffectClass.BILLABLE_READ, Tier.T2, "tinyfish:agent", "agent_step",
            {"url": "string", "goal": "string", "session_id": "string",
             "output_schema": "object", "browser_profile": "string", "proxy_config": "object",
             "use_profile": "boolean", "profile_id": "string", "use_vault": "boolean",
@@ -1202,8 +1205,8 @@ DEFAULT_REGISTRY = CapabilityRegistry((
            escalates_to={"use_profile": Tier.T4, "profile_id": Tier.T4,
                          "use_vault": Tier.T4, "credential_item_ids": Tier.T4,
                          "webhook_url": Tier.T4},
-           description="Open-ended metered steps. Login state or an outbound webhook raises "
-                       "it to T4."),
+           description="Metered browser steps on a public page (hard pages: rendering, "
+                       "interaction). Login state or an outbound webhook raises it to T4."),
     build_entry("tinyfish.cancel_run", "tinyfish", "cancel_run", "official_mcp",
            EffectClass.STATE_CHANGING, Tier.T4, "tinyfish:agent", "request",
            {"run_id": "string"}, None, availability=Availability.DISABLED,

@@ -82,12 +82,11 @@ class TierAndEnablement(unittest.TestCase):
             self.assertTrue(catalog["tools"][name]["callable"], name)
             self.assertFalse(catalog["tools"][name]["billing"]["may_charge"], name)
 
-    def test_paid_agent_is_tier_three_and_never_called_without_authorization(self):
+    def test_paid_agent_is_a_consented_paid_read_and_never_ungated(self):
         catalog = tinyfish.capability_catalog()
         agent = catalog["tools"]["run_web_automation"]
-        self.assertEqual("T3", agent["tier"])
+        self.assertEqual("T2", agent["tier"])
         self.assertTrue(agent["billing"]["may_charge"])
-        self.assertTrue(agent["requires_explicit_human_authorization"])
         self.assertNotIn("run_web_automation", tinyfish.ungated_tools())
 
     def test_the_described_only_tools_are_listed_with_a_reason(self):

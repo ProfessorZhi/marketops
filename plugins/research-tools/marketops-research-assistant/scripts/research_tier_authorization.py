@@ -146,7 +146,7 @@ TIER_BY_OPERATION: dict[str, str] = {
     "jev.choice": "T2",
     "jev.noul": "T2",
     "jev.score": "T2",
-    "tinyfish_mcp_agent": "T3",
+    "tinyfish_mcp_agent": "T2",
     "tinyfish.host_agent": "T3",
     "tinyfish.host_browser": "T3",
     "crawl4ai.authorized_selfhosted_session": "T4",

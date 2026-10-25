@@ -134,9 +134,6 @@ class ChargeTaxonomy(unittest.TestCase):
             ("tinyfish.search", {"query": "x"}),
             # a served capability refused on its arguments, not a disabled one
             ("tinyfish.list_monitors", {"limit": 10}),
-            ("tinyfish.run_web_automation",
-             {"url": "https://public.example.org/x",
-              "goal": "Read the publicly listed venue names"}),
         )
         for capability_id, params in cases:
             out = tinyfish.execute(self.request(capability_id, params),

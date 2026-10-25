@@ -41,6 +41,12 @@ ENDPOINTS = {"tinyfish": "https://agent.tinyfish.ai/mcp",
              "serpapi": "https://mcp.serpapi.com/mcp"}
 CORE = {"serper.search", "serpapi.search", "deepseek.search", "deepseek.fetch_page", "tinyfish.search", "tinyfish.fetch_content",
         "crawl4ai.fetch_page", "crawl4ai.extract", "jev.choice", "jev.noul", "jev.score"}
+#: Open only after the owner's one-time consent (paid_agent_enabled), then bounded
+#: by the TinyFish account's red line like every other paid call.
+PAID_AGENT = frozenset({"tinyfish.run_web_automation"})
+#: The owner chose red lines only (no total): the ledger needs a stated limit on
+#: every cap row, so "no total" is written as this explicit, recorded count.
+NO_TOTAL_CAP_CALLS = 10 ** 12
 
 
 def now():
@@ -181,7 +187,13 @@ def state_ledger_caps(root, run_id, *, project=None, ledger=None):
         money, usd_enforced, seconds = _existing_cap(ledger, kind, key)
         if plan["budget_mode"] == "MONEY":
             envelope = settings["spending"]
-            money, usd_enforced = envelope["ledger_money_baseline"] + envelope["total_budget_micros"], True
+            total = envelope.get("total_budget_micros")
+            # Red lines are enforced per account inside the ledger; with no total
+            # there is no money ceiling to state here.
+            money, usd_enforced = ((envelope["ledger_money_baseline"] + total, True)
+                                   if total is not None else (None, False))
+            if money is None and calls is None:
+                calls = NO_TOTAL_CAP_CALLS
         if usd_micros is not None:
             money, usd_enforced = usd_micros, True
         ledger.set_cap(kind, key, ceiling_calls=calls, ceiling_micros=money,
@@ -240,7 +252,8 @@ def fetch_allowlist(settings, urls=()):
 
 def configure(root, *, providers, domains, max_calls, task, confirm=False, amend=False,
               provider_limits=None, run_max_calls=None, project_max_calls=None,
-              project_max_usd_micros=None, run_max_usd_micros=None, public_web_fetch=None):
+              project_max_usd_micros=None, run_max_usd_micros=None, public_web_fetch=None,
+              paid_agent=None):
     if confirm is not True or type(max_calls) is not int or not 1 <= max_calls <= MAX_CALLS_CEILING:
         raise ValueError("FINITE_LOCAL_CONSENT_REQUIRED")
     selected = sorted(set("typesafe_jev" if x == "jev" else x for x in providers))
@@ -292,7 +305,11 @@ def configure(root, *, providers, domains, max_calls, task, confirm=False, amend
                 "task": task.strip(), "budget_mode": budget_mode,
                 "project_max_usd_micros": project_usd,
                 "run_max_usd_micros": run_usd,
-                "network_enabled": True, "paid_agent_enabled": False,
+                "network_enabled": True,
+                # The owner's one-time yes to TinyFish Agent for hard pages; its
+                # spend is bounded by the TinyFish account's red line.
+                "paid_agent_enabled": ((old.get("paid_agent_enabled") is True) if paid_agent is None
+                                       else paid_agent is True and "tinyfish" in selected),
                 "public_web_fetch": (old.get("public_web_fetch") is True
                                      if public_web_fetch is None else public_web_fetch is True)}
     if old.get("spending", {}).get("mode") == "MONEY":
@@ -523,7 +540,11 @@ def review_schema(provider, payload):
                    "search": {"query": "public venue"},
                    "fetch_content": {"urls": ["https://example.org/"], "format": "html",
                                      "links": False, "image_links": False,
-                                     "iframe_links": False, "page_metadata": False}})
+                                     "iframe_links": False, "page_metadata": False},
+                   # The exact arguments the adapter sends (session_id minted per run).
+                   "run_web_automation": {"url": "https://example.org/",
+                                          "goal": "Return the visible text of this public page",
+                                          "session_id": "00000000-0000-4000-8000-000000000000"}})
     accepted = []
     for tool in payload["tools"]:
         if not isinstance(tool, dict) or tool.get("name") not in samples:
@@ -622,9 +643,13 @@ def admission(root, capability_id):
         return {"allowed": False, "reason_code": code, "detail": detail}
     if entry is None:
         return denied("CAPABILITY_UNKNOWN", "unknown capability")
-    if capability_id not in CORE:
-        return denied("POLICY_TIER_NOT_GRANTED", "initial product supports bounded research only")
     settings = config(root)
+    if capability_id in PAID_AGENT:
+        if settings.get("paid_agent_enabled") is not True:
+            return denied("POLICY_TIER_NOT_GRANTED",
+                          "TinyFish Agent is off; the owner turns it on once in customer_setup")
+    elif capability_id not in CORE:
+        return denied("POLICY_TIER_NOT_GRANTED", "initial product supports bounded research only")
     if not settings.get("network_enabled") or os.environ.get("MARKETOPS_RESEARCH_ALLOW_NETWORK") == "0":
         return denied("RESEARCH_NETWORK_DISABLED", "run local runtime configure first")
     if entry.provider not in settings.get("providers", ()):

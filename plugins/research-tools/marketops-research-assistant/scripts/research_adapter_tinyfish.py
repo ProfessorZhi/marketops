@@ -269,8 +269,8 @@ _SPEC = (
       "if_none_match", "if_modified_since", "include_etag_and_last_modified")),
 
     # --- Web automation: metered against the account wallet ----------------
-    ("run_web_automation", T3, "PAID_AGENT", True,
-     "EXPLICIT_HUMAN_AUTHORIZATION_PER_OPERATION",
+    ("run_web_automation", T2, "PAID_AGENT", True,
+     "OWNER_LOCAL_CONSENT_BOUNDED_BY_ACCOUNT_RED_LINE",
      _billing(True, "AGENT_STEPS_FROM_WALLET",
               "Upstream publishes no per-call step ceiling; our ceiling is a "
               "client-side assertion and is labelled as such."),
@@ -2404,8 +2404,9 @@ def execute(req, *, runner=None, advertised_tools=None, environ=None,
     if not entry[3]:
         return _blocked_result(capability_id, REASON_CAPABILITY_NOT_AVAILABLE,
                                tool=tool, entry=entry)
-    if entry[1] in (T2, T3, T4) and not info["grant_ref"]:
-        # §3.1: grant_ref is optional only for T0/T1. Requiring it here is not
+    if entry[1] in (T3, T4) and not info["grant_ref"]:
+        # grant_ref is required from T3 up (T2 runs under the owner's local
+        # consent, checked by runtime admission and the ledger). Requiring it is not
         # a policy decision — it is the adapter demanding evidence that Policy
         # already ran, which is exactly what "receives an authorized request"
         # means when no shared type exists to prove it.

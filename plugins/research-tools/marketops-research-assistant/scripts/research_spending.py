@@ -16,9 +16,10 @@ FREE = frozenset({("crawl4ai", "render"), ("crawl4ai", "extract"),
                   ("tinyfish", "search"), ("tinyfish", "fetch")})
 PROVIDERS = ("serper", "serpapi", "deepseek", "typesafe_jev", "tinyfish")
 MAX_AGE_SECONDS = 7 * 24 * 3600
-#: The total red line when the owner sets none: no research spends more than this
-#: across all accounts without the local setup saying so (--total-usd).
-DEFAULT_TOTAL_RED_LINE_USD = "500"
+#: No total cap unless the owner sets one (--total-usd): research is bounded by each
+#: account's red line, and by an account's own "out of credit" answer when its
+#: balance cannot be read. A cap is an option, not the default.
+DEFAULT_TOTAL_RED_LINE_USD = None
 #: Share of a balance research may use under the default red line (keeps 10%).
 DEFAULT_RED_LINE_FRACTION = "0.90"
 
@@ -139,8 +140,8 @@ def configure(root, *, confirm=False, fraction="0.90", total_usd=None,
             raise ValueError("LIMIT_INVALID")
         providers[name]["limit"] = str(value)
     if model == "RED_LINE" and total_usd is None:
-        # The account red lines bound spending; the total red line is a safety stop.
-        ceiling = _amount(DEFAULT_TOTAL_RED_LINE_USD)
+        # The account red lines bound spending; there is no total unless asked for.
+        ceiling = None
     settings["spending"] = {"mode": "MONEY", "model": model, "fraction": str(ratio),
         "started_at": datetime.now(timezone.utc).isoformat(), "start_rowid": watermark,
         "ledger_money_baseline": baseline_money,
@@ -166,7 +167,10 @@ def pricing_entries():
               ("serpapi", "search", 0, True, "observed_free_search_quota"),
               ("deepseek", "search", 750, False, "https://api-docs.deepseek.com/guides/search/"),
               ("deepseek", "fetch", 750, False, "https://api-docs.deepseek.com/guides/search/"),
-              ("typesafe_jev", "judge", 200000, False, "https://typesafe.ai/")]
+              ("typesafe_jev", "judge", 200000, False, "https://typesafe.ai/"),
+              # Reserve per Agent run (about 30 steps at the published step rate);
+              # the actual charge stays UNKNOWN until the wallet is read again.
+              ("tinyfish", "agent_run", 500000, False, "reserve: ~30 agent steps")]
     return [{"provider": p, "capability": c, "unit_micros": amount,
              "free_tier": free, "quota_unit": "requests", "quota_per_call": 1,
              "source": source, "version": "money-envelope-1", "observed_at": "2026-10-22T00:00:00+00:00", "verified": True}
@@ -206,7 +210,13 @@ def enforce(db, request, price, estimated, root):
                 f"{current['units']}. If the user wants more, marketops_costs(action='set_limit', "
                 "provider=..., limit=..., user_words=...)", dimension="limit")
         return
-    if provider.get("status") != "CONFIGURED" or not _fresh(observation.get("observed_at")):
+    if plan.get("model") == "RED_LINE" and provider.get("status") != "CONFIGURED":
+        # No balance reading, so no red line to keep: the account's own "out of
+        # credit" answer is the floor (provider health then routes around it).
+        # Refusing here stalled research with money in the account.
+        return
+    if plan.get("model") != "RED_LINE" and (
+            provider.get("status") != "CONFIGURED" or not _fresh(observation.get("observed_at"))):
         raise LedgerRefused(
             "BUDGET_PROVIDER_CEILING",
             "balance unknown/stale; keep the provider reserve. An account with no balance API can "
@@ -314,7 +324,7 @@ def _as_red_line(plan) -> None:
         elif entry.get("unit") == "USD":
             entry["limit"] = str(Decimal(entry.get("budget_micros", 0)) / 1_000_000)
     if plan.get("total_budget_micros") == sum(p.get("budget_micros", 0) for p in plan["providers"].values()):
-        plan["total_budget_micros"] = _amount(DEFAULT_TOTAL_RED_LINE_USD)
+        plan["total_budget_micros"] = None
 
 
 def _history(root, entry: dict) -> None:

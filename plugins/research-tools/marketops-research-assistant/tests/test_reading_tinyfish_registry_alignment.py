@@ -42,7 +42,7 @@ B_REGISTRY = {
     "tinyfish.get_monitor": ("T1", "ENABLED"),
     "tinyfish.list_monitors": ("T1", "ENABLED"),
     "tinyfish.list_browser_sessions": ("T1", "ENABLED"),
-    "tinyfish.run_web_automation": ("T3", "ENABLED"),
+    "tinyfish.run_web_automation": ("T2", "ENABLED"),
     "tinyfish.cancel_run": ("T4", "DISABLED"),
     "tinyfish.batch_cancel": ("T4", "DISABLED"),
 }

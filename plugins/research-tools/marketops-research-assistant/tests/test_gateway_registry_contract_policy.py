@@ -68,6 +68,21 @@ def registry():
     return registry_module.DEFAULT_REGISTRY
 
 
+def t3_ladder_registry():
+    """The shipped table with the TinyFish Agent put back at T3.
+
+    Since 2026-10-25 the public-page Agent is T2 under the owner's local consent.
+    The grant ladder still governs every T3 capability; this keeps a real
+    reviewed entry to exercise it with.
+    """
+    from dataclasses import replace
+    shipped = registry_module.DEFAULT_REGISTRY
+    entries = [shipped.get(summary.capability_id) for summary in shipped.list()]
+    entries = [replace(e, tier=Tier.T3) if e.capability_id == "tinyfish.run_web_automation"
+               else e for e in entries]
+    return registry_module.CapabilityRegistry(entries)
+
+
 class ContractTypeTests(unittest.TestCase):
     def test_tier_is_the_contracts_spelling_so_the_gateway_can_rank_it(self):
         self.assertEqual(str(Tier.T2), "T2")
@@ -225,15 +240,21 @@ class PolicyTests(unittest.TestCase):
         self.assertIs(decision.verdict, PolicyVerdict.DENY)
         self.assertEqual(decision.reason_code, "RESEARCH_NETWORK_DISABLED")
 
+    def test_the_public_page_agent_is_t2_and_needs_no_signed_grant(self):
+        decision = self.policy(allowed_domains=("example.com",)).evaluate(request(
+            "tinyfish.run_web_automation", {"url": "https://example.com/", "goal": "x"}))
+        self.assertIs(decision.effective_tier, Tier.T2)
+        self.assertIs(decision.verdict, PolicyVerdict.ALLOW)
+
     def test_a_t3_capability_without_a_grant_is_refused(self):
-        decision = self.policy().evaluate(request(
+        decision = self.policy(registry=t3_ladder_registry()).evaluate(request(
             "tinyfish.run_web_automation", {"url": "https://example.com/", "goal": "x"}))
         self.assertIs(decision.verdict, PolicyVerdict.DENY)
         self.assertEqual(decision.reason_code, "POLICY_TIER_NOT_GRANTED")
 
     def test_a_same_user_attestation_is_not_a_grant(self):
         table = {"gnt-synthetic-1": grant(factor="SAME_USER_CLI_ATTESTATION")}
-        decision = self.policy(grants=table).evaluate(request(
+        decision = self.policy(grants=table, registry=t3_ladder_registry()).evaluate(request(
             "tinyfish.run_web_automation", {"url": "https://example.com/", "goal": "x"},
             grant_ref="gnt-synthetic-1"))
         self.assertIs(decision.verdict, PolicyVerdict.DENY)
@@ -241,14 +262,14 @@ class PolicyTests(unittest.TestCase):
 
     def test_an_expired_grant_is_refused(self):
         table = {"gnt-synthetic-1": grant(expires_at=NOW - timedelta(seconds=1))}
-        decision = self.policy(grants=table).evaluate(request(
+        decision = self.policy(grants=table, registry=t3_ladder_registry()).evaluate(request(
             "tinyfish.run_web_automation", {"url": "https://example.com/", "goal": "x"},
             grant_ref="gnt-synthetic-1"))
         self.assertEqual(decision.reason_code, "POLICY_GRANT_EXPIRED")
 
     def test_a_separately_authenticated_t3_grant_is_allowed(self):
         table = {"gnt-synthetic-1": grant()}
-        decision = self.policy(grants=table).evaluate(request(
+        decision = self.policy(grants=table, registry=t3_ladder_registry()).evaluate(request(
             "tinyfish.run_web_automation", {"url": "https://example.com/", "goal": "x"},
             grant_ref="gnt-synthetic-1"))
         self.assertIs(decision.verdict, PolicyVerdict.ALLOW)

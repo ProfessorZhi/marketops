@@ -165,7 +165,7 @@ DEFAULT_REGISTRY = CapabilityRegistry((
     Capability("judge", "typesafe_jev", Tier.T2, "request", "read_only"),
     Capability("wallet_read", "tinyfish", Tier.T0, "request", "read_only"),
     Capability("usage_read", "tinyfish", Tier.T0, "request", "read_only"),
-    Capability("agent_run", "tinyfish", Tier.T3, "agent_step", "paid_automation"),
+    Capability("agent_run", "tinyfish", Tier.T2, "agent_step", "paid_automation"),
     Capability("browser_session", "tinyfish", Tier.T3, "session_minute", "paid_automation"),
     Capability("profile_read", "tinyfish", Tier.T4, "session", "authenticated_read"),
     Capability("monitor", "tinyfish", Tier.T4, "monitor_run", "recurring"),

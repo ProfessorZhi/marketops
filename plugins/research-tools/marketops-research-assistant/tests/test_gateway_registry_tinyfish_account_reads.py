@@ -64,7 +64,8 @@ BASELINE_25 = {
     "tinyfish.get_wallet": ("T0", "ENABLED", "OFFLINE_TESTED", "wallet_read"),
     "tinyfish.get_search_usage": ("T0", "ENABLED", "OFFLINE_TESTED", "usage_read"),
     "tinyfish.list_fetch_usage": ("T0", "ENABLED", "OFFLINE_TESTED", "usage_read"),
-    "tinyfish.run_web_automation": ("T3", "ENABLED", "CODED", "agent_run"),
+    # T2 since 2026-10-25: owner consent + TinyFish red line (was T3).
+    "tinyfish.run_web_automation": ("T2", "ENABLED", "CODED", "agent_run"),
     "tinyfish.cancel_run": ("T4", "DISABLED", "DEFERRED", None),
     "tinyfish.batch_cancel": ("T4", "DISABLED", "DEFERRED", None),
     "serpapi.search": ("T2", "ENABLED", "OFFLINE_TESTED", "search"),

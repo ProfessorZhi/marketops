@@ -1,4 +1,4 @@
-# MarketOps Research Assistant 0.5.11-rc13
+# MarketOps Research Assistant 0.5.11-rc14
 
 **Release candidate — 不是正式发行版。** 本包只用于 RC 验收；不得覆盖或重命名既有的
 0.5.5 ZIP，不得据此宣布正式发布。正式发布前仍需完成真实供应商费用与客户授权验收。
@@ -20,6 +20,21 @@ Claude Code 也可以从仓库的 marketplace 装插件：
 ```
 
 市场版只拷贝插件、不带运行时：先跑一次上面的安装器（或设 `MARKETOPS_RESEARCH_PYTHON`），否则不会出现 `marketops_*` 工具，会话开始时插件会提示缺什么。Windows 上市场版不能单独使用（MCP 用 `sh` 启动）。
+
+### 预算：只有红线，没有上限（0.5.11-rc14）
+
+默认不设请求次数上限、不设总金额上限。每个账户只保留一条红线（安装时余额的 10%），研究可以用到红线为止；
+读不到余额的账户（如 Jev）没有红线，用到它自己回答"额度用完"为止，之后自动换下一家，流程不停。
+需要总上限时在安装时输入美元数（或 `configure-money --total-usd`）。
+
+### TinyFish Agent 处理难站（0.5.11-rc14）
+
+安装时问一次是否允许 TinyFish 付费浏览器（按步计费，受 TinyFish 账户红线保护）。允许后：
+免费读取器都因技术原因（渲染、脚本）读不出的站点，`site_harvest` / `harvest_batch` 会自动排队交给 Agent；
+也可以直接 `marketops_hard_page(run_id, url, goal)`。Agent 一次可能跑几分钟，所以在后台运行，
+立即返回；`marketops_hard_pages(run_id)` 查看结果，页面文字作为材料保存（标注为供应商转述）。
+同一 URL 每个 Run 只提交一次；服务重启时在跑的任务记为 UNKNOWN，绝不重提。
+验证码页、403、登录资料、凭据库仍然不交给 Agent。
 
 ### 本机环境体检（0.5.11-rc13 新增）
 
