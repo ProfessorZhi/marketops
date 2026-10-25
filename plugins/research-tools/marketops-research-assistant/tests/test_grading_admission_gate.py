@@ -208,7 +208,9 @@ class DispositionAndVersionTests(GateCase):
         self.assertIn("venue-ok", [row["记录ID"] for row in
                                    read_sheet(result["directory"], "候选数据审计")])
 
-    def test_a_version_fork_admits_neither_branch(self):
+    def test_a_version_fork_is_resolved_and_reported_not_dropped(self):
+        # Owner decision 2026-10-25: a fork used to drop the entity and everything
+        # bound to it (Paris: a re-read cost 114 routes). One version now wins.
         self.put("venue-left", "venue", "forked-venue",
                  {"name": "Riverside Works",
                   "claims": [{"field": "identity", "artifact_id": "page-a",
@@ -218,15 +220,11 @@ class DispositionAndVersionTests(GateCase):
                   "claims": [{"field": "identity", "artifact_id": "page-a",
                               "quote": VENUE_QUOTE}]}, ["page-a"])
         result = self.deliver()
-        self.assertEqual(0, result["counts"]["场地与资产"])
-        self.assertEqual(1, result["version_conflict_count"])
-        self.assertEqual(2, result["admission"]["version_conflict_record_count"])
-        self.assertEqual({"venue-left", "venue-right"},
-                         set(result["admission"]["version_conflict_record_ids"]))
-        self.assertEqual("HELD_ROWS_EXCLUDED_FROM_CLIENT_TABLES",
-                         result["admission_status"])
+        self.assertEqual(0, result["version_conflict_count"])
+        self.assertEqual(1, result["version_forks_resolved"])
+        self.assertEqual(0, result["admission"]["version_conflict_record_count"])
         issues = read_sheet(result["directory"], "排除与待确认")
-        self.assertIn("候选版本冲突", {row["类型"] for row in issues})
+        self.assertIn("候选版本已合并", {row["类型"] for row in issues})
 
 
 class SampleWindowTests(GateCase):

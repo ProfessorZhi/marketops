@@ -33,7 +33,7 @@ from research_event_journal import _root, append_event, append_note
 from research_experience_summary import refresh_quietly as refresh_summary
 from _xlsx import Sheet, render_workbook
 
-VERSION = "0.5.11-rc14"
+VERSION = "0.5.11-rc15"
 EMAIL = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 FORMULA = ("=", "+", "-", "@")
 NAMESPACE = {"x": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
@@ -744,10 +744,12 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
     # before any business row is built, so a row's status can never be computed
     # from a partial list, and each issue carries its subject's entity key and
     # record id explicitly instead of comparing one against the other.
-    conflict_ids = {rid for conflict in version_conflicts
-                    for rid in conflict.get("record_ids", ())}
+    # A resolved fork already chose its live version; only an unresolved one
+    # holds records (and a forked review's target) out of the client sheets.
+    unresolved = [c for c in version_conflicts if not c.get("resolved_to")]
+    conflict_ids = {rid for conflict in unresolved for rid in conflict.get("record_ids", ())}
     conflict_records = [r for r in records if r["record_id"] in conflict_ids]
-    admission = evaluate_admission(effective, assets, links, version_conflicts,
+    admission = evaluate_admission(effective, assets, links, unresolved,
                                    conflict_records=conflict_records)
     by_id = {r["record_id"]: r for r in effective}
     admitted_by_kind: dict[str, list[dict]] = defaultdict(list)
@@ -797,8 +799,14 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
                        "reason": reason, "action": action})
 
     for item in version_conflicts:
+        if item.get("resolved_to"):
+            add_issue("候选版本已合并", item["entity_key"],
+                      f"同一实体有多个未接成 supersedes 链的读数；按引用最多、材料最多、最新选用 "
+                      f"{item['resolved_to']}，其余（" + ", ".join(item["record_ids"][:8]) + "）只在审计表",
+                      "可抽查选用的版本；无需更正即可交付", entity_key=item["entity_key"])
+            continue
         add_issue("候选版本冲突", item["entity_key"],
-                  "同类实体存在未能形成唯一 supersedes 链的版本：" +
+                  "同类实体存在无法确定当前版本的记录（循环引用）：" +
                   ", ".join(item["record_ids"][:8]),
                   "先追加具名更正或人工核对；冲突版本不进入主业务表",
                   entity_key=item["entity_key"])
@@ -1084,7 +1092,8 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
         "status": "PARTIAL_CANDIDATE_ONLY_NOT_FORMAL_CONTACTS",
         "counts": {name: len(collected[name]) for name, _ in TABLES},
         "input_record_count": len(records), "active_record_count": len(effective),
-        "version_conflict_count": len(version_conflicts),
+        "version_conflict_count": sum(1 for c in version_conflicts if not c.get("resolved_to")),
+        "version_forks_resolved": sum(1 for c in version_conflicts if c.get("resolved_to")),
         "saved_artifact_count": len(artifacts),
         "evidence_hash_readback": "ALL_OK", "business_verification": "NOT_PERFORMED",
         "send_authorized": False,

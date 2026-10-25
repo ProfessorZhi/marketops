@@ -81,7 +81,7 @@ class ActiveWorkbookTests(unittest.TestCase):
                 json.dumps(["art-1"]),
                 datetime.now(timezone.utc).isoformat()))
 
-    def test_fork_kept_in_audit_but_neither_branch_exported(self):
+    def test_fork_kept_in_audit_and_one_branch_is_live(self):
         store.put_candidate(self.root, self.run_id, "venue-branch1", "entities",
                             "venue", "sample-venue", {
                                 "name": "Branch One", "supersedes": "venue-v1",
@@ -90,14 +90,15 @@ class ActiveWorkbookTests(unittest.TestCase):
         _, records, _ = delivery._read_snapshot(self.root, self.run_id)
         active, conflicts = workflow.active_records(records)
         self.assertEqual(1, len(conflicts))
-        self.assertFalse(any(row["kind"] == "venue" for row in active))
+        self.assertTrue(conflicts[0]["resolved_to"])
+        self.assertEqual(1, sum(row["kind"] == "venue" for row in active))
         result = delivery.write_delivery(self.root, self.run_id, "delivery-conflict")
-        self.assertEqual(0, result["counts"]["场地与资产"])
-        self.assertEqual(1, result["version_conflict_count"])
+        self.assertEqual(0, result["version_conflict_count"])
+        self.assertEqual(1, result["version_forks_resolved"])
         folder = Path(result["directory"])
         with (folder / "排除与待确认.csv").open(encoding="utf-8-sig", newline="") as f:
             issues = list(csv.DictReader(f))
-        self.assertIn("候选版本冲突", repr(issues))
+        self.assertIn("候选版本已合并", repr(issues))
         with (folder / "候选数据审计.csv").open(encoding="utf-8-sig", newline="") as f:
             audit = list(csv.DictReader(f))
         self.assertEqual(3, sum(r["对象类型"] == "venue" for r in audit))

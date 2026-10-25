@@ -66,6 +66,15 @@ Tag each source: `marketops_pool_import(..., family='OPERATORS' | 'CLUBS_ASSOCIA
 does not apply: `marketops_method(method=<family>, outcome='not_applicable', note=...)`.
 A brief can narrow the list with `target_families:[...]` when the user limited the scope.
 
+**Follow the vein that pays.** When a source shows `PROMOTE` in `source_yield` (for example a
+committee's officer directory that prints name, role and email on one page), its *kind* is
+the lead, not just that page: search right away for every sibling of the same kind in the
+area (the other sports' committees, the other districts' directories, the same CMS template
+on other sites: `"organigramme" comité <sport> <département>`, `site:<federation domain>
+annuaire`) and import them as new sources. In the Paris run four such pages gave almost all
+named A/B people while 700 venue rows gave none. A source at 0 after its 30-target pilot is
+stopped, and no more targets of that kind are imported.
+
 **Map who runs each venue.** When the source has operator/manager and owner fields, map
 them as `operator`, `operator_type` and `owner_type`.
 - Contacts sit with the operator: the municipality's sports department for public
