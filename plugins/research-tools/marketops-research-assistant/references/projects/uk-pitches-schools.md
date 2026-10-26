@@ -50,3 +50,22 @@
 |---|---|---|---|
 | Bruce, pitchfinder batches 0078-0082 | 344 accounts | - | plugin 0.6.0 passed all criteria (11.3 A+B routes per 100) |
 | Bruce, GB deep research | 7,638 rows (32 columns) | sendable 5,137 / 4,978 unique addresses | - |
+
+## From his own instructions (supplement)
+
+- Build the England pitch pool from the official register first; do not start with email lookup
+  and do not batch-crawl clubs.
+- Research the operating body rather than the pitch: grounds / estates / facilities / venue
+  operations leads.
+- Artificial turf is in scope from 2026-09-21 ("只要是户外的运动场都可以"), which reverses the
+  2026-09-03 exclusion ("排除人造草坪，室内场景"): outdoor artificial-turf pitches count, indoor sites
+  do not.
+- A/B/C/D all mean "a researched, follow-up-valid route"; D stays in the table and is marked,
+  never relabelled as a named contact.
+- One pipeline end to end, not four parallel process variants; classify into the delivery table
+  at the end. Complexity alone was named as the cause of low throughput (2026-09-21).
+
+### Outreach (not this plugin)
+
+- When counting effective replies, apply his 16-type exclusion list; a reply that names a
+  replacement contact is a routing event, not just a reply.

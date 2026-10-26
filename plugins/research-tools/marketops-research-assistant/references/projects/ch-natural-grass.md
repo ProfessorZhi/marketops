@@ -31,3 +31,14 @@
 |---|---|---|---|
 | Bruce | - | 61% of organisations | breadth target for the plugin |
 | Plugin 0.6.1 | - | 34% | 134.1 A+B routes per 100 organisations |
+
+## From his own instructions (supplement)
+
+- Research and sending are fully separated: no send history, no sendability decision, no queue,
+  no sending. The output is "researched-valid email", never "sendable" or "net new sendable".
+- A person's name is not required: role plus a work mailbox is a route.
+- 20 pages per batch by default, scaled only after the output is checked.
+- Authorise once. After the pool is read, pre-check, mirroring and the batch start without a
+  second confirmation request.
+- "Valid address" was redefined three times and each redefinition forced a full rerun: settle it
+  in the brief.

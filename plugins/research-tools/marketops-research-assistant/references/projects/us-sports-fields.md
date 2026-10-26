@@ -45,3 +45,18 @@
 | Run | Accounts | Result | Time |
 |---|---|---|---|
 | Bruce, non-golf B002 | 25 | 102 account-level routes, 15 qualified | 19.33 min |
+
+## From his own instructions (supplement)
+
+- Schools and baseball are separate pools with separate copy.
+- A named athletic director is the P1 target; a role mailbox is a valid route but is graded as
+  one, with visible binding (a name or a department on the same card or section).
+
+### Outreach (not this plugin)
+
+- Before baseball copy goes out, check which addresses the school campaign already touched.
+- Bulk send: record the exception and skip it, keep the wave running to the end, then retry the
+  failures. The US batch ran at 20:10 local.
+- Reply monitoring stays in the sending thread; it is not a new thread.
+- Every sending rule that gets fixed must be pushed to all sending threads, including threads
+  opened later.

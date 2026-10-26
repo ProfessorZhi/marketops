@@ -33,3 +33,17 @@
 - One city address was listed for 278 organisations: organisations are not inboxes - count
   both.
 - A gzip response not decompressed gave 0 links on 8 big city sites with HTTP 200.
+
+## From his own instructions (supplement)
+
+- The 16 Länder run as parallel sub-threads under one main agent, not one long serial run.
+- Do not recreate an existing skill, and do not start live research until he approves it.
+- Anything needing his decision is batched into one numbered list in the thread and answered in
+  one reply.
+
+### Outreach (not this plugin)
+
+- On error: record, skip, continue; report to the thread; retry after the wave.
+- Reply-monitoring interval moved between 2 h, 3 h, 6 h and 12 h; the latest is 12 h
+  (2026-09-16). It is a setting, and he changes it often.
+- A replacement contact named in a reply is itself a new route and is sent to as well.
