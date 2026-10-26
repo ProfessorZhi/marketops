@@ -24,8 +24,10 @@ SEARCH_ENGINES = ("serper", "serpapi", "deepseek", "tinyfish")
 READERS = ("crawl4ai", "tinyfish", "deepseek")
 # Share of calls each provider takes part in (brief.providers overrides). The rest is held
 # back and called only when the chosen ones come back weak - never at the cost of results.
-DEFAULT_WEIGHTS = {"search": {"deepseek": 1.0, "tinyfish": 1.0, "serper": 0.6, "serpapi": 0.2},
-                   "fetch": {"crawl4ai": 1.0, "tinyfish": 1.0, "deepseek": 0.6}}
+# DeepSeek, TinyFish search/fetch, Crawl4AI and Jev are cheap and plentiful: always on.
+# Serper and SerpApi cost per search: a share. The paid TinyFish Agent is opt-in only.
+DEFAULT_WEIGHTS = {"search": {"deepseek": 1.0, "tinyfish": 1.0, "serper": 0.5, "serpapi": 0.3},
+                   "fetch": {"crawl4ai": 1.0, "tinyfish": 1.0, "deepseek": 1.0}}
 
 
 def pick(key: str, available: list[str], weights: dict | None, always: tuple = ()) -> tuple[list, list]:

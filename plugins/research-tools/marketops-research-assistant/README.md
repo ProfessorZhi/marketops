@@ -45,7 +45,7 @@
 ## 0.6.2 更新
 
 - 多 agent 并行：`tasks` 队列加子 agent `marketops-worker`；`run(shards=N)` 把机构池切给 N 个进程并行跑；项目文件带跨进程锁，多个进程和 agent 同时写也不会写坏。
-- 供应商权重：`brief.providers` 设各家参与比例（默认 搜索 DeepSeek/TinyFish 全开、Serper 0.6、SerpApi 0.2；读页 Crawl4AI/TinyFish 全开、DeepSeek 0.6）；抽到的几家结果单薄时自动补上其余几家，不漏信息。Crawl4AI 始终参与。
+- 供应商权重：`brief.providers` 设各家参与比例（默认：DeepSeek、TinyFish 搜索与读页、Crawl4AI、Jev 放开用；Serper 0.5、SerpApi 0.3；付费的 TinyFish Agent 只在明确开启时用，每轮最多 20 页）；抽到的几家结果单薄时自动补上其余几家，不漏信息。Crawl4AI 始终参与。
 - Jev 给深挖线索排优先级（只排序不删）；评级 8 路并行；单进程默认同时 12 家机构，本地浏览器最多 10 个标签页。
 
 - 广度优先：头条改为"有 A+B 的机构占比"，另报每机构最多计 3 条的路线数；同一人两个地址计一条。

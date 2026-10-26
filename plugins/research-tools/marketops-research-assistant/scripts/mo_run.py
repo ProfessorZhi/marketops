@@ -30,6 +30,7 @@ import mo_pages
 import mo_providers
 import mo_workspace as ws
 
+AGENT_PAGES_PER_ROUND = 20  # the paid TinyFish Agent: only with agent=True, and sparingly
 DEFAULT_TERMS = ["contact email", "staff team board committee", "facilities grounds manager"]
 DEFAULT_DIRECTORY_TERMS = ["association member list", "federation clubs", "directory contact"]
 
@@ -234,7 +235,7 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
             gap_ids = {str(o.get("id") or o.get("org_id") or "") for o in gaps}
             names = {str(o.get("id") or o.get("org_id") or ""): o.get("name", "") for o in gaps}
             stage("agent", round=rnd)
-            for oid, url in _button_pages(pdir, gap_ids)[:50]:
+            for oid, url in _button_pages(pdir, gap_ids)[:AGENT_PAGES_PER_ROUND]:
                 try:
                     ws.browse(pdir, url, org_id=oid, org=names.get(oid, ""))
                 except Exception:  # noqa: BLE001

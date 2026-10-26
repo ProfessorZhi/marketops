@@ -111,9 +111,12 @@ parallel work; quality stays: every address is kept with its quote, nothing is d
 
 ## Provider weights
 
-`brief.providers` sets how often each provider takes part, e.g.
-`{"search": {"deepseek": 1, "tinyfish": 1, "serper": 0.6, "serpapi": 0.2},
-  "fetch": {"crawl4ai": 1, "tinyfish": 1, "deepseek": 0.6}}` (these are the defaults).
+`brief.providers` sets how often each provider takes part. Defaults:
+`{"search": {"deepseek": 1, "tinyfish": 1, "serper": 0.5, "serpapi": 0.3},
+  "fetch": {"crawl4ai": 1, "tinyfish": 1, "deepseek": 1}}` - DeepSeek, TinyFish search and
+fetch, Crawl4AI and Jev are cheap: use them freely. Serper and SerpApi cost per search: a
+share. The TinyFish Agent (`browse`, `run(agent=True)`) is paid per step: use it only for
+pages nothing else can read or whose addresses hide behind buttons, and say so to the user.
 Held-back providers are still called when the chosen ones come back thin (few search results,
 a page nobody could read, a contact page with no address), so weights save cost without
 losing results. Crawl4AI always reads (it keeps the page structure that binds names to
