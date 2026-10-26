@@ -90,8 +90,8 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: 
         todo = todo[:limit]
     fields = ["grade", "graded_by", "grade_reason", "review", "review_reason"]
     # Addresses the brief grades by their name alone (brief.address_rules, e.g. {"info": "X"}):
-    # no Jev call. The same address with the same text around it (one portal page read for
-    # many organisations) is graded once; earlier grades of it are reused.
+    # no Jev call. The same address with the same text around it for the same organisation is
+    # graded once; earlier grades of it are reused.
     known = {} if regrade else {_same(r): r for r in rows if r.get("graded_by") == "jev" and r.get("grade")}
     by_rule, reused, first, copies = [], [], {}, []
     for r in todo:
@@ -171,6 +171,10 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: 
                     why.append(f"unsure grade (p={prob:.2f})")
                 if shared >= SHARED_REVIEW:
                     why.append(f"address also listed for {shared} other organisations")
+                elif shared and not mentions(r.get("org", ""), r.get("quote", "")):
+                    # the same address under two organisations and neither named next to it:
+                    # whose route it is was not read from the page, so a person decides
+                    why.append("address also listed for another organisation, this one not named next to it")
                 if r.get("page_on_org_site") == "no" and not mentions(r.get("org", ""), r.get("quote", "")):
                     why.append("page on another site, organisation not named next to it")
                 elif (r.get("page_on_org_site") == "unknown" and r.get("email_on_org") not in ("yes", "likely")
@@ -236,8 +240,11 @@ def yes(a):
 
 
 def _same(r: dict) -> tuple:
-    """One address seen in the same text (wherever it was found) gets the same grade."""
-    return r.get("value", "").lower(), " ".join(str(r.get("quote") or "").split()).lower()
+    """One address seen in the same text for the same organisation gets the same grade. The
+    organisation is part of the key: the question names it and asks whether the page is its own,
+    so a grade given for one organisation is not a grade for another."""
+    return (str(r.get("org_id") or ""), r.get("value", "").lower(),
+            " ".join(str(r.get("quote") or "").split()).lower())
 
 
 def _segments(quote: str) -> list[str]:
