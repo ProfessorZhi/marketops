@@ -1,4 +1,4 @@
-# MarketOps Research Assistant 0.6.2
+# MarketOps Research Assistant 0.6.3
 
 调研插件：从公开数据集到场地池、机构池，再到带证据、已评级的联系人，最后交付一张 Excel。
 给 Claude Code 用。插件只提供能力，流程由 agent 自己掌握。
@@ -41,6 +41,10 @@
 
 项目文件夹就是普通文件（`~/MarketOps/<项目>/`）：`brief.json`、`venues.csv`、`orgs.csv`、
 `contacts.csv`、`crawl.csv`、`pages/`、`costs.jsonl`。agent 和人都可以直接打开、修改，断了接着跑。
+
+## 0.6.3 更新
+
+- 池子是所有来源的并集：`pool` 对每个来源调用一次（开放数据、各联合会俱乐部名单、地图结果、协会名录、自己整理的名单），同一场馆（名称 + 邮编/城市）或同一机构（官网，否则名称 + 城市；一方缺城市时同名唯一即合并）跨来源合成一行，空字段互相补齐，`sources` 列出全部来源；名字差太多的交给 `judge` 判断是否同一家。
 
 ## 0.6.2 更新
 

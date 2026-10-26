@@ -238,7 +238,10 @@ def pool(project: str, file: str, into: str = "venues", filters: dict | None = N
     "operator": "equip_gest_nom"}; without map all columns are kept. into: venues (default) or
     orgs. group_by: a file column (e.g. the operator or owner) - each distinct value becomes an
     organisation in orgs.csv, its venues linked by org_id; org_fields: {orgs column: file column}
-    to carry e.g. city or website. Appends; returns the file's columns so you can map them.
+    to carry e.g. city or website. Call it once per source (open data, federation lists, maps
+    results saved as CSV, your own lists): the pools are the union of all of them - the same
+    venue or organisation from two sources becomes one row with both sources and the fields
+    of both. Returns the file's columns so you can map them.
     """
     try:
         return mo_pool.pool(ws.project_dir(project), file, into, filters, map, group_by, org_fields)

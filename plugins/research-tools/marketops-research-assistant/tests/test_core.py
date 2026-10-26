@@ -17,6 +17,7 @@ for k in ("SERPER_API_KEY", "SERPAPI_API_KEY", "DEEPSEEK_API_KEY", "TINYFISH_API
     os.environ.pop(k, None)
 
 import mo_pages  # noqa: E402
+from mo_pool import norm as norm_name  # noqa: E402
 import mo_providers  # noqa: E402
 import mo_run  # noqa: E402
 import mo_workspace as ws  # noqa: E402
@@ -238,6 +239,31 @@ class Reach(unittest.TestCase):
         self.assertEqual("Paris", orgs["Club C"]["city"])
         self.assertEqual(0, server.pool("t8", "pages/res.json", filters={"dep": "75"},
                                         map={"id": "equip_numero", "name": "equip_nom"}, group_by="gest")["added"])
+
+    def test_pools_are_the_union_of_sources(self):
+        pdir = ws.project_dir("t12")
+        (pdir / "pages" / "a.json").write_text(json.dumps([
+            {"n": "Gymnase Élisabeth", "cp": "75014", "op": "Ville de Paris"},
+            {"n": "Salle Pierre", "cp": "75011", "op": "Club Pierre"}]), encoding="utf-8")
+        (pdir / "pages" / "b.csv").write_text("nom;code;gestion;site\nGYMNASE ELISABETH;75014;Ville de Paris;\n"
+                                              "Escalade Bloc;75019;Bloc SAS;https://bloc.fr\n", encoding="utf-8")
+        server.pool("t12", "pages/a.json", map={"name": "n", "postcode": "cp", "operator": "op"}, group_by="op")
+        out = server.pool("t12", "pages/b.csv", map={"name": "nom", "postcode": "code", "operator": "gestion",
+                                                      "website": "site"}, group_by="gestion")
+        self.assertEqual((1, 1), (out["added"], out["merged_with_existing"]))   # Élisabeth = ELISABETH
+        venues = ws.read_csv(pdir / "venues.csv")
+        self.assertEqual(3, len(venues))
+        eli = next(v for v in venues if "lisabeth" in v["name"])
+        self.assertEqual("pages/a.json|pages/b.csv", eli["sources"])
+        orgs = {o["name"]: o for o in ws.read_csv(pdir / "orgs.csv")}
+        self.assertEqual(3, len(orgs))                                           # Ville de Paris once
+        (pdir / "pages" / "c.csv").write_text("name,website,city\nBLOC SAS,,Paris\nClub Pierre,https://pierre.fr,\n",
+                                              encoding="utf-8")
+        server.pool("t12", "pages/c.csv", into="orgs")
+        orgs = {o["name"]: o for o in ws.read_csv(pdir / "orgs.csv")}
+        self.assertEqual("https://pierre.fr", orgs["Club Pierre"]["website"])  # filled by the new source
+        self.assertEqual(3, len(orgs))                                           # BLOC SAS = Bloc SAS
+        self.assertEqual("Paris", next(o for o in orgs.values() if norm_name(o["name"]) == "bloc sas")["city"])
 
     def test_stop_without_a_run_says_so(self):
         self.assertFalse(server.run("t9", stop=True)["stopped"])

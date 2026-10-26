@@ -46,8 +46,13 @@ Keep going until the job is done; do not stop to ask whether to continue.
    association club lists, national registers, `search(..., maps=True)` per district. `fetch`
    a data URL saves the file in `pages/`; `pool(project, "pages/<file>", filters=...,
    map=..., group_by=<operator column>)` turns it into `venues.csv` and `orgs.csv` (it
-   returns the file's columns so you can map them; call it again per slice or file - it
-   appends). Use `judge` for in/out of scope at volume instead of dropping rows.
+   returns the file's columns so you can map them). **The pools are the union of every
+   source**: call `pool` for each one - the open-data register, each federation's club list,
+   maps results, the city's association directory, lists you write yourself (save them as
+   CSV in `pages/`, `into="orgs"` for organisations). The same venue or organisation from two
+   sources becomes one row with both sources and the fields of both. Names too different to
+   match: `judge(project, "orgs.csv", "Is this the same organisation as ...?", ...)`. Use
+   `judge` for in/out of scope at volume instead of dropping rows.
 
 3. **Organisation pool (`orgs.csv`, columns `id,name,website,...`).** Who runs each venue:
    the municipality's sports/property department for public venues, the club, school,
