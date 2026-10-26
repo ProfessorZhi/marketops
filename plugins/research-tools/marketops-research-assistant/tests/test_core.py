@@ -22,6 +22,7 @@ import mo_providers  # noqa: E402
 import mo_run  # noqa: E402
 import mo_workspace as ws  # noqa: E402
 real_race = mo_providers.read_race
+ws._dns_ok[:] = [False]   # test domains are made up: no DNS pre-check unless a test asks for it
 import server  # noqa: E402
 
 CLUB = """<html><head><title>FC Beispiel</title><script>var x='a@b.ch'</script></head><body>
@@ -548,6 +549,21 @@ class Supervision(unittest.TestCase):
         items = server.needs_you(pdir, {"accounts": {}})
         self.assertTrue(items[0].startswith("1. Set country and language"))
         self.assertTrue(any("1 A/B rows are marked review" in i for i in items))
+
+
+class DeadSites(unittest.TestCase):
+    def test_a_domain_that_does_not_resolve_is_not_read(self):
+        import socket
+        pdir = ws.project_dir("t43")
+        ws._dns_ok[:] = [True]
+        try:
+            with mock.patch.object(socket, "getaddrinfo", side_effect=OSError("no such host")), \
+                 mock.patch("time.sleep"), \
+                 mock.patch.object(mo_providers, "read_race", side_effect=AssertionError("read a dead site")):
+                row = ws._crawl_one(pdir, {"id": "o1", "name": "X", "website": "https://gone.example"}, 4, None, None, "site")
+        finally:
+            ws._dns_ok[:] = [False]
+        self.assertEqual("no_dns", row["status"])
 
 
 class Reconcile(unittest.TestCase):
