@@ -176,11 +176,13 @@
 | 全部 rollout jsonl（sessions + archived） | 2,711 | `grep -oahE '\bI[0-9]{9}\b' \| sort -u` | — |
 | `thread_history_1.sqlite`（`immutable=1` 只读） | 2,708 | 遍历 `thread_items` 全列正则 | — |
 | WorkBuddy 全树 jsonl | 3 | 同上 | — |
-| **三者并集** | **2,714** | 排序去重 | 三条读数互相印证 |
+| `workbuddy.db`（`immutable=1` 只读，10 张表全扫） | 0 | 同上 | 该库只存会话元数据与用量 |
+| **四者并集** | **2,714** | 排序去重 | 四条读数互相印证 |
 | **带分级表的 63 个 rollout**，即法国族范围 | **1,874** | 先按 `role_priority` 选文件，再取 id 并集 | **判据 2 成立（≥1,000）** |
 
 **一处必须更正的数**：初稿写过「12,927 个去重 `account_id`」，这个数**不可复现**。
-全语料（含 1.93 GB 的 `thread_history`）唯一 `I` + 9 位数字的标识符上限就是 **2,714**；
+四个存储位置（codex rollout、codex `thread_history` 1.93 GB、WorkBuddy jsonl、`workbuddy.db`）
+全部扫过，唯一 `I` + 9 位数字的标识符上限就是 **2,714**；
 在语料里搜字面 `12927` 的全部命中，都是经纬度 `52.412927` 这类子串。
 所以 12,927 既不是账户数、也不是机构数，已从本文件删除。
 
