@@ -82,7 +82,7 @@ class Flow(unittest.TestCase):
         rows = ws.read_csv(ws.project_dir("t1") / "contacts.csv")
         self.assertEqual(1, sum(r["value"] == "praesident@fc-beispiel.ch" for r in rows))
         self.assertEqual("D", next(r for r in rows if r["value"] == "info@fc-beispiel.ch")["grade"])
-        self.assertEqual(2, len(list((ws.project_dir("t1") / "pages").iterdir())))
+        self.assertGreaterEqual(len(ws.read_csv(ws.project_dir("t1") / "pages.csv")), 2)
 
     def test_crawl_grade_export_end_to_end(self):
         pdir = ws.project_dir("t2")
@@ -135,8 +135,31 @@ class Reach(unittest.TestCase):
                 mock.patch.object(mo_providers, "public_url", side_effect=lambda u: u):
             server.fetch("t4", "https://fc-beispiel.ch/", org_id="o1", org="FC")
             again = server.fetch("t4", "https://fc-beispiel.ch/", org_id="o1", org="FC")
-        self.assertEqual(1, read.call_count)
+        self.assertLessEqual(read.call_count, 1)  # 0 when an earlier test already put it in the library
         self.assertTrue(all(v.get("cached") for v in again["readers"].values()))
+
+    def test_a_new_project_reuses_the_library(self):
+        with mock.patch.object(mo_providers, "read", side_effect=fake_read) as read, \
+                mock.patch.object(mo_providers, "public_url", side_effect=lambda u: u):
+            server.fetch("lib-a", "https://club-lib.ch/kontakt", org_id="o1", org="Club")
+            out = server.fetch("lib-b", "https://club-lib.ch/kontakt", org_id="x9", org="Club")
+        self.assertEqual(1, read.call_count)                       # the second project read nothing
+        self.assertTrue(all(v.get("cached") == "library" for v in out["readers"].values()))
+        rows = ws.read_csv(ws.project_dir("lib-b") / "contacts.csv")
+        self.assertTrue(rows and all(r["last_verified"] for r in rows))  # dated from the page read
+
+    def test_search_answers_are_reused(self):
+        os.environ["TINYFISH_API_KEY"] = "k" * 10
+        try:
+            calls = []
+            with mock.patch.dict(mo_providers._SEARCH, {"tinyfish": lambda *a: calls.append(a) or
+                                                        [{"url": "https://a.ch/", "title": "A"}]}), \
+                    mock.patch("mo_budget.allowed", return_value=(True, "")):
+                mo_providers.search("unique query 42", ["tinyfish"])
+                mo_providers.search("unique query 42", ["tinyfish"])
+            self.assertEqual(1, len(calls))
+        finally:
+            os.environ.pop("TINYFISH_API_KEY")
 
     def test_run_digs_the_gaps_and_exports(self):
         pdir = ws.project_dir("t5")
@@ -151,19 +174,115 @@ class Reach(unittest.TestCase):
             return fake_read(url)
         hits = {"results": [{"url": "https://sc-leer.ch/vorstand", "title": "SC Leer Vorstand", "found_by": ["serper"]}],
                 "routes": {}}
+
+        def fake_grade(p, **k):
+            with ws._lock(p / "contacts.csv"):  # like the real grader: write under the file lock
+                rows = ws.read_csv(p / "contacts.csv")
+                for r in rows:
+                    if not r.get("grade"):
+                        r["grade"] = {"praesident@fc-beispiel.ch": "A", "platz@sc-leer.ch": "B"}.get(r["value"], "C")
+                        r["graded_by"] = "jev"
+                ws.write_csv(p / "contacts.csv", ws.CONTACT_COLS, rows)
+            return {}
         with mock.patch.object(mo_providers, "read", side_effect=read), \
                 mock.patch.object(mo_providers, "public_url", side_effect=lambda u: u), \
                 mock.patch.object(mo_providers, "search", return_value=hits), \
-                mock.patch("mo_grade.auto", side_effect=lambda p, **k: server.grade(
-                    "t5", set=[{"value": "praesident@fc-beispiel.ch", "grade": "A"},
-                               {"value": "platz@sc-leer.ch", "grade": "B"}]) if (p / "contacts.csv").exists() else {}):
+                mock.patch("mo_grade.auto", side_effect=fake_grade):
             state = mo_run.run_sync(pdir, rounds=2, workers=2)
         values = {r["value"] for r in ws.read_csv(pdir / "contacts.csv")}
-        self.assertIn("platz@sc-leer.ch", values)  # found only by the deep round
+        self.assertIn("platz@sc-leer.ch", values)  # found only by digging
         self.assertTrue(state["done"])
         self.assertEqual(100.0, state["result"]["ab_org_share"])
-        self.assertIn("every organisation", state["stopped_because"])
+        self.assertEqual(2, state["progress"]["flow"]["done"])
         self.assertTrue(Path(state["export"]["file"]).exists())
+        self.assertEqual(2, sum(r.get("pass") == "final" for r in ws.read_csv(pdir / "crawl.csv")))
+        with mock.patch("mo_run._Grader.grade_now"):  # resume: finished organisations are skipped
+            again = mo_run.run_sync(pdir, rounds=2, workers=2)
+        self.assertEqual(2, again["progress"]["flow"]["done"])
+
+    def test_evidence_scores_but_never_drops(self):
+        import mo_evidence
+        strong = {"quote_from": "block", "page_on_org_site": "yes", "email_site": "fc.ch", "person": "A B",
+                  "role": "Präsident", "found_by": "crawl4ai+tinyfish", "grade_reason": "jev A conf 0.90"}
+        weak = {"quote_from": "lines", "page_on_org_site": "no", "email_site": "gmail.com", "found_by": "deepseek"}
+        self.assertEqual("strong", mo_evidence.score(strong, "fc.ch", 0)[1])
+        pts, level, why = mo_evidence.score(weak, "fc.ch", 2)
+        self.assertEqual("weak", level)
+        self.assertIn("other organisations", why)
+        pdir = ws.project_dir("t11")
+        ws.write_csv(pdir / "contacts.csv", ws.CONTACT_COLS, [{"org_id": "o1", "kind": "email", "value": "x@gmail.com",
+                                                                "grade": "B", **weak}])
+        out = server.export("t11")
+        self.assertEqual(1, out["contacts"])  # the weak row is delivered, marked weak
+
+    def test_glued_phone_digits_are_cut(self):
+        page = mo_pages.from_html("<p>Tel 079 123 83 10praesident@fc.ch</p><p>2go@fc.ch</p>", "https://fc.ch/")
+        values = [c["value"] for c in mo_pages.contacts(page["lines"], "https://fc.ch/", mailtos=page["mailtos"])
+                  if c["kind"] == "email"]
+        self.assertEqual(["praesident@fc.ch", "2go@fc.ch"], values)
+
+    def test_pool_builds_venues_and_orgs_from_a_data_file(self):
+        pdir = ws.project_dir("t8")
+        (pdir / "pages" / "res.json").write_text(json.dumps({"results": [
+            {"equip_numero": "1", "equip_nom": "Gymnase A", "dep": "75", "gest": "Ville de Paris", "com": "Paris"},
+            {"equip_numero": "2", "equip_nom": "Gymnase B", "dep": "75", "gest": "Ville de Paris", "com": "Paris"},
+            {"equip_numero": "3", "equip_nom": "Salle C", "dep": "75", "gest": "Club C", "com": "Paris"},
+            {"equip_numero": "4", "equip_nom": "Salle D", "dep": "92", "gest": "Club D", "com": "Nanterre"}]}),
+            encoding="utf-8")
+        out = server.pool("t8", "pages/res.json", filters={"dep": "75"},
+                          map={"id": "equip_numero", "name": "equip_nom", "operator": "gest"},
+                          group_by="gest", org_fields={"city": "com"})
+        self.assertEqual((4, 3, 3, 2), (out["read"], out["kept"], out["added"], out["orgs_added"]))
+        orgs = {o["name"]: o for o in ws.read_csv(pdir / "orgs.csv")}
+        self.assertEqual("2", orgs["Ville de Paris"]["venues"])
+        self.assertEqual("Paris", orgs["Club C"]["city"])
+        self.assertEqual(0, server.pool("t8", "pages/res.json", filters={"dep": "75"},
+                                        map={"id": "equip_numero", "name": "equip_nom"}, group_by="gest")["added"])
+
+    def test_stop_without_a_run_says_so(self):
+        self.assertFalse(server.run("t9", stop=True)["stopped"])
+
+    def test_one_person_two_addresses_is_one_route(self):
+        import mo_export
+        emails = [{"org_id": "o1", "grade": "A", "person": "Ann Lee", "value": "a@x.ch"},
+                  {"org_id": "o1", "grade": "A", "person": "ann  lee", "value": "ann@x.ch"},
+                  {"org_id": "o1", "grade": "B", "person": "", "value": "platz@x.ch"},
+                  {"org_id": "o1", "grade": "B", "person": "", "value": "v@x.ch", "review": "yes"}]
+        m = mo_export.metrics([{"id": "o1"}, {"id": "o2"}], emails)
+        self.assertEqual((2, 1, 50.0, 100.0), (m["ab_routes"], m["ab_to_review"], m["ab_org_share"],
+                                               m["ab_routes_per_100_orgs"]))
+
+    def test_workers_share_a_queue(self):
+        pdir = ws.project_dir("t10")
+        (pdir / "orgs.csv").write_text("id,name,website\n" + "".join(f"o{i},Org {i},o{i}.ch\n" for i in range(5)),
+                                       encoding="utf-8")
+        self.assertEqual(3, server.tasks("t10", action="plan", kind="dig", size=2)["planned"])
+        self.assertEqual(0, server.tasks("t10", action="plan", kind="dig", size=2)["planned"])  # no double booking
+        a = server.tasks("t10", action="claim", agent="w1")
+        b = server.tasks("t10", action="claim", agent="w2")
+        self.assertNotEqual(a["task"]["task_id"], b["task"]["task_id"])
+        self.assertEqual(["o0", "o1"], [i["org_id"] for i in a["items"]])
+        server.tasks("t10", action="done", task_id=a["task"]["task_id"], note="ok")
+        server.tasks("t10", action="done", task_id=b["task"]["task_id"], release=True)
+        q = server.tasks("t10")["queue"]["dig"]
+        self.assertEqual((2, 0, 1), (q["open"], q["claimed"], q["done"]))
+        server.tasks("t10", action="add", title="pool: federation list district 15")
+        self.assertEqual(1, server.tasks("t10")["queue"]["custom"]["open"])
+
+    def test_shards_split_the_pool_without_overlap(self):
+        orgs = [{"id": f"o{i}"} for i in range(7)]
+        parts = [mo_run._mine(orgs, (k, 3)) for k in range(3)]
+        self.assertEqual(7, sum(map(len, parts)))
+        self.assertFalse(set(o["id"] for o in parts[0]) & set(o["id"] for o in parts[1]))
+
+    def test_weights_hold_providers_back_but_never_all(self):
+        now, held = mo_providers.pick("q", ["deepseek", "serpapi"], {"deepseek": 1.0, "serpapi": 0.0})
+        self.assertEqual((["deepseek"], ["serpapi"]), (now, held))
+        now, held = mo_providers.pick("q", ["serpapi"], {"serpapi": 0.0})
+        self.assertEqual(["serpapi"], now)
+        now, _ = mo_providers.pick("u", ["crawl4ai", "deepseek"], {"crawl4ai": 0.0, "deepseek": 0.0},
+                                   always=("crawl4ai",))
+        self.assertIn("crawl4ai", now)
 
     def test_jobs_stay_in_their_project(self):
         ws.new_job(ws.project_dir("t6"), "crawl")
@@ -191,7 +310,8 @@ class Search(unittest.TestCase):
 
 class Package(unittest.TestCase):
     def test_tools_and_manifest(self):
-        self.assertEqual(["project", "search", "fetch", "crawl", "browse", "judge", "grade", "run", "export"],
+        self.assertEqual(["project", "search", "pool", "fetch", "crawl", "browse", "judge", "grade", "run", "tasks",
+                          "export"],
                          [f.__name__ for f in server.TOOLS])
         manifest = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["version"], server.VERSION)

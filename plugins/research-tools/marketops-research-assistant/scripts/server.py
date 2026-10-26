@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""MarketOps research MCP: nine tools, one project folder, no gates.
+"""MarketOps research MCP: eleven tools, one project folder, no gates, many agents at once.
 
 project  open/create a project folder, write the brief, see progress and costs
 search   Serper + SerpApi + DeepSeek + TinyFish at once (web or maps)
+pool     build venues.csv / orgs.csv from a saved open-data file (filter, map, group by operator)
 fetch    read one page with Crawl4AI + TinyFish + DeepSeek at once; data files download
 crawl    background: read many organisation sites (home + contact/people pages)
 browse   background: TinyFish Agent for pages that need clicks
 judge    Jev answers one multiple-choice question per row of any pool (in scope? own site?)
 grade    Jev grades contacts A/B/C/D/X from the brief; or set grades yourself
 run      background long research: crawl, grade, dig the gaps round after round, export
+tasks    shared work queue: the coordinator plans packages, worker agents claim and finish them
 export   one Excel workbook (+ Bruce's 18-column routes CSV) for the salesperson
 
 Headless: python server.py run <project> [--rounds N] [--agent]
@@ -27,8 +29,10 @@ import mo_budget  # noqa: E402
 import mo_config  # noqa: E402
 import mo_export  # noqa: E402
 import mo_grade  # noqa: E402
+import mo_pool  # noqa: E402
 import mo_providers  # noqa: E402
 import mo_run  # noqa: E402
+import mo_tasks  # noqa: E402
 import mo_workspace as ws  # noqa: E402
 
 try:
@@ -59,6 +63,8 @@ def project(name: str, brief: dict | None = None) -> dict:
         out["version"] = VERSION
         out["providers"] = mo_config.configured() + ["crawl4ai"]
         out["accounts"] = mo_budget.accounts()
+        import mo_library
+        out["library"] = mo_library.stats()
         return out
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
@@ -68,13 +74,15 @@ def search(query: str, project: str = "", engines: list[str] | None = None, coun
            lang: str = "", n: int = 10, maps: bool = False) -> dict:
     """Search the web with every engine at once and merge by URL (found_by says who found it).
 
-    engines: any of serper, serpapi, deepseek, tinyfish (default all with a key).
+    engines: any of serper, serpapi, deepseek, tinyfish (default: by the project's provider
+    weights, brief.providers.search; the held-back engines join when results are thin).
     maps=True: Google Maps places (name, address, phone, website) via Serper and SerpApi.
     country/lang: two-letter codes, e.g. "ch", "de".
     """
     try:
         pdir = ws.project_dir(project) if project else None
-        out = mo_providers.search(query, engines, country, lang, n, maps, pdir)
+        out = mo_providers.search(query, engines, country, lang, n, maps, pdir,
+                                  weights=ws.weights(pdir, "search") if pdir else None)
         out["results"] = out["results"][: max(5, n * 2)]
         return out
     except Exception as exc:  # noqa: BLE001
@@ -102,7 +110,7 @@ def fetch(project: str, url: str, readers: list[str] | str | None = None, org_id
 
 
 def crawl(project: str, targets: list[dict] | str = "orgs.csv", max_pages: int = 15,
-          readers: list[str] | None = None, workers: int = 6) -> dict:
+          readers: list[str] | None = None, workers: int = 12) -> dict:
     """Read many organisation sites in the background and return at once.
 
     targets: "orgs.csv" (every row with id, name, website) or a list of
@@ -167,21 +175,73 @@ def judge(project: str, file: str, question: str, options: dict, column: str,
         return _err(exc)
 
 
-def run(project: str, rounds: int = 6, max_pages: int = 15, goal_ab_per_100: float | None = None,
-        agent: bool = False) -> dict:
-    """Long research in the background, without stopping: the whole orgs.csv to graded contacts.
+def run(project: str, rounds: int = 6, max_pages: int = 15, goal_ab_org_share: float | None = None,
+        agent: bool = False, stop: bool = False, workers: int = 12, shards: int = 1,
+        follow: bool = False, pool_done: bool = False) -> dict:
+    """Long research as a pipeline in its own background process(es) (survives this session).
 
-    Round 0 crawls every site and grades. Each further round takes the organisations still
-    without A/B and digs a different way (the market's words from brief.focus.search_terms,
-    inside the site and its PDFs, third-party directories from focus.directory_terms, maps,
-    broad searches), reads what it finds and grades again. Stops at goal_ab_per_100 (A+B
-    routes per 100 organisations), after two rounds with no new A/B organisation, or after
-    `rounds`; then exports. agent=True also lets the TinyFish Agent open pages whose email
-    buttons hide the address (paid per step). Resumable; progress in project(name).run.
+    Each organisation in orgs.csv flows on its own, many at once: its site is read, a
+    background grader grades the new addresses, then - while it has no confirmed A/B - up to
+    `rounds` dig rounds, each a different way (brief.focus.search_terms, inside the site and
+    its PDFs, focus.directory_terms directories, maps, broad searches), then the evidence for
+    its A/B addresses is corroborated. follow=True keeps taking organisations appended to
+    orgs.csv while agents still build the pool, until run(pool_done=True). Ends when every
+    organisation is done, at goal_ab_org_share (% of organisations with A/B) or on stop; the
+    workbook is refreshed every half hour and at the end. agent=True lets the TinyFish Agent
+    open pages whose email buttons hide the address (paid per step). stop=True ends a run
+    gracefully (it exports what it has). Resumable. project(name).run shows stage, round,
+    progress (organisations per minute, minutes left, cost per organisation) and results.
+    workers: organisations worked at the same time per process (each read by several providers
+    at once); shards: split orgs.csv between that many processes running in parallel.
     """
     try:
         return mo_run.run(ws.project_dir(project), rounds=rounds, max_pages=max_pages,
-                          goal_ab_per_100=goal_ab_per_100, agent=agent)
+                          goal_ab_org_share=goal_ab_org_share, agent=agent, stop=stop, workers=workers,
+                          shards=shards, follow=follow, pool_done=pool_done)
+    except Exception as exc:  # noqa: BLE001
+        return _err(exc)
+
+
+def tasks(project: str, action: str = "status", kind: str = "", size: int = 15, agent: str = "",
+          task_id: str = "", note: str = "", title: str = "", release: bool = False) -> dict:
+    """Shared work queue so several agents work one project in parallel.
+
+    Coordinator: action="plan", kind="dig" (organisations still without a confirmed A/B),
+    "review" (A/B rows to check), "evidence" (A/B rows with weak or medium evidence),
+    "browse" (pages whose email buttons hide addresses) or "crawl", cut into packages of `size`; action="add", title="..." for any other job (a source
+    family, a district, a federation list). Worker: action="claim", agent="<your name>"
+    (optionally kind) returns one package with its organisations or rows and how to do it;
+    work it with the other tools, then action="done", task_id, note="what you found/tried"
+    (release=True hands it back undone). A claim untouched for 40 minutes is offered again.
+    """
+    try:
+        pdir = ws.project_dir(project)
+        if action == "plan":
+            return mo_tasks.plan(pdir, kind, size)
+        if action == "add":
+            return mo_tasks.add(pdir, title, note, kind or "custom")
+        if action == "claim":
+            return mo_tasks.claim(pdir, agent or "worker", kind)
+        if action == "done":
+            return mo_tasks.done(pdir, task_id, note, release)
+        return mo_tasks.summary(pdir)
+    except Exception as exc:  # noqa: BLE001
+        return _err(exc)
+
+
+def pool(project: str, file: str, into: str = "venues", filters: dict | None = None,
+         map: dict | None = None, group_by: str = "", org_fields: dict | None = None) -> dict:
+    """Build the pools from a data file fetch saved (JSON, GeoJSON, CSV; e.g. an open-data export).
+
+    filters: {column: value or [values]} kept rows (exact, case-insensitive). map: {new column:
+    file column}, e.g. {"id": "equip_numero", "name": "inst_nom", "city": "com_nom",
+    "operator": "equip_gest_nom"}; without map all columns are kept. into: venues (default) or
+    orgs. group_by: a file column (e.g. the operator or owner) - each distinct value becomes an
+    organisation in orgs.csv, its venues linked by org_id; org_fields: {orgs column: file column}
+    to carry e.g. city or website. Appends; returns the file's columns so you can map them.
+    """
+    try:
+        return mo_pool.pool(ws.project_dir(project), file, into, filters, map, group_by, org_fields)
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
 
@@ -196,7 +256,7 @@ def export(project: str) -> dict:
         return _err(exc)
 
 
-TOOLS = (project, search, fetch, crawl, browse, judge, grade, run, export)
+TOOLS = (project, search, pool, fetch, crawl, browse, judge, grade, run, tasks, export)
 
 
 def check() -> int:
@@ -224,11 +284,23 @@ def headless(argv: list[str]) -> int:
     ap.add_argument("project")
     ap.add_argument("--rounds", type=int, default=6)
     ap.add_argument("--max-pages", type=int, default=15)
-    ap.add_argument("--goal", type=float, default=None)
+    ap.add_argument("--goal", type=float, default=None, help="%% of organisations with A/B")
     ap.add_argument("--agent", action="store_true")
+    ap.add_argument("--workers", type=int, default=12)
+    ap.add_argument("--shard", default="0/1")
+    ap.add_argument("--follow", action="store_true")
     a = ap.parse_args(argv)
-    state = mo_run.run_sync(ws.project_dir(a.project), rounds=a.rounds, max_pages=a.max_pages,
-                            goal_ab_per_100=a.goal, agent=a.agent)
+    pdir = ws.project_dir(a.project)
+    try:
+        state = mo_run.run_sync(pdir, rounds=a.rounds, max_pages=a.max_pages,
+                                goal_ab_org_share=a.goal, agent=a.agent, workers=a.workers, shard=a.shard,
+                                follow=a.follow)
+    except Exception as exc:  # noqa: BLE001
+        k, n = a.shard.split("/")
+        st = {"file": "run.json" if n == "1" else f"run.{k}.json", "shard": a.shard}
+        st.update(stage="failed", done=True, error=mo_config.scrub(f"{type(exc).__name__}: {exc}")[:300])
+        mo_run._save_state(pdir, st)
+        raise
     print(json.dumps({k: state.get(k) for k in ("stopped_because", "result", "export", "history")},
                      ensure_ascii=False, indent=1))
     return 0

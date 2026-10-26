@@ -29,6 +29,12 @@ CONTACT_HINTS = (
     "premises", "caretaker", "bursar", "groundsman", "officials", "honorary", "secretary", "membres",
     "responsables", "organigramme", "dirigeants", "conseil", "direction", "persone", "organi", "soci",
 )
+# Pages that rarely carry the people wanted: lower their score so portals do not spend the
+# page budget on news. A hint, never a filter.
+NOISE_HINTS = ("news", "aktuell", "actualite", "actualité", "blog", "medien", "presse", "press-release",
+               "agenda", "event", "veranstaltung", "galerie", "gallery", "archiv", "shop", "cookie",
+               "datenschutz", "privacy", "login", "jobs", "stellen", "/tag/", "/category/", "2019", "2020",
+               "2021", "2022", "2023")
 EMAIL_WORDS = re.compile(r"^\s*(e-?mail|mail|email me|email us|send (an )?e-?mail|nachricht|courriel|kontakt)\b", re.I)
 
 EMAIL = re.compile(r"(?<![\w.+-])[A-Za-z0-9][A-Za-z0-9._%+-]{0,63}@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,24}(?![\w-])")
@@ -65,6 +71,7 @@ class _Text(HTMLParser):
         self.open: list[tuple[str, int]] = []   # open block elements and where their text starts
         self.ranges: list[tuple[int, int]] = []  # closed block elements: (first chunk, end chunk)
         self.hidden_email_buttons = 0
+        self.mailtos: set[str] = set()
 
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
@@ -95,6 +102,8 @@ class _Text(HTMLParser):
             href, text = self._href, " ".join("".join(self._anchor).split())
             if href.lower().startswith("mailto:"):
                 addr = urllib.parse.unquote(href[7:].split("?")[0]).strip()
+                if addr:
+                    self.mailtos.add(addr.lower())
                 if addr and addr.lower() not in text.lower():
                     self.out.append(" " + addr + " ")
             elif href.lower().startswith("tel:"):
@@ -174,7 +183,7 @@ def from_html(raw: str, base: str) -> dict:
         p.ranges.append((start, len(p.out)))
     lines = [" ".join(line.split()) for line in "".join(p.out).split("\n")]
     return {"title": " ".join(p.title.split()), "lines": [x for x in lines if x], "links": p.links,
-            "blocks": _blocks(p), "hidden_email_buttons": p.hidden_email_buttons}
+            "blocks": _blocks(p), "hidden_email_buttons": p.hidden_email_buttons, "mailtos": p.mailtos}
 
 
 def from_markdown(text: str, base: str) -> dict:
@@ -222,7 +231,20 @@ def _phones(line: str) -> list[str]:
     return found
 
 
-def contacts(lines: list[str], page_url: str, org_site: str = "", blocks: dict | None = None) -> list[dict]:
+def _unglue(e: str, before: str, known: set[str]) -> str:
+    """A phone number printed right before an address can glue its last digits onto it
+    ('83 10praesident@x.ch'). The page's own mailto value wins; otherwise digits are cut
+    when the text before them ends in a digit group."""
+    m = re.match(r"^(\d{1,6})([A-Za-z].*@.+)$", e)
+    if not m:
+        return e
+    if m.group(2).lower() in known or (e.lower() not in known and re.search(r"\d[\d\s./-]*$", before)):
+        return m.group(2)
+    return e
+
+
+def contacts(lines: list[str], page_url: str, org_site: str = "", blocks: dict | None = None,
+             mailtos: set | None = None) -> list[dict]:
     """Every email (and phone) on the page with the lines around it as the quote.
 
     With `blocks` (from HTML) the quote is the page block that holds only this address.
@@ -235,6 +257,11 @@ def contacts(lines: list[str], page_url: str, org_site: str = "", blocks: dict |
                   if e.rsplit(".", 1)[-1].lower() not in NOT_TLD
                   and not any(d in e.lower().split("@")[1] for d in NOT_DOMAIN)]
         pos = 0
+        fixed = []
+        for e in emails:
+            at = line.find(e)
+            fixed.append(_unglue(e, line[:at] if at >= 0 else "", mailtos or set()))
+        emails = fixed
         for n, e in enumerate(dict.fromkeys(emails)):
             at = line.find(e, pos)
             end = at + len(e) if at >= 0 else len(line)
@@ -281,8 +308,8 @@ def contact_links(links: list[tuple[str, str]], base: str, limit: int = 12, scor
         if re.search(r"\.(jpg|jpeg|png|gif|zip|docx?|xlsx?|mp4|ics|mp3|webp|svg)$", parts.path, re.I):
             continue
         hay = (urllib.parse.unquote(parts.path) + " " + parts.query + " " + text).lower()
-        score = sum(h in hay for h in CONTACT_HINTS)
-        if score:
+        score = sum(h in hay for h in CONTACT_HINTS) - 2 * sum(h in hay for h in NOISE_HINTS)
+        if score > 0:
             url = urllib.parse.urlunsplit((parts.scheme, parts.netloc, parts.path, parts.query, ""))
             scored[url] = max(scored.get(url, 0), score + (2 if "kontakt" in hay or "contact" in hay or "impressum" in hay else 0))
     ranked = sorted(scored.items(), key=lambda kv: -kv[1])[:limit]

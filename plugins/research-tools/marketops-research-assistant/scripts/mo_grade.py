@@ -54,8 +54,10 @@ GUIDE = ("Read any language. Judge job titles and abbreviations by this kind of 
          "is also listed for other organisations, or the page belongs to another organisation (a "
          "directory, a council or canton staff list), give A or B only when the text ties the "
          "person to THIS organisation or its venue; otherwise C or X. Grade only this address, not "
-         "the neighbouring entries.")
+         "the neighbouring entries. A supporters' or sponsors' club, a festival or bar team, or a "
+         "coach of one team only is not the venue's decision or operations side.")
 REVIEW_BELOW = 0.6
+REVIEW_BELOW_OWN_SITE = 0.35  # on its own site, bound in its card: only very unsure grades wait
 
 
 def _address_words(email: str) -> str:
@@ -63,7 +65,7 @@ def _address_words(email: str) -> str:
     return " ".join(w for w in re.split(r"[._\-+0-9]+", local) if len(w) > 1)
 
 
-def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 8, workers: int = 4) -> dict:
+def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 8, workers: int = 8) -> dict:
     """Jev grades the email candidates that have no grade yet (or all, with regrade). limit 0 = all."""
     if not mo_config.key("jev"):
         return {"graded": 0, "note": "no Jev key: read the quotes and set grades with grade(set=[...])"}
@@ -71,10 +73,13 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 8, workers: i
     from concurrent.futures import ThreadPoolExecutor
     path = pdir / "contacts.csv"
     rows = ws.read_csv(path)
-    holders: dict[str, set] = {}
+    import mo_pages
+    org_site = {str(o.get("id") or o.get("org_id") or ""): mo_pages.site_of(str(o.get("website") or ""))
+                for o in ws.read_csv(pdir / "orgs.csv")}
+    holders: dict[str, set] = {}   # address -> the distinct organisations (by website) listing it
     for r in rows:
         if r.get("kind") == "email":
-            holders.setdefault(r["value"].lower(), set()).add(r.get("org_id"))
+            holders.setdefault(r["value"].lower(), set()).add(org_site.get(r.get("org_id")) or r.get("org_id"))
     todo = [r for r in rows if r.get("kind") == "email" and not r.get("graded_by", "").startswith("agent")
             and (regrade or not r.get("grade"))]
     if limit:
@@ -129,9 +134,19 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 8, workers: i
             if grade == "A" and named is not None and named.choice == "no":
                 grade, note = "B", "A without a named person -> B"
             shared = len(holders.get(r["value"].lower(), ())) - 1
-            review = grade in ("A", "B") and (
-                (isinstance(conf, float) and conf < REVIEW_BELOW) or shared > 0 or r.get("page_on_org_site") == "no")
-            r["grade"], r["graded_by"], r["review"] = grade, "jev", "yes" if review else ""
+            why = []
+            if grade in ("A", "B"):
+                own = r.get("page_on_org_site") in ("yes", "likely") or r.get("email_on_org") in ("yes", "likely")
+                if isinstance(conf, float) and conf < (REVIEW_BELOW_OWN_SITE if own else REVIEW_BELOW):
+                    why.append(f"low confidence {conf:.2f}")
+                if shared > 0:
+                    why.append(f"address also listed for {shared} other organisations")
+                if r.get("page_on_org_site") == "no":
+                    why.append("page on another site")
+                elif r.get("page_on_org_site") == "unknown" and r.get("email_on_org") not in ("yes", "likely"):
+                    why.append("neither the page nor the address is on the organisation's own site")
+            r["grade"], r["graded_by"], r["review"] = grade, "jev", "yes" if why else ""
+            r["review_reason"] = "; ".join(why)
             r["grade_reason"] = (f"jev {grade} conf {conf:.2f}" if isinstance(conf, float) else f"jev {grade}") + \
                 (f"; named={named.choice}" if named is not None else "") + (f"; {note}" if note else "") + \
                 (f"; also listed for {shared} other orgs" if shared > 0 else "") + \
@@ -145,11 +160,85 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 8, workers: i
         for r in todo:
             k = (r["org_id"], r["value"].lower())
             if k in current and r.get("graded_by") == "jev" and not current[k].get("graded_by", "").startswith("agent"):
-                current[k].update({f: r[f] for f in ("grade", "graded_by", "grade_reason", "review")})
+                current[k].update({f: r.get(f, "") for f in ("grade", "graded_by", "grade_reason", "review", "review_reason")})
         ws.write_csv(path, ws.CONTACT_COLS, list(current.values()))
+    named = fill_people(pdir)
+    import mo_evidence
+    evidence = mo_evidence.rescore(pdir)
     left = sum(1 for r in ws.read_csv(path) if r.get("kind") == "email" and not r.get("grade"))
     review = sum(1 for r in ws.read_csv(path) if r.get("review") == "yes")
-    return {**counts, "still_ungraded": left, "to_review": review}
+    return {**counts, "people_filled": named, "evidence": evidence, "still_ungraded": left, "to_review": review}
+
+
+def _segments(quote: str) -> list[str]:
+    body = quote.split(" [next")[0]
+    segs = []
+    for part in re.split(r"\s+/\s+|\s+---\s+|\s+\|\s+", body):
+        part = re.sub(r"\S+@\S+|\b(e-?mail|tel\.?|phone|natel|mobile?)\b:?", " ", part, flags=re.I)
+        part = " ".join(part.split()).strip(" -,;:")
+        if 2 < len(part) <= 90 and not re.fullmatch(r"[\d\s+()./-]+", part):
+            segs.append(part)
+    return list(dict.fromkeys(segs))[-8:]
+
+
+def fill_people(pdir, batch: int = 6) -> int:
+    """For A/B rows without a person: Jev picks, from the quote's own segments, the one that
+    is the person's name and the one that is the job title (any language, any layout)."""
+    if not mo_config.key("jev"):
+        return 0
+    import typesafe_sdk as sdk
+    path = pdir / "contacts.csv"
+    rows = [r for r in ws.read_csv(path) if r.get("kind") == "email" and r.get("grade") in ("A", "B")
+            and not r.get("person") and not r.get("graded_by", "").startswith("agent")]
+    filled = {}
+    for i in range(0, len(rows), batch):
+        chunk = [(r, _segments(r.get("quote", ""))) for r in rows[i:i + batch]]
+        chunk = [(r, segs) for r, segs in chunk if segs]
+        if not chunk:
+            continue
+        questions, listing = {}, []
+        for n, (r, segs) in enumerate(chunk):
+            opts = {f"s{k + 1}": seg for k, seg in enumerate(segs)}
+            listing.append(f"[{n + 1}] {r['value']}: " + " | ".join(f"s{k + 1}={seg}" for k, seg in enumerate(segs)))
+            questions[f"person_{n + 1}"] = sdk.Choice(
+                instructions=f"Which segment of [{n + 1}] is the name of the person who uses {r['value']}?",
+                criteria={**opts, "none": "no person's name among them"})
+            questions[f"role_{n + 1}"] = sdk.Choice(
+                instructions=f"Which segment of [{n + 1}] is the job title or function tied to {r['value']}?",
+                criteria={**opts, "none": "no job title among them"})
+        try:
+            resp = _jev({"candidates": "\n".join(listing)}, questions)
+        except Exception as exc:  # noqa: BLE001
+            mo_budget.record(pdir, "jev", "grade", False, f"{type(exc).__name__}: {exc}")
+            continue
+        mo_budget.record(pdir, "jev", "grade", True, f"people x{len(chunk)}")
+        choices = getattr(resp, "choices", None) or {}
+        for n, (r, segs) in enumerate(chunk):
+            got = {}
+            for field in ("person", "role"):
+                a = choices.get(f"{field}_{n + 1}")
+                if a is not None and a.choice != "none" and a.choice.startswith("s"):
+                    k = int(a.choice[1:]) - 1
+                    if 0 <= k < len(segs):
+                        got[field] = segs[k]
+            p = got.get("person", "")
+            if ":" in p:  # "Präsident: Hans Muster 079 ..." -> role and name
+                left, right = p.split(":", 1)
+                got["person"] = right
+                got.setdefault("role", left.strip())
+            if got.get("person"):
+                got["person"] = " ".join(re.sub(r"[\d+()/.-]{3,}.*$", "", got["person"]).split())
+            if got.get("person") or got.get("role"):
+                filled[(r["org_id"], r["value"].lower())] = got
+    if filled:
+        with ws._lock(path):
+            current = ws.read_csv(path)
+            for r in current:
+                got = filled.get((r.get("org_id"), r.get("value", "").lower()))
+                if got and not r.get("person"):
+                    r.update(got)
+            ws.write_csv(path, ws.CONTACT_COLS, current)
+    return len(filled)
 
 
 def manual(pdir, updates: list[dict]) -> dict:
@@ -169,6 +258,8 @@ def manual(pdir, updates: list[dict]) -> dict:
                     r["review"] = ""
                     changed += 1
         ws.write_csv(path, ws.CONTACT_COLS, rows)
+    import mo_evidence
+    mo_evidence.rescore(pdir)
     return {"updated": changed}
 
 
