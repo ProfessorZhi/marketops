@@ -20,6 +20,7 @@ from mo_pool import norm as norm_name  # noqa: E402
 import mo_providers  # noqa: E402
 import mo_run  # noqa: E402
 import mo_workspace as ws  # noqa: E402
+real_race = mo_providers.read_race
 import server  # noqa: E402
 
 CLUB = """<html><head><title>FC Beispiel</title><script>var x='a@b.ch'</script></head><body>
@@ -377,13 +378,54 @@ class Reach(unittest.TestCase):
                 mock.patch("mo_config.key", return_value="k"), mock.patch("mo_budget.allowed", return_value=(True, "")), \
                 mock.patch.object(mo_grade, "_jev", side_effect=jev), mock.patch.object(mo_grade, "fill_people", return_value=0), \
                 mock.patch("mo_evidence.rescore", return_value={}):
-            got = mo_grade.auto(pdir)
+            mo_grade.auto(pdir)
         self.assertEqual(1, len(sent))
         self.assertEqual(1, sent[0].count("dsp@city.fr"))            # one Jev question for three copies
-        self.assertEqual(3, got["by_rule"])
         grades = {(r["org_id"], r["value"]): (r["grade"], r["graded_by"]) for r in ws.read_contacts(pdir)}
         self.assertEqual({("C", "jev")}, {v for (o, e), v in grades.items() if e.startswith("dsp")})
         self.assertEqual({("X", "rule")}, {v for (o, e), v in grades.items() if e.startswith("info")})
+        self.assertNotIn("info@city.fr", sent[0])                     # graded on arrival, never asked
+
+    def test_a_page_is_as_fast_as_its_fastest_reader_and_late_readers_still_count(self):
+        import time
+        pdir = ws.project_dir("t20")
+        body = "<p>Contact</p>" + " " * 300
+
+        def read(url, readers=None, project_dir=None):
+            r = (readers or ["crawl4ai"])[0]
+            if r == "deepseek":
+                time.sleep(1.5)
+                return {r: {"final_url": url, "html": body + "<p>Président Jean Ex</p><p>president@club-y.fr</p>", "text": ""}}
+            return {r: {"final_url": url, "html": body + "<p>info@club-y.fr</p>", "text": ""}}
+        with mock.patch.object(mo_providers, "read", side_effect=read), \
+                mock.patch.object(mo_providers, "public_url", side_effect=lambda u: u), \
+                mock.patch("mo_config.key", side_effect=lambda p: "k" if p in ("tinyfish", "deepseek") else ""), \
+                mock.patch.object(mo_providers, "read_race", side_effect=lambda *a, **k: real_race(*a, **{**k, "grace": 0.1})):
+            t0 = time.time()
+            ws.fetch(pdir, "https://club-y.fr/contact", None, "o1", "Club Y", "club-y.fr")
+            self.assertLess(time.time() - t0, 1.2)                     # did not wait for the slow reader
+            time.sleep(2)
+        self.assertIn("president@club-y.fr", {r["value"] for r in ws.read_contacts(pdir)})   # merged when it came
+
+    def test_a_club_without_website_gets_one_and_its_federation_page_counts(self):
+        pdir = ws.project_dir("t21")
+        ws.write_csv(pdir / "orgs.csv", ["id", "name", "city"], [{"id": "c1", "name": "Union Sportive Jean-Jaurès", "city": "Lyon"}])
+        hits = {"results": [{"title": "Annuaire des clubs", "url": "https://annuaire.example/club/88"},
+                            {"title": "US Jean Jaurès - Accueil", "url": "https://usjj.fr/"}], "routes": {}}
+        with mock.patch.object(mo_providers, "search", return_value=hits):
+            self.assertEqual("https://usjj.fr/", mo_run._find_site(pdir, ws.read_csv(pdir / "orgs.csv")[0]))
+        self.assertEqual("search", ws.read_csv(pdir / "orgs.csv")[0]["website_from"])
+        self.assertTrue(mo_run._mentions("Union Sportive Jean-Jaurès", "UNION SPORTIVE JEAN JAURES — Président"))
+        self.assertFalse(mo_run._mentions("Union Sportive Jean-Jaurès", "Stade Pasteur"))
+
+    def test_role_mailboxes_go_to_jev_not_to_d(self):
+        lines = ["Secrétariat du club", "secretariat@fc-x.fr", "Service des sports", "service.sports@ville.fr",
+                 "info@fc-x.fr"]
+        kinds = {c["value"]: c["mailbox"] for c in mo_pages.contacts(lines, "https://fc-x.fr/contact", "fc-x.fr")
+                 if c["kind"] == "email"}
+        self.assertEqual("named_or_role", kinds["secretariat@fc-x.fr"])
+        self.assertEqual("named_or_role", kinds["service.sports@ville.fr"])
+        self.assertEqual("generic", kinds["info@fc-x.fr"])
 
     def test_sources_take_turns_and_every_org_leaves_a_trace(self):
         pdir = ws.project_dir("t19")

@@ -13,6 +13,7 @@ import re
 import mo_budget
 import mo_config
 import mo_workspace as ws
+from mo_pool import mentions
 
 # Bruce's grading contract (fjd-email-role-qualification), used when the brief has none.
 DEFAULT_GRADES = {
@@ -57,6 +58,7 @@ GUIDE = ("Read any language. Judge job titles and abbreviations by this kind of 
          "the neighbouring entries. A supporters' or sponsors' club, a festival or bar team, or a "
          "coach of one team only is not the venue's decision or operations side.")
 REVIEW_BELOW = 0.6
+SHARED_REVIEW = 2   # one council office running two or three venues is normal; more looks like a federation
 REVIEW_BELOW_OWN_SITE = 0.35  # on its own site, bound in its card: only very unsure grades wait
 
 
@@ -87,11 +89,10 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 8, workers: i
     # Addresses the brief grades by their name alone (brief.address_rules, e.g. {"info": "X"}):
     # no Jev call. The same address with the same text around it (one portal page read for
     # many organisations) is graded once; earlier grades of it are reused.
-    rules = {str(k).lower(): v for k, v in (ws.brief(pdir).get("address_rules") or {}).items() if v in GRADES}
     known = {} if regrade else {_same(r): r for r in rows if r.get("graded_by") == "jev" and r.get("grade")}
     by_rule, reused, first, copies = [], [], {}, []
     for r in todo:
-        g = _rule_grade(r.get("value", ""), rules)
+        g = ws.address_rule(pdir, r.get("value", ""))
         if g:
             r.update(grade=g, graded_by="rule", grade_reason=f"address rule: {g}", review="", review_reason="")
             by_rule.append(r)
@@ -158,11 +159,12 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 8, workers: i
                 own = r.get("page_on_org_site") in ("yes", "likely") or r.get("email_on_org") in ("yes", "likely")
                 if isinstance(conf, float) and conf < (REVIEW_BELOW_OWN_SITE if own else REVIEW_BELOW):
                     why.append(f"low confidence {conf:.2f}")
-                if shared > 0:
+                if shared >= SHARED_REVIEW:
                     why.append(f"address also listed for {shared} other organisations")
-                if r.get("page_on_org_site") == "no":
-                    why.append("page on another site")
-                elif r.get("page_on_org_site") == "unknown" and r.get("email_on_org") not in ("yes", "likely"):
+                if r.get("page_on_org_site") == "no" and not mentions(r.get("org", ""), r.get("quote", "")):
+                    why.append("page on another site, organisation not named next to it")
+                elif (r.get("page_on_org_site") == "unknown" and r.get("email_on_org") not in ("yes", "likely")
+                      and not mentions(r.get("org", ""), r.get("quote", ""))):
                     why.append("neither the page nor the address is on the organisation's own site")
             r["grade"], r["graded_by"], r["review"] = grade, "jev", "yes" if why else ""
             r["review_reason"] = "; ".join(why)
@@ -181,7 +183,8 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 8, workers: i
     counts.update(by_rule=len(by_rule), reused=len(reused) + sum(r.get("graded_by") == "jev" for r in copies))
     ws.update_contacts(pdir, by_rule + reused + [r for r in todo + copies if r.get("graded_by") == "jev"], fields,
                        guard=lambda cur: not cur.get("graded_by", "").startswith("agent"))
-    named = fill_people(pdir)
+    named = fill_people(pdir, only={(r.get("org_id"), r.get("value", "").lower())
+                                    for r in by_rule + reused + todo + copies if r.get("grade") in ("A", "B")})
     import mo_evidence
     evidence = mo_evidence.rescore(pdir)
     after = ws.read_contacts(pdir)
@@ -198,14 +201,6 @@ def _same(r: dict) -> tuple:
     return r.get("value", "").lower(), " ".join(str(r.get("quote") or "").split()).lower()
 
 
-def _rule_grade(email: str, rules: dict) -> str:
-    local = email.split("@")[0].lower()
-    for word, grade in rules.items():
-        if local == word or re.match(re.escape(word) + r"[\W_\d]", local):
-            return grade
-    return ""
-
-
 def _segments(quote: str) -> list[str]:
     body = quote.split(" [next")[0]
     segs = []
@@ -217,20 +212,28 @@ def _segments(quote: str) -> list[str]:
     return list(dict.fromkeys(segs))[-8:]
 
 
-def fill_people(pdir, batch: int = 6) -> int:
+def fill_people(pdir, only: set | None = None, batch: int = 6, workers: int = 8) -> int:
     """For A/B rows without a person: Jev picks, from the quote's own segments, the one that
-    is the person's name and the one that is the job title (any language, any layout)."""
+    is the person's name and the one that is the job title (any language, any layout).
+    only: the (org_id, address) rows to look at - the ones just graded; each address+text once."""
     if not mo_config.key("jev"):
         return 0
     import typesafe_sdk as sdk
+    from concurrent.futures import ThreadPoolExecutor
     rows = [r for r in ws.read_contacts(pdir) if r.get("kind") == "email" and r.get("grade") in ("A", "B")
-            and not r.get("person") and not r.get("graded_by", "").startswith("agent")]
+            and not r.get("person") and not r.get("graded_by", "").startswith("agent")
+            and (only is None or (r.get("org_id"), r.get("value", "").lower()) in only)]
+    same: dict[tuple, list] = {}
+    for r in rows:
+        same.setdefault(_same(r), []).append(r)
+    rows = [g[0] for g in same.values()]
     filled = {}
-    for i in range(0, len(rows), batch):
-        chunk = [(r, _segments(r.get("quote", ""))) for r in rows[i:i + batch]]
+
+    def one(group):
+        chunk = [(r, _segments(r.get("quote", ""))) for r in group]
         chunk = [(r, segs) for r, segs in chunk if segs]
         if not chunk:
-            continue
+            return
         questions, listing = {}, []
         for n, (r, segs) in enumerate(chunk):
             opts = {f"s{k + 1}": seg for k, seg in enumerate(segs)}
@@ -245,7 +248,7 @@ def fill_people(pdir, batch: int = 6) -> int:
             resp = _jev({"candidates": "\n".join(listing)}, questions)
         except Exception as exc:  # noqa: BLE001
             mo_budget.record(pdir, "jev", "grade", False, f"{type(exc).__name__}: {exc}")
-            continue
+            return
         mo_budget.record(pdir, "jev", "grade", True, f"people x{len(chunk)}")
         choices = getattr(resp, "choices", None) or {}
         for n, (r, segs) in enumerate(chunk):
@@ -264,7 +267,11 @@ def fill_people(pdir, batch: int = 6) -> int:
             if got.get("person"):
                 got["person"] = " ".join(re.sub(r"[\d+()/.-]{3,}.*$", "", got["person"]).split())
             if got.get("person") or got.get("role"):
-                filled[(r["org_id"], r["value"].lower())] = got
+                for twin in same[_same(r)]:
+                    filled[(twin["org_id"], twin["value"].lower())] = got
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        list(pool.map(one, [rows[i:i + batch] for i in range(0, len(rows), batch)]))
     if filled:
         updates = [{"org_id": k[0], "value": v_, **got} for (k, got) in filled.items() for v_ in [k[1]]]
         for u in updates:

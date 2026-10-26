@@ -150,6 +150,9 @@ def _norm(url: str) -> str:
     return host + p.path.rstrip("/") + ("?" + p.query if p.query else "")
 
 
+SEARCH_GRACE = 5.0   # seconds the slower engines get after the first answer
+
+
 def search(query: str, engines=None, country: str = "", lang: str = "", n: int = 10,
            maps: bool = False, project_dir=None, weights: dict | None = None) -> dict:
     available = [e for e in (engines or SEARCH_ENGINES) if e in _SEARCH and mo_config.key(e)]
@@ -178,16 +181,32 @@ def search(query: str, engines=None, country: str = "", lang: str = "", n: int =
             return engine, None, mo_config.scrub(f"{type(exc).__name__}: {exc}")[:160]
 
     def gather(batch):
-        with ThreadPoolExecutor(max_workers=4) as pool:
-            for engine, rows, why in pool.map(one, batch):
+        # Every engine at once; once one has answered, the slower ones get `grace` seconds.
+        # An engine still running keeps going in the background and its answer is saved in
+        # the library, so the next time the same question is asked it is there for free.
+        import time
+        from concurrent.futures import FIRST_COMPLETED, wait
+        futs = [_pool("search-" + e).submit(one, e) for e in batch]
+        pending, first = set(futs), None
+        while pending:
+            left = None if first is None else first + SEARCH_GRACE - time.time()
+            if left is not None and left <= 0:
+                break
+            done, pending = wait(pending, timeout=left, return_when=FIRST_COMPLETED)
+            for f in done:
+                engine, rows, why = f.result()
                 routes[engine] = {"results": len(rows)} if rows is not None else {"skipped": why}
+                if rows and first is None:
+                    first = time.time()
                 for rank, row in enumerate(rows or []):
                     key = _norm(row.get("url") or "") or ("place:" + str(row.get("title")))
                     hit = merged.setdefault(key, {**row, "found_by": []})
                     hit["found_by"].append(engine)
-                    for f in ("snippet", "address", "phone", "url"):
-                        if not hit.get(f) and row.get(f):
-                            hit[f] = row[f]
+                    for f_ in ("snippet", "address", "phone", "url"):
+                        if not hit.get(f_) and row.get(f_):
+                            hit[f_] = row[f_]
+        for f in pending:
+            routes.setdefault(batch[futs.index(f)], {"late": "answer saved to the library"})
     gather(wanted)
     if held and len(merged) < 3:   # weak answer: bring in the engines held back
         gather(held)
@@ -305,6 +324,47 @@ def read(url: str, readers=None, project_dir=None) -> dict:
     with ThreadPoolExecutor(max_workers=3) as pool:
         for reader, res in pool.map(one, wanted):
             out[reader] = res
+    return out
+
+
+_POOLS: dict[str, ThreadPoolExecutor] = {}
+_POOLS_LOCK = threading.Lock()
+
+
+def _pool(name: str) -> ThreadPoolExecutor:
+    """One worker pool per reader / engine: a slow one piling up never holds back the others."""
+    with _POOLS_LOCK:
+        if name not in _POOLS:
+            _POOLS[name] = ThreadPoolExecutor(max_workers=32, thread_name_prefix=name)
+        return _POOLS[name]
+
+
+def read_race(url: str, readers=None, project_dir=None, grace: float = 3.0, on_late=None) -> dict:
+    """Every reader at once; return when the first one has the page (plus `grace` seconds for
+    the rest), so a page is as fast as its fastest reader. Readers still running finish in
+    the background and hand their result to on_late(reader, result): nothing is lost."""
+    import time
+    from concurrent.futures import FIRST_COMPLETED, wait
+    futs = {_pool(r).submit(read, url, [r], project_dir): r for r in available_readers(readers)}
+
+    def result(f, reader):
+        try:
+            return f.result().get(reader) or {"error": "no result"}
+        except Exception as exc:  # noqa: BLE001
+            return {"error": mo_config.scrub(f"{type(exc).__name__}: {exc}")[:160]}
+    out, first_ok, pending = {}, None, set(futs)
+    while pending:
+        left = None if first_ok is None else first_ok + grace - time.time()
+        if left is not None and left <= 0:
+            break
+        done, pending = wait(pending, timeout=left, return_when=FIRST_COMPLETED)
+        for f in done:
+            res = out[futs[f]] = result(f, futs[f])
+            if first_ok is None and "error" not in res and len(res.get("html") or res.get("text") or "") > 200:
+                first_ok = time.time()
+    for f in pending:
+        if on_late:
+            f.add_done_callback(lambda f, r=futs[f]: on_late(r, result(f, r)))
     return out
 
 

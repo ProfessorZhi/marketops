@@ -155,7 +155,7 @@ def judge(project: str, file: str, question: str, options: dict, column: str,
 
 
 def run(project: str, rounds: int = 6, max_pages: int = 15, goal_ab_org_share: float | None = None,
-        agent: bool = False, stop: bool = False, workers: int = 12, shards: int = 1,
+        agent: bool = False, stop: bool = False, workers: int = 24, shards: int = 1,
         follow: bool = False, pool_done: bool = False) -> dict:
     """Long research as a pipeline in its own background process(es) (survives this session).
 
@@ -269,7 +269,7 @@ def headless(argv: list[str]) -> int:
     ap.add_argument("--max-pages", type=int, default=15)
     ap.add_argument("--goal", type=float, default=None, help="%% of organisations with A/B")
     ap.add_argument("--agent", action="store_true")
-    ap.add_argument("--workers", type=int, default=12)
+    ap.add_argument("--workers", type=int, default=24)
     ap.add_argument("--shard", default="0/1")
     ap.add_argument("--follow", action="store_true")
     a = ap.parse_args(argv)

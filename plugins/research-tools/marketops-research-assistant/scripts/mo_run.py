@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import re
 import time
+import urllib.parse
 
 import mo_config
 import mo_export
@@ -26,6 +27,7 @@ import mo_grade
 import mo_pages
 import mo_providers
 import mo_workspace as ws
+from mo_pool import mentions as _mentions, name_words as _name_words
 
 AGENT_PAGES_PER_ROUND = 20  # the paid TinyFish Agent: only with agent=True, and sparingly
 DEFAULT_TERMS = ["contact email", "staff team board committee", "facilities grounds manager"]
@@ -121,13 +123,51 @@ def _leads(pdir, org: dict, rnd: int, terms: list[str], dir_terms: list[str], en
             url = hit.get("url") or ""
             if not url.startswith("http") or url in found or url in seen:
                 continue
-            hay = f"{hit.get('title', '')} {hit.get('snippet', '')}".lower()
             own = site and mo_pages.site_of(url) == site
-            mentions = name and all(w in hay for w in name.lower().split()[:3])
+            mentions = _mentions(name, f"{hit.get('title', '')} {hit.get('snippet', '')} {url}")
             if own or mentions or (maps and not site):
                 found[url] = hit
     ranked = _rank(pdir, org, list(found.values())[:20]) if rank else list(found.values())
     return [h["url"] for h in ranked][:per_org]
+
+
+def _find_site(pdir, org: dict) -> str:
+    """An organisation the pool gave no website: search its name and town once and take the
+    result on a domain carrying its name (not a platform, not a directory). Written back to
+    orgs.csv (website_from=search) so every later stage and run uses it."""
+    import mo_discover
+    name, city = str(org.get("name") or "").strip(), str(org.get("city") or "").strip()
+    words = [w for w in _name_words(name) if len(w) > 3]
+    if not name or not words:
+        return ""
+    try:
+        res = mo_providers.search(" ".join(x for x in (f'"{name}"', city) if x), None, n=8, project_dir=pdir,
+                                  weights=ws.weights(pdir, "search"))
+    except Exception:  # noqa: BLE001
+        return ""
+    for hit in res["results"]:
+        url = hit.get("url") or ""
+        site = mo_pages.site_of(url)
+        if not url.startswith("http") or any(p in url for p in mo_discover.PLATFORMS) or site in ws.shared_sites(pdir):
+            continue
+        squashed = re.sub(r"[^a-z0-9]", "", site)
+        home_page = urllib.parse.urlsplit(url).path.strip("/").count("/") == 0 and len(urllib.parse.urlsplit(url).path) < 30
+        # its name in the domain, or (clubs often use initials) a home page titled with its name
+        if any(w in squashed for w in words) or (home_page and _mentions(name, hit.get("title") or "")):
+            home = urllib.parse.urlsplit(url)._replace(path="/", query="", fragment="").geturl()
+            oid = _oid(org)
+            with ws._lock(pdir / "pools"):
+                rows = ws.read_csv(pdir / "orgs.csv")
+                cols = list(rows[0].keys()) if rows else []
+                for col in ("website", "website_from"):
+                    if col not in cols:
+                        cols.append(col)
+                for r in rows:
+                    if _oid(r) == oid and not r.get("website"):
+                        r["website"], r["website_from"] = home, "search"
+                ws.write_csv(pdir / "orgs.csv", cols, rows)
+            return home
+    return ""
 
 
 def _button_pages(pdir, org_ids: set[str]) -> list[tuple[str, str]]:
@@ -263,7 +303,7 @@ def _source(org: dict) -> str:
 
 
 def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, goal_ab_org_share: float | None = None,
-             agent: bool = False, workers: int = 12, job: dict | None = None, shard: str = "0/1",
+             agent: bool = False, workers: int = 24, job: dict | None = None, shard: str = "0/1",
              follow: bool = False) -> dict:
     """The pipeline. Every organisation flows on its own: own site -> graded -> (no confirmed
     A/B) dig round 1..n, each graded -> evidence corroborated -> done. Many organisations are
@@ -322,6 +362,12 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
             clock[0] = now
 
         move("queued", "site")
+        if not str(org.get("website") or "").strip() and "findsite" not in off:
+            found_site = _find_site(pdir, org)
+            if found_site:
+                org = {**org, "website": found_site}
+            tr["found_site"] = found_site
+            mark("find_site")
         if (oid, "site") not in _done_passes(pdir):
             ws.append_csv(pdir / "crawl.csv", ws.CRAWL_COLS, ws._crawl_one(pdir, org, max_pages, None, None, "site"))
         mark("site")
@@ -493,7 +539,7 @@ def _pids(pdir) -> list[str]:
 
 
 def run(pdir, rounds: int = 6, max_pages: int = 15, goal_ab_org_share: float | None = None,
-        agent: bool = False, stop: bool = False, workers: int = 12, shards: int = 1,
+        agent: bool = False, stop: bool = False, workers: int = 24, shards: int = 1,
         follow: bool = False, pool_done: bool = False) -> dict:
     """Start the long run as its own process(es) - shards splits orgs.csv between them - or stop it."""
     import os

@@ -70,6 +70,24 @@ def norm(text) -> str:
     return " ".join(re.sub(r"[^a-z0-9]+", " ", t).split())
 
 
+NAME_FILLER = {"de", "du", "des", "la", "le", "les", "et", "the", "of", "and", "von", "der", "die", "das", "und",
+               "club", "sport", "sports", "association", "ville", "city", "fc", "ac", "as", "us", "sc", "e", "v"}
+
+
+def name_words(name: str) -> list[str]:
+    return [w for w in norm(name).split() if len(w) > 2 and w not in NAME_FILLER]
+
+
+def mentions(name: str, text: str) -> bool:
+    """Does this result talk about the organisation? Most of its distinctive name words are
+    there - accents, hyphens and word order do not matter."""
+    words = name_words(name)[:4]
+    if not words:
+        return bool(name) and norm(name) in norm(text)
+    hay = norm(text)
+    return sum(w in hay for w in words) >= max(1, round(len(words) * 0.6))
+
+
 def venue_key(r: dict) -> str:
     name = norm(r.get("name"))
     place = norm(r.get("postcode") or r.get("zip") or r.get("city") or r.get("address", "")[:24])

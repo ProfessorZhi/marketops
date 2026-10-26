@@ -40,11 +40,11 @@ EMAIL_WORDS = re.compile(r"^\s*(e-?mail|mail|email me|email us|send (an )?e-?mai
 EMAIL = re.compile(r"(?<![\w.+-])[A-Za-z0-9][A-Za-z0-9._%+-]{0,63}@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,24}(?![\w-])")
 NOT_TLD = {"png", "jpg", "jpeg", "gif", "webp", "svg", "css", "js", "pdf", "ico", "mp4", "woff", "woff2"}
 NOT_DOMAIN = ("example.", "sentry.", "wixpress.com", "domain.", "email.com", "yourdomain", "sentry-next")
-GENERIC = {"info", "office", "kontakt", "contact", "contacto", "contatto", "admin", "hello", "hallo",
-           "mail", "email", "enquiries", "enquiry", "inquiries", "reception", "sekretariat",
-           "secretariat", "secretary", "post", "general", "welcome", "service", "support", "team",
-           "verwaltung", "administration", "bureau", "accueil", "mairie", "gemeinde", "school",
-           "noreply", "no-reply", "webmaster", "news", "newsletter", "media", "presse", "press"}
+# Plainly general inboxes: graded D without asking Jev. Role-ish words (secretary, service,
+# administration, mairie, team...) are not here - Jev grades them, they can be B or C.
+GENERIC = {"info", "office", "kontakt", "contact", "contacto", "contatto", "hello", "hallo", "mail",
+           "email", "enquiries", "enquiry", "inquiries", "reception", "post", "general", "welcome",
+           "accueil", "noreply", "no-reply", "webmaster", "news", "newsletter"}
 PHONE = re.compile(r"(?<![\w])(?:\+|00)?\d[\d\s./()\-]{7,20}\d(?![\w])")
 DATEISH = re.compile(r"^\d{1,2}[./-]\d{1,2}([./-]\d{2,4})?(\s|$|-)|^\d{4}-\d{2}-\d{2}|\d{1,2}\.\d{1,2}\.\d{2,4}")
 

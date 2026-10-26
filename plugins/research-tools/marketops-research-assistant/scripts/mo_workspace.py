@@ -259,6 +259,18 @@ def _merge_phones(pdir: Path, phones: list[dict], org_id: str, org: str) -> None
                                 "quote": c.get("quote", ""), "found_by": c.get("found_by", ""), "added": _now()})
 
 
+def address_rule(pdir: Path, email: str) -> str:
+    """The grade the brief gives an address by its name alone (brief.address_rules, e.g.
+    {"info": "X", "book": "X"}): the whole name or its first part. "" when no rule applies."""
+    rules = brief(pdir).get("address_rules") or {}
+    local = email.split("@")[0].lower()
+    for word, grade in rules.items():
+        word = str(word).lower()
+        if grade in ("A", "B", "C", "D", "X") and (local == word or re.match(re.escape(word) + r"[\W_\d]", local)):
+            return grade
+    return ""
+
+
 def merge_contacts(pdir: Path, found: list[dict], org_id: str = "", org: str = "", via: str = "") -> int:
     """Add candidates to the organisation's contact file (emails) and phones.csv; one row per
     address and organisation. via: the stage that found them (site, deep2, evidence, ...)."""
@@ -281,7 +293,10 @@ def merge_contacts(pdir: Path, found: list[dict], org_id: str = "", org: str = "
                 row = {**{k: "" for k in CONTACT_COLS}, **{k: c.get(k, "") for k in CONTACT_COLS},
                        "org_id": org_id, "org": org, "found_by": c.get("found_by", ""), "added": _now(),
                        "found_in": via or c.get("found_in", "")}
-                if c.get("kind") == "email" and c.get("mailbox") == "generic":
+                rule = address_rule(pdir, c["value"]) if c.get("kind") == "email" else ""
+                if rule:
+                    row["grade"], row["graded_by"], row["grade_reason"] = rule, "rule", f"address rule: {rule}"
+                elif c.get("kind") == "email" and c.get("mailbox") == "generic":
                     row["grade"], row["graded_by"] = "D", "rule: generic mailbox"
                 rows.append(row)
                 index[key] = row
@@ -362,34 +377,6 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
                 report[row["reader"]] = {"file": row["file"], "cached": "library" if row.get("library") else "project"}
             except OSError:
                 continue
-    def read_with(chosen):
-        for reader, res in mo_providers.read(url, chosen, project_dir=pdir).items():
-            if "error" in res:
-                report[reader] = {"error": res["error"]}
-                continue
-            if res.get("html"):
-                f = _save(pdir, url, reader, res["html"].encode("utf-8"), "html", res["final_url"], org_id)
-                parsed = mo_pages.from_html(res["html"], res["final_url"])
-            else:
-                f = _save(pdir, url, reader, res["text"].encode("utf-8"), "md", res["final_url"], org_id)
-                parsed = mo_pages.from_markdown(res["text"], res["final_url"])
-            parsed_by[reader] = parsed
-            read_at[reader] = _now()
-            report[reader] = {"file": f, "chars": sum(map(len, parsed["lines"])), "final_url": res["final_url"]}
-
-    if not parsed_by:
-        if readers is None:
-            now, held = mo_providers.pick(url, mo_providers.available_readers(), weights(pdir, "fetch"),
-                                          always=("crawl4ai",))
-        else:
-            now, held = readers, []
-        read_with(now)
-        # Quality floor: nothing read, or a contact-looking page with no address -> the rest too.
-        emails = any(mo_pages.EMAIL.search(" ".join(p["lines"])) for p in parsed_by.values())
-        contactish = any(h in url.lower() for h in ("kontakt", "contact", "impressum", "vorstand", "team",
-                                                     "staff", "people", "board", "committee", "equipe"))
-        if held and (not parsed_by or (contactish and not emails)):
-            read_with(held)
     page_site = mo_pages.site_of(url)
     words = [w for w in re.findall(r"[a-z0-9]+", (org or "").lower()) if len(w) > 3]
     known_site = org_site  # the organisation's own website, if the pool has one
@@ -402,7 +389,68 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
         return "likely" if words and any(w in squashed for w in words) else "unknown"
     on_org = belongs(page_site)
     org_site = org_site or page_site
-    found: dict[str, dict] = {}
+
+    def take(reader: str, res: dict):
+        if "error" in res:
+            report[reader] = {"error": res["error"]}
+            return None
+        if res.get("html"):
+            f = _save(pdir, url, reader, res["html"].encode("utf-8"), "html", res["final_url"], org_id)
+            parsed = mo_pages.from_html(res["html"], res["final_url"])
+        else:
+            f = _save(pdir, url, reader, res["text"].encode("utf-8"), "md", res["final_url"], org_id)
+            parsed = mo_pages.from_markdown(res["text"], res["final_url"])
+        read_at[reader] = _now()
+        report[reader] = {"file": f, "chars": sum(map(len, parsed["lines"])), "final_url": res["final_url"]}
+        return parsed
+
+    def extract(parsed_map: dict) -> list[dict]:
+        found: dict[str, dict] = {}
+        for reader, parsed in parsed_map.items():
+            for c in mo_pages.contacts(parsed["lines"], url, org_site, parsed.get("blocks"), parsed.get("mailtos")):
+                c.update(page_site=page_site, page_on_org_site=on_org, last_verified=read_at.get(reader, ""),
+                         email_on_org=belongs(c.get("email_site", "")) if c.get("kind") == "email" else "")
+                k = c["value"].lower()
+                if k in found:
+                    found[k]["found_by"] = "+".join(sorted(set(found[k]["found_by"].split("+")) | {reader}))
+                    found[k]["last_verified"] = max(found[k].get("last_verified", ""), c.get("last_verified", ""))
+                    if (c["quote_from"] == "block") > (found[k]["quote_from"] == "block"):
+                        found[k]["quote"], found[k]["quote_from"] = c["quote"], "block"
+                else:
+                    found[k] = {**c, "found_by": reader}
+        return list(found.values())
+
+    def late(reader: str, res: dict) -> None:
+        """A slower reader finished after the page moved on: its version is kept and its
+        contacts merged all the same."""
+        try:
+            parsed = take(reader, res)
+            if parsed and (org_id or org):
+                merge_contacts(pdir, extract({reader: parsed}), org_id, org, via)
+        except Exception:  # noqa: BLE001
+            pass
+
+    def read_with(chosen, race: bool = False):
+        got = mo_providers.read_race(url, chosen, project_dir=pdir, on_late=late) if race \
+            else mo_providers.read(url, chosen, project_dir=pdir)
+        for reader, res in got.items():
+            parsed = take(reader, res)
+            if parsed:
+                parsed_by[reader] = parsed
+
+    if not parsed_by:
+        if readers is None:
+            now, held = mo_providers.pick(url, mo_providers.available_readers(), weights(pdir, "fetch"),
+                                          always=("crawl4ai",))
+        else:
+            now, held = readers, []
+        read_with(now, race=len(now) > 1)
+        # Quality floor: nothing read, or a contact-looking page with no address -> the rest too.
+        emails = any(mo_pages.EMAIL.search(" ".join(p["lines"])) for p in parsed_by.values())
+        contactish = any(h in url.lower() for h in ("kontakt", "contact", "impressum", "vorstand", "team",
+                                                     "staff", "people", "board", "committee", "equipe"))
+        if held and (not parsed_by or (contactish and not emails)):
+            read_with(held)
     links: list = []
     content_links: list = []
     buttons = 0
@@ -410,17 +458,7 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
         links += parsed["links"]
         content_links += parsed.get("content_links", parsed["links"])
         buttons = max(buttons, parsed.get("hidden_email_buttons", 0))
-        for c in mo_pages.contacts(parsed["lines"], url, org_site, parsed.get("blocks"), parsed.get("mailtos")):
-            c.update(page_site=page_site, page_on_org_site=on_org, last_verified=read_at.get(reader, ""),
-                     email_on_org=belongs(c.get("email_site", "")) if c.get("kind") == "email" else "")
-            k = c["value"].lower()
-            if k in found:
-                found[k]["found_by"] = "+".join(sorted(set(found[k]["found_by"].split("+")) | {reader}))
-                found[k]["last_verified"] = max(found[k].get("last_verified", ""), c.get("last_verified", ""))
-                if (c["quote_from"] == "block") > (found[k]["quote_from"] == "block"):
-                    found[k]["quote"], found[k]["quote_from"] = c["quote"], "block"
-            else:
-                found[k] = {**c, "found_by": reader}
+    found = {c["value"].lower(): c for c in extract(parsed_by)}
     contacts = list(found.values())
     added = merge_contacts(pdir, contacts, org_id, org, via) if (org_id or org) else 0
     best = max((p["lines"] for p in parsed_by.values()), key=lambda ls: sum(map(len, ls)), default=[])
