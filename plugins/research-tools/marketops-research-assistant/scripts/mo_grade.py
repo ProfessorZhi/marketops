@@ -159,9 +159,11 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 8, workers: i
                 current[k].update({f: r.get(f, "") for f in ("grade", "graded_by", "grade_reason", "review", "review_reason")})
         ws.write_csv(path, ws.CONTACT_COLS, list(current.values()))
     named = fill_people(pdir)
+    import mo_evidence
+    evidence = mo_evidence.rescore(pdir)
     left = sum(1 for r in ws.read_csv(path) if r.get("kind") == "email" and not r.get("grade"))
     review = sum(1 for r in ws.read_csv(path) if r.get("review") == "yes")
-    return {**counts, "people_filled": named, "still_ungraded": left, "to_review": review}
+    return {**counts, "people_filled": named, "evidence": evidence, "still_ungraded": left, "to_review": review}
 
 
 def _segments(quote: str) -> list[str]:
@@ -252,6 +254,8 @@ def manual(pdir, updates: list[dict]) -> dict:
                     r["review"] = ""
                     changed += 1
         ws.write_csv(path, ws.CONTACT_COLS, rows)
+    import mo_evidence
+    mo_evidence.rescore(pdir)
     return {"updated": changed}
 
 

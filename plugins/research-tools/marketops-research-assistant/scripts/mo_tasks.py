@@ -29,6 +29,9 @@ GUIDE = {
     "review": "For each row: read the quote (fetch the page if unsure); confirm or correct with "
               "grade(set=[{value, org_id, grade, person, role}]) - setting clears the review mark.",
     "browse": "browse(project, url, org_id=...) each page, then project(name) until the runs finish.",
+    "evidence": "For each row: find more proof the person and role belong to this organisation - search the "
+                "address and the name, fetch the pages that print them with org_id (each page raises the "
+                "evidence score); fix person/role with grade(set=...) if the pages say otherwise.",
     "crawl": "crawl(project, [rows]) for these organisations and wait in project(name).",
     "custom": "Do what the title says with the tools; add organisations to orgs.csv or rows via pool.",
 }
@@ -59,6 +62,9 @@ def plan(pdir, kind: str, size: int = 15) -> dict:
         elif kind == "review":
             items = [f"{c['org_id']}::{c['value']}" for c in ws.read_csv(pdir / "contacts.csv")
                      if c.get("review") == "yes" and not c.get("graded_by", "").startswith("agent")]
+        elif kind == "evidence":
+            items = [f"{c['org_id']}::{c['value']}" for c in ws.read_csv(pdir / "contacts.csv")
+                     if c.get("grade") in ("A", "B") and c.get("evidence") in ("weak", "medium")]
         elif kind == "browse":
             items = [f"{r['org_id']}::{u}" for r in ws.read_csv(pdir / "crawl.csv")
                      for u in re.findall(r"email buttons without address on (\S+): try browse", r.get("note", ""))]
@@ -66,7 +72,7 @@ def plan(pdir, kind: str, size: int = 15) -> dict:
             done = {r["org_id"] for r in ws.read_csv(pdir / "crawl.csv")}
             items = [str(o.get("id") or "") for o in ws.read_csv(pdir / "orgs.csv") if str(o.get("id") or "") not in done]
         else:
-            return {"error": "kind: dig, review, browse or crawl (custom tasks: action='add')"}
+            return {"error": "kind: dig, review, evidence, browse or crawl (custom tasks: action='add')"}
         items = [i for i in dict.fromkeys(items) if i not in busy]
         new = []
         for k in range(0, len(items), max(1, size)):
@@ -99,10 +105,10 @@ def _payload(pdir, task: dict) -> list[dict]:
             out.append({"org_id": i, "name": o.get("name"), "website": o.get("website"), "city": o.get("city"),
                         "crawl": c.get("status"), "pages_read": c.get("pages"), "crawl_note": c.get("note")})
         return out
-    if task["kind"] == "review":
+    if task["kind"] in ("review", "evidence"):
         want = {tuple(i.split("::", 1)) for i in items}
-        return [{k: c.get(k) for k in ("org_id", "org", "value", "grade", "review_reason", "person", "role",
-                                       "page_url", "quote")}
+        return [{k: c.get(k) for k in ("org_id", "org", "value", "grade", "review_reason", "evidence",
+                                       "evidence_why", "person", "role", "page_url", "quote")}
                 for c in ws.read_csv(pdir / "contacts.csv") if (c.get("org_id"), c.get("value")) in want]
     if task["kind"] == "browse":
         return [{"org_id": i.split("::", 1)[0], "url": i.split("::", 1)[1]} for i in items]

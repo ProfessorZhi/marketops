@@ -60,6 +60,13 @@ def _oid(value: str) -> str:
 
 def pool(pdir: Path, file: str, into: str = "venues", filters: dict | None = None,
          map: dict | None = None, group_by: str = "", org_fields: dict | None = None) -> dict:
+    # several agents may build pools at once: one writer per project for the pool files
+    with ws._lock(pdir / "pools"):
+        return _pool(pdir, file, into, filters, map, group_by, org_fields)
+
+
+def _pool(pdir: Path, file: str, into: str, filters: dict | None, map: dict | None, group_by: str,
+          org_fields: dict | None) -> dict:
     src = (pdir / file).resolve()
     if pdir.resolve() not in src.parents:
         return {"error": "file: a path inside the project folder (e.g. pages/<file>.json)"}

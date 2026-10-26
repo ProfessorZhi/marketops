@@ -19,7 +19,7 @@ Keep going until the job is done; do not stop to ask whether to continue.
 | `browse(project, url, goal?)` | background TinyFish Agent for pages that need clicks (paid per step) |
 | `judge(project, file, question, options, column)` | Jev answers one multiple-choice question per row |
 | `grade(project, set?)` | Jev grades contacts A/B/C/D/X from the brief; `set=[...]` for your own grades, names and roles |
-| `run(project, rounds?, goal_ab_org_share?, agent?, stop?)` | long research as its own process over the whole `orgs.csv`: crawl, grade, dig the gaps round after round, export; `stop=True` ends it gracefully |
+| `run(project, shards?, follow?, rounds?, goal_ab_org_share?, agent?, stop?, pool_done?)` | the pipeline, as background process(es): every organisation flows site -> graded -> dug while it lacks A/B -> evidence corroborated; `follow=True` takes organisations added while it runs |
 | `tasks(project, action, ...)` | shared work queue: plan packages (dig, review, browse, custom), workers claim and finish them |
 | `export(project)` | the Excel workbook and Bruce's 18-column routes CSV |
 
@@ -56,12 +56,15 @@ Keep going until the job is done; do not stop to ask whether to continue.
    operators/owners, clubs playing there, schools, the federation's club list. Find missing
    websites with `search`; `judge` can check "is this URL the organisation's own site?".
 
-4. **Contacts: the long run.** `run(project)` works through the whole `orgs.csv` without
-   stopping: it reads every site (home plus the best contact, imprint, team, board, staff and
-   venue pages two levels deep, PDFs included, all readers in parallel), grades, then takes
-   the organisations still without A/B and digs a different way each round (your
-   search_terms, inside the site and its PDFs, directories, maps, broad searches) until the
-   goal, two dry rounds or `rounds`. It runs as its own process and keeps going if this
+4. **Contacts: the pipeline.** Start it as soon as the first organisations are in
+   `orgs.csv` - don't wait for the pool to be complete: `run(project, follow=True,
+   shards=4)`. Each organisation flows on its own, dozens at a time: its site is read (home
+   plus the best contact, imprint, team, board, staff and venue pages two levels deep, PDFs
+   included), a background grader grades the new addresses, then while it has no confirmed
+   A/B it is dug a different way each round (your search_terms, inside the site and its
+   PDFs, directories, maps, broad searches), and the evidence for its A/B addresses is
+   corroborated (pages that also print the address). Keep adding organisations; they join
+   the flow. When the pool is complete: `run(project, pool_done=True)`. It runs as its own process and keeps going if this
    session ends; `project(name).run.progress` shows organisations per minute, minutes left
    and cost per organisation, so you can tell the user what the rest will take; `run(name,
    stop=True)` ends it gracefully. Check `project(name).run` now and then and keep working
@@ -74,7 +77,11 @@ Keep going until the job is done; do not stop to ask whether to continue.
    assign its contacts to the right organisations.
 
 5. **Review.** Jev grades every address from its quote and fills `person`/`role` on A/B rows
-   from the quote's own segments. Rows marked `review=yes` carry a `review_reason` (low
+   from the quote's own segments. Every address also gets an evidence score (0-100: same
+   card, own site, own domain, named, role stated, several readers, several pages, Jev's
+   confidence; minus when several organisations list it) - strong, medium or weak. Weak rows
+   are never dropped: they are delivered marked weak, after the strong ones; the person
+   decides. `tasks(plan, kind="evidence")` sends workers to find more proof for them. Rows marked `review=yes` carry a `review_reason` (low
    confidence, address listed for several organisations, page on another site) and do not
    count until you look: open the quote, then confirm or correct with
    `grade(set=[{value, org_id, grade, person, role}])`. Your grades are never overwritten.

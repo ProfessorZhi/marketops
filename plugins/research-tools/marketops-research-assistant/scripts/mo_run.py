@@ -1,4 +1,13 @@
-"""Long research without a person in the loop: crawl, grade, find the gaps, dig, repeat.
+"""Long research without a person in the loop, as a pipeline: organisations flow through
+the stages one by one, many at a time, and new ones join while the pool is still growing.
+
+    site      read the organisation's own site (home + best contact/people pages, PDFs)
+    grade     a background grader batches every new address to Jev, names and roles included
+    dig       no confirmed A/B yet: dig round 1..n, a different way each round (below)
+    evidence  A/B addresses not yet strong: search the address itself, read pages printing it
+    done      the organisation is finished; the workbook is refreshed every half hour
+
+Former description of the dig rounds (still how each round digs):
 
     round 0  read every organisation's own site (home + best contact/people pages, PDFs)
     grade    Jev grades every new address
@@ -167,9 +176,100 @@ def _progress(pdir, state: dict, job: dict) -> None:
         _save_state(pdir, state)
 
 
+def _oid(o: dict) -> str:
+    return str(o.get("id") or o.get("org_id") or "")
+
+
+def _emails_of(pdir, oid: str) -> list[dict]:
+    return [c for c in ws.read_csv(pdir / "contacts.csv") if c.get("org_id") == oid and c.get("kind") == "email"]
+
+
+def _has_ab(pdir, oid: str) -> bool:
+    return any(c.get("grade") in ("A", "B") and c.get("review") != "yes" for c in _emails_of(pdir, oid))
+
+
+def _corroborate(pdir, org: dict, weights: dict) -> int:
+    """More evidence for this organisation's A/B addresses that are not yet strong: search for
+    the address itself and read the pages that print it (each extra page raises the score)."""
+    oid, n = _oid(org), 0
+    for c in _emails_of(pdir, oid):
+        if c.get("grade") not in ("A", "B") or c.get("evidence") == "strong":
+            continue
+        try:
+            res = mo_providers.search(f'"{c["value"]}"', None, n=5, project_dir=pdir, weights=weights)
+        except Exception:  # noqa: BLE001
+            continue
+        seen = set(ws._pages(pdir))
+        for hit in res["results"][:3]:
+            url = hit.get("url") or ""
+            if url.startswith("http") and url not in seen:
+                try:
+                    ws.fetch(pdir, url, None, oid, str(org.get("name") or ""), mo_pages.site_of(str(org.get("website") or "")))
+                    n += 1
+                except Exception:  # noqa: BLE001
+                    continue
+    return n
+
+
+class _Grader:
+    """One background grader per run: whatever new addresses the organisations produce are
+    graded together in batches (Jev stays efficient while the pipeline keeps moving)."""
+
+    def __init__(self, pdir):
+        import threading
+        self.pdir, self.stop, self.busy = pdir, threading.Event(), threading.Lock()
+        self.kick = threading.Event()
+        self.thread = threading.Thread(target=self._loop, daemon=True, name="grader")
+
+    def _pending(self) -> bool:
+        return any(c.get("kind") == "email" and not c.get("grade") for c in ws.read_csv(self.pdir / "contacts.csv"))
+
+    def grade_now(self) -> None:
+        with self.busy:
+            try:
+                import fcntl
+                fh = open(self.pdir / "grade.lock", "a")
+                try:
+                    fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except OSError:
+                    fh.close()
+                    return  # another process is grading this project right now
+            except ImportError:
+                fh = None
+            try:
+                if self._pending():
+                    mo_grade.auto(self.pdir)
+            finally:
+                if fh is not None:
+                    fh.close()
+
+    def _loop(self) -> None:
+        while not self.stop.is_set():
+            try:
+                self.grade_now()
+            except Exception:  # noqa: BLE001 - grading retries on the next beat
+                pass
+            self.kick.wait(8)
+            self.kick.clear()
+
+    def wait_for(self, oid: str, timeout: int = 240) -> None:
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if not any(not c.get("grade") for c in _emails_of(self.pdir, oid)):
+                return
+            self.kick.set()
+            time.sleep(1)
+
+
 def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, goal_ab_org_share: float | None = None,
-             agent: bool = False, workers: int = 12, job: dict | None = None, shard: str = "0/1") -> dict:
+             agent: bool = False, workers: int = 12, job: dict | None = None, shard: str = "0/1",
+             follow: bool = False) -> dict:
+    """The pipeline. Every organisation flows on its own: own site -> graded -> (no confirmed
+    A/B) dig round 1..n, each graded -> evidence corroborated -> done. Many organisations are
+    in flight at once; with follow=True new rows appended to orgs.csv (by agents still building
+    the pool) join while it runs, until run(pool_done=True), stop, or 30 idle minutes."""
     import os
+    from concurrent.futures import ThreadPoolExecutor
     k, n = (int(x) for x in shard.split("/"))
     sh = (k, n)
     fname = "run.json" if n == 1 else f"run.{k}.json"
@@ -179,93 +279,130 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
         state = {}
     state["file"], state["shard"] = fname, shard
     state.update(started=state.get("started") or ws._now(), done=False, stopped_because="", pid=os.getpid(),
-                 settings={"rounds": rounds, "max_pages": max_pages, "goal_ab_org_share": goal_ab_org_share,
-                           "agent": agent})
-    job = job if job is not None else {"finished": 0, "total": 0}
+                 stage="pipeline", settings={"rounds": rounds, "max_pages": max_pages, "workers": workers,
+                                             "goal_ab_org_share": goal_ab_org_share, "agent": agent, "follow": follow})
     history = state.setdefault("history", [])
     b = ws.brief(pdir)
     focus = b.get("focus") if isinstance(b.get("focus"), dict) else {}
     terms = focus.get("search_terms") or DEFAULT_TERMS
     dir_terms = focus.get("directory_terms") or DEFAULT_DIRECTORY_TERMS
-    dry = 0
-    engines = None  # by the project's provider weights
-
-    def stage(name, **extra):
-        state.update(stage=name, **extra)
-        job.update(stage=name, finished=0, total=0, t0=time.time())
-        _save_state(pdir, state)
-    job["on_progress"] = lambda: _progress(pdir, state, job)
+    weights = ws.weights(pdir, "search")
+    finished = {r["org_id"] for r in ws.read_csv(pdir / "crawl.csv") if r.get("pass") == "final"}
+    flow = {"queued": 0, "site": 0, "grading": 0, "digging": 0, "evidence": 0, "done": len(finished)}
+    agent_budget = [AGENT_PAGES_PER_ROUND * max(1, rounds // 2)]
+    import mo_budget
+    t0, spent0 = time.time(), sum(v["usd"] for v in mo_budget.summary(pdir).values())
+    grader = _Grader(pdir)
+    grader.thread.start()
+    goal_hit = [False]
 
     def stopping() -> bool:
-        if ws.stop_requested(pdir):
-            state["stopped_because"] = "stopped on request"
-            return True
-        return False
+        return ws.stop_requested(pdir) or goal_hit[0]
 
-    orgs = _mine(ws.read_csv(pdir / "orgs.csv"), sh)
-    if not orgs:
-        raise ValueError("orgs.csv is empty: build the organisation pool first")
-    stage("crawl", round=0, orgs=len(orgs))
-    ws.crawl_sync(pdir, orgs, max_pages, None, workers, job, label="site")
-    stage("grade", round=0)
-    mo_grade.auto(pdir)
-    m = measure(pdir, sh)
-    history.append({"round": 0, **m, "time": ws._now()})
-    for rnd in range(1, rounds + 1):
-        if stopping():
-            break
-        if goal_ab_org_share and m["ab_org_share"] >= goal_ab_org_share:
-            state["stopped_because"] = f"goal reached ({m['ab_org_share']}% of organisations have A/B)"
-            break
-        gaps = _gap_orgs(pdir, sh)
-        if not gaps:
-            state["stopped_because"] = "every organisation has an A/B route"
-            break
-        stage("deep-search", round=rnd, gaps=len(gaps))
-        extra: dict[str, list[str]] = {}
-        from concurrent.futures import ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=workers) as pool:
-            for org, leads in zip(gaps, pool.map(lambda o: _leads(pdir, o, rnd, terms, dir_terms, engines), gaps)):
-                if leads:
-                    extra[str(org.get("id") or org.get("org_id") or "")] = leads
-        targets = [o for o in gaps if str(o.get("id") or o.get("org_id") or "") in extra]
-        stage("deep-read", round=rnd, gaps=len(gaps), with_leads=len(targets))
-        ws.crawl_sync(pdir, targets, deep_pages, None, workers, job, label=f"deep{rnd}", extra_urls=extra)
-        if agent and mo_config.key("tinyfish"):
-            gap_ids = {str(o.get("id") or o.get("org_id") or "") for o in gaps}
-            names = {str(o.get("id") or o.get("org_id") or ""): o.get("name", "") for o in gaps}
-            stage("agent", round=rnd)
-            for oid, url in _button_pages(pdir, gap_ids)[:AGENT_PAGES_PER_ROUND]:
+    def move(a: str, b_: str) -> None:
+        flow[a] -= 1
+        flow[b_] += 1
+
+    def org_flow(org: dict) -> None:
+        oid = _oid(org)
+        move("queued", "site")
+        if (oid, "site") not in _done_passes(pdir):
+            ws.append_csv(pdir / "crawl.csv", ws.CRAWL_COLS, ws._crawl_one(pdir, org, max_pages, None, None, "site"))
+        move("site", "grading")
+        grader.wait_for(oid)
+        move("grading", "digging")
+        dry = 0
+        for rnd in range(1, rounds + 1):
+            if stopping() or _has_ab(pdir, oid):
+                break
+            before = len(_emails_of(pdir, oid))
+            leads = _leads(pdir, org, rnd, terms, dir_terms, None)
+            if leads:
+                ws.append_csv(pdir / "crawl.csv", ws.CRAWL_COLS,
+                              ws._crawl_one(pdir, org, deep_pages, None, leads, f"deep{rnd}"))
+                grader.wait_for(oid)
+            dry = dry + 1 if len(_emails_of(pdir, oid)) == before else 0
+            if dry >= 2:
+                break
+        if agent and not _has_ab(pdir, oid) and mo_config.key("tinyfish"):
+            for _oid_, url in _button_pages(pdir, {oid}):
+                if agent_budget[0] <= 0:
+                    break
+                agent_budget[0] -= 1
                 try:
-                    ws.browse(pdir, url, org_id=oid, org=names.get(oid, ""))
+                    ws.browse(pdir, url, org_id=oid, org=str(org.get("name") or ""))
                 except Exception:  # noqa: BLE001
-                    continue
-            deadline = time.time() + 900
-            while time.time() < deadline and any(
-                    r["status"] in ("RUNNING", "PENDING") for r in ws.refresh_agent_runs(pdir)):
-                time.sleep(20)
-        if stopping():
-            mo_grade.auto(pdir)
-            break
-        stage("grade", round=rnd)
-        mo_grade.auto(pdir)
-        before = m["ab_orgs"]
+                    pass
+        move("digging", "evidence")
+        if not stopping() and _corroborate(pdir, org, weights):
+            grader.wait_for(oid)
+        ws.append_csv(pdir / "crawl.csv", ws.CRAWL_COLS, {"org_id": oid, "org": org.get("name", ""), "pass": "final",
+                                                          "status": "done", "time": ws._now()})
+        move("evidence", "done")
+
+    def snapshot() -> dict:
         m = measure(pdir, sh)
-        history.append({"round": rnd, **m, "new_ab_orgs": m["ab_orgs"] - before, "time": ws._now()})
-        dry = dry + 1 if m["ab_orgs"] == before else 0
-        if dry >= 2:
-            state["stopped_because"] = f"rounds {rnd - 1} and {rnd} found no new A/B organisation"
-            break
-    else:
-        state["stopped_because"] = state.get("stopped_because") or f"{rounds} rounds done"
-    stage("export")
-    m = measure(pdir, sh)
+        spent = sum(v["usd"] for v in mo_budget.summary(pdir).values()) - spent0
+        total = len(_mine(ws.read_csv(pdir / "orgs.csv"), sh))
+        rate = (flow["done"] - len(finished)) / max(time.time() - t0, 1) * 60
+        left = max(total - flow["done"], 0)
+        state["progress"] = {"flow": dict(flow), "orgs": total, "orgs_per_minute": round(rate, 2),
+                             "minutes_left": round(left / rate, 1) if rate else None,
+                             "usd_this_run": round(spent, 3),
+                             "usd_per_org": round(spent / max(flow["done"] - len(finished), 1), 4)}
+        state["result"] = m
+        if goal_ab_org_share and m["ab_org_share"] >= goal_ab_org_share:
+            goal_hit[0] = True
+            state["stopped_because"] = f"goal reached ({m['ab_org_share']}% of organisations have A/B)"
+        _save_state(pdir, state)
+        return m
+
+    submitted, futures = set(finished), []
+    last_new, last_snap, last_export = time.time(), 0.0, time.time()
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        while True:
+            if not stopping():
+                for org in _mine(ws.read_csv(pdir / "orgs.csv"), sh):
+                    oid = _oid(org)
+                    if oid and oid not in submitted:
+                        submitted.add(oid)
+                        flow["queued"] += 1
+                        futures.append(pool.submit(org_flow, org))
+                        last_new = time.time()
+            busy = any(not f.done() for f in futures)
+            pool_open = follow and not (pdir / "POOL_DONE").exists() and time.time() - last_new < 1800
+            if time.time() - last_snap > 30:
+                last_snap = time.time()
+                m = snapshot()
+                if time.time() - last_export > 1800:   # long runs: a fresh workbook every half hour
+                    last_export = time.time()
+                    mo_export.export(pdir)
+                    history.append({"at": ws._now(), **m})
+            if not busy and (stopping() or not pool_open):
+                break
+            time.sleep(3)
+    for f in futures:
+        if f.exception() is not None:
+            state.setdefault("errors", []).append(str(f.exception())[:200])
+    grader.stop.set()
+    grader.kick.set()
+    grader.grade_now()
+    m = snapshot()
+    history.append({"at": ws._now(), **m})
+    if ws.stop_requested(pdir):
+        state["stopped_because"] = "stopped on request"
+    state["stopped_because"] = state.get("stopped_because") or "every organisation went through the pipeline"
     out = mo_export.export(pdir)
     state.update(done=True, stage="done", export=out, result=m)
     if not any(_alive(p) for p in _pids(pdir) if str(p) != str(os.getpid())):
         (pdir / "STOP").unlink(missing_ok=True)
     _save_state(pdir, state)
     return state
+
+
+def _done_passes(pdir) -> set:
+    return {(r["org_id"], r.get("pass") or "site") for r in ws.read_csv(pdir / "crawl.csv")
+            if r.get("status") in ("done", "no_website")}
 
 
 _procs: dict[int, object] = {}
@@ -298,13 +435,17 @@ def _pids(pdir) -> list[str]:
 
 
 def run(pdir, rounds: int = 6, max_pages: int = 15, goal_ab_org_share: float | None = None,
-        agent: bool = False, stop: bool = False, workers: int = 12, shards: int = 1) -> dict:
+        agent: bool = False, stop: bool = False, workers: int = 12, shards: int = 1,
+        follow: bool = False, pool_done: bool = False) -> dict:
     """Start the long run as its own process(es) - shards splits orgs.csv between them - or stop it."""
     import os
     import subprocess
     import sys
     from pathlib import Path
     pids = [p for p in _pids(pdir) if _alive(p)]
+    if pool_done:
+        (pdir / "POOL_DONE").write_text(ws._now(), encoding="utf-8")
+        return {"pool_done": True, "note": "the running pipeline finishes the organisations it has and ends"}
     if stop:
         if not pids:
             return {"stopped": False, "note": "no run is going in this project"}
@@ -314,6 +455,8 @@ def run(pdir, rounds: int = 6, max_pages: int = 15, goal_ab_org_share: float | N
     if pids:
         return {"already_running": True, "pids": pids, "state": run_states(pdir)}
     (pdir / "STOP").unlink(missing_ok=True)
+    if follow:
+        (pdir / "POOL_DONE").unlink(missing_ok=True)
     server = Path(__file__).resolve().parent / "server.py"
     env = dict(os.environ, MARKETOPS_PROJECTS=str(pdir.parent))
     shards = max(1, min(int(shards), 16))
@@ -325,6 +468,8 @@ def run(pdir, rounds: int = 6, max_pages: int = 15, goal_ab_org_share: float | N
             cmd += ["--goal", str(goal_ab_org_share)]
         if agent:
             cmd.append("--agent")
+        if follow:
+            cmd.append("--follow")
         with open(pdir / ("run.log" if shards == 1 else f"run.{k}.log"), "a", encoding="utf-8") as log:
             proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
                                     start_new_session=True, env=env)
@@ -347,6 +492,6 @@ def run_states(pdir) -> list[dict]:
             st = json.loads(f.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
-        out.append({k: st.get(k) for k in ("shard", "stage", "round", "gaps", "progress", "stopped_because",
-                                           "result", "done", "error")})
+        out.append({k: st.get(k) for k in ("shard", "stage", "progress", "stopped_because", "result", "done",
+                                           "error", "errors")})
     return out

@@ -61,6 +61,9 @@ def _sheet(name, rows, cols, widths=()):
 
 
 def export(pdir) -> dict:
+    import mo_evidence
+    if (pdir / "contacts.csv").exists():
+        mo_evidence.rescore(pdir)
     contacts = ws.read_csv(pdir / "contacts.csv")
     emails = [c for c in contacts if c.get("kind") == "email"]
     phones = {}
@@ -78,7 +81,8 @@ def export(pdir) -> dict:
             best[c.get("org_id")] = g
 
     route_rows = []
-    for c in sorted(emails, key=lambda c: (ORDER.get(c.get("grade", ""), 4), c.get("org", ""))):
+    for c in sorted(emails, key=lambda c: (ORDER.get(c.get("grade", ""), 4), -int(c.get("evidence_score") or 0),
+                                           c.get("org", ""))):
         route_rows.append({
             "机构": c.get("org"), "机构ID": c.get("org_id"), "等级": LABEL.get(c.get("grade", ""), c.get("grade")),
             "姓名": c.get("person"), "岗位": c.get("role"), "邮箱": c.get("value"),
@@ -86,9 +90,12 @@ def export(pdir) -> dict:
             "邮箱类型": {"generic": "通用", "named_or_role": "个人或岗位"}.get(c.get("mailbox"), c.get("mailbox")),
             "同站": c.get("same_site"), "来源页面": c.get("page_url"), "原文引用": c.get("quote"),
             "读取来源": c.get("found_by"), "评级依据": c.get("grade_reason") or c.get("graded_by"),
-            "待复核": c.get("review_reason") or ("是" if c.get("review") == "yes" else ""), "备注": c.get("note")})
-    route_cols = ["机构", "机构ID", "等级", "待复核", "姓名", "岗位", "邮箱", "机构电话", "邮箱类型", "同站",
-                  "来源页面", "原文引用", "读取来源", "评级依据", "备注"]
+            "待复核": c.get("review_reason") or ("是" if c.get("review") == "yes" else ""),
+            "证据": {"strong": "强", "medium": "中", "weak": "弱（证据少，人工判断）"}.get(c.get("evidence"), "") +
+                    (f" {c.get('evidence_score')}" if c.get("evidence_score") else ""),
+            "证据说明": c.get("evidence_why"), "也出现在": c.get("also_on"), "备注": c.get("note")})
+    route_cols = ["机构", "机构ID", "等级", "证据", "待复核", "姓名", "岗位", "邮箱", "机构电话", "邮箱类型", "同站",
+                  "来源页面", "原文引用", "读取来源", "评级依据", "证据说明", "也出现在", "备注"]
 
     org_cols = list(orgs[0].keys()) if orgs else ["id", "name", "website"]
     org_rows = []
@@ -114,6 +121,7 @@ def export(pdir) -> dict:
         {"项目": "待复核的 A/B（低置信度、共用地址或来自他站；不计入上面的数）", "值": m["ab_to_review"]},
         {"项目": "若待复核全部成立：每百机构 A+B 路线数", "值": m["ab_routes_per_100_orgs_if_review_holds"]},
         {"项目": "邮箱总数（A/B/C/D/未评级/X）", "值": " / ".join(str(sum(c.get("grade", "") == g for c in emails)) for g in ("A", "B", "C", "D", "", "X"))},
+        {"项目": "证据强/中/弱（邮箱数；弱的也保留，由人判断）", "值": " / ".join(str(sum(c.get("evidence") == lv for c in emails)) for lv in ("strong", "medium", "weak"))},
         {"项目": "说明", "值": "仅供调研，未授权外联。每行都有来源页面和原文引用，可复核。"},
         {"项目": "导出时间", "值": datetime.now().strftime("%Y-%m-%d %H:%M")},
     ]
@@ -128,7 +136,7 @@ def export(pdir) -> dict:
     costs = [{"供应商": p, "调用": v["calls"], "成功": v["ok"], "估算美元": v["usd"]}
              for p, v in mo_budget.summary(pdir).items()]
 
-    widths = (24, 10, 12, 18, 22, 30, 18, 10, 6, 40, 70, 18, 22, 20)
+    widths = (24, 10, 12, 12, 18, 18, 22, 30, 18, 10, 6, 40, 70, 18, 22, 30, 30, 20)
     kept = [r for r in route_rows if not r["等级"].startswith("X")]
     other = [r for r in route_rows if r["等级"].startswith("X")]
     sheets = [_sheet("说明", summary, ["项目", "值"], (28, 60)),
@@ -167,7 +175,9 @@ def _routes_csv(pdir, emails: list, stamp: str):
                         "department": "", "evidence_tier": _tier(c), "role_priority": PRIORITY[c["grade"]],
                         "decision_function": c.get("role"), "role_relevance": c.get("grade_reason"),
                         "source_url": c.get("page_url"), "mirror_path": mirror.get(c.get("page_url"), ""),
-                        "evidence_text": c.get("quote"), "qualification_rationale": c.get("grade_reason"),
+                        "evidence_text": c.get("quote"),
+                        "qualification_rationale": f"{c.get('grade_reason')}; evidence {c.get('evidence')} "
+                                                   f"{c.get('evidence_score')}: {c.get('evidence_why')}",
                         "qualification_status": ("needs_review: " + (c.get("review_reason") or "")) if c.get("review") == "yes" else "qualified",
                         "research_only": "TRUE", "send_authorized": "FALSE"})
     return path

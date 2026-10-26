@@ -174,15 +174,18 @@ def judge(project: str, file: str, question: str, options: dict, column: str,
 
 
 def run(project: str, rounds: int = 6, max_pages: int = 15, goal_ab_org_share: float | None = None,
-        agent: bool = False, stop: bool = False, workers: int = 12, shards: int = 1) -> dict:
-    """Long research as its own background process (it keeps going if this session ends).
+        agent: bool = False, stop: bool = False, workers: int = 12, shards: int = 1,
+        follow: bool = False, pool_done: bool = False) -> dict:
+    """Long research as a pipeline in its own background process(es) (survives this session).
 
-    Round 0 crawls every organisation in orgs.csv and grades. Each further round takes the
-    organisations still without a confirmed A/B and digs a different way (the market's words
-    from brief.focus.search_terms, inside the site and its PDFs, third-party directories from
-    focus.directory_terms, maps, broad searches), reads what it finds and grades again. Stops
-    when goal_ab_org_share (% of organisations with A/B) is reached, after two rounds with no
-    new A/B organisation, or after `rounds`; then exports. agent=True lets the TinyFish Agent
+    Each organisation in orgs.csv flows on its own, many at once: its site is read, a
+    background grader grades the new addresses, then - while it has no confirmed A/B - up to
+    `rounds` dig rounds, each a different way (brief.focus.search_terms, inside the site and
+    its PDFs, focus.directory_terms directories, maps, broad searches), then the evidence for
+    its A/B addresses is corroborated. follow=True keeps taking organisations appended to
+    orgs.csv while agents still build the pool, until run(pool_done=True). Ends when every
+    organisation is done, at goal_ab_org_share (% of organisations with A/B) or on stop; the
+    workbook is refreshed every half hour and at the end. agent=True lets the TinyFish Agent
     open pages whose email buttons hide the address (paid per step). stop=True ends a run
     gracefully (it exports what it has). Resumable. project(name).run shows stage, round,
     progress (organisations per minute, minutes left, cost per organisation) and results.
@@ -192,7 +195,7 @@ def run(project: str, rounds: int = 6, max_pages: int = 15, goal_ab_org_share: f
     try:
         return mo_run.run(ws.project_dir(project), rounds=rounds, max_pages=max_pages,
                           goal_ab_org_share=goal_ab_org_share, agent=agent, stop=stop, workers=workers,
-                          shards=shards)
+                          shards=shards, follow=follow, pool_done=pool_done)
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
 
@@ -202,8 +205,8 @@ def tasks(project: str, action: str = "status", kind: str = "", size: int = 15, 
     """Shared work queue so several agents work one project in parallel.
 
     Coordinator: action="plan", kind="dig" (organisations still without a confirmed A/B),
-    "review" (A/B rows to check), "browse" (pages whose email buttons hide addresses) or
-    "crawl", cut into packages of `size`; action="add", title="..." for any other job (a source
+    "review" (A/B rows to check), "evidence" (A/B rows with weak or medium evidence),
+    "browse" (pages whose email buttons hide addresses) or "crawl", cut into packages of `size`; action="add", title="..." for any other job (a source
     family, a district, a federation list). Worker: action="claim", agent="<your name>"
     (optionally kind) returns one package with its organisations or rows and how to do it;
     work it with the other tools, then action="done", task_id, note="what you found/tried"
@@ -283,11 +286,13 @@ def headless(argv: list[str]) -> int:
     ap.add_argument("--agent", action="store_true")
     ap.add_argument("--workers", type=int, default=12)
     ap.add_argument("--shard", default="0/1")
+    ap.add_argument("--follow", action="store_true")
     a = ap.parse_args(argv)
     pdir = ws.project_dir(a.project)
     try:
         state = mo_run.run_sync(pdir, rounds=a.rounds, max_pages=a.max_pages,
-                                goal_ab_org_share=a.goal, agent=a.agent, workers=a.workers, shard=a.shard)
+                                goal_ab_org_share=a.goal, agent=a.agent, workers=a.workers, shard=a.shard,
+                                follow=a.follow)
     except Exception as exc:  # noqa: BLE001
         k, n = a.shard.split("/")
         st = {"file": "run.json" if n == "1" else f"run.{k}.json", "shard": a.shard}

@@ -151,19 +151,46 @@ class Reach(unittest.TestCase):
             return fake_read(url)
         hits = {"results": [{"url": "https://sc-leer.ch/vorstand", "title": "SC Leer Vorstand", "found_by": ["serper"]}],
                 "routes": {}}
+
+        def fake_grade(p, **k):
+            with ws._lock(p / "contacts.csv"):  # like the real grader: write under the file lock
+                rows = ws.read_csv(p / "contacts.csv")
+                for r in rows:
+                    if not r.get("grade"):
+                        r["grade"] = {"praesident@fc-beispiel.ch": "A", "platz@sc-leer.ch": "B"}.get(r["value"], "C")
+                        r["graded_by"] = "jev"
+                ws.write_csv(p / "contacts.csv", ws.CONTACT_COLS, rows)
+            return {}
         with mock.patch.object(mo_providers, "read", side_effect=read), \
                 mock.patch.object(mo_providers, "public_url", side_effect=lambda u: u), \
                 mock.patch.object(mo_providers, "search", return_value=hits), \
-                mock.patch("mo_grade.auto", side_effect=lambda p, **k: server.grade(
-                    "t5", set=[{"value": "praesident@fc-beispiel.ch", "grade": "A"},
-                               {"value": "platz@sc-leer.ch", "grade": "B"}]) if (p / "contacts.csv").exists() else {}):
+                mock.patch("mo_grade.auto", side_effect=fake_grade):
             state = mo_run.run_sync(pdir, rounds=2, workers=2)
         values = {r["value"] for r in ws.read_csv(pdir / "contacts.csv")}
-        self.assertIn("platz@sc-leer.ch", values)  # found only by the deep round
+        self.assertIn("platz@sc-leer.ch", values)  # found only by digging
         self.assertTrue(state["done"])
         self.assertEqual(100.0, state["result"]["ab_org_share"])
-        self.assertIn("every organisation", state["stopped_because"])
+        self.assertEqual(2, state["progress"]["flow"]["done"])
         self.assertTrue(Path(state["export"]["file"]).exists())
+        self.assertEqual(2, sum(r.get("pass") == "final" for r in ws.read_csv(pdir / "crawl.csv")))
+        with mock.patch("mo_run._Grader.grade_now"):  # resume: finished organisations are skipped
+            again = mo_run.run_sync(pdir, rounds=2, workers=2)
+        self.assertEqual(2, again["progress"]["flow"]["done"])
+
+    def test_evidence_scores_but_never_drops(self):
+        import mo_evidence
+        strong = {"quote_from": "block", "page_on_org_site": "yes", "email_site": "fc.ch", "person": "A B",
+                  "role": "Präsident", "found_by": "crawl4ai+tinyfish", "grade_reason": "jev A conf 0.90"}
+        weak = {"quote_from": "lines", "page_on_org_site": "no", "email_site": "gmail.com", "found_by": "deepseek"}
+        self.assertEqual("strong", mo_evidence.score(strong, "fc.ch", 0)[1])
+        pts, level, why = mo_evidence.score(weak, "fc.ch", 2)
+        self.assertEqual("weak", level)
+        self.assertIn("other organisations", why)
+        pdir = ws.project_dir("t11")
+        ws.write_csv(pdir / "contacts.csv", ws.CONTACT_COLS, [{"org_id": "o1", "kind": "email", "value": "x@gmail.com",
+                                                                "grade": "B", **weak}])
+        out = server.export("t11")
+        self.assertEqual(1, out["contacts"])  # the weak row is delivered, marked weak
 
     def test_glued_phone_digits_are_cut(self):
         page = mo_pages.from_html("<p>Tel 079 123 83 10praesident@fc.ch</p><p>2go@fc.ch</p>", "https://fc.ch/")

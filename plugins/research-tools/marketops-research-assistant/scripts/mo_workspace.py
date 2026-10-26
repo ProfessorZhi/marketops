@@ -30,7 +30,8 @@ import mo_pages
 import mo_providers
 
 CONTACT_COLS = ["org_id", "org", "kind", "value", "person", "role", "grade", "grade_reason",
-                "graded_by", "review", "review_reason", "mailbox", "same_site", "email_site", "page_site", "page_on_org_site",
+                "graded_by", "review", "review_reason", "evidence", "evidence_score", "evidence_why",
+                "pages_seen", "also_on", "mailbox", "same_site", "email_site", "page_site", "page_on_org_site",
                 "page_url", "found_by", "quote", "quote_from", "note", "added"]
 PHONE_COLS = ["org_id", "org", "value", "page_url", "quote", "found_by", "added"]
 PAGE_COLS = ["url", "final_url", "reader", "file", "chars", "org_id", "time"]
@@ -197,6 +198,11 @@ def merge_contacts(pdir: Path, found: list[dict], org_id: str = "", org: str = "
             else:
                 by = set(filter(None, row.get("found_by", "").split("+"))) | set(filter(None, c.get("found_by", "").split("+")))
                 row["found_by"] = "+".join(sorted(by))
+                pages = [row.get("page_url", "")] + [u for u in row.get("also_on", "").split(" ") if u]
+                if c.get("page_url") and c["page_url"] not in pages:
+                    pages.append(c["page_url"])
+                    row["also_on"] = " ".join(pages[1:6])
+                    row["pages_seen"] = str(len(pages))
                 better = (c.get("quote_from") == "block") > (row.get("quote_from") == "block") or (
                     c.get("quote_from") == row.get("quote_from") and len(c.get("quote", "")) > len(row.get("quote", "")))
                 if better and not row.get("graded_by", "").startswith("agent"):
@@ -281,6 +287,12 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
         if held and (not parsed_by or (contactish and not emails)):
             read_with(held)
     page_site = mo_pages.site_of(url)
+    if org_site:
+        on_org = "yes" if page_site == org_site else "no"
+    else:  # no known website: a domain carrying the organisation's name is likely its own
+        words = [w for w in re.findall(r"[a-z0-9]+", (org or "").lower()) if len(w) > 3]
+        squashed = re.sub(r"[^a-z0-9]", "", page_site)
+        on_org = "likely" if words and any(w in squashed for w in words) else "unknown"
     org_site = org_site or page_site
     found: dict[str, dict] = {}
     links: list = []
@@ -289,7 +301,7 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
         links += parsed["links"]
         buttons = max(buttons, parsed.get("hidden_email_buttons", 0))
         for c in mo_pages.contacts(parsed["lines"], url, org_site, parsed.get("blocks"), parsed.get("mailtos")):
-            c.update(page_site=page_site, page_on_org_site="yes" if page_site == org_site else "no")
+            c.update(page_site=page_site, page_on_org_site=on_org)
             k = c["value"].lower()
             if k in found:
                 found[k]["found_by"] = "+".join(sorted(set(found[k]["found_by"].split("+")) | {reader}))
