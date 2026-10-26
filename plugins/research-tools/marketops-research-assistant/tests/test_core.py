@@ -15,11 +15,14 @@ os.environ.update(MARKETOPS_HOME=TMP + "/home", MARKETOPS_PROJECTS=TMP + "/proje
 for k in ("SERPER_API_KEY", "SERPAPI_API_KEY", "DEEPSEEK_API_KEY", "TINYFISH_API_KEY", "TYPESAFE_API_KEY"):
     os.environ.pop(k, None)
 
+import mo_export  # noqa: E402
 import mo_pages  # noqa: E402
 from mo_pool import norm as norm_name  # noqa: E402
 import mo_providers  # noqa: E402
 import mo_run  # noqa: E402
 import mo_workspace as ws  # noqa: E402
+real_race = mo_providers.read_race
+ws._dns_ok[:] = [False]   # test domains are made up: no DNS pre-check unless a test asks for it
 import server  # noqa: E402
 
 CLUB = """<html><head><title>FC Beispiel</title><script>var x='a@b.ch'</script></head><body>
@@ -258,6 +261,24 @@ class Reach(unittest.TestCase):
         self.assertEqual(3, len(orgs))                                           # BLOC SAS = Bloc SAS
         self.assertEqual("Paris", next(o for o in orgs.values() if norm_name(o["name"]) == "bloc sas")["city"])
 
+    def test_organisations_merge_on_name_and_place_not_on_domain(self):
+        import mo_pool
+        pdir = ws.project_dir("t22")
+        mo_pool.add_orgs(pdir, [{"name": "Gymnase Jean Jaurès", "website": "https://www.paris.fr/lieux/gymnase-jean-jaures-1"},
+                                {"name": "Club Hugo", "website": "https://clubhugo.clubeo.com/"},
+                                {"name": "Stade Municipal", "city": "Lyon", "website": "https://lyon.fr/stade-a"}], "s1", "maps")
+        out = mo_pool.add_orgs(pdir, [
+            {"name": "Gymnase Pasteur", "website": "https://www.paris.fr/lieux/gymnase-pasteur-2"},   # same portal
+            {"name": "Club Zola", "website": "https://clubzola.clubeo.com/"},                      # same platform
+            {"name": "Stade Municipal", "city": "Lyon", "website": "https://lyon.fr/stade-b"},     # same name, other site
+            {"name": "Gymnase Jean-Jaures", "website": "https://paris.fr/lieux/gymnase-jean-jaures-1/"},  # same org
+            {"name": "Club Hugo", "website": "https://clubhugo.clubeo.com/page/contact"}],          # same org, inner page
+            "s2", "list page")
+        self.assertEqual((3, 2), (out["orgs_added"], out["orgs_merged"]))
+        orgs = ws.read_csv(pdir / "orgs.csv")
+        self.assertEqual(6, len(orgs))
+        self.assertEqual(6, len({o["id"] for o in orgs}))                    # every organisation its own id
+
     def test_stop_without_a_run_says_so(self):
         self.assertFalse(server.run("t9", stop=True)["stopped"])
 
@@ -336,6 +357,125 @@ class Reach(unittest.TestCase):
         book = zipfile.ZipFile(state["export"]["file"]).read("xl/workbook.xml").decode()
         self.assertIn("数据源", book)
         self.assertIn("贡献", book)
+        self.assertIn("过程", book)
+
+    def test_a_shared_portal_is_not_crawled_as_the_orgs_own_site(self):
+        pdir = ws.project_dir("t17")
+        ws.write_csv(pdir / "orgs.csv", ["id", "name", "website"],
+                     [{"id": f"o{i}", "name": f"Gymnase {i}", "website": f"https://portal.fr/lieux/g{i}"} for i in range(3)])
+        page = ('<html><body><a href="/lieux/g0/contact">Contact</a> <a href="/lieux/g1/contact">Contact</a>'
+                ' <a href="/contact">Contact</a> <a href="/equipe">Equipe contact</a></body></html>')
+        seen = []
+
+        def read(url, readers=None, project_dir=None):
+            seen.append(url)
+            return {"crawl4ai": {"final_url": url, "html": page, "text": ""}}
+        with mock.patch.object(mo_providers, "read", side_effect=read), \
+                mock.patch.object(mo_providers, "public_url", side_effect=lambda u: u):
+            row = ws._crawl_one(pdir, {"id": "o0", "name": "Gymnase 0", "website": "https://portal.fr/lieux/g0"}, 10, None)
+        self.assertEqual({"https://portal.fr/lieux/g0", "https://portal.fr/lieux/g0/contact"}, set(seen))
+        self.assertIn("shared portal", row["note"])
+
+    def test_same_address_same_text_is_graded_once_and_rules_need_no_jev(self):
+        import mo_grade
+        pdir = ws.project_dir("t18")
+        (pdir / "brief.json").write_text(json.dumps({"address_rules": {"info": "X"}}), encoding="utf-8")
+        for oid in ("o1", "o2", "o3"):
+            ws.merge_contacts(pdir, [{"kind": "email", "value": "dsp@city.fr", "quote": "Direction des sports",
+                                      "page_url": "u"}, {"kind": "email", "value": "info@city.fr",
+                                                         "quote": "q", "page_url": "u"}], oid, oid, "site")
+        sent = []
+
+        class Pick:
+            choice, probabilities, noul = "team_inbox", {"team_inbox": 0.9}, 0.1
+
+        def jev(state, questions):
+            sent.append(json.dumps(questions, default=str, ensure_ascii=False))
+            return type("R", (), {"answers": {q: Pick() for q in questions}})()
+        sdk = type(sys)("typesafe_sdk")
+        sdk.Choice = lambda **kw: kw
+        sdk.Noul = lambda **kw: kw
+        with mock.patch.dict(sys.modules, {"typesafe_sdk": sdk}), \
+                mock.patch("mo_config.key", return_value="k"), mock.patch("mo_budget.allowed", return_value=(True, "")), \
+                mock.patch.object(mo_grade, "_jev", side_effect=jev), mock.patch.object(mo_grade, "fill_people", return_value=0), \
+                mock.patch("mo_evidence.rescore", return_value={}):
+            mo_grade.auto(pdir)
+        self.assertEqual(1, len(sent))
+        self.assertEqual(2, len(json.loads(sent[0])))                  # one grade + one name question for three copies
+        grades = {(r["org_id"], r["value"]): (r["grade"], r["graded_by"]) for r in ws.read_contacts(pdir)}
+        self.assertEqual({("C", "jev")}, {v for (o, e), v in grades.items() if e.startswith("dsp")})
+        self.assertEqual({("X", "rule")}, {v for (o, e), v in grades.items() if e.startswith("info")})
+        self.assertNotIn("info@city.fr", sent[0])                     # graded on arrival, never asked
+
+    def test_a_page_is_as_fast_as_its_fastest_reader_and_late_readers_still_count(self):
+        import time
+        pdir = ws.project_dir("t20")
+        body = "<p>Contact</p>" + " " * 300
+
+        def read(url, readers=None, project_dir=None):
+            r = (readers or ["crawl4ai"])[0]
+            if r == "deepseek":
+                time.sleep(1.5)
+                return {r: {"final_url": url, "html": body + "<p>Président Jean Ex</p><p>president@club-y.fr</p>", "text": ""}}
+            return {r: {"final_url": url, "html": body + "<p>info@club-y.fr</p>", "text": ""}}
+        with mock.patch.object(mo_providers, "read", side_effect=read), \
+                mock.patch.object(mo_providers, "public_url", side_effect=lambda u: u), \
+                mock.patch("mo_config.key", side_effect=lambda p: "k" if p in ("tinyfish", "deepseek") else ""), \
+                mock.patch.object(mo_providers, "read_race", side_effect=lambda *a, **k: real_race(*a, **{**k, "grace": 0.1})):
+            t0 = time.time()
+            ws.fetch(pdir, "https://club-y.fr/contact", None, "o1", "Club Y", "club-y.fr")
+            self.assertLess(time.time() - t0, 1.2)                     # did not wait for the slow reader
+            time.sleep(2)
+        self.assertIn("president@club-y.fr", {r["value"] for r in ws.read_contacts(pdir)})   # merged when it came
+
+    def test_a_club_without_website_gets_one_and_its_federation_page_counts(self):
+        pdir = ws.project_dir("t21")
+        ws.write_csv(pdir / "orgs.csv", ["id", "name", "city"], [{"id": "c1", "name": "Union Sportive Jean-Jaurès", "city": "Lyon"}])
+        hits = {"results": [{"title": "Annuaire des clubs", "url": "https://annuaire.example/club/88"},
+                            {"title": "US Jean Jaurès - Accueil", "url": "https://usjj.fr/"}], "routes": {}}
+        with mock.patch.object(mo_providers, "search", return_value=hits):
+            self.assertEqual("https://usjj.fr/", mo_run._find_site(pdir, ws.read_csv(pdir / "orgs.csv")[0]))
+        self.assertEqual("search", ws.read_csv(pdir / "orgs.csv")[0]["website_from"])
+        self.assertTrue(mo_run._mentions("Union Sportive Jean-Jaurès", "UNION SPORTIVE JEAN JAURES — Président"))
+        self.assertFalse(mo_run._mentions("Union Sportive Jean-Jaurès", "Stade Pasteur"))
+
+    def test_people_pages_first_and_hosted_club_pages_followed(self):
+        links = [("https://fc-x.fr/", "Accueil"), ("https://fc-x.fr/contact", "Contact"),
+                 ("https://fc-x.fr/le-bureau", "Le bureau du club"), ("https://fc-x.fr/terrains", "Nos terrains sport"),
+                 ("https://fcx.clubeo.com/page/comite", "Comité"), ("https://other-club.fr/contact", "Contact")]
+        ranked = mo_pages.contact_links(links, "https://fc-x.fr/")
+        self.assertEqual("https://fc-x.fr/le-bureau", ranked[0])
+        self.assertLess(ranked.index("https://fc-x.fr/contact"), ranked.index("https://fc-x.fr/terrains"))
+        self.assertIn("https://fcx.clubeo.com/page/comite", ranked)            # club site on a hosting platform
+        self.assertNotIn("https://other-club.fr/contact", ranked)               # another organisation's site
+
+    def test_a_source_earns_or_loses_turns_by_its_own_yield(self):
+        self.assertEqual(1, mo_run._turns(None))
+        self.assertEqual(1, mo_run._turns((10, 0)))         # no sample yet
+        self.assertEqual(2, mo_run._turns((30, 4)))         # >= 10%
+        self.assertEqual(1, mo_run._turns((40, 3)))         # 5-10%
+        self.assertEqual(0, mo_run._turns((40, 1)))         # < 5%: waits until the others are empty
+
+    def test_role_mailboxes_go_to_jev_not_to_d(self):
+        lines = ["Secrétariat du club", "secretariat@fc-x.fr", "Service des sports", "service.sports@ville.fr",
+                 "info@fc-x.fr"]
+        kinds = {c["value"]: c["mailbox"] for c in mo_pages.contacts(lines, "https://fc-x.fr/contact", "fc-x.fr")
+                 if c["kind"] == "email"}
+        self.assertEqual("named_or_role", kinds["secretariat@fc-x.fr"])
+        self.assertEqual("named_or_role", kinds["service.sports@ville.fr"])
+        self.assertEqual("generic", kinds["info@fc-x.fr"])
+
+    def test_sources_take_turns_and_every_org_leaves_a_trace(self):
+        pdir = ws.project_dir("t19")
+        (pdir / "brief.json").write_text(json.dumps({"ablate": ["dig", "evidence", "reverify"]}), encoding="utf-8")
+        orgs = [{"id": f"r{i}", "name": f"R{i}", "sources": "register"} for i in range(6)] + \
+               [{"id": "c1", "name": "C1", "sources": "clubs"}]
+        ws.write_csv(pdir / "orgs.csv", ["id", "name", "sources"], orgs)
+        mo_run.run_sync(pdir, rounds=1, workers=1)
+        traces = [json.loads(x) for x in (pdir / "trace.jsonl").read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(7, len(traces))
+        self.assertIn("clubs", [t["source"] for t in traces[:2]])    # the late source is not last in line
+        self.assertIn("site", traces[0]["seconds"])
 
     def test_discovery_adds_organisations_and_logs_sources(self):
         import mo_discover
@@ -379,6 +519,109 @@ class Search(unittest.TestCase):
         finally:
             os.environ.pop("SERPER_API_KEY")
             os.environ.pop("TINYFISH_API_KEY")
+
+
+class Supervision(unittest.TestCase):
+    def test_a_shard_that_dies_is_restarted_and_finishes(self):
+        pdir = ws.project_dir("t40")
+        marker = pdir / "died-once"
+        script = ("import json,pathlib,sys; p=pathlib.Path(sys.argv[1]); m=p/'died-once'\n"
+                  "if not m.exists(): m.write_text('x'); sys.exit(1)\n"
+                  "(p/'run.json').write_text(json.dumps({'file':'run.json','done':True,'stage':'done'}))")
+        with mock.patch.object(mo_run, "_shard_cmd", side_effect=lambda *a: [sys.executable, "-c", script, str(pdir)]):
+            out = mo_run.supervise(pdir, 1, {}, poll=0.2)
+        self.assertTrue(marker.exists())
+        self.assertGreaterEqual(out["restarts"][0], 1)
+        self.assertTrue(json.loads((pdir / "run.json").read_text())["done"])
+
+    def test_no_restart_after_a_stop(self):
+        pdir = ws.project_dir("t41")
+        (pdir / "STOP").write_text("now")
+        with mock.patch.object(mo_run, "_shard_cmd", side_effect=lambda *a: [sys.executable, "-c", "import sys; sys.exit(1)"]):
+            out = mo_run.supervise(pdir, 1, {}, poll=0.2)
+        self.assertEqual(0, out["restarts"][0])
+
+    def test_open_decisions_come_as_one_numbered_list(self):
+        pdir = ws.project_dir("t42")
+        (pdir / "brief.json").write_text(json.dumps({"goal": "x"}), encoding="utf-8")
+        ws.merge_contacts(pdir, [{"kind": "email", "value": "a@x.fr", "quote": "q", "page_url": "u"}], "o1", "X", "site")
+        ws.update_contacts(pdir, [{"org_id": "o1", "value": "a@x.fr", "grade": "A", "review": "yes"}], ["grade", "review"])
+        items = server.needs_you(pdir, {"accounts": {}})
+        self.assertTrue(items[0].startswith("1. Set country and language"))
+        self.assertTrue(any("1 A/B rows are marked review" in i for i in items))
+
+
+class DeadSites(unittest.TestCase):
+    def test_a_domain_that_does_not_resolve_is_not_read(self):
+        import socket
+        pdir = ws.project_dir("t43")
+        ws._dns_ok[:] = [True]
+        try:
+            with mock.patch.object(socket, "getaddrinfo", side_effect=OSError("no such host")), \
+                 mock.patch("time.sleep"), \
+                 mock.patch.object(mo_providers, "read_race", side_effect=AssertionError("read a dead site")):
+                row = ws._crawl_one(pdir, {"id": "o1", "name": "X", "website": "https://gone.example"}, 4, None, None, "site")
+        finally:
+            ws._dns_ok[:] = [False]
+        self.assertEqual("no_dns", row["status"])
+
+
+class Reconcile(unittest.TestCase):
+    def test_every_org_counted_once_under_its_best_grade(self):
+        rows = [{"最佳等级": "A 关键岗位"}, {"最佳等级": "D 通用入口"}, {"最佳等级": "未找到", "抓取状态": "未抓取"}]
+        self.assertEqual("1 + 0 + 0 + 1 + 1（1） = 3 / 3，对得上", mo_export._reconcile(rows, 3))
+        self.assertTrue(mo_export._reconcile(rows, 4).endswith("对不上，请检查"))
+
+
+class Providers(unittest.TestCase):
+    def test_searches_carry_the_projects_country_language_and_goal(self):
+        pdir = ws.project_dir("t30")
+        (pdir / "brief.json").write_text(json.dumps({"goal": "grass pitches", "country": "FR", "language": "fr"}),
+                                         encoding="utf-8")
+        sent = {}
+
+        class R:
+            status_code = 200
+
+            def json(self):
+                return {"results": [{"title": "t", "url": "https://x.fr/", "snippet": "s", "summary": "long"}]}
+
+        def get(url, params=None, headers=None, timeout=None):
+            sent["tinyfish"] = params
+            return R()
+
+        def post(url, json=None, headers=None, timeout=None):
+            sent["deepseek"] = json
+            return R()
+        with mock.patch("mo_config.key", return_value="k"), mock.patch("mo_budget.allowed", return_value=(True, "")), \
+                mock.patch.object(mo_providers.httpx, "get", side_effect=get), \
+                mock.patch.object(mo_providers.httpx, "post", side_effect=post):
+            mo_providers.search("stade municipal", ["tinyfish", "deepseek"], project_dir=pdir)
+        self.assertEqual(("FR", "fr", "grass pitches"),
+                         (sent["tinyfish"]["location"], sent["tinyfish"]["language"], sent["tinyfish"]["purpose"]))
+        self.assertTrue(sent["deepseek"]["query"].endswith("lang:fr"))
+        self.assertEqual("grass pitches", sent["deepseek"]["ori_question"])
+
+    def test_a_reported_rate_limit_is_adopted(self):
+        rate = mo_providers._Rate()
+
+        class R:
+            def json(self):
+                return {"error": {"code": "RATE_LIMIT_EXCEEDED", "details": {"limit": 60, "window_seconds": 60}}}
+        rate.learn("tinyfish:fetch", R())
+        self.assertEqual(60, rate.per_min["tinyfish:fetch"])
+
+    def test_transient_errors_are_tried_once_more(self):
+        calls = []
+
+        def flaky():
+            calls.append(1)
+            if len(calls) == 1:
+                raise mo_providers.ProviderError("HTTP 429")
+            return "ok"
+        with mock.patch("time.sleep"):
+            self.assertEqual("ok", mo_providers._again(flaky))
+        self.assertEqual(2, len(calls))
 
 
 class Package(unittest.TestCase):

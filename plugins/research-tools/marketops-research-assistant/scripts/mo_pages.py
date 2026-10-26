@@ -29,6 +29,25 @@ CONTACT_HINTS = (
     "premises", "caretaker", "bursar", "groundsman", "officials", "honorary", "secretary", "membres",
     "responsables", "organigramme", "dirigeants", "conseil", "direction", "persone", "organi", "soci",
 )
+PEOPLE_HINTS = ("team", "staff", "people", "personen", "vorstand", "board", "committee", "comite", "comité",
+                "officers", "ansprechpartner", "leadership", "governors", "our-team", "who-we-are", "bureau",
+                "organigramm", "dirigeants", "responsables", "membres", "officials", "honorary", "gremi",
+                "mitarbeit", "personal", "direction", "conseil", "persone", "organi")
+LEGAL_HINTS = ("contact", "kontakt", "impressum", "imprint", "mentions", "legal", "contatti")
+# Club and association sites often live on a hosting platform under another domain; a contact
+# or committee link there is followed like one on the club's own site.
+HOSTED = ("wildapricot.org", "clubdesk.com", "clubeo.com", "footeo.com", "assoconnect.com", "sportsregions.fr",
+          "pitchero.com", "teamsnap.com", "leagueapps.com", "sportngin.com", "sportsengine.com", "stacksports.com",
+          "teamapp.com", "clubbuzz.co.uk", "jimdofree.com", "jimdosite.com", "wixsite.com", "webnode.fr",
+          "webnode.com", "e-monsite.com", "over-blog.com", "wordpress.com", "blogspot.com", "sites.google.com",
+          "vereinsticket.de", "vereinonline.org", "clubee.com")
+
+
+def hosted(url: str) -> bool:
+    host = (urllib.parse.urlsplit(url or "").hostname or "").lower()
+    return any(host == h or host.endswith("." + h) for h in HOSTED)
+
+
 # Pages that rarely carry the people wanted: lower their score so portals do not spend the
 # page budget on news. A hint, never a filter.
 NOISE_HINTS = ("news", "aktuell", "actualite", "actualité", "blog", "medien", "presse", "press-release",
@@ -40,11 +59,11 @@ EMAIL_WORDS = re.compile(r"^\s*(e-?mail|mail|email me|email us|send (an )?e-?mai
 EMAIL = re.compile(r"(?<![\w.+-])[A-Za-z0-9][A-Za-z0-9._%+-]{0,63}@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,24}(?![\w-])")
 NOT_TLD = {"png", "jpg", "jpeg", "gif", "webp", "svg", "css", "js", "pdf", "ico", "mp4", "woff", "woff2"}
 NOT_DOMAIN = ("example.", "sentry.", "wixpress.com", "domain.", "email.com", "yourdomain", "sentry-next")
-GENERIC = {"info", "office", "kontakt", "contact", "contacto", "contatto", "admin", "hello", "hallo",
-           "mail", "email", "enquiries", "enquiry", "inquiries", "reception", "sekretariat",
-           "secretariat", "secretary", "post", "general", "welcome", "service", "support", "team",
-           "verwaltung", "administration", "bureau", "accueil", "mairie", "gemeinde", "school",
-           "noreply", "no-reply", "webmaster", "news", "newsletter", "media", "presse", "press"}
+# Plainly general inboxes: graded D without asking Jev. Role-ish words (secretary, service,
+# administration, mairie, team...) are not here - Jev grades them, they can be B or C.
+GENERIC = {"info", "office", "kontakt", "contact", "contacto", "contatto", "hello", "hallo", "mail",
+           "email", "enquiries", "enquiry", "inquiries", "reception", "post", "general", "welcome",
+           "accueil", "noreply", "no-reply", "webmaster", "news", "newsletter"}
 PHONE = re.compile(r"(?<![\w])(?:\+|00)?\d[\d\s./()\-]{7,20}\d(?![\w])")
 DATEISH = re.compile(r"^\d{1,2}[./-]\d{1,2}([./-]\d{2,4})?(\s|$|-)|^\d{4}-\d{2}-\d{2}|\d{1,2}\.\d{1,2}\.\d{2,4}")
 
@@ -317,7 +336,7 @@ def contact_links(links: list[tuple[str, str]], base: str, limit: int = 12, scor
     scored = {}
     for href, text in links:
         parts = urllib.parse.urlsplit(href)
-        if parts.scheme not in ("http", "https") or site_of(href) != site:
+        if parts.scheme not in ("http", "https") or (site_of(href) != site and not hosted(href)):
             continue
         if re.search(r"\.(jpg|jpeg|png|gif|zip|docx?|xlsx?|mp4|ics|mp3|webp|svg)$", parts.path, re.I):
             continue
@@ -325,7 +344,10 @@ def contact_links(links: list[tuple[str, str]], base: str, limit: int = 12, scor
         score = sum(h in hay for h in CONTACT_HINTS) - 2 * sum(h in hay for h in NOISE_HINTS)
         if score > 0:
             url = urllib.parse.urlunsplit((parts.scheme, parts.netloc, parts.path, parts.query, ""))
-            scored[url] = max(scored.get(url, 0), score + (2 if "kontakt" in hay or "contact" in hay or "impressum" in hay else 0))
+            # Bruce's runs: people pages (staff, team, board) carried ~10x the A/B of contact pages
+            # per page read, home pages almost none; the legal page names the operator.
+            score += 3 * any(h in hay for h in PEOPLE_HINTS) + 2 * any(h in hay for h in LEGAL_HINTS)
+            scored[url] = max(scored.get(url, 0), score)
     ranked = sorted(scored.items(), key=lambda kv: -kv[1])[:limit]
     return ranked if scores else [u for u, _ in ranked]
 

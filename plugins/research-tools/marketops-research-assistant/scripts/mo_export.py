@@ -60,6 +60,43 @@ def _sheet(name, rows, cols, widths=()):
                  widths=tuple(widths))
 
 
+def _reconcile(org_rows: list, total: int) -> str:
+    """Bruce could never tell which of three numbers to trust: every organisation is counted once,
+    under its best grade, and the parts must add up to the total."""
+    parts = [sum(1 for r in org_rows if str(r.get("最佳等级", "")).startswith(g)) for g in "ABCD"]
+    none = sum(1 for r in org_rows if r.get("最佳等级") == "未找到")
+    unread = sum(1 for r in org_rows if r.get("最佳等级") == "未找到" and str(r.get("抓取状态", "")).startswith("未抓取"))
+    ok = "对得上" if sum(parts) + none == total else "对不上，请检查"
+    return " + ".join(map(str, parts)) + f" + {none}（{unread}） = {sum(parts) + none} / {total}，{ok}"
+
+
+def trace_summary(pdir) -> list[dict]:
+    """trace.jsonl, summed: per source and per stage, how long organisations spent and how
+    often the stage was where an organisation's first A/B appeared."""
+    path = pdir / "trace.jsonl"
+    if not path.exists():
+        return []
+    import json
+    traces = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            traces.append(json.loads(line))
+        except ValueError:
+            continue
+    groups: dict[tuple, dict] = {}
+    for t in traces:
+        first_ab = next((st for st, ok in (t.get("ab") or {}).items() if ok), "")
+        for src in ("全部", t.get("source") or "-"):
+            for stage, sec in (t.get("seconds") or {}).items():
+                g = groups.setdefault((src, stage), {"orgs": 0, "sec": 0.0, "first_ab": 0})
+                g["orgs"] += 1
+                g["sec"] += sec
+                g["first_ab"] += first_ab == stage
+    return [{"来源": src, "阶段": stage, "机构数": g["orgs"], "平均秒/机构": round(g["sec"] / g["orgs"], 1),
+             "合计分钟": round(g["sec"] / 60, 1), "首个 A+B 在此阶段": g["first_ab"]}
+            for (src, stage), g in sorted(groups.items(), key=lambda kv: (kv[0][0] != "全部", kv[0]))]
+
+
 def export(pdir) -> dict:
     import mo_evidence
     mo_evidence.rescore(pdir)
@@ -114,6 +151,8 @@ def export(pdir) -> dict:
                   "来源页面", "原文引用", "读取来源", "评级依据", "证据说明", "也出现在", "最后核实", "首次发现", "备注"]
 
     org_cols = list(orgs[0].keys()) if orgs else ["id", "name", "website"]
+    b = ws.brief(pdir)
+    brief_country, brief_scenario = str(b.get("country") or ""), str(b.get("scenario") or "")
     order_key = lambda c: (ORDER.get(c.get("grade", ""), 4), c.get("review") == "yes",  # noqa: E731
                            -int(c.get("evidence_score") or 0))
     by_org: dict[str, list[dict]] = {}
@@ -136,7 +175,14 @@ def export(pdir) -> dict:
             why_none = "只有排除（X）或未评级的地址"
         else:
             why_none = "页面上没有公开邮箱" + (("；" + cr.get("note")) if cr.get("note") else "")
-        org_rows.append({**o, "最佳等级": LABEL.get(top.get("grade", ""), "") if top else "未找到",
+        # Bruce: every delivered row names its country, region and scenario so the next team can
+        # split the list without looking anything up; a country is never left unidentified.
+        where = {"国家": o.get("country") or brief_country,
+                 "地区": o.get("region") or o.get("state") or o.get("county") or o.get("city") or "",
+                 "场景": o.get("scenario") or brief_scenario or o.get("category") or ""}
+        n_ab = sum(c.get("grade") in ("A", "B") and c.get("review") != "yes" for c in mine)
+        org_rows.append({**where, **o, "最佳等级": LABEL.get(top.get("grade", ""), "") if top else "未找到",
+                         "A/B 路线数": n_ab,
                          "首选联系人": (top or {}).get("person", ""), "首选岗位": (top or {}).get("role", ""),
                          "首选邮箱": (top or {}).get("value", ""),
                          "首选证据": ({"strong": "强", "medium": "中", "weak": "弱"}.get((top or {}).get("evidence"), "")
@@ -145,9 +191,11 @@ def export(pdir) -> dict:
                          "机构电话": " / ".join(dict.fromkeys(phones.get(oid, [])))[:120],
                          "A": n["A"], "B": n["B"], "C": n["C"], "D": n["D"],
                          "名下场地": venue_text(oid), "未找到原因": why_none,
-                         "抓取状态": {"done": "官网已读", "no_website": "输入无官网", "unreadable": "官网打不开"}.get(
+                         "抓取状态": {"done": "官网已读", "no_website": "输入无官网", "unreadable": "官网打不开",
+                                  "no_dns": "官网域名已失效"}.get(
                              cr.get("status", ""), "未抓取") + (f"，深挖 {dug[oid]} 轮" if dug.get(oid) else "")})
-    org_cols += ["最佳等级", "首选联系人", "首选岗位", "首选邮箱", "首选证据", "首选来源页面", "机构电话",
+    org_cols = ["国家", "地区", "场景"] + [c for c in org_cols if c not in ("国家", "地区", "场景")]
+    org_cols += ["最佳等级", "A/B 路线数", "首选联系人", "首选岗位", "首选邮箱", "首选证据", "首选来源页面", "机构电话",
                  "A", "B", "C", "D", "名下场地", "未找到原因", "抓取状态"]
 
     m = metrics(orgs, emails)
@@ -162,6 +210,8 @@ def export(pdir) -> dict:
         {"项目": "覆盖率（有任一 A–D 路线的机构 ÷ 机构数）", "值": f"{m['coverage_abcd']}%"},
         {"项目": "待复核的 A/B（低置信度、共用地址或来自他站；不计入上面的数）", "值": m["ab_to_review"]},
         {"项目": "若待复核全部成立：每百机构 A+B 路线数", "值": m["ab_routes_per_100_orgs_if_review_holds"]},
+        {"项目": "对账：机构按最佳等级 A / B / C / D / 未找到（其中未抓取） = 机构数", "值": _reconcile(org_rows, total)},
+        {"项目": "国家未识别的机构（应补齐，不得交付为未识别）", "值": sum(1 for r in org_rows if not r.get("国家"))},
         {"项目": "邮箱总数（A/B/C/D/未评级/X）", "值": " / ".join(str(sum(c.get("grade", "") == g for c in emails)) for g in ("A", "B", "C", "D", "", "X"))},
         {"项目": "证据强/中/弱（邮箱数；弱的也保留，由人判断）", "值": " / ".join(str(sum(c.get("evidence") == lv for c in emails)) for lv in ("strong", "medium", "weak"))},
         {"项目": "说明", "值": "仅供调研，未授权外联。每行都有来源页面和原文引用，可复核。"},
@@ -193,6 +243,9 @@ def export(pdir) -> dict:
     if contrib_rows:
         sheets.append(_sheet("贡献（消融）", contrib_rows, ["维度", "项", "A+B 路线", "独有 A+B 路线",
                                                          "首个 A+B 来自这里的机构"], (10, 30, 12, 14, 22)))
+    trace_rows = trace_summary(pdir)
+    if trace_rows:
+        sheets.append(_sheet("过程（耗时）", trace_rows, list(trace_rows[0].keys()), (12, 24, 10, 12, 12, 14)))
     if venues:
         sheets.append(_sheet("场地", venues, list(venues[0].keys())))
     sheets.append(_sheet("成本", costs, ["供应商", "调用", "成功", "估算美元"]))

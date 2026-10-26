@@ -49,11 +49,13 @@ def _err(exc: Exception) -> dict:
 def project(name: str, brief: dict | None = None) -> dict:
     """Open (or create) a project folder and report where it stands.
 
-    brief (optional, saved as brief.json): {"goal": "...", "region": "...",
-    "grades": {"A": "...", "B": "...", "C": "...", "D": "...", "X": "..."}, "exclude": "..."}.
+    brief (optional, saved as brief.json): {"goal": "...", "region": "...", "country": "FR",
+    "language": "fr", "scenario": "...", "grades": {"A": "...", ...}, "exclude": "...",
+    "address_rules": {"info": "X"}, "routes_per_org": 3, "focus": {...}}.
     Grades describe, in plain words and the market's own job titles, what counts as each
     grade; leave any out to use Bruce's default. Returns pools, contacts by grade, run and
-    agent progress, costs, and account balances with their red lines.
+    agent progress, costs, account balances with their red lines, and `needs_you`: the numbered
+    list of things only the user can decide - present it in one message, take one reply.
     """
     try:
         pdir = ws.project_dir(name)
@@ -65,9 +67,40 @@ def project(name: str, brief: dict | None = None) -> dict:
         out["accounts"] = mo_budget.accounts()
         import mo_library
         out["library"] = mo_library.stats()
+        out["needs_you"] = needs_you(pdir, out)
         return out
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
+
+
+def needs_you(pdir, status: dict) -> list[str]:
+    """Everything waiting on the user's judgement, as one numbered list (Bruce: "需要我人工复合的
+    内容清单发本窗口，我这里批量回复你") - never one question at a time."""
+    items = []
+    b = ws.brief(pdir)
+    if not b.get("goal"):
+        items.append("The brief has no goal: what is sold, and who should be found?")
+    if b and not (b.get("country") and b.get("language")):
+        items.append("Set country and language in the brief (search engines answer as US / English without them).")
+    rows = ws.read_contacts(pdir)
+    review = [r for r in rows if r.get("grade") in ("A", "B") and r.get("review") == "yes"]
+    if review:
+        items.append(f"{len(review)} A/B rows are marked review (reasons in the workbook's contacts sheet): "
+                     "confirm or correct them with grade(set=[...]).")
+    unsure = sum(o.get("scope") == "unsure" for o in ws.read_csv(pdir / "orgs.csv"))
+    if unsure:
+        items.append(f"{unsure} organisations could not be placed in or out of scope (orgs.csv scope=unsure).")
+    for st in mo_run.run_states(pdir):
+        for src, y in ((st.get("progress") or {}).get("source_yield") or st.get("source_yield") or {}).items():
+            if y.get("turns") == 0:
+                items.append(f"Source '{src}' gave A/B for {y['with_ab']} of {y['done']} organisations (<5%): "
+                             "keep it at the back of the queue, or drop the rest of it?")
+        if st.get("stage") == "failed" or (st.get("restarts") or 0) >= mo_run.MAX_RESTARTS:
+            items.append(f"Run shard {st.get('shard')} stopped: {st.get('error') or 'restarted too often'}.")
+    for name, acc in (status.get("accounts") or {}).items():
+        if isinstance(acc, dict) and acc.get("skipped"):
+            items.append(f"{name} is out of credit or at its red line: top it up or leave it off.")
+    return [f"{n}. {t}" for n, t in enumerate(dict.fromkeys(items), 1)]
 
 
 def search(query: str, project: str = "", engines: list[str] | None = None, country: str = "",
@@ -155,7 +188,7 @@ def judge(project: str, file: str, question: str, options: dict, column: str,
 
 
 def run(project: str, rounds: int = 6, max_pages: int = 15, goal_ab_org_share: float | None = None,
-        agent: bool = False, stop: bool = False, workers: int = 12, shards: int = 1,
+        agent: bool = False, stop: bool = False, workers: int = 24, shards: int = 1,
         follow: bool = False, pool_done: bool = False) -> dict:
     """Long research as a pipeline in its own background process(es) (survives this session).
 
@@ -269,7 +302,7 @@ def headless(argv: list[str]) -> int:
     ap.add_argument("--max-pages", type=int, default=15)
     ap.add_argument("--goal", type=float, default=None, help="%% of organisations with A/B")
     ap.add_argument("--agent", action="store_true")
-    ap.add_argument("--workers", type=int, default=12)
+    ap.add_argument("--workers", type=int, default=24)
     ap.add_argument("--shard", default="0/1")
     ap.add_argument("--follow", action="store_true")
     a = ap.parse_args(argv)
@@ -294,6 +327,15 @@ def main() -> None:
         raise SystemExit(check())
     if len(sys.argv) > 1 and sys.argv[1] == "run":
         raise SystemExit(headless(sys.argv[2:]))
+    if len(sys.argv) > 1 and sys.argv[1] == "supervise":
+        import argparse
+        ap = argparse.ArgumentParser(prog="server.py supervise")
+        ap.add_argument("project")
+        ap.add_argument("--shards", type=int, default=1)
+        ap.add_argument("--opts", default="{}")
+        a = ap.parse_args(sys.argv[2:])
+        print(json.dumps(mo_run.supervise(ws.project_dir(a.project), a.shards, json.loads(a.opts))))
+        raise SystemExit(0)
     from mcp.server import MCPServer
     server = MCPServer("MarketOps Research", version=VERSION)
     for fn in TOOLS:

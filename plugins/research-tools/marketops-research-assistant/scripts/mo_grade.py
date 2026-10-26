@@ -13,6 +13,7 @@ import re
 import mo_budget
 import mo_config
 import mo_workspace as ws
+from mo_pool import mentions
 
 # Bruce's grading contract (fjd-email-role-qualification), used when the brief has none.
 DEFAULT_GRADES = {
@@ -43,7 +44,7 @@ def _jev(state: dict, questions: dict):
     with sdk.TypeSafeClient(
             api_key=mo_config.key("jev"), timeout=120,
             model=os.environ.get("MARKETOPS_JEV_MODEL") or None,
-            retry=sdk.RetryPolicy(max_retries=1)) as client:
+            ) as client:   # the SDK's default retry backs off on 429 / 529 (docs.typesafe.ai)
         return client.system_one(state, questions)
 
 
@@ -54,9 +55,13 @@ GUIDE = ("Read any language. Judge job titles and abbreviations by this kind of 
          "is also listed for other organisations, or the page belongs to another organisation (a "
          "directory, a council or canton staff list), give A or B only when the text ties the "
          "person to THIS organisation or its venue; otherwise C or X. Grade only this address, not "
-         "the neighbouring entries. A supporters' or sponsors' club, a festival or bar team, or a "
-         "coach of one team only is not the venue's decision or operations side.")
+         "the neighbouring entries. The person who actually runs the grounds, the equipment or the "
+         "maintenance contract counts for more than the highest title. A supporters' or sponsors' "
+         "club, a festival or bar team, teachers, admissions, student services, alumni or newsletter "
+         "addresses are not the venue's decision or operations side; a coach only when the research "
+         "brief names coaches.")
 REVIEW_BELOW = 0.6
+SHARED_REVIEW = 2   # one council office running two or three venues is normal; more looks like a federation
 REVIEW_BELOW_OWN_SITE = 0.35  # on its own site, bound in its card: only very unsure grades wait
 
 
@@ -65,7 +70,7 @@ def _address_words(email: str) -> str:
     return " ".join(w for w in re.split(r"[._\-+0-9]+", local) if len(w) > 1)
 
 
-def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 8, workers: int = 8) -> dict:
+def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: int = 8) -> dict:
     """Jev grades the email candidates that have no grade yet (or all, with regrade). limit 0 = all."""
     if not mo_config.key("jev"):
         return {"graded": 0, "note": "no Jev key: read the quotes and set grades with grade(set=[...])"}
@@ -83,6 +88,25 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 8, workers: i
             and (regrade or not r.get("grade"))]
     if limit:
         todo = todo[:limit]
+    fields = ["grade", "graded_by", "grade_reason", "review", "review_reason"]
+    # Addresses the brief grades by their name alone (brief.address_rules, e.g. {"info": "X"}):
+    # no Jev call. The same address with the same text around it (one portal page read for
+    # many organisations) is graded once; earlier grades of it are reused.
+    known = {} if regrade else {_same(r): r for r in rows if r.get("graded_by") == "jev" and r.get("grade")}
+    by_rule, reused, first, copies = [], [], {}, []
+    for r in todo:
+        g = ws.address_rule(pdir, r.get("value", ""))
+        if g:
+            r.update(grade=g, graded_by="rule", grade_reason=f"address rule: {g}", review="", review_reason="")
+            by_rule.append(r)
+        elif _same(r) in known:
+            r.update({f: known[_same(r)].get(f, "") for f in fields})
+            reused.append(r)
+        elif _same(r) in first:
+            copies.append(r)
+        else:
+            first[_same(r)] = r
+    todo = list(first.values())
     rub = rubric(pdir)
     b = ws.brief(pdir)
     focus = b.get("focus") or ""
@@ -90,30 +114,36 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 8, workers: i
                f"Exclusions: {b.get('exclude', '')}\nFocus: {json.dumps(focus, ensure_ascii=False) if focus else ''}").strip()
     counts = {"graded": 0, "failed": 0}
 
+    # TypeSafe's own guidance (docs.typesafe.ai, typesafe-ai/skills): option names that describe
+    # the content (letters bias the model), each candidate inside its own question rather than a
+    # number in a shared list, a yes/no question (Noul) for "is a person named", the chosen
+    # option's probability - not confidence - as the review signal, decisions in code.
+    options = {OPTION[g]: text for g, text in rub.items()}
+    state = {"research_brief": context, "how_to_judge": GUIDE}
+
+    def card(r: dict) -> str:
+        return (f"organisation: {r.get('org')}\nemail: {r.get('value')} (address words: "
+                f"{_address_words(r.get('value', '')) or '-'}; email domain {r.get('email_site')}; "
+                f"same site as the organisation: {r.get('same_site')})\n"
+                f"page: {r.get('page_url')} (on the organisation's own site: {r.get('page_on_org_site') or '?'})\n"
+                f"also listed for {len(holders.get(r['value'].lower(), ())) - 1} other organisations in this project\n"
+                f"text around it: {r.get('quote')}")
+
     def one_batch(chunk):
-        listing = "\n\n".join(
-            f"[{n + 1}] organisation: {r.get('org')}\nemail: {r.get('value')} (address words: "
-            f"{_address_words(r.get('value', '')) or '-'}; email domain {r.get('email_site')}; "
-            f"same site as the organisation: {r.get('same_site')})\n"
-            f"page: {r.get('page_url')} (on the organisation's own site: {r.get('page_on_org_site') or '?'})\n"
-            f"also listed for {len(holders.get(r['value'].lower(), ())) - 1} other organisations in this project\n"
-            f"text around it: {r.get('quote')}"
-            for n, r in enumerate(chunk))
         questions = {}
         for n, r in enumerate(chunk):
             questions[f"grade_{n + 1}"] = sdk.Choice(
-                instructions=f"Grade candidate [{n + 1}] ({r.get('value')}) for the research goal. " + GUIDE,
-                criteria=rub)
-            questions[f"named_{n + 1}"] = sdk.Choice(
-                instructions=f"Does the text around candidate [{n + 1}] name a real person who uses "
-                             f"{r.get('value')}?", criteria={"yes": "a person's name is tied to it",
-                                                             "no": "no person's name tied to it"})
+                instructions=f"For `research_brief`, what kind of route to {r.get('org')} is this address?\n\n"
+                             + card(r), criteria=options)
+            questions[f"named_{n + 1}"] = sdk.Noul(
+                instructions=f"Does this text name the person who uses {r.get('value')}?\n\n"
+                             f"text: {r.get('quote')}")
         ok, _why = mo_budget.allowed("jev")
         if not ok:
             counts["failed"] += len(chunk)
             return
         try:
-            resp = _jev({"brief": context, "candidates": listing}, questions)
+            resp = _jev(state, questions)
         except Exception as exc:  # noqa: BLE001
             text = f"{type(exc).__name__} {exc}".lower()
             if "402" in text or "quota" in text or "credit" in text or "payment" in text:
@@ -122,48 +152,92 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 8, workers: i
             counts["failed"] += len(chunk)
             return
         mo_budget.record(pdir, "jev", "grade", True, f"{len(chunk)} candidates")
-        choices = getattr(resp, "choices", None) or {}
+        got = answers(resp)
         for n, r in enumerate(chunk):
-            g, named = choices.get(f"grade_{n + 1}"), choices.get(f"named_{n + 1}")
-            if g is None:
+            g, named = got.get(f"grade_{n + 1}"), got.get(f"named_{n + 1}")
+            if g is None or getattr(g, "choice", None) not in GRADE_OF:
                 counts["failed"] += 1
                 continue
-            grade, conf = g.choice, getattr(g, "confidence", None)
+            grade, prob = GRADE_OF[g.choice], probability(g)
+            p_named = yes(named)
             note = ""
-            if grade == "A" and named is not None and named.choice == "no":
+            if grade == "A" and p_named is not None and p_named < 0.5:
                 grade, note = "B", "A without a named person -> B"
             shared = len(holders.get(r["value"].lower(), ())) - 1
             why = []
             if grade in ("A", "B"):
                 own = r.get("page_on_org_site") in ("yes", "likely") or r.get("email_on_org") in ("yes", "likely")
-                if isinstance(conf, float) and conf < (REVIEW_BELOW_OWN_SITE if own else REVIEW_BELOW):
-                    why.append(f"low confidence {conf:.2f}")
-                if shared > 0:
+                if isinstance(prob, float) and prob < (REVIEW_BELOW_OWN_SITE if own else REVIEW_BELOW):
+                    why.append(f"unsure grade (p={prob:.2f})")
+                if shared >= SHARED_REVIEW:
                     why.append(f"address also listed for {shared} other organisations")
-                if r.get("page_on_org_site") == "no":
-                    why.append("page on another site")
-                elif r.get("page_on_org_site") == "unknown" and r.get("email_on_org") not in ("yes", "likely"):
+                if r.get("page_on_org_site") == "no" and not mentions(r.get("org", ""), r.get("quote", "")):
+                    why.append("page on another site, organisation not named next to it")
+                elif (r.get("page_on_org_site") == "unknown" and r.get("email_on_org") not in ("yes", "likely")
+                      and not mentions(r.get("org", ""), r.get("quote", ""))):
                     why.append("neither the page nor the address is on the organisation's own site")
             r["grade"], r["graded_by"], r["review"] = grade, "jev", "yes" if why else ""
             r["review_reason"] = "; ".join(why)
-            r["grade_reason"] = (f"jev {grade} conf {conf:.2f}" if isinstance(conf, float) else f"jev {grade}") + \
-                (f"; named={named.choice}" if named is not None else "") + (f"; {note}" if note else "") + \
+            r["grade_reason"] = (f"jev {grade} p {prob:.2f}" if isinstance(prob, float) else f"jev {grade}") + \
+                (f"; named p {p_named:.2f}" if p_named is not None else "") + (f"; {note}" if note else "") + \
                 (f"; also listed for {shared} other orgs" if shared > 0 else "") + \
                 ("; page on another site" if r.get("page_on_org_site") == "no" else "")
             counts["graded"] += 1
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         list(pool.map(one_batch, [todo[i:i + batch] for i in range(0, len(todo), batch)]))
-    ws.update_contacts(pdir, [r for r in todo if r.get("graded_by") == "jev"],
-                       ["grade", "graded_by", "grade_reason", "review", "review_reason"],
+    for r in copies:
+        src = first[_same(r)]
+        if src.get("graded_by") == "jev":
+            r.update({f: src.get(f, "") for f in fields})
+    counts.update(by_rule=len(by_rule), reused=len(reused) + sum(r.get("graded_by") == "jev" for r in copies))
+    ws.update_contacts(pdir, by_rule + reused + [r for r in todo + copies if r.get("graded_by") == "jev"], fields,
                        guard=lambda cur: not cur.get("graded_by", "").startswith("agent"))
-    named = fill_people(pdir)
+    named = fill_people(pdir, only={(r.get("org_id"), r.get("value", "").lower())
+                                    for r in by_rule + reused + todo + copies if r.get("grade") in ("A", "B")})
     import mo_evidence
     evidence = mo_evidence.rescore(pdir)
     after = ws.read_contacts(pdir)
     left = sum(1 for r in after if r.get("kind") == "email" and not r.get("grade"))
     review = sum(1 for r in after if r.get("review") == "yes")
     return {**counts, "people_filled": named, "evidence": evidence, "still_ungraded": left, "to_review": review}
+
+
+GRADES = ("A", "B", "C", "D", "X")
+# Descriptive option names for Jev (the names are read by the model); grades stay letters in code.
+OPTION = {"A": "decision_maker", "B": "operator_or_forwarder", "C": "team_inbox", "D": "general_inbox",
+          "X": "not_a_route"}
+GRADE_OF = {v: k for k, v in OPTION.items()}
+
+
+def answers(resp) -> dict:
+    """The answers by question id (`answers` in the current SDK, `choices` in older ones)."""
+    return getattr(resp, "answers", None) or getattr(resp, "choices", None) or {}
+
+
+def probability(a):
+    """Probability of the chosen option; the confidence value only when there is none."""
+    probs = getattr(a, "probabilities", None)
+    if isinstance(probs, dict) and getattr(a, "choice", None) in probs:
+        return float(probs[a.choice])
+    conf = getattr(a, "confidence", None)
+    return float(conf) if isinstance(conf, (int, float)) else None
+
+
+def yes(a):
+    """A Noul's probability of yes (None when there is no answer)."""
+    if a is None:
+        return None
+    v = getattr(a, "noul", None)
+    if isinstance(v, (int, float)):
+        return float(v)
+    c = getattr(a, "choice", None)   # older yes/no Choice answers
+    return None if c is None else (1.0 if c == "yes" else 0.0)
+
+
+def _same(r: dict) -> tuple:
+    """One address seen in the same text (wherever it was found) gets the same grade."""
+    return r.get("value", "").lower(), " ".join(str(r.get("quote") or "").split()).lower()
 
 
 def _segments(quote: str) -> list[str]:
@@ -177,20 +251,28 @@ def _segments(quote: str) -> list[str]:
     return list(dict.fromkeys(segs))[-8:]
 
 
-def fill_people(pdir, batch: int = 6) -> int:
+def fill_people(pdir, only: set | None = None, batch: int = 6, workers: int = 8) -> int:
     """For A/B rows without a person: Jev picks, from the quote's own segments, the one that
-    is the person's name and the one that is the job title (any language, any layout)."""
+    is the person's name and the one that is the job title (any language, any layout).
+    only: the (org_id, address) rows to look at - the ones just graded; each address+text once."""
     if not mo_config.key("jev"):
         return 0
     import typesafe_sdk as sdk
+    from concurrent.futures import ThreadPoolExecutor
     rows = [r for r in ws.read_contacts(pdir) if r.get("kind") == "email" and r.get("grade") in ("A", "B")
-            and not r.get("person") and not r.get("graded_by", "").startswith("agent")]
+            and not r.get("person") and not r.get("graded_by", "").startswith("agent")
+            and (only is None or (r.get("org_id"), r.get("value", "").lower()) in only)]
+    same: dict[tuple, list] = {}
+    for r in rows:
+        same.setdefault(_same(r), []).append(r)
+    rows = [g[0] for g in same.values()]
     filled = {}
-    for i in range(0, len(rows), batch):
-        chunk = [(r, _segments(r.get("quote", ""))) for r in rows[i:i + batch]]
+
+    def one(group):
+        chunk = [(r, _segments(r.get("quote", ""))) for r in group]
         chunk = [(r, segs) for r, segs in chunk if segs]
         if not chunk:
-            continue
+            return
         questions, listing = {}, []
         for n, (r, segs) in enumerate(chunk):
             opts = {f"s{k + 1}": seg for k, seg in enumerate(segs)}
@@ -205,9 +287,9 @@ def fill_people(pdir, batch: int = 6) -> int:
             resp = _jev({"candidates": "\n".join(listing)}, questions)
         except Exception as exc:  # noqa: BLE001
             mo_budget.record(pdir, "jev", "grade", False, f"{type(exc).__name__}: {exc}")
-            continue
+            return
         mo_budget.record(pdir, "jev", "grade", True, f"people x{len(chunk)}")
-        choices = getattr(resp, "choices", None) or {}
+        choices = answers(resp)
         for n, (r, segs) in enumerate(chunk):
             got = {}
             for field in ("person", "role"):
@@ -224,7 +306,11 @@ def fill_people(pdir, batch: int = 6) -> int:
             if got.get("person"):
                 got["person"] = " ".join(re.sub(r"[\d+()/.-]{3,}.*$", "", got["person"]).split())
             if got.get("person") or got.get("role"):
-                filled[(r["org_id"], r["value"].lower())] = got
+                for twin in same[_same(r)]:
+                    filled[(twin["org_id"], twin["value"].lower())] = got
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        list(pool.map(one, [rows[i:i + batch] for i in range(0, len(rows), batch)]))
     if filled:
         updates = [{"org_id": k[0], "value": v_, **got} for (k, got) in filled.items() for v_ in [k[1]]]
         for u in updates:
@@ -289,7 +375,7 @@ def judge(pdir, file: str, question: str, options: dict, column: str, fields: li
             failed += len(chunk)
             continue
         mo_budget.record(pdir, "jev", "grade", True, f"judge {column} x{len(chunk)}")
-        choices = getattr(resp, "choices", None) or {}
+        choices = answers(resp)
         for n, r in enumerate(chunk):
             a = choices.get(f"q{n + 1}")
             if a is None:

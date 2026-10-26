@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: jev-judge-question-design
+expected_outcome: |
+  One judgment per row, options with descriptive names covering in-house, outsourced and an unsure / cannot-tell case, phrased about what the row or its page shows.

@@ -20,9 +20,9 @@ import io
 import json
 import re
 import unicodedata
+import urllib.parse
 from pathlib import Path
 
-import mo_pages
 import mo_workspace as ws
 
 
@@ -70,6 +70,24 @@ def norm(text) -> str:
     return " ".join(re.sub(r"[^a-z0-9]+", " ", t).split())
 
 
+NAME_FILLER = {"de", "du", "des", "la", "le", "les", "et", "the", "of", "and", "von", "der", "die", "das", "und",
+               "club", "sport", "sports", "association", "ville", "city", "fc", "ac", "as", "us", "sc", "e", "v"}
+
+
+def name_words(name: str) -> list[str]:
+    return [w for w in norm(name).split() if len(w) > 2 and w not in NAME_FILLER]
+
+
+def mentions(name: str, text: str) -> bool:
+    """Does this result talk about the organisation? Most of its distinctive name words are
+    there - accents, hyphens and word order do not matter."""
+    words = name_words(name)[:4]
+    if not words:
+        return bool(name) and norm(name) in norm(text)
+    hay = norm(text)
+    return sum(w in hay for w in words) >= max(1, round(len(words) * 0.6))
+
+
 def venue_key(r: dict) -> str:
     name = norm(r.get("name"))
     place = norm(r.get("postcode") or r.get("zip") or r.get("city") or r.get("address", "")[:24])
@@ -77,37 +95,82 @@ def venue_key(r: dict) -> str:
 
 
 def org_key(r: dict) -> str:
-    site = mo_pages.site_of(str(r.get("website") or "")) if r.get("website") else ""
-    if site:
-        return f"d:{site}"
+    """An organisation is its name in its place (Bruce's rule: never the domain - one domain
+    once merged 40 venues into 12, a shared portal or club platform would merge hundreds)."""
     return f"n:{norm(r.get('name'))}|{norm(r.get('city'))}"
 
 
+def site_signal(r: dict) -> str:
+    """The exact website (host + path) - a hint that two rows are one organisation, never a key."""
+    url = str(r.get("website") or "").strip()
+    if not url:
+        return ""
+    parts = urllib.parse.urlsplit(url if "://" in url else "https://" + url)
+    host = (parts.hostname or "").lower().removeprefix("www.")
+    return host + parts.path.rstrip("/") if host else ""
+
+
+def sites_differ(a: str, b: str) -> bool:
+    """Two website signals that cannot be one organisation: other hosts, or two different pages
+    deeper than the home page on one host (a city portal's venue pages)."""
+    if not a or not b:
+        return False
+    ha, _, pa = a.partition("/")
+    hb, _, pb = b.partition("/")
+    return ha != hb or bool(pa and pb and pa != pb)
+
+
+def _same_org_names(a: dict, b: dict) -> bool:
+    return mentions(str(a.get("name") or ""), str(b.get("name") or "")) or \
+        mentions(str(b.get("name") or ""), str(a.get("name") or ""))
+
+
+def new_oid(r: dict) -> str:
+    return _oid(org_key(r) + "|" + site_signal(r))
+
+
 def _merge_into(existing: list[dict], incoming: list[dict], key, source: str,
-                by_name: bool = False) -> tuple[int, int, dict]:
+                by_name: bool = False, signal=None) -> tuple[int, int, dict]:
     """Union of rows: a row whose key is already there fills that row's empty fields and adds
-    its source; anything else is a new row. by_name: when one side has no city (or no
-    website), a single row with the same name is the same organisation. Returns (added,
-    merged, key -> row)."""
-    index, names = {}, {}
+    its source; anything else is a new row. by_name: when one side has no city, a single row
+    with the same name is the same organisation. signal (organisations): two different
+    websites keep same-named rows apart, the same exact website with matching names joins
+    them. Returns (added, merged, key -> row)."""
+    index, names, sites = {}, {}, {}
     for r in existing:
         index.setdefault(key(r), r)
         names.setdefault(norm(r.get("name")), []).append(r)
+        if signal and signal(r):
+            sites.setdefault(signal(r).partition("/")[0], []).append(r)
+
+    def clash(a: dict, b: dict) -> bool:
+        return bool(signal) and sites_differ(signal(a), signal(b))
     added = merged = 0
     for r in incoming:
         k = key(r)
         hit = index.get(k)
+        if hit is not None and clash(hit, r):
+            hit, k = None, k + "|" + signal(r)
+            hit = index.get(k)
         if hit is None and by_name:
-            same = names.get(norm(r.get("name")), [])
+            same = [x for x in names.get(norm(r.get("name")), []) if not clash(x, r)]
             if len(same) == 1 and (not r.get("city") or not same[0].get("city")
                                    or norm(r.get("city")) == norm(same[0].get("city"))):
                 hit = same[0]
-                index[k] = hit
+        if hit is None and signal and signal(r):
+            host = signal(r).partition("/")[0]
+            same_site = [x for x in sites.get(host, []) if not clash(x, r) and _same_org_names(x, r)]
+            if len(same_site) == 1:
+                hit = same_site[0]
+        if hit is not None:
+            index[k] = hit
         if hit is None:
             r["sources"] = source
             existing.append(r)
             index[k] = r
             names.setdefault(norm(r.get("name")), []).append(r)
+            if signal and signal(r):
+                sites.setdefault(signal(r).partition("/")[0], []).append(r)
             added += 1
             continue
         for f, v in r.items():
@@ -148,10 +211,10 @@ def add_orgs(pdir: Path, rows: list[dict], source: str, kind: str, query: str = 
     """Organisations found by discovery (maps, directory pages): merged into orgs.csv."""
     with ws._lock(pdir / "pools"):
         orgs = ws.read_csv(pdir / "orgs.csv")
-        added, merged, _ = _merge_into(orgs, rows, org_key, source, by_name=True)
+        added, merged, _ = _merge_into(orgs, rows, org_key, source, by_name=True, signal=site_signal)
         for o in orgs:
             if not o.get("id"):
-                o["id"] = _oid(org_key(o))
+                o["id"] = new_oid(o)
         _write(pdir / "orgs.csv", orgs, ["id", "name", "website", "city"])
     out = {"read": len(rows), "kept": len(rows), "orgs_added": added, "orgs_merged": merged}
     log_source(pdir, source, kind, out, query)
@@ -173,10 +236,10 @@ def _pool(pdir: Path, file: str, into: str, filters: dict | None, map: dict | No
     if into == "orgs":
         for r in rows:
             r.setdefault("id", "")
-        o_added, o_merged, _ = _merge_into(orgs, rows, org_key, file, by_name=True)
+        o_added, o_merged, _ = _merge_into(orgs, rows, org_key, file, by_name=True, signal=site_signal)
         for o in orgs:
             if not o.get("id"):
-                o["id"] = _oid(org_key(o))
+                o["id"] = new_oid(o)
         _write(pdir / "orgs.csv", orgs, ["id", "name", "website", "city"])
         return {"read": len(raw), "kept": len(kept), "orgs_added": o_added, "orgs_merged": o_merged,
                 "columns_in_file": list(raw[0].keys())[:60] if raw else []}
@@ -193,10 +256,10 @@ def _pool(pdir: Path, file: str, into: str, filters: dict | None, map: dict | No
                     g[target_col] = orig[source_col]
             r["_org"] = org_key(g)
             groups.append(g)
-        o_added, o_merged, index = _merge_into(orgs, groups, org_key, file, by_name=True)
+        o_added, o_merged, index = _merge_into(orgs, groups, org_key, file, by_name=True, signal=site_signal)
         for o in orgs:
             if not o.get("id"):
-                o["id"] = _oid(org_key(o))
+                o["id"] = new_oid(o)
         for r in rows:
             if r.get("_org"):
                 r["org_id"] = index[r.pop("_org")]["id"]

@@ -126,6 +126,12 @@ def append_csv(path: Path, cols: list[str], row: dict) -> None:
             w.writerow({k: row.get(k, "") for k in cols})
 
 
+def append_jsonl(path: Path, row: dict) -> None:
+    with _lock(path):
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
 def weights(pdir: Path, kind: str) -> dict:
     """Provider shares for 'search' or 'fetch': brief.providers.<kind> over the defaults."""
     own = (brief(pdir).get("providers") or {}).get(kind) or {}
@@ -137,6 +143,14 @@ def brief(pdir: Path) -> dict:
         return json.loads((pdir / "brief.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
+
+
+def locale(pdir: Path) -> dict:
+    """Where and in what language to search (brief.country ISO-2, brief.language), and the goal
+    as the search intent. Engines default to US / English without them."""
+    b = brief(pdir)
+    return {"country": str(b.get("country") or "").strip(), "language": str(b.get("language") or "").strip(),
+            "purpose": str(b.get("goal") or "").strip()}
 
 
 # ------------------------------------------------------------------ pages
@@ -253,6 +267,18 @@ def _merge_phones(pdir: Path, phones: list[dict], org_id: str, org: str) -> None
                                 "quote": c.get("quote", ""), "found_by": c.get("found_by", ""), "added": _now()})
 
 
+def address_rule(pdir: Path, email: str) -> str:
+    """The grade the brief gives an address by its name alone (brief.address_rules, e.g.
+    {"info": "X", "book": "X"}): the whole name or its first part. "" when no rule applies."""
+    rules = brief(pdir).get("address_rules") or {}
+    local = email.split("@")[0].lower()
+    for word, grade in rules.items():
+        word = str(word).lower()
+        if grade in ("A", "B", "C", "D", "X") and (local == word or re.match(re.escape(word) + r"[\W_\d]", local)):
+            return grade
+    return ""
+
+
 def merge_contacts(pdir: Path, found: list[dict], org_id: str = "", org: str = "", via: str = "") -> int:
     """Add candidates to the organisation's contact file (emails) and phones.csv; one row per
     address and organisation. via: the stage that found them (site, deep2, evidence, ...)."""
@@ -275,7 +301,10 @@ def merge_contacts(pdir: Path, found: list[dict], org_id: str = "", org: str = "
                 row = {**{k: "" for k in CONTACT_COLS}, **{k: c.get(k, "") for k in CONTACT_COLS},
                        "org_id": org_id, "org": org, "found_by": c.get("found_by", ""), "added": _now(),
                        "found_in": via or c.get("found_in", "")}
-                if c.get("kind") == "email" and c.get("mailbox") == "generic":
+                rule = address_rule(pdir, c["value"]) if c.get("kind") == "email" else ""
+                if rule:
+                    row["grade"], row["graded_by"], row["grade_reason"] = rule, "rule", f"address rule: {rule}"
+                elif c.get("kind") == "email" and c.get("mailbox") == "generic":
                     row["grade"], row["graded_by"] = "D", "rule: generic mailbox"
                 rows.append(row)
                 index[key] = row
@@ -356,34 +385,6 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
                 report[row["reader"]] = {"file": row["file"], "cached": "library" if row.get("library") else "project"}
             except OSError:
                 continue
-    def read_with(chosen):
-        for reader, res in mo_providers.read(url, chosen, project_dir=pdir).items():
-            if "error" in res:
-                report[reader] = {"error": res["error"]}
-                continue
-            if res.get("html"):
-                f = _save(pdir, url, reader, res["html"].encode("utf-8"), "html", res["final_url"], org_id)
-                parsed = mo_pages.from_html(res["html"], res["final_url"])
-            else:
-                f = _save(pdir, url, reader, res["text"].encode("utf-8"), "md", res["final_url"], org_id)
-                parsed = mo_pages.from_markdown(res["text"], res["final_url"])
-            parsed_by[reader] = parsed
-            read_at[reader] = _now()
-            report[reader] = {"file": f, "chars": sum(map(len, parsed["lines"])), "final_url": res["final_url"]}
-
-    if not parsed_by:
-        if readers is None:
-            now, held = mo_providers.pick(url, mo_providers.available_readers(), weights(pdir, "fetch"),
-                                          always=("crawl4ai",))
-        else:
-            now, held = readers, []
-        read_with(now)
-        # Quality floor: nothing read, or a contact-looking page with no address -> the rest too.
-        emails = any(mo_pages.EMAIL.search(" ".join(p["lines"])) for p in parsed_by.values())
-        contactish = any(h in url.lower() for h in ("kontakt", "contact", "impressum", "vorstand", "team",
-                                                     "staff", "people", "board", "committee", "equipe"))
-        if held and (not parsed_by or (contactish and not emails)):
-            read_with(held)
     page_site = mo_pages.site_of(url)
     words = [w for w in re.findall(r"[a-z0-9]+", (org or "").lower()) if len(w) > 3]
     known_site = org_site  # the organisation's own website, if the pool has one
@@ -396,7 +397,68 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
         return "likely" if words and any(w in squashed for w in words) else "unknown"
     on_org = belongs(page_site)
     org_site = org_site or page_site
-    found: dict[str, dict] = {}
+
+    def take(reader: str, res: dict):
+        if "error" in res:
+            report[reader] = {"error": res["error"]}
+            return None
+        if res.get("html"):
+            f = _save(pdir, url, reader, res["html"].encode("utf-8"), "html", res["final_url"], org_id)
+            parsed = mo_pages.from_html(res["html"], res["final_url"])
+        else:
+            f = _save(pdir, url, reader, res["text"].encode("utf-8"), "md", res["final_url"], org_id)
+            parsed = mo_pages.from_markdown(res["text"], res["final_url"])
+        read_at[reader] = _now()
+        report[reader] = {"file": f, "chars": sum(map(len, parsed["lines"])), "final_url": res["final_url"]}
+        return parsed
+
+    def extract(parsed_map: dict) -> list[dict]:
+        found: dict[str, dict] = {}
+        for reader, parsed in parsed_map.items():
+            for c in mo_pages.contacts(parsed["lines"], url, org_site, parsed.get("blocks"), parsed.get("mailtos")):
+                c.update(page_site=page_site, page_on_org_site=on_org, last_verified=read_at.get(reader, ""),
+                         email_on_org=belongs(c.get("email_site", "")) if c.get("kind") == "email" else "")
+                k = c["value"].lower()
+                if k in found:
+                    found[k]["found_by"] = "+".join(sorted(set(found[k]["found_by"].split("+")) | {reader}))
+                    found[k]["last_verified"] = max(found[k].get("last_verified", ""), c.get("last_verified", ""))
+                    if (c["quote_from"] == "block") > (found[k]["quote_from"] == "block"):
+                        found[k]["quote"], found[k]["quote_from"] = c["quote"], "block"
+                else:
+                    found[k] = {**c, "found_by": reader}
+        return list(found.values())
+
+    def late(reader: str, res: dict) -> None:
+        """A slower reader finished after the page moved on: its version is kept and its
+        contacts merged all the same."""
+        try:
+            parsed = take(reader, res)
+            if parsed and (org_id or org):
+                merge_contacts(pdir, extract({reader: parsed}), org_id, org, via)
+        except Exception:  # noqa: BLE001
+            pass
+
+    def read_with(chosen, race: bool = False):
+        got = mo_providers.read_race(url, chosen, project_dir=pdir, on_late=late) if race \
+            else mo_providers.read(url, chosen, project_dir=pdir)
+        for reader, res in got.items():
+            parsed = take(reader, res)
+            if parsed:
+                parsed_by[reader] = parsed
+
+    if not parsed_by:
+        if readers is None:
+            now, held = mo_providers.pick(url, mo_providers.available_readers(), weights(pdir, "fetch"),
+                                          always=("crawl4ai",))
+        else:
+            now, held = readers, []
+        read_with(now, race=len(now) > 1)
+        # Quality floor: nothing read, or a contact-looking page with no address -> the rest too.
+        emails = any(mo_pages.EMAIL.search(" ".join(p["lines"])) for p in parsed_by.values())
+        contactish = any(h in url.lower() for h in ("kontakt", "contact", "impressum", "vorstand", "team",
+                                                     "staff", "people", "board", "committee", "equipe"))
+        if held and (not parsed_by or (contactish and not emails)):
+            read_with(held)
     links: list = []
     content_links: list = []
     buttons = 0
@@ -404,17 +466,7 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
         links += parsed["links"]
         content_links += parsed.get("content_links", parsed["links"])
         buttons = max(buttons, parsed.get("hidden_email_buttons", 0))
-        for c in mo_pages.contacts(parsed["lines"], url, org_site, parsed.get("blocks"), parsed.get("mailtos")):
-            c.update(page_site=page_site, page_on_org_site=on_org, last_verified=read_at.get(reader, ""),
-                     email_on_org=belongs(c.get("email_site", "")) if c.get("kind") == "email" else "")
-            k = c["value"].lower()
-            if k in found:
-                found[k]["found_by"] = "+".join(sorted(set(found[k]["found_by"].split("+")) | {reader}))
-                found[k]["last_verified"] = max(found[k].get("last_verified", ""), c.get("last_verified", ""))
-                if (c["quote_from"] == "block") > (found[k]["quote_from"] == "block"):
-                    found[k]["quote"], found[k]["quote_from"] = c["quote"], "block"
-            else:
-                found[k] = {**c, "found_by": reader}
+    found = {c["value"].lower(): c for c in extract(parsed_by)}
     contacts = list(found.values())
     added = merge_contacts(pdir, contacts, org_id, org, via) if (org_id or org) else 0
     best = max((p["lines"] for p in parsed_by.values()), key=lambda ls: sum(map(len, ls)), default=[])
@@ -428,8 +480,62 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
 
 
 # ------------------------------------------------------------------ crawl jobs
+SHARED_SITE_ORGS = 3   # a website domain listed for this many organisations is a portal, not their own site
+_shared_cache: dict[str, tuple] = {}
+
+
+def shared_sites(pdir: Path) -> set[str]:
+    """Website domains that several organisations of the pool share (a city portal, a
+    federation's club pages, a site builder): no organisation owns them."""
+    f = pdir / "orgs.csv"
+    sig = f.stat().st_mtime_ns if f.exists() else 0
+    cached = _shared_cache.get(str(pdir))
+    if not cached or cached[0] != sig:
+        names: dict[str, set] = {}
+        for o in read_csv(f):
+            site = mo_pages.site_of(str(o.get("website") or ""))
+            if site:
+                names.setdefault(site, set()).add(str(o.get("name") or "").strip().lower())
+        _shared_cache[str(pdir)] = cached = (sig, {s for s, n in names.items() if len(n) >= SHARED_SITE_ORGS})
+    return cached[1]
+
+
+SITE_BUDGET_S = 150   # one organisation's site pass stops queueing pages after this (Bruce: per-domain budget)
+_dns_ok: list = []
+
+
+def _dns_works() -> bool:
+    """Behind some proxies local DNS answers nothing; then a failed look-up proves nothing."""
+    if not _dns_ok:
+        import socket
+        try:
+            socket.getaddrinfo("www.google.com", 443)
+            _dns_ok.append(True)
+        except OSError:
+            _dns_ok.append(False)
+    return _dns_ok[0]
+
+
+def _resolves(host: str) -> bool:
+    """A dead domain costs every reader its full timeout; Bruce's DNS pre-check took a crawl from
+    26 to 95 domains a minute. One failure is not death (a burst of look-ups gets throttled):
+    tried twice, and only when DNS works at all here."""
+    import socket
+    import time as _t
+    if not host or not _dns_works():
+        return True
+    for n in range(2):
+        try:
+            socket.getaddrinfo(host, 443)
+            return True
+        except OSError:
+            if n == 0:
+                _t.sleep(2)
+    return False
+
+
 def _crawl_one(pdir: Path, t: dict, max_pages: int, readers, extra: list[str] | None = None,
-               label: str = "site") -> dict:
+               label: str = "site", budget_s: float = SITE_BUDGET_S) -> dict:
     """Read one organisation's site: home, then the best-scoring same-site pages two levels
     deep (contact, imprint, team, board, staff, venue pages and PDFs), up to max_pages."""
     import heapq
@@ -440,7 +546,23 @@ def _crawl_one(pdir: Path, t: dict, max_pages: int, readers, extra: list[str] | 
         return {**row, "status": "no_website"}
     if site and not site.startswith(("http://", "https://")):
         site = "https://" + site
+    if site and not extra and not _resolves(urllib.parse.urlsplit(site).hostname or ""):
+        return {**row, "status": "no_dns", "note": "the website's domain does not resolve (checked twice)"}
     org_site = mo_pages.site_of(site) if site else ""
+    # On a portal shared by many organisations only the organisation's own page and the pages
+    # below it are followed - never the whole portal (its inboxes belong to nobody here).
+    scope = ""
+    if org_site and org_site in shared_sites(pdir):
+        parts = urllib.parse.urlsplit(site)
+        scope = parts.netloc.lower() + (parts.path.rstrip("/") or "/")
+
+    def in_scope(url: str) -> bool:
+        if not scope:
+            return True
+        parts = urllib.parse.urlsplit(url)
+        key = parts.netloc.lower() + (parts.path.rstrip("/") or "/")
+        return key == scope or key.startswith(scope + "/")
+
     heap: list = []
     for n, u in enumerate(([site] if site else []) + (extra or [])):
         heapq.heappush(heap, (-100 + n, 0, u))
@@ -452,8 +574,13 @@ def _crawl_one(pdir: Path, t: dict, max_pages: int, readers, extra: list[str] | 
         except Exception as exc:  # noqa: BLE001
             return url, None, exc
 
+    import time as _time
+    started = _time.time()
     with ThreadPoolExecutor(max_workers=PAGE_PARALLEL) as pages_pool:
         while heap and pages < max_pages:
+            if _time.time() - started > budget_s:
+                notes.append(f"time budget {int(budget_s)} s reached")
+                break
             batch = []   # the best few waiting pages, read at the same time
             while heap and len(batch) < min(PAGE_PARALLEL, max_pages - pages):
                 _neg, depth, url = heapq.heappop(heap)
@@ -482,9 +609,11 @@ def _crawl_one(pdir: Path, t: dict, max_pages: int, readers, extra: list[str] | 
                                  f"{url[:80]}: try browse")
                 if depth < 2 and mo_pages.site_of(url) == (org_site or mo_pages.site_of(url)):
                     for link, score in got["scored_links"]:
-                        if link not in seen:
+                        if link not in seen and in_scope(link):
                             heapq.heappush(heap, (-score + depth, depth + 1, link))
     status = "done" if ok_readers else "unreadable"
+    if scope:
+        notes.insert(0, f"shared portal: only {scope} and below")
     return {**row, "status": status, "pages": pages, "emails": emails, "email_buttons": buttons,
             "readers_ok": "+".join(sorted(ok_readers)), "note": "; ".join(notes)[:400]}
 
@@ -494,9 +623,18 @@ def stop_requested(pdir: Path) -> bool:
 
 
 # ------------------------------------------------------------------ TinyFish Agent
-DEFAULT_GOAL = ("Return the visible text of this page verbatim, including every person's name, "
-                "role or job title, email address and phone number. Open on-page tabs or 'show more' "
-                "if needed. Do not log in, submit forms or accept anything.")
+# Written to TinyFish's goal guide (docs.tinyfish.ai/prompting-guide): objective, target, steps,
+# fields, output shape, guardrails, edge case - specific goals ran 4.9x faster in their tests.
+# One line per entry so the contact parser keeps each role, name and address together.
+DEFAULT_GOAL = """Extract every person and every role mailbox shown on this page (staff, board, committee, contact or venue sections).
+Steps:
+1. If a cookie or consent banner appears, close it.
+2. On this page only, click tabs, accordions, "show more", "show email" or "contact" buttons that reveal contact details.
+For each entry return: role or job title as displayed; person name as displayed; email address as displayed or revealed; phone number.
+Return one entry per line, exactly: ROLE | NAME | EMAIL | PHONE - use - for anything missing.
+Do not log in, submit forms, send messages, or accept terms. Do not leave the site. Never guess or construct an email address: only addresses shown on the page.
+If no person and no address is shown, return NONE.
+"""
 
 
 def browse(pdir: Path, url: str, goal: str = "", org_id: str = "", org: str = "") -> dict:

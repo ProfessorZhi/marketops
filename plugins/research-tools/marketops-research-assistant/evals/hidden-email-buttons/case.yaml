@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: hidden-email-buttons
+expected_outcome: |
+  Use the TinyFish Agent through browse on that page with a specific goal (fields, steps to reveal the addresses, output one line per entry, no guessing), noting that it is paid, and never construct addresses from names.

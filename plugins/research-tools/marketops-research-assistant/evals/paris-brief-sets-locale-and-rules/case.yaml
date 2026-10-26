@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: paris-brief-sets-locale-and-rules
+expected_outcome: |
+  A brief JSON for Paris with the country and language set for France, the client's excluded inboxes as address rules graded X, French search words for what to find and for the people wanted, and nothing run.
