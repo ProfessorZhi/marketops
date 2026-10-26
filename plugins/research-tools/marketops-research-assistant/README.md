@@ -1,4 +1,4 @@
-# MarketOps Research Assistant 0.6.4
+# MarketOps Research Assistant 0.6.5
 
 调研插件：从公开数据集到场地池、机构池，再到带证据、已评级的联系人，最后交付一张 Excel。
 给 Claude Code 用。插件只提供能力，流程由 agent 自己掌握。
