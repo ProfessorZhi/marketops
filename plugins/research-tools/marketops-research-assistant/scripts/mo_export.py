@@ -60,6 +60,33 @@ def _sheet(name, rows, cols, widths=()):
                  widths=tuple(widths))
 
 
+def trace_summary(pdir) -> list[dict]:
+    """trace.jsonl, summed: per source and per stage, how long organisations spent and how
+    often the stage was where an organisation's first A/B appeared."""
+    path = pdir / "trace.jsonl"
+    if not path.exists():
+        return []
+    import json
+    traces = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            traces.append(json.loads(line))
+        except ValueError:
+            continue
+    groups: dict[tuple, dict] = {}
+    for t in traces:
+        first_ab = next((st for st, ok in (t.get("ab") or {}).items() if ok), "")
+        for src in ("全部", t.get("source") or "-"):
+            for stage, sec in (t.get("seconds") or {}).items():
+                g = groups.setdefault((src, stage), {"orgs": 0, "sec": 0.0, "first_ab": 0})
+                g["orgs"] += 1
+                g["sec"] += sec
+                g["first_ab"] += first_ab == stage
+    return [{"来源": src, "阶段": stage, "机构数": g["orgs"], "平均秒/机构": round(g["sec"] / g["orgs"], 1),
+             "合计分钟": round(g["sec"] / 60, 1), "首个 A+B 在此阶段": g["first_ab"]}
+            for (src, stage), g in sorted(groups.items(), key=lambda kv: (kv[0][0] != "全部", kv[0]))]
+
+
 def export(pdir) -> dict:
     import mo_evidence
     mo_evidence.rescore(pdir)
@@ -193,6 +220,9 @@ def export(pdir) -> dict:
     if contrib_rows:
         sheets.append(_sheet("贡献（消融）", contrib_rows, ["维度", "项", "A+B 路线", "独有 A+B 路线",
                                                          "首个 A+B 来自这里的机构"], (10, 30, 12, 14, 22)))
+    trace_rows = trace_summary(pdir)
+    if trace_rows:
+        sheets.append(_sheet("过程（耗时）", trace_rows, list(trace_rows[0].keys()), (12, 24, 10, 12, 12, 14)))
     if venues:
         sheets.append(_sheet("场地", venues, list(venues[0].keys())))
     sheets.append(_sheet("成本", costs, ["供应商", "调用", "成功", "估算美元"]))

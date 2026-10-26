@@ -83,6 +83,26 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 8, workers: i
             and (regrade or not r.get("grade"))]
     if limit:
         todo = todo[:limit]
+    fields = ["grade", "graded_by", "grade_reason", "review", "review_reason"]
+    # Addresses the brief grades by their name alone (brief.address_rules, e.g. {"info": "X"}):
+    # no Jev call. The same address with the same text around it (one portal page read for
+    # many organisations) is graded once; earlier grades of it are reused.
+    rules = {str(k).lower(): v for k, v in (ws.brief(pdir).get("address_rules") or {}).items() if v in GRADES}
+    known = {} if regrade else {_same(r): r for r in rows if r.get("graded_by") == "jev" and r.get("grade")}
+    by_rule, reused, first, copies = [], [], {}, []
+    for r in todo:
+        g = _rule_grade(r.get("value", ""), rules)
+        if g:
+            r.update(grade=g, graded_by="rule", grade_reason=f"address rule: {g}", review="", review_reason="")
+            by_rule.append(r)
+        elif _same(r) in known:
+            r.update({f: known[_same(r)].get(f, "") for f in fields})
+            reused.append(r)
+        elif _same(r) in first:
+            copies.append(r)
+        else:
+            first[_same(r)] = r
+    todo = list(first.values())
     rub = rubric(pdir)
     b = ws.brief(pdir)
     focus = b.get("focus") or ""
@@ -154,8 +174,12 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 8, workers: i
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         list(pool.map(one_batch, [todo[i:i + batch] for i in range(0, len(todo), batch)]))
-    ws.update_contacts(pdir, [r for r in todo if r.get("graded_by") == "jev"],
-                       ["grade", "graded_by", "grade_reason", "review", "review_reason"],
+    for r in copies:
+        src = first[_same(r)]
+        if src.get("graded_by") == "jev":
+            r.update({f: src.get(f, "") for f in fields})
+    counts.update(by_rule=len(by_rule), reused=len(reused) + sum(r.get("graded_by") == "jev" for r in copies))
+    ws.update_contacts(pdir, by_rule + reused + [r for r in todo + copies if r.get("graded_by") == "jev"], fields,
                        guard=lambda cur: not cur.get("graded_by", "").startswith("agent"))
     named = fill_people(pdir)
     import mo_evidence
@@ -164,6 +188,22 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 8, workers: i
     left = sum(1 for r in after if r.get("kind") == "email" and not r.get("grade"))
     review = sum(1 for r in after if r.get("review") == "yes")
     return {**counts, "people_filled": named, "evidence": evidence, "still_ungraded": left, "to_review": review}
+
+
+GRADES = ("A", "B", "C", "D", "X")
+
+
+def _same(r: dict) -> tuple:
+    """One address seen in the same text (wherever it was found) gets the same grade."""
+    return r.get("value", "").lower(), " ".join(str(r.get("quote") or "").split()).lower()
+
+
+def _rule_grade(email: str, rules: dict) -> str:
+    local = email.split("@")[0].lower()
+    for word, grade in rules.items():
+        if local == word or re.match(re.escape(word) + r"[\W_\d]", local):
+            return grade
+    return ""
 
 
 def _segments(quote: str) -> list[str]:

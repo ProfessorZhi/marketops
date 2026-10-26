@@ -43,6 +43,9 @@ sources becomes one row, nothing is dropped.
      `focus.areas`: where (the city's districts, the region's towns). The run's discovery
      line searches every find x area pair (maps, else web results; directory pages) and
      adds the organisations it finds. Add more words any time; new pairs are picked up.
+   - `address_rules`: address names the brief grades by themselves, e.g. `{"info": "X",
+     "admin": "X", "book": "X"}` when the client excludes those - no Jev call, marked
+     `graded_by=rule`.
    - `focus.search_terms`: the market's words for the people wanted ("responsable
      équipement sportif", "Platzwart"); `focus.directory_terms`: the lists that name them.
 2. **Known sources first**: the big registers and open-data exports - `fetch` the export,
@@ -55,6 +58,8 @@ sources becomes one row, nothing is dropped.
    pages and PDFs, two levels deep), new addresses are graded, then while it has no
    confirmed A/B it is dug a different way each round (your search terms, its site and
    PDFs, directories, maps, broad searches), and its A/B evidence is corroborated.
+   Sources take turns, so a source pooled late is not left at the back. A website shared by
+   several organisations (a city portal, a site builder) is read only at each one's own page.
    Organisations clearly outside the brief (marked `scope=out` by Jev) stay in the pool
    but are skipped.
 4. **Workers in parallel**: start 3-6 `marketops-worker` subagents with the project name.
@@ -71,7 +76,8 @@ sources becomes one row, nothing is dropped.
 ## What to keep, what to drop: measure it
 
 The workbook's "数据源" sheet shows what each source brought (organisations, A+B yield) and
-"贡献（消融）" what each stage (site, dig rounds, evidence) and reader added that nothing
+"过程（耗时）" where the time goes (seconds per organisation per stage and source, from
+`trace.jsonl`, one line per organisation) and "贡献（消融）" what each stage (site, dig rounds, evidence) and reader added that nothing
 else found. A source with near-zero yield after ~30 organisations: stop adding from it and
 look for the next. To test a stage, switch it off and run again on the same project (pages
 and searches come from the library, so it costs almost nothing):

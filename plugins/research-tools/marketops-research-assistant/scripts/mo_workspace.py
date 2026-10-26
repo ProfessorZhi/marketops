@@ -126,6 +126,12 @@ def append_csv(path: Path, cols: list[str], row: dict) -> None:
             w.writerow({k: row.get(k, "") for k in cols})
 
 
+def append_jsonl(path: Path, row: dict) -> None:
+    with _lock(path):
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
 def weights(pdir: Path, kind: str) -> dict:
     """Provider shares for 'search' or 'fetch': brief.providers.<kind> over the defaults."""
     own = (brief(pdir).get("providers") or {}).get(kind) or {}
@@ -428,6 +434,26 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
 
 
 # ------------------------------------------------------------------ crawl jobs
+SHARED_SITE_ORGS = 3   # a website domain listed for this many organisations is a portal, not their own site
+_shared_cache: dict[str, tuple] = {}
+
+
+def shared_sites(pdir: Path) -> set[str]:
+    """Website domains that several organisations of the pool share (a city portal, a
+    federation's club pages, a site builder): no organisation owns them."""
+    f = pdir / "orgs.csv"
+    sig = f.stat().st_mtime_ns if f.exists() else 0
+    cached = _shared_cache.get(str(pdir))
+    if not cached or cached[0] != sig:
+        names: dict[str, set] = {}
+        for o in read_csv(f):
+            site = mo_pages.site_of(str(o.get("website") or ""))
+            if site:
+                names.setdefault(site, set()).add(str(o.get("name") or "").strip().lower())
+        _shared_cache[str(pdir)] = cached = (sig, {s for s, n in names.items() if len(n) >= SHARED_SITE_ORGS})
+    return cached[1]
+
+
 def _crawl_one(pdir: Path, t: dict, max_pages: int, readers, extra: list[str] | None = None,
                label: str = "site") -> dict:
     """Read one organisation's site: home, then the best-scoring same-site pages two levels
@@ -441,6 +467,20 @@ def _crawl_one(pdir: Path, t: dict, max_pages: int, readers, extra: list[str] | 
     if site and not site.startswith(("http://", "https://")):
         site = "https://" + site
     org_site = mo_pages.site_of(site) if site else ""
+    # On a portal shared by many organisations only the organisation's own page and the pages
+    # below it are followed - never the whole portal (its inboxes belong to nobody here).
+    scope = ""
+    if org_site and org_site in shared_sites(pdir):
+        parts = urllib.parse.urlsplit(site)
+        scope = parts.netloc.lower() + (parts.path.rstrip("/") or "/")
+
+    def in_scope(url: str) -> bool:
+        if not scope:
+            return True
+        parts = urllib.parse.urlsplit(url)
+        key = parts.netloc.lower() + (parts.path.rstrip("/") or "/")
+        return key == scope or key.startswith(scope + "/")
+
     heap: list = []
     for n, u in enumerate(([site] if site else []) + (extra or [])):
         heapq.heappush(heap, (-100 + n, 0, u))
@@ -482,9 +522,11 @@ def _crawl_one(pdir: Path, t: dict, max_pages: int, readers, extra: list[str] | 
                                  f"{url[:80]}: try browse")
                 if depth < 2 and mo_pages.site_of(url) == (org_site or mo_pages.site_of(url)):
                     for link, score in got["scored_links"]:
-                        if link not in seen:
+                        if link not in seen and in_scope(link):
                             heapq.heappush(heap, (-score + depth, depth + 1, link))
     status = "done" if ok_readers else "unreadable"
+    if scope:
+        notes.insert(0, f"shared portal: only {scope} and below")
     return {**row, "status": status, "pages": pages, "emails": emails, "email_buttons": buttons,
             "readers_ok": "+".join(sorted(ok_readers)), "note": "; ".join(notes)[:400]}
 

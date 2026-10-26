@@ -336,6 +336,66 @@ class Reach(unittest.TestCase):
         book = zipfile.ZipFile(state["export"]["file"]).read("xl/workbook.xml").decode()
         self.assertIn("数据源", book)
         self.assertIn("贡献", book)
+        self.assertIn("过程", book)
+
+    def test_a_shared_portal_is_not_crawled_as_the_orgs_own_site(self):
+        pdir = ws.project_dir("t17")
+        ws.write_csv(pdir / "orgs.csv", ["id", "name", "website"],
+                     [{"id": f"o{i}", "name": f"Gymnase {i}", "website": f"https://portal.fr/lieux/g{i}"} for i in range(3)])
+        page = ('<html><body><a href="/lieux/g0/contact">Contact</a> <a href="/lieux/g1/contact">Contact</a>'
+                ' <a href="/contact">Contact</a> <a href="/equipe">Equipe contact</a></body></html>')
+        seen = []
+
+        def read(url, readers=None, project_dir=None):
+            seen.append(url)
+            return {"crawl4ai": {"final_url": url, "html": page, "text": ""}}
+        with mock.patch.object(mo_providers, "read", side_effect=read), \
+                mock.patch.object(mo_providers, "public_url", side_effect=lambda u: u):
+            row = ws._crawl_one(pdir, {"id": "o0", "name": "Gymnase 0", "website": "https://portal.fr/lieux/g0"}, 10, None)
+        self.assertEqual({"https://portal.fr/lieux/g0", "https://portal.fr/lieux/g0/contact"}, set(seen))
+        self.assertIn("shared portal", row["note"])
+
+    def test_same_address_same_text_is_graded_once_and_rules_need_no_jev(self):
+        import mo_grade
+        pdir = ws.project_dir("t18")
+        (pdir / "brief.json").write_text(json.dumps({"address_rules": {"info": "X"}}), encoding="utf-8")
+        for oid in ("o1", "o2", "o3"):
+            ws.merge_contacts(pdir, [{"kind": "email", "value": "dsp@city.fr", "quote": "Direction des sports",
+                                      "page_url": "u"}, {"kind": "email", "value": "info@city.fr",
+                                                         "quote": "q", "page_url": "u"}], oid, oid, "site")
+        sent = []
+
+        class Pick:
+            choice, confidence = "C", 0.9
+
+        def jev(state, questions):
+            sent.append(state["candidates"])
+            return type("R", (), {"choices": {q: Pick() for q in questions}})()
+        sdk = type(sys)("typesafe_sdk")
+        sdk.Choice = lambda **kw: kw
+        with mock.patch.dict(sys.modules, {"typesafe_sdk": sdk}), \
+                mock.patch("mo_config.key", return_value="k"), mock.patch("mo_budget.allowed", return_value=(True, "")), \
+                mock.patch.object(mo_grade, "_jev", side_effect=jev), mock.patch.object(mo_grade, "fill_people", return_value=0), \
+                mock.patch("mo_evidence.rescore", return_value={}):
+            got = mo_grade.auto(pdir)
+        self.assertEqual(1, len(sent))
+        self.assertEqual(1, sent[0].count("dsp@city.fr"))            # one Jev question for three copies
+        self.assertEqual(3, got["by_rule"])
+        grades = {(r["org_id"], r["value"]): (r["grade"], r["graded_by"]) for r in ws.read_contacts(pdir)}
+        self.assertEqual({("C", "jev")}, {v for (o, e), v in grades.items() if e.startswith("dsp")})
+        self.assertEqual({("X", "rule")}, {v for (o, e), v in grades.items() if e.startswith("info")})
+
+    def test_sources_take_turns_and_every_org_leaves_a_trace(self):
+        pdir = ws.project_dir("t19")
+        (pdir / "brief.json").write_text(json.dumps({"ablate": ["dig", "evidence", "reverify"]}), encoding="utf-8")
+        orgs = [{"id": f"r{i}", "name": f"R{i}", "sources": "register"} for i in range(6)] + \
+               [{"id": "c1", "name": "C1", "sources": "clubs"}]
+        ws.write_csv(pdir / "orgs.csv", ["id", "name", "sources"], orgs)
+        mo_run.run_sync(pdir, rounds=1, workers=1)
+        traces = [json.loads(x) for x in (pdir / "trace.jsonl").read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(7, len(traces))
+        self.assertIn("clubs", [t["source"] for t in traces[:2]])    # the late source is not last in line
+        self.assertIn("site", traces[0]["seconds"])
 
     def test_discovery_adds_organisations_and_logs_sources(self):
         import mo_discover

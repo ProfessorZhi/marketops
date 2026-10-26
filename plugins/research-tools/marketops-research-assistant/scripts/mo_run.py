@@ -258,6 +258,10 @@ class _Grader:
             time.sleep(1)
 
 
+def _source(org: dict) -> str:
+    return (str(org.get("sources") or org.get("source") or "").split(";")[0].split("|")[0].strip()) or "-"
+
+
 def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, goal_ab_org_share: float | None = None,
              agent: bool = False, workers: int = 12, job: dict | None = None, shard: str = "0/1",
              follow: bool = False) -> dict:
@@ -304,11 +308,26 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
 
     def org_flow(org: dict) -> None:
         oid = _oid(org)
+        # The trace: one line per organisation in trace.jsonl - how long each stage took and
+        # what it brought - to see where the time goes and which stage pays off.
+        tr = {"org_id": oid, "org": org.get("name", ""), "source": _source(org), "start": ws._now(),
+              "seconds": {}, "emails": {}, "ab": {}}
+        clock = [time.time()]
+
+        def mark(stage: str) -> None:
+            now = time.time()
+            tr["seconds"][stage] = round(tr["seconds"].get(stage, 0) + now - clock[0], 1)
+            tr["emails"][stage] = len(_emails_of(pdir, oid))
+            tr["ab"][stage] = _has_ab(pdir, oid)
+            clock[0] = now
+
         move("queued", "site")
         if (oid, "site") not in _done_passes(pdir):
             ws.append_csv(pdir / "crawl.csv", ws.CRAWL_COLS, ws._crawl_one(pdir, org, max_pages, None, None, "site"))
+        mark("site")
         move("site", "grading")
         grader.wait_for(oid)
+        mark("grade_wait")
         move("grading", "digging")
         dry = 0
         for rnd in range(1, 0 if "dig" in off else rounds + 1):
@@ -320,6 +339,8 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
                 ws.append_csv(pdir / "crawl.csv", ws.CRAWL_COLS,
                               ws._crawl_one(pdir, org, deep_pages, None, leads, f"deep{rnd}"))
                 grader.wait_for(oid)
+            tr["dig_rounds"] = rnd
+            mark("dig")
             dry = dry + 1 if len(_emails_of(pdir, oid)) == before else 0
             if dry >= 2:
                 break
@@ -332,14 +353,18 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
                     ws.browse(pdir, url, org_id=oid, org=str(org.get("name") or ""))
                 except Exception:  # noqa: BLE001
                     pass
+            mark("agent")
         move("digging", "evidence")
         if not stopping():
             if "reverify" not in off:
                 _reverify(pdir, org)
             if "evidence" not in off and _corroborate(pdir, org, weights):
                 grader.wait_for(oid)
+            mark("evidence")
         ws.append_csv(pdir / "crawl.csv", ws.CRAWL_COLS, {"org_id": oid, "org": org.get("name", ""), "pass": "final",
                                                           "status": "done", "time": ws._now()})
+        tr["total_seconds"] = round(sum(tr["seconds"].values()), 1)
+        ws.append_jsonl(pdir / "trace.jsonl", tr)
         move("evidence", "done")
 
     def snapshot() -> dict:
@@ -373,7 +398,14 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
             finally:
                 discovering.clear()
         threading.Thread(target=discovery_line, daemon=True, name="discover").start()
+    def prune(fs: list) -> list:
+        for f in fs:
+            if f.done() and f.exception() is not None:
+                state.setdefault("errors", []).append(str(f.exception())[:200])
+        return [f for f in fs if not f.done()]
+
     submitted, futures = set(finished), []
+    waiting: dict[str, list] = {}   # source -> organisations not yet started
     last_new, last_snap, last_export = time.time(), 0.0, time.time()
     with ThreadPoolExecutor(max_workers=workers) as pool:
         while True:
@@ -383,9 +415,19 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
                     if oid and oid not in submitted and org.get("scope") != "out":
                         submitted.add(oid)
                         flow["queued"] += 1
-                        futures.append(pool.submit(org_flow, org))
+                        waiting.setdefault(_source(org), []).append(org)
                         last_new = time.time()
-            busy = any(not f.done() for f in futures)
+                # Start organisations from every source in turn, a few more than the workers:
+                # a source pooled later (clubs after a big register) does not wait for all of it.
+                futures = prune(futures)
+                while waiting and len(futures) < workers * 2:
+                    for src in list(waiting):
+                        futures.append(pool.submit(org_flow, waiting[src].pop(0)))
+                        if not waiting[src]:
+                            del waiting[src]
+            else:
+                futures = prune(futures)
+            busy = bool(futures)
             pool_open = discovering.is_set() or (
                 follow and not (pdir / "POOL_DONE").exists() and time.time() - last_new < 1800)
             if time.time() - last_snap > 30:
@@ -399,9 +441,7 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
             if not busy and (stopping() or not pool_open):
                 break
             time.sleep(3)
-    for f in futures:
-        if f.exception() is not None:
-            state.setdefault("errors", []).append(str(f.exception())[:200])
+    prune(futures)
     grader.stop.set()
     grader.kick.set()
     grader.grade_now()
