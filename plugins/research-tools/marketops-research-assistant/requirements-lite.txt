@@ -1,3 +1,0 @@
-mcp>=2.2,<3
-typesafe-sdk>=0.7,<1
-keyring>=25,<27
