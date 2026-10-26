@@ -278,6 +278,8 @@ def refresh_agent_runs(pdir: Path) -> list[dict]:
         status = str(st.get("status") or "").upper() or r["status"]
         if status == "COMPLETED":
             result = st.get("result") or st.get("output") or st
+            if isinstance(result, dict) and isinstance(result.get("result"), str):
+                result = result["result"]
             text = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False, indent=1)
             r["file"] = _save(pdir, r["url"], "tinyfish-agent", text.encode("utf-8"), "md", r["url"], r["org_id"])
             steps = st.get("num_of_steps") or len(st.get("steps") or []) or 20

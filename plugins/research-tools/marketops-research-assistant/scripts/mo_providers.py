@@ -135,7 +135,7 @@ def search(query: str, engines=None, country: str = "", lang: str = "", n: int =
     routes, merged = {}, {}
 
     def one(engine):
-        ok, why = mo_budget.allowed(engine)
+        ok, why = mo_budget.allowed(engine, "search")
         if not ok:
             return engine, None, why
         try:
@@ -248,7 +248,7 @@ def read(url: str, readers=None, project_dir=None) -> dict:
     out = {}
 
     def one(reader):
-        ok, why = mo_budget.allowed(reader)
+        ok, why = mo_budget.allowed(reader, "fetch")
         if not ok:
             return reader, {"error": "skipped: " + why}
         try:
@@ -279,11 +279,13 @@ def tinyfish_mcp(tool: str, args: dict, timeout: float = 60):
                 async with ClientSession(s[0], s[1]) as session:
                     await session.initialize()
                     res = await session.call_tool(tool, args)
-                    text = "".join(getattr(c, "text", "") for c in (res.content or []))
-                    try:
-                        return json.loads(text)
-                    except ValueError:
-                        return {"text": text}
+                    parts = [getattr(c, "text", "") or "" for c in (res.content or [])]
+                    for part in parts:  # the first part is the JSON answer; later parts are notes
+                        try:
+                            return json.JSONDecoder().raw_decode(part.strip())[0]
+                        except ValueError:
+                            continue
+                    return {"text": "\n".join(parts)}
 
     box = {}
     t = threading.Thread(target=lambda: box.setdefault("v", asyncio.run(go())), daemon=True)
@@ -295,7 +297,7 @@ def tinyfish_mcp(tool: str, args: dict, timeout: float = 60):
 
 
 def agent_submit(url: str, goal: str) -> str:
-    ok, why = mo_budget.allowed("tinyfish")
+    ok, why = mo_budget.allowed("tinyfish", "agent")
     if not ok:
         raise ProviderError("TinyFish skipped: " + why)
     import uuid

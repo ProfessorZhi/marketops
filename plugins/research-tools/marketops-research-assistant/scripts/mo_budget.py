@@ -109,12 +109,12 @@ def _lines() -> dict:
         return {}
 
 
-def allowed(provider: str) -> tuple[bool, str]:
+def allowed(provider: str, action: str = "") -> tuple[bool, str]:
     """May this provider be called now? (False, reason) when it is under its red line."""
     if provider in _exhausted:
         return False, _exhausted[provider]
-    if provider in ("crawl4ai", "jev"):
-        return True, ""
+    if provider in ("crawl4ai", "jev") or PRICES.get((provider, action), 1) == 0:
+        return True, ""  # free calls never wait on a balance
     reading = balance(provider)
     if reading is None:
         return True, ""
