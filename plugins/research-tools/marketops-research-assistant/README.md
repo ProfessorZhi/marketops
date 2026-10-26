@@ -67,6 +67,17 @@
 - `references/projects/`：每条业务线一个文件（法国天然草、英国球场与学校、美国运动场、德国、瑞士、全球高尔夫、其他线），统一模板；新项目结束后用 `/marketops-research-assistant:learn <项目>` 把来源产出、有效页面、岗位词、纠正和基准追加进去，以后的项目自动从这里起步。
 - 由此改的代码：人员页（staff/team/board/bureau/Vorstand）优先于联系页、首页（Bruce 实测每百页 A/B 1.73 : 0.18 : 0.08）；跟进俱乐部托管平台上的页面；429/5xx/断连自动重试一次（失败一次不等于死站）；来源跑满 30 家后按 A/B 产出分配名额（≥10% 加倍，<5% 排最后，不丢）。
 
+**按各家官方文档和社区用法调用**：简报的 `country`/`language` 传给 Serper/SerpApi（gl/hl）、TinyFish（location/language）、DeepSeek；TinyFish 搜索按其 30 次/分钟限速自适应，429 时按返回的限额调整；Jev 按 TypeSafe 写法一行一问、选项用可读名字，所选项的概率作为复核信号；每家一份 `skills/marketops-tools/references/*.md`；`evals/` 4 个用例供 `claude plugin eval`。
+
+**Bruce 的需求、卡点和纠正**（`docs/benchmarks/bruce-knowledge/`，他本人 41 天、168 个会话的逐条出处）：他的时间不是耗在抓取上，而是"等"和"重做"。他要的四样东西，本版都接上了：
+- 不停的流水线：分片进程死了由守护进程自动拉起（最多 5 次），夜里也不等人；域名解析不了的官网先剔掉，再按名字找现行官网；每个站最多 150 秒，慢站不占工位。
+- 从磁盘说真话：进度按落盘的 A/B 机构数、A/B 路线数和 `ab_routes_per_30_min`（他的 ROI 口径：每 30 分钟产出多少）。
+- 能对账：说明页"对账"一行，每家机构按最佳等级只计一次，各项相加等于机构数；机构页每行带国家、地区、场景，国家未识别单独计数。
+- 一张编号决策清单：`project()` 返回 `needs_you`，所有要用户拍板的事编好号，一次问完。
+- 每家机构按 `routes_per_org`（默认 3，他的口径 3–5、最低 1、小机构 1 个就交）挖 A/B 路线；职位按"实际管草坪/场地/设备/外包的人"排，不按职位高低；结果叫"研究有效邮箱"，不叫"可发"。
+- 代价实测（模拟，法国 120 家，12 路）：`routes_per_org=3` 比 `=1` 多一轮找第二条路线，每分钟 26.3 → 19.5 家，A/B 机构仍是 73/73、零误报（模拟里每家只放了一条 A/B，所以多出的那轮在模拟里必然空手）；只要一条就交的项目设 `routes_per_org: 1`。三道题（巴黎 80、法国 120、混合 240）全部找到，零误报；与上一个提交相比无退化。
+- skill 补上了他实测过的来源（法国公共服务名录 API、NAF 93.12Z、BOAMP/DECP；德国 NRW 与 TED；英国 Pitchfinder、GIAS、Contracts Finder；荷兰 DUO/TenderNed；美国 NCES/IPEDS/ParkServe/CISA；澳洲 ABN；意大利 RES；波兰 RSPO；高尔夫协会名录）、页面类型产出、更多止损线；`references/bruce-prompts.md`（开场、任务书、验收、停线模板对应到简报和报告）、`references/outreach.md`（发信侧规则，只记录交付行要带什么，本插件不发信）。
+
 更早版本（0.6.0–0.6.3）见 git 历史和 Release 说明。
 
 ## 规则只有这些

@@ -15,6 +15,7 @@ os.environ.update(MARKETOPS_HOME=TMP + "/home", MARKETOPS_PROJECTS=TMP + "/proje
 for k in ("SERPER_API_KEY", "SERPAPI_API_KEY", "DEEPSEEK_API_KEY", "TINYFISH_API_KEY", "TYPESAFE_API_KEY"):
     os.environ.pop(k, None)
 
+import mo_export  # noqa: E402
 import mo_pages  # noqa: E402
 from mo_pool import norm as norm_name  # noqa: E402
 import mo_providers  # noqa: E402
@@ -517,6 +518,43 @@ class Search(unittest.TestCase):
         finally:
             os.environ.pop("SERPER_API_KEY")
             os.environ.pop("TINYFISH_API_KEY")
+
+
+class Supervision(unittest.TestCase):
+    def test_a_shard_that_dies_is_restarted_and_finishes(self):
+        pdir = ws.project_dir("t40")
+        marker = pdir / "died-once"
+        script = ("import json,pathlib,sys; p=pathlib.Path(sys.argv[1]); m=p/'died-once'\n"
+                  "if not m.exists(): m.write_text('x'); sys.exit(1)\n"
+                  "(p/'run.json').write_text(json.dumps({'file':'run.json','done':True,'stage':'done'}))")
+        with mock.patch.object(mo_run, "_shard_cmd", side_effect=lambda *a: [sys.executable, "-c", script, str(pdir)]):
+            out = mo_run.supervise(pdir, 1, {}, poll=0.2)
+        self.assertTrue(marker.exists())
+        self.assertGreaterEqual(out["restarts"][0], 1)
+        self.assertTrue(json.loads((pdir / "run.json").read_text())["done"])
+
+    def test_no_restart_after_a_stop(self):
+        pdir = ws.project_dir("t41")
+        (pdir / "STOP").write_text("now")
+        with mock.patch.object(mo_run, "_shard_cmd", side_effect=lambda *a: [sys.executable, "-c", "import sys; sys.exit(1)"]):
+            out = mo_run.supervise(pdir, 1, {}, poll=0.2)
+        self.assertEqual(0, out["restarts"][0])
+
+    def test_open_decisions_come_as_one_numbered_list(self):
+        pdir = ws.project_dir("t42")
+        (pdir / "brief.json").write_text(json.dumps({"goal": "x"}), encoding="utf-8")
+        ws.merge_contacts(pdir, [{"kind": "email", "value": "a@x.fr", "quote": "q", "page_url": "u"}], "o1", "X", "site")
+        ws.update_contacts(pdir, [{"org_id": "o1", "value": "a@x.fr", "grade": "A", "review": "yes"}], ["grade", "review"])
+        items = server.needs_you(pdir, {"accounts": {}})
+        self.assertTrue(items[0].startswith("1. Set country and language"))
+        self.assertTrue(any("1 A/B rows are marked review" in i for i in items))
+
+
+class Reconcile(unittest.TestCase):
+    def test_every_org_counted_once_under_its_best_grade(self):
+        rows = [{"最佳等级": "A 关键岗位"}, {"最佳等级": "D 通用入口"}, {"最佳等级": "未找到", "抓取状态": "未抓取"}]
+        self.assertEqual("1 + 0 + 0 + 1 + 1（1） = 3 / 3，对得上", mo_export._reconcile(rows, 3))
+        self.assertTrue(mo_export._reconcile(rows, 4).endswith("对不上，请检查"))
 
 
 class Providers(unittest.TestCase):

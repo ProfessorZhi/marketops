@@ -13,6 +13,9 @@ Before you start, read the other skills when you need them:
 - **marketops-sources**: which sources and pages to use first, and when to stop a source.
 - **marketops-tools**: how to phrase searches and get each provider to work.
 - **marketops-benchmarks**: the two standing tests and how to find what slows or loses results.
+- `references/bruce-prompts.md`: Bruce's kickoff, task, acceptance and stop templates, mapped
+  to the brief and the report; `references/outreach.md`: what a row must carry for the sending
+  side (sending itself is not this plugin's job).
 - `references/projects/`: what each market and line taught in earlier projects (Bruce's and
   ours); read the matching file first, and run the `learn` command when a project ends.
 
@@ -55,8 +58,12 @@ Every pool is a union - the same venue or organisation from two sources is one r
    - site: its contact, team, board and venue pages and PDFs, two levels deep (on a portal
      shared by many organisations, only its own page and below);
    - graded in the background (each address with the same text once);
-   - while it has no confirmed A/B, a different dig each round: your search terms, its site
-     and PDFs, directories and federation pages, maps, broad searches;
+   - until it has `routes_per_org` A/B routes (default 3; Bruce: 3-5 per organisation, at
+     least 1, never forced), a different dig each round: your search terms, its site and PDFs,
+     directories and federation pages, maps, broad searches; once it has one A/B route a dry
+     round ends the dig - small organisations keep one route and the flow moves on;
+   - a listed website that no longer resolves is replaced by a search for the current one;
+     each site gets a time budget (150 s) so one slow site never holds a worker;
    - its A/B evidence corroborated.
    Sources take turns, so a source pooled late is not stuck at the back; after 30 organisations
    a source with >=10% A/B gets two turns, one under 5% waits until the others are empty
@@ -67,10 +74,20 @@ Every pool is a union - the same venue or organisation from two sources is one r
    goes, `tasks(action="plan", kind="dig" | "review" | "evidence" | "browse")`.
 5. **Pool complete**: `run(project, pool_done=True)`; the run finishes and exports.
    `project(name)` shows progress any time; `run(project, stop=True)` stops gracefully.
+   A supervisor restarts a shard that dies (up to 5 times) - the run does not wait for you,
+   overnight included. Progress is counted from files on disk: organisations with A/B, A/B
+   routes, and `ab_routes_per_30_min` (Bruce's ROI line: routes produced per 30 minutes).
+   `project()` returns `needs_you`: everything that needs your decision as one numbered list -
+   put it to the user once, in one message, and let them answer by number. Never one question
+   at a time, never a stop to ask "continue?".
 6. **Review and deliver**: rows marked `review` (with their reason) and weak evidence are
    kept and delivered, marked; check the A/B ones, confirm or correct with `grade(set=...)`.
    Report breadth (share of organisations with A+B) first, then A+B routes per 100
-   organisations, coverage, cost, and what sources and stages contributed.
+   organisations, coverage, cost, and what sources and stages contributed. Report coverage
+   completeness next to quality: "every check green" does not mean the pool is complete - say
+   which sources, regions or organisation types are missing. The "说明" sheet's 对账 line must
+   add up (every organisation once, under its best grade). Call the output 研究有效邮箱
+   (researched valid addresses), never "sendable": sending is not this plugin's job.
 
 ## Measure, don't guess
 
@@ -83,6 +100,31 @@ A source with near-zero yield after ~30 organisations: stop adding from it, find
 To test a stage, switch it off and rerun on the same project (pages and searches come from
 the library, almost free): `brief.ablate = ["dig", "evidence", "reverify", "rank",
 "discover", "findsite"]` (any of them).
+
+## What Bruce wanted from the flow
+
+Mined from his own sessions (`docs/benchmarks/bruce-knowledge/`: NEEDS, PAIN-POINTS,
+WISHLIST): what ate his time was not crawling but **waiting and redoing** - waiting for the
+next thread, for a reply, for a timer that never came; redoing after silent drops, broken
+links, concurrent overwrites and review gates. The four things he asked for, and where the
+plugin does them:
+
+| He wanted | Here |
+|---|---|
+| a flow that does not stop - finish a batch, start the next; record an error, skip it, retry after the wave | one `run`, sources taking turns, retries, the supervisor; you do not end the turn to ask "continue?" |
+| status that tells the truth, counted from what is on disk | `project()` counts contacts and pages on disk; "green" lines are not evidence |
+| numbers that reconcile, every row carrying country, region and scenario | the 对账 line, the 国家/地区/场景 columns |
+| one numbered list of decisions, answered in one reply | `needs_you` |
+
+And one through all of it: rules are written down so the next thread does not relearn them -
+the brief and `references/projects/` via `learn`.
+
+His speed levers, in the order he measured them: fix defects, then replace improvised steps
+with a deterministic script, then add concurrency, then add machines (21.6x against 1.0x for
+the same job). Finer shards and more agent threads made things worse (agent concurrency
+topped out at 2; a task split finer repeated a 46.8 KB header and cost +123% tokens): one
+flow, few workers, no review gate in front of the main flow ("不必要的审核就全部删掉").
+**The source matters most** ("源头最重要"): when yield is low, find a better list first.
 
 ## What went wrong for Bruce, and how this avoids it
 

@@ -500,8 +500,42 @@ def shared_sites(pdir: Path) -> set[str]:
     return cached[1]
 
 
+SITE_BUDGET_S = 150   # one organisation's site pass stops queueing pages after this (Bruce: per-domain budget)
+_dns_ok: list = []
+
+
+def _dns_works() -> bool:
+    """Behind some proxies local DNS answers nothing; then a failed look-up proves nothing."""
+    if not _dns_ok:
+        import socket
+        try:
+            socket.getaddrinfo("www.google.com", 443)
+            _dns_ok.append(True)
+        except OSError:
+            _dns_ok.append(False)
+    return _dns_ok[0]
+
+
+def _resolves(host: str) -> bool:
+    """A dead domain costs every reader its full timeout; Bruce's DNS pre-check took a crawl from
+    26 to 95 domains a minute. One failure is not death (a burst of look-ups gets throttled):
+    tried twice, and only when DNS works at all here."""
+    import socket
+    import time as _t
+    if not host or not _dns_works():
+        return True
+    for n in range(2):
+        try:
+            socket.getaddrinfo(host, 443)
+            return True
+        except OSError:
+            if n == 0:
+                _t.sleep(2)
+    return False
+
+
 def _crawl_one(pdir: Path, t: dict, max_pages: int, readers, extra: list[str] | None = None,
-               label: str = "site") -> dict:
+               label: str = "site", budget_s: float = SITE_BUDGET_S) -> dict:
     """Read one organisation's site: home, then the best-scoring same-site pages two levels
     deep (contact, imprint, team, board, staff, venue pages and PDFs), up to max_pages."""
     import heapq
@@ -512,6 +546,8 @@ def _crawl_one(pdir: Path, t: dict, max_pages: int, readers, extra: list[str] | 
         return {**row, "status": "no_website"}
     if site and not site.startswith(("http://", "https://")):
         site = "https://" + site
+    if site and not extra and not _resolves(urllib.parse.urlsplit(site).hostname or ""):
+        return {**row, "status": "no_dns", "note": "the website's domain does not resolve (checked twice)"}
     org_site = mo_pages.site_of(site) if site else ""
     # On a portal shared by many organisations only the organisation's own page and the pages
     # below it are followed - never the whole portal (its inboxes belong to nobody here).
@@ -538,8 +574,13 @@ def _crawl_one(pdir: Path, t: dict, max_pages: int, readers, extra: list[str] | 
         except Exception as exc:  # noqa: BLE001
             return url, None, exc
 
+    import time as _time
+    started = _time.time()
     with ThreadPoolExecutor(max_workers=PAGE_PARALLEL) as pages_pool:
         while heap and pages < max_pages:
+            if _time.time() - started > budget_s:
+                notes.append(f"time budget {int(budget_s)} s reached")
+                break
             batch = []   # the best few waiting pages, read at the same time
             while heap and len(batch) < min(PAGE_PARALLEL, max_pages - pages):
                 _neg, depth, url = heapq.heappop(heap)

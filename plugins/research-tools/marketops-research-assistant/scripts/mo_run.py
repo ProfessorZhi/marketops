@@ -131,7 +131,7 @@ def _leads(pdir, org: dict, rnd: int, terms: list[str], dir_terms: list[str], en
     return [h["url"] for h in ranked][:per_org]
 
 
-def _find_site(pdir, org: dict) -> str:
+def _find_site(pdir, org: dict, replace: bool = False) -> str:
     """An organisation the pool gave no website: search its name and town once and take the
     result on a domain carrying its name (not a platform, not a directory). Written back to
     orgs.csv (website_from=search) so every later stage and run uses it."""
@@ -163,8 +163,8 @@ def _find_site(pdir, org: dict) -> str:
                     if col not in cols:
                         cols.append(col)
                 for r in rows:
-                    if _oid(r) == oid and not r.get("website"):
-                        r["website"], r["website_from"] = home, "search"
+                    if _oid(r) == oid and (replace or not r.get("website")):
+                        r["website"], r["website_from"] = home, "search" + (" (listed site dead)" if replace else "")
                 ws.write_csv(pdir / "orgs.csv", cols, rows)
             return home
     return ""
@@ -185,6 +185,13 @@ def _oid(o: dict) -> str:
 
 def _emails_of(pdir, oid: str) -> list[dict]:
     return [c for c in ws.contacts_of(pdir, oid) if c.get("kind") == "email"]
+
+
+ROUTES_PER_ORG = 3   # key-role addresses wanted per organisation (brief.routes_per_org)
+
+
+def _ab_count(pdir, oid: str) -> int:
+    return sum(c.get("grade") in ("A", "B") and c.get("review") != "yes" for c in _emails_of(pdir, oid))
 
 
 def _has_ab(pdir, oid: str) -> bool:
@@ -340,6 +347,7 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
     terms = focus.get("search_terms") or DEFAULT_TERMS
     dir_terms = focus.get("directory_terms") or DEFAULT_DIRECTORY_TERMS
     weights = ws.weights(pdir, "search")
+    target = max(1, int(b.get("routes_per_org") or ROUTES_PER_ORG))
     # Ablation: switch stages off to measure what each one brings (brief.ablate).
     off = set(b.get("ablate") or [])
     finished = {r["org_id"] for r in ws.read_csv(pdir / "crawl.csv") if r.get("pass") == "final"}
@@ -347,6 +355,7 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
     agent_budget = [AGENT_PAGES_PER_ROUND * max(1, rounds // 2)]
     import mo_budget
     t0, spent0 = time.time(), sum(v["usd"] for v in mo_budget.summary(pdir).values())
+    ab0 = measure(pdir, sh).get("ab_routes", 0)
     grader = _Grader(pdir)
     grader.thread.start()
     goal_hit = [False]
@@ -381,7 +390,14 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
             tr["found_site"] = found_site
             mark("find_site")
         if (oid, "site") not in _done_passes(pdir):
-            ws.append_csv(pdir / "crawl.csv", ws.CRAWL_COLS, ws._crawl_one(pdir, org, max_pages, None, None, "site"))
+            res = ws._crawl_one(pdir, org, max_pages, None, None, "site")
+            ws.append_csv(pdir / "crawl.csv", ws.CRAWL_COLS, res)
+            if res.get("status") == "no_dns" and "findsite" not in off:   # the listed site is dead: look again
+                new_site = _find_site(pdir, {**org, "website": ""}, replace=True)
+                if new_site and mo_pages.site_of(new_site) != mo_pages.site_of(str(org.get("website") or "")):
+                    org = {**org, "website": new_site}
+                    ws.append_csv(pdir / "crawl.csv", ws.CRAWL_COLS,
+                                  ws._crawl_one(pdir, org, max_pages, None, None, "site"))
         mark("site")
         move("site", "grading")
         grader.wait_for(oid)
@@ -389,7 +405,8 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
         move("grading", "digging")
         dry = 0
         for rnd in range(1, 0 if "dig" in off else rounds + 1):
-            if stopping() or _has_ab(pdir, oid):
+            have = _ab_count(pdir, oid)
+            if stopping() or have >= target:
                 break
             before = len(_emails_of(pdir, oid))
             leads = _leads(pdir, org, rnd, terms, dir_terms, None, rank="rank" not in off)
@@ -400,7 +417,10 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
             tr["dig_rounds"] = rnd
             mark("dig")
             dry = dry + 1 if len(_emails_of(pdir, oid)) == before else 0
-            if dry >= 2:
+            # Bruce: 3-5 key-role addresses per organisation, at least one, "不能硬3-5个降低效率" -
+            # with one A/B already, a round that adds no further A/B ends the dig.
+            now = _ab_count(pdir, oid)
+            if dry >= 2 or (have >= 1 and now == have):
                 break
         if agent and not _has_ab(pdir, oid) and mo_config.key("tinyfish"):
             for _oid_, url in _button_pages(pdir, {oid}):
@@ -433,7 +453,10 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
         total = len(_mine(ws.read_csv(pdir / "orgs.csv"), sh))
         rate = (flow["done"] - len(finished)) / max(time.time() - t0, 1) * 60
         left = max(total - flow["done"], 0)
+        elapsed = max(time.time() - t0, 1)
         state["progress"] = {"flow": dict(flow), "orgs": total, "orgs_per_minute": round(rate, 2),
+                             # Bruce's one hard rhythm: valid key-role addresses per 30 minutes
+                             "ab_routes_per_30_min": round((m.get("ab_routes", 0) - ab0) / elapsed * 1800, 1),
                              "minutes_left": round(left / rate, 1) if rate else None,
                              "usd_this_run": round(spent, 3),
                              "usd_per_org": round(spent / max(flow["done"] - len(finished), 1), 4)}
@@ -532,7 +555,7 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
 
 def _done_passes(pdir) -> set:
     return {(r["org_id"], r.get("pass") or "site") for r in ws.read_csv(pdir / "crawl.csv")
-            if r.get("status") in ("done", "no_website")}
+            if r.get("status") in ("done", "no_website", "no_dns")}
 
 
 _procs: dict[int, object] = {}
@@ -587,32 +610,97 @@ def run(pdir, rounds: int = 6, max_pages: int = 15, goal_ab_org_share: float | N
     (pdir / "STOP").unlink(missing_ok=True)
     if follow:
         (pdir / "POOL_DONE").unlink(missing_ok=True)
+    shards = max(1, min(int(shards), 16))
+    opts = {"rounds": rounds, "max_pages": max_pages, "workers": workers, "goal": goal_ab_org_share,
+            "agent": agent, "follow": follow}
+    for k in range(shards):
+        fname = "run.json" if shards == 1 else f"run.{k}.json"
+        _save_state(pdir, {"file": fname, "shard": f"{k}/{shards}", "stage": "starting", "done": False})
     server = Path(__file__).resolve().parent / "server.py"
     env = dict(os.environ, MARKETOPS_PROJECTS=str(pdir.parent))
-    shards = max(1, min(int(shards), 16))
-    started = []
-    for k in range(shards):
-        cmd = [sys.executable, str(server), "run", pdir.name, "--rounds", str(rounds), "--max-pages",
-               str(max_pages), "--workers", str(workers), "--shard", f"{k}/{shards}"]
-        if goal_ab_org_share:
-            cmd += ["--goal", str(goal_ab_org_share)]
-        if agent:
-            cmd.append("--agent")
-        if follow:
-            cmd.append("--follow")
-        with open(pdir / ("run.log" if shards == 1 else f"run.{k}.log"), "a", encoding="utf-8") as log:
-            proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
-                                    start_new_session=True, env=env)
-        _procs[proc.pid] = proc
-        started.append(str(proc.pid))
-        fname = "run.json" if shards == 1 else f"run.{k}.json"
-        _save_state(pdir, {"file": fname, "shard": f"{k}/{shards}", "stage": "starting", "done": False,
-                           "pid": proc.pid})
-    (pdir / "run.pid").write_text("\n".join(started), encoding="utf-8")
-    return {"started": True, "processes": len(started), "pids": started,
+    cmd = [sys.executable, str(server), "supervise", pdir.name, "--shards", str(shards), "--opts", json.dumps(opts)]
+    with open(pdir / "supervisor.log", "a", encoding="utf-8") as log:
+        proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                                start_new_session=True, env=env)
+    _procs[proc.pid] = proc
+    (pdir / "run.pid").write_text(str(proc.pid), encoding="utf-8")
+    return {"started": True, "processes": shards, "supervisor": proc.pid,
             "next": "project(name).run shows each process's stage, round and progress (organisations per minute, "
-                    "minutes left, cost per organisation); run(name, stop=True) stops them gracefully; meanwhile "
-                    "worker agents can take packages from tasks(...). It keeps going if this session ends."}
+                    "A/B found per 30 minutes, minutes left, cost per organisation); a process that dies is "
+                    "restarted and resumes; run(name, stop=True) stops them gracefully; meanwhile worker agents "
+                    "can take packages from tasks(...). It keeps going if this session ends."}
+
+
+def _shard_cmd(name: str, k: int, shards: int, opts: dict) -> list[str]:
+    import sys
+    from pathlib import Path
+    server = Path(__file__).resolve().parent / "server.py"
+    cmd = [sys.executable, str(server), "run", name, "--rounds", str(opts.get("rounds", 6)), "--max-pages",
+           str(opts.get("max_pages", 15)), "--workers", str(opts.get("workers", 24)), "--shard", f"{k}/{shards}"]
+    if opts.get("goal"):
+        cmd += ["--goal", str(opts["goal"])]
+    if opts.get("agent"):
+        cmd.append("--agent")
+    if opts.get("follow"):
+        cmd.append("--follow")
+    return cmd
+
+
+MAX_RESTARTS = 5
+
+
+def supervise(pdir, shards: int, opts: dict, poll: float = 15.0) -> dict:
+    """Keep every shard running until it is done or a stop is asked: a shard that dies (crash,
+    kill, lost machine) is started again and resumes where it was - finished organisations
+    are skipped. Bruce's most frequent complaint was work that stopped by itself."""
+    import os
+    import subprocess
+    env = dict(os.environ, MARKETOPS_PROJECTS=str(pdir.parent))
+    procs: dict[int, tuple] = {}
+    restarts = dict.fromkeys(range(shards), 0)
+
+    def start(k: int) -> None:
+        log = open(pdir / ("run.log" if shards == 1 else f"run.{k}.log"), "a", encoding="utf-8")
+        p = subprocess.Popen(_shard_cmd(pdir.name, k, shards, opts), stdout=log, stderr=subprocess.STDOUT,
+                             stdin=subprocess.DEVNULL, env=env)
+        procs[k] = (p, time.time(), log)
+
+    def state_of(k: int) -> dict:
+        try:
+            return json.loads((pdir / ("run.json" if shards == 1 else f"run.{k}.json")).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+
+    def write_pids() -> None:
+        live = [str(p.pid) for p, _t, _l in procs.values() if p.poll() is None]
+        (pdir / "run.pid").write_text("\n".join([str(os.getpid())] + live), encoding="utf-8")
+
+    for k in range(shards):
+        start(k)
+    write_pids()
+    while True:
+        running = False
+        for k, (p, t0, log) in list(procs.items()):
+            if p.poll() is None:
+                running = True
+                continue
+            st = state_of(k)
+            finished = st.get("done") and st.get("stage") != "failed"
+            if finished or ws.stop_requested(pdir) or restarts[k] >= MAX_RESTARTS:
+                continue
+            restarts[k] += 2 if time.time() - t0 < 60 else 1   # dying at once twice is a crash loop
+            log.write(f"\n[supervisor {ws._now()}] shard {k} ended without finishing "
+                      f"({st.get('stage') or 'no state'}); restart {restarts[k]}\n")
+            log.flush()
+            st.update(restarts=restarts[k], done=False)
+            _save_state(pdir, st if st.get("file") else {**st, "file": "run.json" if shards == 1 else f"run.{k}.json"})
+            start(k)
+            running = True
+        write_pids()
+        if not running:
+            break
+        time.sleep(poll)
+    return {"restarts": restarts}
 
 
 def run_states(pdir) -> list[dict]:
@@ -623,5 +711,5 @@ def run_states(pdir) -> list[dict]:
         except (OSError, ValueError):
             continue
         out.append({k: st.get(k) for k in ("shard", "stage", "progress", "stopped_because", "result", "done",
-                                           "error", "errors")})
+                                           "error", "errors", "restarts", "source_yield")})
     return out

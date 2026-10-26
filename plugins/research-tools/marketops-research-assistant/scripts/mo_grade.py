@@ -55,8 +55,11 @@ GUIDE = ("Read any language. Judge job titles and abbreviations by this kind of 
          "is also listed for other organisations, or the page belongs to another organisation (a "
          "directory, a council or canton staff list), give A or B only when the text ties the "
          "person to THIS organisation or its venue; otherwise C or X. Grade only this address, not "
-         "the neighbouring entries. A supporters' or sponsors' club, a festival or bar team, or a "
-         "coach of one team only is not the venue's decision or operations side.")
+         "the neighbouring entries. The person who actually runs the grounds, the equipment or the "
+         "maintenance contract counts for more than the highest title. A supporters' or sponsors' "
+         "club, a festival or bar team, teachers, admissions, student services, alumni or newsletter "
+         "addresses are not the venue's decision or operations side; a coach only when the research "
+         "brief names coaches.")
 REVIEW_BELOW = 0.6
 SHARED_REVIEW = 2   # one council office running two or three venues is normal; more looks like a federation
 REVIEW_BELOW_OWN_SITE = 0.35  # on its own site, bound in its card: only very unsure grades wait

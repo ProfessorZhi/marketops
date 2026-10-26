@@ -46,6 +46,16 @@ Then:
   association 26.67% scaled; a state contractor list 3.33% stopped; a 39,936-document
   regulation library gave 16 matches (2.7%) and was stopped. A pool of 128,685 organisations
   with no yield check produced nothing sendable.
+- **More stop lines from his sessions**: two rounds in a row with zero new routes from one
+  source - switch source; 15 consecutive misses - the source has failed for this job; take 1-2
+  sources per source family per batch rather than all of one family.
+- **The source matters most** ("源头最重要"): a better list beats a better crawler. When yield is
+  low, look for a better source before tuning pages or prompts.
+- **Search engines are the last resort** for building a pool - they return pages, not rosters,
+  and local results (Bing in particular) were poor. Use search to find one organisation's site
+  or a roster page, not to enumerate a market.
+- **Maps give venues, not organisations**, and bounding boxes put rows in the wrong country
+  (96% error in Norway). Place by address, postcode or the site's country.
 
 ## 2. Reading an organisation: which pages
 
@@ -63,6 +73,21 @@ Then:
 - **Directory pages list many organisations**: one directory page gave 434 addresses, 430 of
   them belonged to other organisations. Count an address for the organisation only when its
   name stands next to it (the plugin does).
+- **Department pages, not role names**: on French department and commune sites the "cadre de
+  vie" (11.0%) and "services techniques" (9.4%) pages carried the routes; searching for a role
+  title found none. In Germany attribute a `bauhof@` / `gruenflaechen@` address by the
+  department page it stands on, not by searching the mailbox name. On French sites `/annuaire/`
+  (the services directory) was the page type with the most addresses (1,401 hits); service
+  directory / organigram pages out-produced technical-service pages 38 to 1.
+- **Contact pages vs staff directories in the US**: contact pages hit on 93% of reads while
+  taking 8% of them; staff directories took 52% of reads and hit on 46% - and 90% of a school
+  staff directory is teachers (about 10 teachers per decision maker: structural, not a crawl
+  failure). Small pages were 5.8x denser in top routes (23.4% vs 4.0%).
+- **Read deep enough**: one run averaged 2.0 pages per site and 63.4% of sites got only the
+  home page; every site read to 4+ pages produced a top route.
+- **Check the entry pages before giving up on an organisation**: home, contact, legal and the
+  people page. Small French clubs often exist only on Facebook or the federation page (11%) -
+  the federation page is the route.
 - **Bind on the same page**: name or department in the same line, card or section beats
   stitching a name from one page to an address on another. But do not over-gate: a run that
   held back every address without a visible name sent 94 real public addresses to manual
@@ -86,13 +111,16 @@ Extraction bugs cost an order of magnitude, blocking costs linearly:
 ## 4. Market starting points
 
 Per market detail, sources and titles: `references/projects/` (France, UK, US, Germany,
-Switzerland, global golf, other lines). Short list:
+Switzerland, global golf, other lines). Sources Bruce measured, by market:
 
 | Market | Pool from | People from |
 |---|---|---|
-| France | RES sports-facility register (owner / operator per venue); the national administration directory export (`/exports/json`: 93,781 entries, 35,805 mairies - organisation phone coverage 21.8% -> 96.7%); federation club finders; tenders (BOAMP) for contractors | commune `/sports`, `/equipements-sportifs`, `mentions-legales`; club bureau pages; federation club pages |
-| UK | the client's register snapshot; Active Places (47,648 operating grass pitches); GIAS for schools; county FA / league finders; charity register code 110 | school staff and governance pages; council parks; tender platforms (academy trusts publish there, not on their site) |
-| Germany | Sportstätten lists of cities and Länder; Landessportbund club finders; EU TED for maintenance contractors (2,299, 89.5% with an address) | `Impressum`, `Ansprechpartner`, `Vorstand` pages |
+| France | RES sports-facility register (owner / operator per venue); `api-lannuaire.service-public.fr` (35,943 mairies - match the commune by name); `recherche-entreprises.api.gouv.fr` filtered on NAF 93.12Z (sports clubs); Data ES; federation club finders; BOAMP `donnees` (64% of notices carry an address) and DECP for contractors | commune `/annuaire/`, `/sports`, `/equipements-sportifs`, `mentions-legales`; department "cadre de vie" / "services techniques"; club bureau pages; federation club pages |
+| UK | the client's register snapshot; Active Places (47,648 operating grass pitches); Pitchfinder OpenActive feed (67.7% with a site email); GIAS / DfE (52,578 schools with websites and their trusts - the multi-academy-trust layer covers 30% of domains); charity register code 110; Contracts Finder by CPV over the full time window | school staff and governance pages; trust estates pages; parish council minutes (PDF) name the groundsman and contractor; council parks |
+| Germany | NRW open sports-facility data (`pageSize=20000`: 17,206 organisations, 79.2% with an address); Sportstätten lists of cities and Länder; Landessportbund club finders; EU TED search (no login; 89.5% with an address); small municipal contracts only on the Vergabeportale and service.bund.de | `Impressum`, `Ansprechpartner`, `Vorstand`; municipal department pages (Bauhof, Grünflächenamt) |
+| Netherlands | DUO open data (CKAN, column `INTERNETADRES` gives the school's site); TenderNed (387 of 388 notice PDFs carry an address) | school and municipality contact pages |
 | Switzerland | cantonal football association club lists; municipal Sportamt pages | club Vorstand (president, Platzwart, secretary) |
-| US | state school data, parks departments, league directories (official state sources are often behind 403 or forms) | athletic director, facilities, parks pages |
-| Golf, any country | the national federation's club finder (often a WP REST or sitemap) | the club's own staff page; regional association boards |
+| US | NCES CCD (public) and PSS (private) schools, IPEDS (colleges), College Scorecard; TPL ParkServe and OSM for parks; the CISA `.gov` domain registry to find official sites; league directories (state sources often sit behind 403 or forms) | district contact pages first, then staff directories; athletic director, facilities, parks pages - count routes per district, not per school |
+| Australia | ABN bulk extract (pool 6,772 -> 65,776 rows, contractors included); it has no industry code - filter by entity type and name | school and council contact pages |
+| Italy / Poland | Italy: RES facility register - 334,436 items, only 14.0% are turf; count turf blocks, not items. Poland: RSPO official CSV (56,211 schools) as the mother pool, not school-by-school pages | school and commune contact pages |
+| Golf, any country | the national federation or association register (98.4% list a website); regional chapter roster PDFs; national superintendent directories are login- or paid-only - do not plan on them | the club's own staff page; regional association boards |
