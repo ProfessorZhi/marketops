@@ -376,7 +376,7 @@ class Reach(unittest.TestCase):
         self.assertEqual({"https://portal.fr/lieux/g0", "https://portal.fr/lieux/g0/contact"}, set(seen))
         self.assertIn("shared portal", row["note"])
 
-    def test_same_address_same_text_is_graded_once_and_rules_need_no_jev(self):
+    def test_same_address_same_text_is_graded_once_per_org_and_rules_need_no_jev(self):
         import mo_grade
         pdir = ws.project_dir("t18")
         (pdir / "brief.json").write_text(json.dumps({"address_rules": {"info": "X"}}), encoding="utf-8")
@@ -401,11 +401,41 @@ class Reach(unittest.TestCase):
                 mock.patch("mo_evidence.rescore", return_value={}):
             mo_grade.auto(pdir)
         self.assertEqual(1, len(sent))
-        self.assertEqual(2, len(json.loads(sent[0])))                  # one grade + one name question for three copies
+        self.assertEqual(6, len(json.loads(sent[0])))  # one grade + one name question per organisation, not one for all
         grades = {(r["org_id"], r["value"]): (r["grade"], r["graded_by"]) for r in ws.read_contacts(pdir)}
         self.assertEqual({("C", "jev")}, {v for (o, e), v in grades.items() if e.startswith("dsp")})
         self.assertEqual({("X", "rule")}, {v for (o, e), v in grades.items() if e.startswith("info")})
         self.assertNotIn("info@city.fr", sent[0])                     # graded on arrival, never asked
+
+    def test_an_address_under_two_orgs_is_graded_for_each_and_reviewed_when_neither_is_named(self):
+        import mo_grade
+        pdir = ws.project_dir("t44")
+        ws.write_csv(pdir / "orgs.csv", ["id", "name", "website"],
+                     [{"id": "o1", "name": "Stade Alpha", "website": "https://alpha.fr"},
+                      {"id": "o2", "name": "Gymnase Beta", "website": "https://beta.fr"}])
+        for oid, name in (("o1", "Stade Alpha"), ("o2", "Gymnase Beta")):
+            ws.merge_contacts(pdir, [{"kind": "email", "value": "chef.secteur@city.fr", "quote": "Chef de secteur, Jean Ex",
+                                      "page_url": "https://city.fr/p"}], oid, name, "site")
+        seen = []
+
+        class Pick:
+            choice, probabilities, noul = "operator_or_forwarder", {"operator_or_forwarder": 0.9}, 0.9
+
+        def jev(state, questions):
+            seen.extend(str(q) for q in questions.values())
+            return type("R", (), {"answers": {q: Pick() for q in questions}})()
+        sdk = type(sys)("typesafe_sdk")
+        sdk.Choice = lambda **kw: kw
+        sdk.Noul = lambda **kw: kw
+        with mock.patch.dict(sys.modules, {"typesafe_sdk": sdk}), \
+                mock.patch("mo_config.key", return_value="k"), mock.patch("mo_budget.allowed", return_value=(True, "")), \
+                mock.patch.object(mo_grade, "_jev", side_effect=jev), mock.patch.object(mo_grade, "fill_people", return_value=0), \
+                mock.patch("mo_evidence.rescore", return_value={}):
+            mo_grade.auto(pdir)
+        self.assertTrue(any("Stade Alpha" in q for q in seen) and any("Gymnase Beta" in q for q in seen))
+        rows = {r["org_id"]: r for r in ws.read_contacts(pdir)}
+        self.assertEqual({"yes"}, {rows[o]["review"] for o in ("o1", "o2")})
+        self.assertIn("another organisation", rows["o1"]["review_reason"])
 
     def test_a_page_is_as_fast_as_its_fastest_reader_and_late_readers_still_count(self):
         import time
