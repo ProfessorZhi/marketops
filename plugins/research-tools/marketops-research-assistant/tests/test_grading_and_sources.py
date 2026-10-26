@@ -66,8 +66,11 @@ class SceneRules(unittest.TestCase):
 
     def test_roles_wanted_alone_still_grades(self):
         rules = scene.load({"roles_wanted": ["Head Groundsman", "Grounds Manager"]})
-        self.assertEqual("brief.roles_wanted", rules["source"])
+        self.assertTrue(rules["source"].startswith("brief.roles_wanted"))
         self.assertEqual("decision", scene.role_class("head groundsman", rules))
+        # Without a pack, the usual service entries and unrelated functions still sort.
+        self.assertEqual("entry", scene.role_class("bookings", rules))
+        self.assertEqual("excluded", scene.role_class("finance", rules))
         self.assertEqual({}, scene.load({})["roles"])
 
     def test_bad_rules_are_named(self):
@@ -286,7 +289,13 @@ class SourceGate(unittest.TestCase):
         report = {r["source_id"]: r for r in sources.yields(self.root, "run-g")["sources"]}
         self.assertEqual("PROMOTE", report["good"]["verdict"])
         self.assertEqual("STOP", report["poor"]["verdict"])
-        parked = sources.park_stopped(self.root, "run-g")
+        # Advice by default: the Agent decides whether to leave a source.
+        advice = sources.park_stopped(self.root, "run-g")
+        self.assertEqual(0, advice["parked"])
+        self.assertEqual(["poor"], [r["source_id"] for r in advice["advice"]])
+        from unittest import mock
+        with mock.patch.object(sources, "_park_requested", return_value=True):
+            parked = sources.park_stopped(self.root, "run-g")
         self.assertEqual(10, parked["parked"])
         after = {r["source_id"]: r for r in sources.yields(self.root, "run-g")["sources"]}
         self.assertEqual(10, after["good"]["pending"])

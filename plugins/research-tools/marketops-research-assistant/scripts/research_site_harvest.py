@@ -187,13 +187,25 @@ _PLACEHOLDER_DOMAINS = re.compile(
     r"votresite|votre-?site|monweb|siteweb|wixsite|squarespace)\.[a-z]{2,6}$", re.IGNORECASE)
 
 
+_LABEL = re.compile(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", re.IGNORECASE)
+
+
+def _domain_ok(email: str) -> bool:
+    """A real host name: no empty or dashed-edge labels, and a top-level domain
+    that is one case ("club.co.ukTel" is an address glued to the next word)."""
+    labels = email.rsplit("@", 1)[-1].split(".")
+    tld = labels[-1]
+    return (len(labels) >= 2 and all(_LABEL.fullmatch(label) for label in labels)
+            and tld.isalpha() and (tld.islower() or tld.isupper()))
+
+
 def extract_routes(text: str) -> list[dict]:
     """Every literal email/phone in normalised text with a quote and its context."""
     found, routes = set(), []
     for channel, pattern in (("email", _EMAIL), ("phone", _PHONE)):
         for match in pattern.finditer(text):
             value = match.group(0).strip().rstrip(".")
-            if channel == "email" and _PLACEHOLDER_DOMAINS.search(value):
+            if channel == "email" and (_PLACEHOLDER_DOMAINS.search(value) or not _domain_ok(value)):
                 continue
             if channel == "phone" and (sum(ch.isdigit() for ch in value) < 10
                                        or _not_a_phone(text, match.start(), value)):
@@ -237,9 +249,15 @@ def name_variants(name: str) -> list[str]:
     out = [base]
     # Map listings append a place or a description: "Brand Nanterre - Salle d'escalade",
     # "Brand | Padel". The part before the separator is how the site names itself.
-    head = re.split(r"\s+[-–—|:]\s+|\s*\(", base, maxsplit=1)[0].strip(" ,.")
-    if head and head != base:
-        out.append(head)
+    # Every part is a candidate, not just the first: "0123 | Foo School" names the
+    # site "Foo School"; a leading reference number is never part of a name.
+    for part in re.split(r"\s+[-–—|:]\s+|\s*[()]\s*", base):
+        part = re.sub(r"^(?:[#№]?\d[\w./-]*\s+)+", "", part.strip(" ,.")).strip(" ,.")
+        if part and part != base:
+            out.append(part)
+    numbered = re.sub(r"^(?:[#№]?\d[\w./-]*\s+)+", "", base)
+    if numbered != base:
+        out.append(numbered)
     for article in _ARTICLES:
         if base.casefold().startswith(article):
             out.append(base[len(article):])

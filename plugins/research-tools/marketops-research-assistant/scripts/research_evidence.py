@@ -64,8 +64,63 @@ def mailto_visible(html_text: str) -> str:
     return _MAILTO_ANCHOR.sub(show, html_text)
 
 
+_BLOCK_TAG = re.compile(
+    r"(?i)<\s*/?\s*(?:p|div|li|tr|td|th|h[1-6]|br|hr|section|article|header|footer|nav|aside|"
+    r"ul|ol|dl|dt|dd|table|thead|tbody|tfoot|caption|figure|figcaption|address|blockquote|pre|"
+    r"form|fieldset|label|button|main)\b[^>]*>")
+_META_NAME = re.compile(
+    r"""(?is)<meta\b[^>]*\b(?:property|name)\s*=\s*["'](?:og:site_name|og:title|application-name)["'][^>]*>""")
+_CONTENT = re.compile(r"""(?is)\bcontent\s*=\s*["']([^"']{2,200})["']""")
+_TITLE = re.compile(r"(?is)<title\b[^>]*>(.{2,300}?)</title>")
+_JSON_LD = re.compile(r"""(?is)<script\b[^>]*type\s*=\s*["']application/ld\+json["'][^>]*>(.*?)</script>""")
+
+
+def page_names(raw: str) -> list[str]:
+    """The names a page gives itself outside its body text: <title>, og:site_name /
+    og:title / application-name, and JSON-LD "name" / "legalName" / "alternateName".
+    A site that prints its name only in a logo image still states it here."""
+    names = []
+    found = _TITLE.search(raw)
+    if found:
+        names.append(found.group(1))
+    for tag in _META_NAME.findall(raw):
+        content = _CONTENT.search(tag)
+        if content:
+            names.append(content.group(1))
+    for block in _JSON_LD.findall(raw)[:5]:
+        try:
+            data = json.loads(html.unescape(block))
+        except (ValueError, TypeError):
+            continue
+        stack = [data]
+        while stack and len(names) < 20:
+            node = stack.pop()
+            if isinstance(node, list):
+                stack.extend(node[:20])
+            elif isinstance(node, dict):
+                for key in ("name", "legalName", "alternateName"):
+                    if isinstance(node.get(key), str):
+                        names.append(node[key])
+                stack.extend(v for k, v in node.items() if k == "@graph" or isinstance(v, dict))
+    out, seen = [], set()
+    for name in names:
+        name = " ".join(html.unescape(name).split())
+        if 2 <= len(name) <= 200 and name.casefold() not in seen:
+            seen.add(name.casefold())
+            out.append(name)
+    return out
+
+
 def readable_text(kind: str, text: str) -> str:
-    """The page text exactly as the evidence gate reads it, case preserved."""
+    """The page text exactly as the evidence gate reads it, case preserved.
+
+    Block boundaries (paragraphs, list items, table cells, cards) stay as line
+    breaks, so a quote can be cut inside one block and a role printed on the
+    next card is not read as this address's role. The names the page gives
+    itself (title, site name, JSON-LD) lead the text: they are saved bytes too,
+    and an organisation that prints its name only in its logo states it there.
+    Quotes still match across line breaks: the gate compares whitespace-folded text.
+    """
     if kind == "provider_extracted":
         try:
             parsed = json.loads(text)
@@ -73,11 +128,16 @@ def readable_text(kind: str, text: str) -> str:
                 text = parsed.get("markdown", text)
         except (ValueError, TypeError):
             pass
-    if kind in {"rendered_html", "raw_response", "provider_html"}:
-        text = re.sub(r"(?is)<(?:script|style)[^>]*>.*?</(?:script|style)>", " ", text)
+    head = []
+    if kind in {"rendered_html", "raw_response", "provider_html"} and isinstance(text, str):
+        head = page_names(text)
+        text = re.sub(r"(?is)<(?:script|style|title)[^>]*>.*?</(?:script|style|title)>", " ", text)
         text = mailto_visible(text)
+        text = _BLOCK_TAG.sub("\n", text)
         text = re.sub(r"<[^>]+>", " ", text)
-    return " ".join(html.unescape(text if isinstance(text, str) else "").split())
+    text = html.unescape(text if isinstance(text, str) else "")
+    lines = [" ".join(line.split()) for line in [*head, *text.splitlines()]]
+    return "\n".join(line for line in lines if line)
 
 
 def _text(artifact: dict) -> str:

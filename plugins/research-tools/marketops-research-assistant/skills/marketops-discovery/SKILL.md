@@ -107,9 +107,10 @@ Save it with `marketops_start(..., brief=...)`. Fields:
     brief record (`supersedes`).
   - `scene_rules` on top of `scene` replaces only the classes it lists.
   - Never apply one market's pack to another market.
-- `source_gate`: leave it out. By default each source's first 30 finished targets decide whether
-  the rest of that source is researched (A+B accounts ≥10% go on, 5–10% change approach once,
-  <5% parked). `{pilot:20}` for small pools; `false` only if the user asks for every target.
+- `source_gate`: leave it out. Each source's first 30 finished targets give a verdict (A+B
+  accounts ≥10% PROMOTE, 5–10% change approach once, <5% STOP) as advice; you decide whether to
+  leave a source. A fixed list from the user is the task: finish it whatever its yield.
+  `{park: true}` makes STOP park the rest automatically; `{pilot:20}` for small pools.
 - Screening (Jev, one question on each target's first page): give `screen_in_scope` (who is a
   target, one line), `screen_competitors` (who sells what the user sells) and
   `screen_out_of_scope` (kinds of body to skip). A site Jev is sure (≥0.9) is a competitor or

@@ -51,6 +51,20 @@ TECHNICAL = frozenset({"LOCAL_CRAWL_RUNTIME_FAILED", "LOCAL_CRAWL_FAILED", "SOUR
 MAX_BYTES = 4_000_000
 #: Capabilities executed on this machine with no provider account behind them.
 LOCAL_CAPABILITIES = frozenset({"crawl4ai.fetch_page"})
+#: What the local reader reports when it, not the site, gave up.
+LOCAL_GIVE_UPS = frozenset({"CRAWL_REDIRECT_REFUSED", "CRAWL_TIME_CAP_EXCEEDED",
+                            "BUDGET_OPERATION_CEILING", "ARTIFACT_EMPTY_FROM_SDK"})
+
+
+def _local_only_failure(response) -> bool:
+    codes = _reasons(response)
+    if codes & {"SOURCE_CHALLENGE_PAGE", "SOURCE_ACCESS_BLOCKED", "EGRESS_REFUSED",
+                "POLICY_DOMAIN_NOT_ALLOWED", "TARGET_RESOLUTION_FAILED"}:
+        return False
+    if any(node.get(k) in (401, 403, 429) for node in _nodes(response.get("payload"))
+           for k in ("status_code", "http_status", "http_status_code")):
+        return False
+    return bool(codes & LOCAL_GIVE_UPS) or any("TIMEOUT" in code for code in codes)
 
 
 def _digest(value):
@@ -402,6 +416,11 @@ def research_step(data_root, *, run_id, operation_id, task_kind, managed_call, a
             if not isinstance(response, dict):
                 raise ValueError("FALLBACK_RESPONSE_INVALID")
             action, reason = _decision(response, request)
+            if capability in LOCAL_CAPABILITIES and action == "STOP" and _local_only_failure(response):
+                # The local reader refused to follow a redirect or ran out of its
+                # own time: nothing was billed and the site did not refuse us, so
+                # the cloud readers (which follow same-site redirects) try next.
+                action, reason = "NEXT", "LOCAL_READER_GAVE_UP"
             if (response.get("status") == "BLOCKED" and action == "STOP"
                     and reason in {"BUDGET_PROJECT_CEILING", "BUDGET_RUN_CEILING"}):
                 import research_spending

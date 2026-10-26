@@ -167,7 +167,12 @@ def fetch(root, run_id: str, url: str, child: str, step) -> dict:
         chosen = receipts[best] if best else receipts[READERS[0]]
         return {**chosen, "reader_probe": {r: {"status": receipts[r].get("status"), **measured[r]}
                                            for r in READERS}}
-    receipt = step(url, child, order(root, run_id))
+    try:
+        receipt = step(url, child, order(root, run_id))
+    except ValueError as exc:
+        # A URL the readers cannot take (plain http after a redirect) is one
+        # page that failed, not a harvest that crashed.
+        return {"status": "HOLD", "reason_code": str(exc).split(":", 1)[0]}
     selected = receipt.get("selected_capability")
     for attempt in () if receipt.get("replayed") else receipt.get("attempts") or ():
         reader = attempt.get("capability_id")

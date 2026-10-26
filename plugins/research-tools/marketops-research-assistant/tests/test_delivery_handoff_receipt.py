@@ -68,11 +68,13 @@ class HandoffReceiptTests(unittest.TestCase):
         self.assertTrue(receipt["continuation_required"])
         self.assertEqual("CHECKPOINT_RESEARCH_NOT_FINISHED", receipt["status"])
 
-    def test_final_request_cannot_finish_research_with_remaining_work(self):
+    def test_the_agent_can_finalise_and_gets_the_plugins_view_as_advice(self):
         receipt = mcp.handoff("run", "delivery", mode="final")
-        self.assertFalse(receipt["is_final"])
-        self.assertIn("finalization_refused", receipt)
+        self.assertTrue(receipt["is_final"])
+        self.assertIn("plugin_advice", receipt)
         self.assertEqual(self.workbook["xlsx_path"], receipt["workbook_xlsx"])
+        auto = mcp.handoff("run", "delivery-2")
+        self.assertFalse(auto["is_final"])  # without the Agent's call, the plugin's view stands
 
     def test_unreadable_completion_state_keeps_the_checkpoint_and_cannot_finalize(self):
         with patch("research_execution.assess", side_effect=OSError("synthetic unavailable state")):

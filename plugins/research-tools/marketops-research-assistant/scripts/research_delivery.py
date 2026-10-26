@@ -33,7 +33,7 @@ from research_event_journal import _root, append_event, append_note
 from research_experience_summary import refresh_quietly as refresh_summary
 from _xlsx import Sheet, render_workbook
 
-VERSION = "0.5.11-rc15"
+VERSION = "0.5.11-rc16"
 EMAIL = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 FORMULA = ("=", "+", "-", "@")
 NAMESPACE = {"x": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
@@ -61,7 +61,8 @@ TABLES = (
     ("客户总表", ("组织ID", "组织名称", "研究范围", "研究状态", "关联场地数",
                  "公开联系渠道数", "原始资料引用", "未解决事项")),
     ("联系人路线", ("渠道ID", "组织ID", "联系人或部门", "职能", "渠道类型",
-                   "公开字面值", "来源字面校验", "研究评级", "业务状态", "资料引用")),
+                   "公开字面值", "来源字面校验", "研究评级", "业务状态", "资料引用",
+                   "角色类别", "评级理由", "原文引用")),
     ("排除与待确认", ("类型", "对象ID", "问题或原因", "后续动作")),
     ("证据索引", ("资料ID", "来源URL", "提供者", "资料类型",
                  "取得时间", "字节数", "SHA-256", "引用状态",
@@ -920,14 +921,22 @@ def build_delivery(root: Path, run_id: str) -> tuple[list[Sheet], dict]:
             confidence = fact.get("jev_confidence")
             role_text = f"Jev: {fact['jev_role']}" + (
                 f" ({float(confidence):.2f})" if isinstance(confidence, (int, float)) else "")
+        verdict = grades.get(candidate["record_id"]) or {}
+        who = fact.get("person_name", fact.get("department", "")) or verdict.get("person_name", "")
+        if not _is_meaningful(role_text) and verdict.get("role_title"):
+            role_text = verdict["role_title"]
+        quote = next((c.get("quote", "") for c in fact.get("claims") or ()
+                      if isinstance(c, dict) and value and value.casefold() in str(c.get("quote", "")).casefold()), "")
         contact_rows.append((
             candidate["record_id"], org_key or "UNKNOWN",
-            _plain(fact.get("person_name", fact.get("department", ""))),
+            _plain(who),
             _plain(role_text),
             channel or "UNKNOWN", value or "UNKNOWN", validation,
-            (grades.get(candidate["record_id"]) or {}).get("grade") or "RULES_UNKNOWN",
+            verdict.get("grade") or "RULES_UNKNOWN",
             "CANDIDATE_NOT_APPROVED",
             "; ".join(candidate["artifact_ids"]) or "NONE",
+            verdict.get("role_class", ""), "; ".join(verdict.get("reasons") or ()),
+            _plain(" ".join(str(quote).split())[:400]),
         ))
     # Within each organisation, the wanted role first, generic inboxes last.
     rank = {"wanted_role_person": 0, "wanted_role_team_inbox": 1, "other_named_role": 2,

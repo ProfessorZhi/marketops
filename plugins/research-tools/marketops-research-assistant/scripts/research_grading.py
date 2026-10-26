@@ -121,9 +121,18 @@ def _name_in_quote(email: str, quotes: list[tuple[str, str]]) -> str:
         candidates.update({a + b: f"{wa} {wb}" for (a, wa), (b, wb)
                            in zip(zip(keys, words), zip(keys[1:], words[1:]))})
         found = [candidates.get(part) for part in parts]
-        if all(found):
+        if all(found) and not any(set(scene.fold(w).split()) & _NOT_A_NAME for w in found):
             return " ".join(found)
     return ""
+
+
+#: Words that make "site.manager@" or "business@" look like a person's name when
+#: the quote prints "Site Manager" or "Business": a role or an organisation word
+#: is never a name.
+_NOT_A_NAME = _ROLE_WORDS | frozenset("""site premises business office school academy college
+trust council club team department services service facilities estates grounds bursar finance
+manager officer assistant deputy reception admissions lettings bookings head teacher principal
+primary secondary infant junior nursery community sports green parish town city""".split())
 
 
 def grade_routes(records: list[dict], brief: dict | None) -> tuple[dict, dict]:
