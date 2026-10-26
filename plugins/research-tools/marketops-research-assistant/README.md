@@ -1,4 +1,4 @@
-# MarketOps Research Assistant 0.6.2
+# MarketOps Research Assistant 0.6.3
 
 调研插件：从公开数据集到场地池、机构池，再到带证据、已评级的联系人，最后交付一张 Excel。
 给 Claude Code 用。插件只提供能力，流程由 agent 自己掌握。
@@ -31,7 +31,6 @@
 | `search` | Serper、SerpApi、DeepSeek、TinyFish 四路同时搜，按网址合并；`maps=True` 查地图地点 |
 | `pool` | 从下载的开放数据文件建场地池和机构池：过滤、改列名、按运营方归并成机构 |
 | `fetch` | Crawl4AI、TinyFish、DeepSeek 三路同时读同一页，每份都保存，联系人取并集；数据文件直接下载 |
-| `crawl` | 后台批量读机构官网：首页，以及联系、Impressum、团队、董事会等页面 |
 | `browse` | 后台用 TinyFish Agent 处理需要点击才能看到内容的难站 |
 | `judge` | Jev 对任意池子逐行回答一个选择题，例如是否在范围内、是不是官网 |
 | `grade` | Jev 按简报评 A/B/C/D/X，不分语言；agent 也可以手工改 |
@@ -41,6 +40,17 @@
 
 项目文件夹就是普通文件（`~/MarketOps/<项目>/`）：`brief.json`、`venues.csv`、`orgs.csv`、
 `contacts.csv`、`crawl.csv`、`pages/`、`costs.jsonl`。agent 和人都可以直接打开、修改，断了接着跑。
+
+## 0.6.3 更新
+
+- 流水线前段也并行：`run` 里多了一条"发现线"，按简报 `focus.find`（找什么）× `focus.areas`（在哪）不断找新机构（地图结果，地图不可用时用网页结果；名录页只取正文里的外链），合并进机构池，流水线立刻接着找联系人。Jev 把明显不在范围的标 `scope=out`，保留但不处理。
+- 数据源池 `sources.csv`：每个来源（文件、地图、名录页）一行，记带来多少、新增多少、合并多少；导出"数据源"页算每个来源的 A+B 产出。
+- 消融：导出"贡献（消融）"页，按环节（官网/深挖各轮/补证据/Agent）和读取器算独有贡献；`brief.ablate` 可关掉 dig / evidence / reverify / rank / discover 做对照（走资料库，几乎不花钱）。
+- 规模：联系人按机构分文件存（`contacts/`），读页只写这一家，几万条联系人也不再串行；`contacts.csv` 是定期快照。
+- 修：后台流水线里 TinyFish Agent 结果现在会收回；没有 Jev 密钥时不再每家等 4 分钟。
+- 精简：删掉被 `run` 取代的 `crawl` 工具（工具 10 个）；技能重写成"五个池子同时填"的一页。
+
+- 池子是所有来源的并集：`pool` 对每个来源调用一次（开放数据、各联合会俱乐部名单、地图结果、协会名录、自己整理的名单），同一场馆（名称 + 邮编/城市）或同一机构（官网，否则名称 + 城市；一方缺城市时同名唯一即合并）跨来源合成一行，空字段互相补齐，`sources` 列出全部来源；名字差太多的交给 `judge` 判断是否同一家。
 
 ## 0.6.2 更新
 

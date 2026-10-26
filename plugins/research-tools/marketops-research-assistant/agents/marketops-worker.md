@@ -16,7 +16,9 @@ Loop:
    - review: read each quote (fetch the page if unsure) and confirm or correct with
      `grade(set=[{value, org_id, grade, person, role}])`.
    - browse: `browse(project, url, org_id=...)` each page.
-   - custom: do what the title says; add organisations to orgs.csv with `pool` or rows of your own.
+   - custom (e.g. "pool: <source>"): find that source, `fetch` its list or export, and add it
+     with `pool` (save your own lists as CSV in `pages/` first); the running pipeline picks
+     up the new organisations by itself.
 3. `tasks(project, action="done", task_id=..., note="found X / tried Y")`. If you cannot finish,
    `release=True` so another worker takes it.
 

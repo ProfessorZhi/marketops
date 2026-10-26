@@ -62,9 +62,9 @@ def _sheet(name, rows, cols, widths=()):
 
 def export(pdir) -> dict:
     import mo_evidence
-    if (pdir / "contacts.csv").exists():
-        mo_evidence.rescore(pdir)
-    contacts = ws.read_csv(pdir / "contacts.csv")
+    mo_evidence.rescore(pdir)
+    ws.snapshot_contacts(pdir)
+    contacts = ws.read_contacts(pdir)
     emails = [c for c in contacts if c.get("kind") == "email"]
     phones = {}
     for c in contacts + ws.read_csv(pdir / "phones.csv"):
@@ -187,6 +187,12 @@ def export(pdir) -> dict:
               _sheet("排除（X，可复核）", other, route_cols, widths)]
     if batch_rows:
         sheets.insert(1, _sheet("分批", batch_rows, list(batch_rows[0].keys())))
+    src_rows, contrib_rows = _sources_and_contribution(pdir, orgs, emails)
+    if src_rows:
+        sheets.append(_sheet("数据源", src_rows, list(src_rows[0].keys()), (50, 12, 10, 10, 10, 10, 12)))
+    if contrib_rows:
+        sheets.append(_sheet("贡献（消融）", contrib_rows, ["维度", "项", "A+B 路线", "独有 A+B 路线",
+                                                         "首个 A+B 来自这里的机构"], (10, 30, 12, 14, 22)))
     if venues:
         sheets.append(_sheet("场地", venues, list(venues[0].keys())))
     sheets.append(_sheet("成本", costs, ["供应商", "调用", "成功", "估算美元"]))
@@ -196,6 +202,54 @@ def export(pdir) -> dict:
     routes = _routes_csv(pdir, emails, stamp)
     return {"file": str(out), "routes_csv": str(routes), "contacts": len(route_rows), **m,
             "to_review": sum(c.get("review") == "yes" for c in emails)}
+
+
+def _sources_and_contribution(pdir, orgs: list, emails: list) -> tuple[list, list]:
+    """What each data source, stage and reader brought - read straight off one run, so a stage
+    whose share stays near zero is a candidate to drop (ablation without re-running)."""
+    confirmed = [c for c in emails if c.get("grade") in ("A", "B") and c.get("review") != "yes"]
+    ab_orgs = {c["org_id"] for c in confirmed}
+    log = ws.read_csv(pdir / "sources.csv")
+    by_source: dict[str, dict] = {}
+    for r in log:
+        d = by_source.setdefault(r["source"], {"来源": r["source"], "类型": r.get("kind", ""), "机构": 0,
+                                               "有 A+B 的机构": 0, "新增机构": 0, "合并机构": 0, "新增场地": 0})
+        for k, f in (("新增机构", "orgs_added"), ("合并机构", "orgs_merged"), ("新增场地", "venues_added")):
+            try:
+                d[k] += int(r.get(f) or 0)
+            except ValueError:
+                pass
+    for o in orgs:
+        oid = str(o.get("id") or o.get("org_id") or "")
+        for src in [x for x in str(o.get("sources") or "").split("|") if x]:
+            d = by_source.setdefault(src, {"来源": src, "类型": "", "机构": 0, "有 A+B 的机构": 0, "新增机构": 0,
+                                           "合并机构": 0, "新增场地": 0})
+            d["机构"] += 1
+            d["有 A+B 的机构"] += oid in ab_orgs
+    src_rows = []
+    for d in by_source.values():
+        d["A+B 占比"] = f"{round(100 * d['有 A+B 的机构'] / d['机构'], 1)}%" if d["机构"] else ""
+        src_rows.append(d)
+    src_rows.sort(key=lambda d: -d["有 A+B 的机构"])
+
+    first: dict[str, tuple] = {}
+    for c in confirmed:
+        if c["org_id"] not in first or c.get("added", "") < first[c["org_id"]][0]:
+            first[c["org_id"]] = (c.get("added", ""), c.get("found_in") or "?")
+    contrib = []
+    stages: dict[str, list] = {}
+    for c in confirmed:
+        stages.setdefault(c.get("found_in") or "?", []).append(c)
+    for st, rows in sorted(stages.items()):
+        contrib.append({"维度": "环节", "项": st, "A+B 路线": len(rows), "独有 A+B 路线": "",
+                        "首个 A+B 来自这里的机构": sum(1 for v in first.values() if v[1] == st)})
+    readers = sorted({r for c in confirmed for r in c.get("found_by", "").split("+") if r})
+    for rd in readers:
+        with_r = [c for c in confirmed if rd in c.get("found_by", "").split("+")]
+        only = [c for c in with_r if c.get("found_by") == rd]
+        contrib.append({"维度": "读取器", "项": rd, "A+B 路线": len(with_r), "独有 A+B 路线": len(only),
+                        "首个 A+B 来自这里的机构": ""})
+    return src_rows, contrib
 
 
 def _routes_csv(pdir, emails: list, stamp: str):

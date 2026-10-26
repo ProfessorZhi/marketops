@@ -9,7 +9,6 @@ A claim older than CLAIM_MINUTES is offered again, so a worker that dies never b
             what you find with org_id
     review  A/B rows marked review: open the quote and confirm or correct with grade(set=...)
     browse  pages whose email buttons hide the address: browse them
-    crawl   organisations not read yet (normally run does this)
     custom  anything the coordinator adds: a source family, a district, a federation list
 """
 from __future__ import annotations
@@ -32,7 +31,6 @@ GUIDE = {
     "evidence": "For each row: find more proof the person and role belong to this organisation - search the "
                 "address and the name, fetch the pages that print them with org_id (each page raises the "
                 "evidence score); fix person/role with grade(set=...) if the pages say otherwise.",
-    "crawl": "crawl(project, [rows]) for these organisations and wait in project(name).",
     "custom": "Do what the title says with the tools; add organisations to orgs.csv or rows via pool.",
 }
 
@@ -55,24 +53,21 @@ def plan(pdir, kind: str, size: int = 15) -> dict:
         rows = ws.read_csv(_path(pdir))
         busy = _open_items(rows, kind)
         if kind == "dig":
-            have = {c["org_id"] for c in ws.read_csv(pdir / "contacts.csv")
+            have = {c["org_id"] for c in ws.read_contacts(pdir)
                     if c.get("grade") in ("A", "B") and c.get("review") != "yes"}
             items = [str(o.get("id") or o.get("org_id") or "") for o in ws.read_csv(pdir / "orgs.csv")]
             items = [i for i in items if i and i not in have]
         elif kind == "review":
-            items = [f"{c['org_id']}::{c['value']}" for c in ws.read_csv(pdir / "contacts.csv")
+            items = [f"{c['org_id']}::{c['value']}" for c in ws.read_contacts(pdir)
                      if c.get("review") == "yes" and not c.get("graded_by", "").startswith("agent")]
         elif kind == "evidence":
-            items = [f"{c['org_id']}::{c['value']}" for c in ws.read_csv(pdir / "contacts.csv")
+            items = [f"{c['org_id']}::{c['value']}" for c in ws.read_contacts(pdir)
                      if c.get("grade") in ("A", "B") and c.get("evidence") in ("weak", "medium")]
         elif kind == "browse":
             items = [f"{r['org_id']}::{u}" for r in ws.read_csv(pdir / "crawl.csv")
                      for u in re.findall(r"email buttons without address on (\S+): try browse", r.get("note", ""))]
-        elif kind == "crawl":
-            done = {r["org_id"] for r in ws.read_csv(pdir / "crawl.csv")}
-            items = [str(o.get("id") or "") for o in ws.read_csv(pdir / "orgs.csv") if str(o.get("id") or "") not in done]
         else:
-            return {"error": "kind: dig, review, evidence, browse or crawl (custom tasks: action='add')"}
+            return {"error": "kind: dig, review, evidence or browse (custom tasks: action='add')"}
         items = [i for i in dict.fromkeys(items) if i not in busy]
         new = []
         for k in range(0, len(items), max(1, size)):
@@ -95,7 +90,7 @@ def add(pdir, title: str, note: str = "", kind: str = "custom") -> dict:
 
 def _payload(pdir, task: dict) -> list[dict]:
     items = [i for i in task["items"].split("|") if i]
-    if task["kind"] in ("dig", "crawl"):
+    if task["kind"] == "dig":
         orgs = {str(o.get("id") or o.get("org_id") or ""): o for o in ws.read_csv(pdir / "orgs.csv")}
         crawl = {r["org_id"]: r for r in ws.read_csv(pdir / "crawl.csv")}
         out = []
@@ -109,7 +104,7 @@ def _payload(pdir, task: dict) -> list[dict]:
         want = {tuple(i.split("::", 1)) for i in items}
         return [{k: c.get(k) for k in ("org_id", "org", "value", "grade", "review_reason", "evidence",
                                        "evidence_why", "person", "role", "page_url", "quote")}
-                for c in ws.read_csv(pdir / "contacts.csv") if (c.get("org_id"), c.get("value")) in want]
+                for c in ws.read_contacts(pdir) if (c.get("org_id"), c.get("value")) in want]
     if task["kind"] == "browse":
         return [{"org_id": i.split("::", 1)[0], "url": i.split("::", 1)[1]} for i in items]
     return []
