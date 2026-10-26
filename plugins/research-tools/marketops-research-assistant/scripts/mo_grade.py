@@ -57,6 +57,7 @@ GUIDE = ("Read any language. Judge job titles and abbreviations by this kind of 
          "the neighbouring entries. A supporters' or sponsors' club, a festival or bar team, or a "
          "coach of one team only is not the venue's decision or operations side.")
 REVIEW_BELOW = 0.6
+REVIEW_BELOW_OWN_SITE = 0.35  # on its own site, bound in its card: only very unsure grades wait
 
 
 def _address_words(email: str) -> str:
@@ -135,12 +136,15 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 8, workers: i
             shared = len(holders.get(r["value"].lower(), ())) - 1
             why = []
             if grade in ("A", "B"):
-                if isinstance(conf, float) and conf < REVIEW_BELOW:
+                own = r.get("page_on_org_site") in ("yes", "likely") or r.get("email_on_org") in ("yes", "likely")
+                if isinstance(conf, float) and conf < (REVIEW_BELOW_OWN_SITE if own else REVIEW_BELOW):
                     why.append(f"low confidence {conf:.2f}")
                 if shared > 0:
                     why.append(f"address also listed for {shared} other organisations")
                 if r.get("page_on_org_site") == "no":
                     why.append("page on another site")
+                elif r.get("page_on_org_site") == "unknown" and r.get("email_on_org") not in ("yes", "likely"):
+                    why.append("neither the page nor the address is on the organisation's own site")
             r["grade"], r["graded_by"], r["review"] = grade, "jev", "yes" if why else ""
             r["review_reason"] = "; ".join(why)
             r["grade_reason"] = (f"jev {grade} conf {conf:.2f}" if isinstance(conf, float) else f"jev {grade}") + \

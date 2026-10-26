@@ -27,9 +27,15 @@ def score(row: dict, org_site: str, shared: int) -> tuple[int, str, str]:
     elif row.get("page_on_org_site") == "likely":
         pts += 10
         why.append("on a site carrying the organisation's name")
-    if org_site and row.get("email_site") == org_site:
+    if (org_site and row.get("email_site") == org_site) or row.get("email_on_org") == "yes":
         pts += 10
         why.append("address on the organisation's domain")
+    elif row.get("email_on_org") == "likely":
+        pts += 7
+        why.append("address on a domain carrying the organisation's name")
+    elif row.get("page_on_org_site") == "unknown" and row.get("email_on_org") == "unknown":
+        pts -= 10
+        why.append("neither page nor address on the organisation's own site")
     if row.get("person"):
         pts += 8
         why.append("person named")
@@ -47,6 +53,9 @@ def score(row: dict, org_site: str, shared: int) -> tuple[int, str, str]:
     m = re.search(r"conf (\d\.\d+)", row.get("grade_reason", ""))
     if m:
         pts += round(10 * (float(m.group(1)) - 0.5))
+    if row.get("still_listed") == "no":
+        pts -= 30
+        why.append("no longer on its page")
     if shared > 0:
         pts -= 15
         why.append(f"also listed for {shared} other organisations")

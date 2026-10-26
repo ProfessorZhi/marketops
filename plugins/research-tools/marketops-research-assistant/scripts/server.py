@@ -63,6 +63,8 @@ def project(name: str, brief: dict | None = None) -> dict:
         out["version"] = VERSION
         out["providers"] = mo_config.configured() + ["crawl4ai"]
         out["accounts"] = mo_budget.accounts()
+        import mo_library
+        out["library"] = mo_library.stats()
         return out
     except Exception as exc:  # noqa: BLE001
         return _err(exc)

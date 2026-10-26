@@ -72,7 +72,20 @@ def export(pdir) -> dict:
             phones.setdefault(c.get("org_id"), []).append(c["value"])
     orgs = ws.read_csv(pdir / "orgs.csv")
     venues = ws.read_csv(pdir / "venues.csv")
-    crawl = {r["org_id"]: r for r in ws.read_csv(pdir / "crawl.csv")}
+    org_venues: dict[str, list[str]] = {}
+    for v in venues:
+        if v.get("org_id"):
+            org_venues.setdefault(v["org_id"], []).append(str(v.get("name") or v.get("id") or ""))
+
+    def venue_text(oid: str) -> str:
+        names = org_venues.get(oid, [])
+        return "; ".join(names[:5]) + (f" 等 {len(names)} 处" if len(names) > 5 else "")
+    crawl_rows = ws.read_csv(pdir / "crawl.csv")
+    crawl = {r["org_id"]: r for r in crawl_rows if (r.get("pass") or "site") == "site"}
+    dug: dict[str, int] = {}
+    for r in crawl_rows:
+        if (r.get("pass") or "").startswith("deep"):
+            dug[r["org_id"]] = dug.get(r["org_id"], 0) + 1
 
     best = {}
     for c in emails:
@@ -84,7 +97,8 @@ def export(pdir) -> dict:
     for c in sorted(emails, key=lambda c: (ORDER.get(c.get("grade", ""), 4), -int(c.get("evidence_score") or 0),
                                            c.get("org", ""))):
         route_rows.append({
-            "机构": c.get("org"), "机构ID": c.get("org_id"), "等级": LABEL.get(c.get("grade", ""), c.get("grade")),
+            "机构": c.get("org"), "机构ID": c.get("org_id"), "名下场地": venue_text(c.get("org_id", "")),
+            "等级": LABEL.get(c.get("grade", ""), c.get("grade")),
             "姓名": c.get("person"), "岗位": c.get("role"), "邮箱": c.get("value"),
             "机构电话": " / ".join(dict.fromkeys(phones.get(c.get("org_id"), [])))[:120],
             "邮箱类型": {"generic": "通用", "named_or_role": "个人或岗位"}.get(c.get("mailbox"), c.get("mailbox")),
@@ -93,20 +107,48 @@ def export(pdir) -> dict:
             "待复核": c.get("review_reason") or ("是" if c.get("review") == "yes" else ""),
             "证据": {"strong": "强", "medium": "中", "weak": "弱（证据少，人工判断）"}.get(c.get("evidence"), "") +
                     (f" {c.get('evidence_score')}" if c.get("evidence_score") else ""),
-            "证据说明": c.get("evidence_why"), "也出现在": c.get("also_on"), "备注": c.get("note")})
-    route_cols = ["机构", "机构ID", "等级", "证据", "待复核", "姓名", "岗位", "邮箱", "机构电话", "邮箱类型", "同站",
-                  "来源页面", "原文引用", "读取来源", "评级依据", "证据说明", "也出现在", "备注"]
+            "证据说明": c.get("evidence_why"), "也出现在": c.get("also_on"),
+            "最后核实": (c.get("last_verified") or "")[:10] + (" 页面上已找不到" if c.get("still_listed") == "no" else ""),
+            "首次发现": (c.get("added") or "")[:10], "备注": c.get("note")})
+    route_cols = ["机构", "机构ID", "名下场地", "等级", "证据", "待复核", "姓名", "岗位", "邮箱", "机构电话", "邮箱类型", "同站",
+                  "来源页面", "原文引用", "读取来源", "评级依据", "证据说明", "也出现在", "最后核实", "首次发现", "备注"]
 
     org_cols = list(orgs[0].keys()) if orgs else ["id", "name", "website"]
+    order_key = lambda c: (ORDER.get(c.get("grade", ""), 4), c.get("review") == "yes",  # noqa: E731
+                           -int(c.get("evidence_score") or 0))
+    by_org: dict[str, list[dict]] = {}
+    for c in emails:
+        by_org.setdefault(c.get("org_id"), []).append(c)
     org_rows = []
     for o in orgs:
         oid = str(o.get("id") or o.get("org_id") or "")
-        n = {g: sum(1 for c in emails if c.get("org_id") == oid and c.get("grade") == g) for g in "ABCD"}
-        org_rows.append({**o, "最佳等级": LABEL.get(best.get(oid, ""), "") if oid in best else "未找到邮箱",
+        mine = sorted(by_org.get(oid, []), key=order_key)
+        top = next((c for c in mine if c.get("grade") in ("A", "B", "C", "D")), None)
+        n = {g: sum(1 for c in mine if c.get("grade") == g) for g in "ABCD"}
+        cr = crawl.get(oid) or {}
+        if top:
+            why_none = ""
+        elif not o.get("website") and not mine:
+            why_none = "没有官网，深挖也未找到邮箱"
+        elif cr.get("status") == "unreadable":
+            why_none = "官网打不开：" + (cr.get("note") or "")
+        elif mine:
+            why_none = "只有排除（X）或未评级的地址"
+        else:
+            why_none = "页面上没有公开邮箱" + (("；" + cr.get("note")) if cr.get("note") else "")
+        org_rows.append({**o, "最佳等级": LABEL.get(top.get("grade", ""), "") if top else "未找到",
+                         "首选联系人": (top or {}).get("person", ""), "首选岗位": (top or {}).get("role", ""),
+                         "首选邮箱": (top or {}).get("value", ""),
+                         "首选证据": ({"strong": "强", "medium": "中", "weak": "弱"}.get((top or {}).get("evidence"), "")
+                                    + (" 待复核" if (top or {}).get("review") == "yes" else "")),
+                         "首选来源页面": (top or {}).get("page_url", ""),
+                         "机构电话": " / ".join(dict.fromkeys(phones.get(oid, [])))[:120],
                          "A": n["A"], "B": n["B"], "C": n["C"], "D": n["D"],
-                         "抓取状态": (crawl.get(oid) or {}).get("status", "未抓取"),
-                         "抓取备注": (crawl.get(oid) or {}).get("note", "")})
-    org_cols += ["最佳等级", "A", "B", "C", "D", "抓取状态", "抓取备注"]
+                         "名下场地": venue_text(oid), "未找到原因": why_none,
+                         "抓取状态": {"done": "官网已读", "no_website": "输入无官网", "unreadable": "官网打不开"}.get(
+                             cr.get("status", ""), "未抓取") + (f"，深挖 {dug[oid]} 轮" if dug.get(oid) else "")})
+    org_cols += ["最佳等级", "首选联系人", "首选岗位", "首选邮箱", "首选证据", "首选来源页面", "机构电话",
+                 "A", "B", "C", "D", "名下场地", "未找到原因", "抓取状态"]
 
     m = metrics(orgs, emails)
     total = m["orgs"]
@@ -136,13 +178,13 @@ def export(pdir) -> dict:
     costs = [{"供应商": p, "调用": v["calls"], "成功": v["ok"], "估算美元": v["usd"]}
              for p, v in mo_budget.summary(pdir).items()]
 
-    widths = (24, 10, 12, 12, 18, 18, 22, 30, 18, 10, 6, 40, 70, 18, 22, 30, 30, 20)
+    widths = (24, 10, 30, 12, 12, 18, 18, 22, 30, 18, 10, 6, 40, 70, 18, 22, 30, 30, 14, 12, 20)
     kept = [r for r in route_rows if not r["等级"].startswith("X")]
     other = [r for r in route_rows if r["等级"].startswith("X")]
     sheets = [_sheet("说明", summary, ["项目", "值"], (28, 60)),
+              _sheet("机构（一家一行，带首选联系人）", org_rows, org_cols),
               _sheet("联系人", kept, route_cols, widths),
-              _sheet("排除（X，可复核）", other, route_cols, widths),
-              _sheet("机构", org_rows, org_cols)]
+              _sheet("排除（X，可复核）", other, route_cols, widths)]
     if batch_rows:
         sheets.insert(1, _sheet("分批", batch_rows, list(batch_rows[0].keys())))
     if venues:

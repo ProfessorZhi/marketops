@@ -31,7 +31,7 @@ import mo_providers
 
 CONTACT_COLS = ["org_id", "org", "kind", "value", "person", "role", "grade", "grade_reason",
                 "graded_by", "review", "review_reason", "evidence", "evidence_score", "evidence_why",
-                "pages_seen", "also_on", "mailbox", "same_site", "email_site", "page_site", "page_on_org_site",
+                "pages_seen", "also_on", "last_verified", "still_listed", "email_on_org", "mailbox", "same_site", "email_site", "page_site", "page_on_org_site",
                 "page_url", "found_by", "quote", "quote_from", "note", "added"]
 PHONE_COLS = ["org_id", "org", "value", "page_url", "quote", "found_by", "added"]
 PAGE_COLS = ["url", "final_url", "reader", "file", "chars", "org_id", "time"]
@@ -39,6 +39,7 @@ CRAWL_COLS = ["org_id", "org", "website", "status", "pages", "emails", "readers_
               "pass", "note", "time"]
 AGENT_COLS = ["run_id", "url", "goal", "org_id", "status", "file", "time"]
 DATA_EXT = re.compile(r"\.(csv|json|geojson|xlsx?|zip|xml|txt)(\?|$)|/exports?/|/api/|format=(csv|json)", re.I)
+PAGE_PARALLEL = 4   # pages of one organisation read at the same time
 PDF = re.compile(r"\.pdf(\?|$)", re.I)
 _page_index: dict[str, dict[str, list[dict]]] = {}
 
@@ -140,13 +141,18 @@ def brief(pdir: Path) -> dict:
 
 # ------------------------------------------------------------------ pages
 def _save(pdir: Path, url: str, reader: str, body: bytes, ext: str, final_url: str, org_id: str) -> str:
-    name = hashlib.sha256(url.encode()).hexdigest()[:16] + f".{reader}.{ext}"
-    (pdir / "pages" / name).write_bytes(body)
-    row = {"url": url, "final_url": final_url, "reader": reader, "file": "pages/" + name,
-           "chars": len(body), "org_id": org_id, "time": _now()}
+    """The page goes into the shared library (one copy for every project); the project
+    indexes it in pages.csv."""
+    import mo_library
+    path = mo_library.put_page(url, reader, body, ext, final_url)
+    _index_page(pdir, {"url": url, "final_url": final_url, "reader": reader, "file": path,
+                       "chars": len(body), "org_id": org_id, "time": _now()})
+    return path
+
+
+def _index_page(pdir: Path, row: dict) -> None:
     append_csv(pdir / "pages.csv", PAGE_COLS, row)
-    _pages(pdir).setdefault(url, []).append(row)
-    return "pages/" + name
+    _pages(pdir).setdefault(row["url"], []).append(row)
 
 
 def _pages(pdir: Path) -> dict[str, list[dict]]:
@@ -198,6 +204,8 @@ def merge_contacts(pdir: Path, found: list[dict], org_id: str = "", org: str = "
             else:
                 by = set(filter(None, row.get("found_by", "").split("+"))) | set(filter(None, c.get("found_by", "").split("+")))
                 row["found_by"] = "+".join(sorted(by))
+                if c.get("last_verified", "") > row.get("last_verified", ""):
+                    row["last_verified"], row["still_listed"] = c["last_verified"], "yes"
                 pages = [row.get("page_url", "")] + [u for u in row.get("also_on", "").split(" ") if u]
                 if c.get("page_url") and c["page_url"] not in pages:
                     pages.append(c["page_url"])
@@ -221,8 +229,10 @@ def _download(pdir: Path, url: str, org_id: str) -> dict:
             if kind in got["content_type"]:
                 ext = kind
         f = _save(pdir, url, "download", got["bytes"], ext, got["final_url"], org_id)
+        local = pdir / "pages" / Path(f).name   # data files also in the project, for pool(...)
+        local.write_bytes(got["bytes"])
         mo_budget.record(pdir, "download", "fetch", True, url[:120])
-        report["download"] = {"file": f, "bytes": len(got["bytes"]), "type": got["content_type"]}
+        report["download"] = {"file": "pages/" + local.name, "bytes": len(got["bytes"]), "type": got["content_type"]}
     except Exception as exc:  # noqa: BLE001
         report["download"] = {"error": f"{type(exc).__name__}: {exc}"[:160]}
     return {"url": url, "readers": report, "contacts": [], "links": [], "text": ""}
@@ -252,11 +262,19 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
         readers = [r for r in ("tinyfish", "deepseek") if mo_config.key(r)] or ["crawl4ai"]
     report, parsed_by = {}, {}
     saved = [] if refresh else [r for r in _pages(pdir).get(url, []) if r["reader"] != "download"]
+    if not saved and not refresh:
+        import mo_library
+        for r in mo_library.get_pages(url):   # read before, by any project: reuse, no new call
+            row = {**r, "org_id": org_id}
+            _index_page(pdir, row)
+            saved.append({**row, "library": True})
+    read_at: dict[str, str] = {}
     if saved:
         for row in saved:
             try:
                 parsed_by[row["reader"]] = _parse_saved(pdir, row)
-                report[row["reader"]] = {"file": row["file"], "cached": True}
+                read_at[row["reader"]] = row.get("time", "")
+                report[row["reader"]] = {"file": row["file"], "cached": "library" if row.get("library") else "project"}
             except OSError:
                 continue
     def read_with(chosen):
@@ -271,6 +289,7 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
                 f = _save(pdir, url, reader, res["text"].encode("utf-8"), "md", res["final_url"], org_id)
                 parsed = mo_pages.from_markdown(res["text"], res["final_url"])
             parsed_by[reader] = parsed
+            read_at[reader] = _now()
             report[reader] = {"file": f, "chars": sum(map(len, parsed["lines"])), "final_url": res["final_url"]}
 
     if not parsed_by:
@@ -287,12 +306,16 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
         if held and (not parsed_by or (contactish and not emails)):
             read_with(held)
     page_site = mo_pages.site_of(url)
-    if org_site:
-        on_org = "yes" if page_site == org_site else "no"
-    else:  # no known website: a domain carrying the organisation's name is likely its own
-        words = [w for w in re.findall(r"[a-z0-9]+", (org or "").lower()) if len(w) > 3]
-        squashed = re.sub(r"[^a-z0-9]", "", page_site)
-        on_org = "likely" if words and any(w in squashed for w in words) else "unknown"
+    words = [w for w in re.findall(r"[a-z0-9]+", (org or "").lower()) if len(w) > 3]
+    known_site = org_site  # the organisation's own website, if the pool has one
+
+    def belongs(site: str) -> str:
+        if known_site:
+            return "yes" if site == known_site else "no"
+        # no known website: a domain carrying the organisation's name is likely its own
+        squashed = re.sub(r"[^a-z0-9]", "", site)
+        return "likely" if words and any(w in squashed for w in words) else "unknown"
+    on_org = belongs(page_site)
     org_site = org_site or page_site
     found: dict[str, dict] = {}
     links: list = []
@@ -301,10 +324,12 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
         links += parsed["links"]
         buttons = max(buttons, parsed.get("hidden_email_buttons", 0))
         for c in mo_pages.contacts(parsed["lines"], url, org_site, parsed.get("blocks"), parsed.get("mailtos")):
-            c.update(page_site=page_site, page_on_org_site=on_org)
+            c.update(page_site=page_site, page_on_org_site=on_org, last_verified=read_at.get(reader, ""),
+                     email_on_org=belongs(c.get("email_site", "")) if c.get("kind") == "email" else "")
             k = c["value"].lower()
             if k in found:
                 found[k]["found_by"] = "+".join(sorted(set(found[k]["found_by"].split("+")) | {reader}))
+                found[k]["last_verified"] = max(found[k].get("last_verified", ""), c.get("last_verified", ""))
                 if (c["quote_from"] == "block") > (found[k]["quote_from"] == "block"):
                     found[k]["quote"], found[k]["quote_from"] = c["quote"], "block"
             else:
@@ -338,33 +363,45 @@ def _crawl_one(pdir: Path, t: dict, max_pages: int, readers, extra: list[str] | 
     for n, u in enumerate(([site] if site else []) + (extra or [])):
         heapq.heappush(heap, (-100 + n, 0, u))
     seen, pages, emails, ok_readers, notes, buttons = set(), 0, 0, set(), [], 0
-    while heap and pages < max_pages:
-        _neg, depth, url = heapq.heappop(heap)
-        if url in seen:
-            continue
-        seen.add(url)
+
+    def get(url):
         try:
-            got = fetch(pdir, url, readers, org_id, org, org_site)
+            return url, fetch(pdir, url, readers, org_id, org, org_site), None
         except Exception as exc:  # noqa: BLE001
-            notes.append(f"{url[:60]}: {exc}"[:100])
-            if pages == 0 and url.startswith("https://") and "://www." not in url:
-                heapq.heappush(heap, (-100, 0, url.replace("https://", "https://www.", 1)))
-            continue
-        ok = [r for r, v in got["readers"].items() if "error" not in v]
-        if not ok:
-            if pages == 0 and url == site:
-                notes.append("no reader could open the home page")
-            continue
-        pages += 1
-        ok_readers |= set(ok)
-        emails += sum(c["kind"] == "email" for c in got["contacts"])
-        if got["email_buttons_without_address"] >= 3:
-            buttons += got["email_buttons_without_address"]
-            notes.append(f"{got['email_buttons_without_address']} email buttons without address on {url[:80]}: try browse")
-        if depth < 2 and mo_pages.site_of(url) == (org_site or mo_pages.site_of(url)):
-            for link, score in got["scored_links"]:
-                if link not in seen:
-                    heapq.heappush(heap, (-score + depth, depth + 1, link))
+            return url, None, exc
+
+    with ThreadPoolExecutor(max_workers=PAGE_PARALLEL) as pages_pool:
+        while heap and pages < max_pages:
+            batch = []   # the best few waiting pages, read at the same time
+            while heap and len(batch) < min(PAGE_PARALLEL, max_pages - pages):
+                _neg, depth, url = heapq.heappop(heap)
+                if url not in seen:
+                    seen.add(url)
+                    batch.append((depth, url))
+            depths = dict((u, d) for d, u in batch)
+            for url, got, exc in pages_pool.map(get, [u for _d, u in batch]):
+                depth = depths[url]
+                if exc is not None:
+                    notes.append(f"{url[:60]}: {exc}"[:100])
+                    if pages == 0 and url.startswith("https://") and "://www." not in url:
+                        heapq.heappush(heap, (-100, 0, url.replace("https://", "https://www.", 1)))
+                    continue
+                ok = [r for r, v in got["readers"].items() if "error" not in v]
+                if not ok:
+                    if pages == 0 and url == site:
+                        notes.append("no reader could open the home page")
+                    continue
+                pages += 1
+                ok_readers |= set(ok)
+                emails += sum(c["kind"] == "email" for c in got["contacts"])
+                if got["email_buttons_without_address"] >= 3:
+                    buttons += got["email_buttons_without_address"]
+                    notes.append(f"{got['email_buttons_without_address']} email buttons without address on "
+                                 f"{url[:80]}: try browse")
+                if depth < 2 and mo_pages.site_of(url) == (org_site or mo_pages.site_of(url)):
+                    for link, score in got["scored_links"]:
+                        if link not in seen:
+                            heapq.heappush(heap, (-score + depth, depth + 1, link))
     status = "done" if ok_readers else "unreadable"
     return {**row, "status": status, "pages": pages, "emails": emails, "email_buttons": buttons,
             "readers_ok": "+".join(sorted(ok_readers)), "note": "; ".join(notes)[:400]}

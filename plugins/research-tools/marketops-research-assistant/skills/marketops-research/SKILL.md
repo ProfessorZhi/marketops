@@ -129,6 +129,15 @@ a page nobody could read, a contact page with no address), so weights save cost 
 losing results. Crawl4AI always reads (it keeps the page structure that binds names to
 addresses). Jev ranks deep-dig leads (best first, none dropped) and grades every address.
 
+## Nothing starts from zero
+
+Pages and search answers live in one library shared by every project and every plugin
+version (`~/.marketops/library`, or `MARKETOPS_LIBRARY` for a team folder). A page read in
+the last 30 days and a search asked in the last 14 are reused for free; older A/B rows are
+checked again on their page (gone -> marked, not dropped). Open the previous project for the
+same area first and continue it, or start a new one: either way nothing already read is paid
+for twice.
+
 ## Rules that stay
 
 - Never guess or construct an email; every contact row comes from a page and keeps its quote.

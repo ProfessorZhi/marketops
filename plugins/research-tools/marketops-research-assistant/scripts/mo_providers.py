@@ -160,12 +160,18 @@ def search(query: str, engines=None, country: str = "", lang: str = "", n: int =
     routes, merged = {}, {}
 
     def one(engine):
+        import mo_library
+        key = [engine, query, country, lang, n, maps]
+        cached = mo_library.get_search(key)
+        if cached is not None:   # asked before by any project: free
+            return engine, cached, ""
         ok, why = mo_budget.allowed(engine, "search")
         if not ok:
             return engine, None, why
         try:
             rows = _SEARCH[engine](query, country, lang, n, maps)
             mo_budget.record(project_dir, engine, "search", True, query[:80])
+            mo_library.put_search(key, rows)
             return engine, rows, ""
         except Exception as exc:  # noqa: BLE001 - one engine failing never fails the search
             mo_budget.record(project_dir, engine, "search", False, f"{type(exc).__name__}: {exc}")
@@ -212,7 +218,7 @@ class _Browser:
             return crawler
         self.crawler = asyncio.run_coroutine_threadsafe(boot(), self.loop).result(120)
 
-    def read(self, url: str, timeout: int = 45) -> dict:
+    def read(self, url: str, timeout: int = 30) -> dict:
         with self.lock:
             if self.crawler is None:
                 self._start()
@@ -237,7 +243,7 @@ def _read_crawl4ai(url):
 
 def _read_tinyfish(url):
     r = httpx.post("https://api.fetch.tinyfish.ai", json={"urls": [url]},
-                   headers={"X-API-Key": mo_config.key("tinyfish")}, timeout=90)
+                   headers={"X-API-Key": mo_config.key("tinyfish")}, timeout=40)
     _check_money("tinyfish", r)
     rows = r.json().get("results") or []
     if not rows or not (rows[0].get("text") or "").strip():
@@ -249,7 +255,7 @@ def _read_tinyfish(url):
 
 def _read_deepseek(url):
     r = httpx.post("https://api.deepseek.com/v1/tools/fetch", json={"url": url},
-                   headers={"Authorization": "Bearer " + mo_config.key("deepseek")}, timeout=90)
+                   headers={"Authorization": "Bearer " + mo_config.key("deepseek")}, timeout=40)
     _check_money("deepseek", r)
     content = (r.json() or {}).get("content") or ""
     if not content.strip():

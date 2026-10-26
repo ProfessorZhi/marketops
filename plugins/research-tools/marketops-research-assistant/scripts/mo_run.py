@@ -188,27 +188,63 @@ def _has_ab(pdir, oid: str) -> bool:
     return any(c.get("grade") in ("A", "B") and c.get("review") != "yes" for c in _emails_of(pdir, oid))
 
 
-def _corroborate(pdir, org: dict, weights: dict) -> int:
-    """More evidence for this organisation's A/B addresses that are not yet strong: search for
-    the address itself and read the pages that print it (each extra page raises the score)."""
-    oid, n = _oid(org), 0
+def _reverify(pdir, org: dict) -> int:
+    """Results kept from earlier runs: an A/B address whose page was last read more than the
+    library's PAGE_DAYS ago is checked again on that page. Still there -> fresh date; gone ->
+    kept, marked still_listed=no for a person to judge."""
+    import mo_library
+    from datetime import datetime, timedelta, timezone
+    oid, checked = _oid(org), 0
+    since = (datetime.now(timezone.utc) - timedelta(days=mo_library.PAGE_DAYS)).isoformat(timespec="seconds")
     for c in _emails_of(pdir, oid):
-        if c.get("grade") not in ("A", "B") or c.get("evidence") == "strong":
+        if c.get("grade") not in ("A", "B") or not c.get("page_url") or (c.get("last_verified") or "") >= since:
             continue
+        try:
+            got = ws.fetch(pdir, c["page_url"], None, oid, str(org.get("name") or ""),
+                           mo_pages.site_of(str(org.get("website") or "")), refresh=True)
+        except Exception:  # noqa: BLE001
+            continue
+        checked += 1
+        if not any(x["value"].lower() == c["value"].lower() for x in got["contacts"]):
+            path = pdir / "contacts.csv"
+            with ws._lock(path):
+                rows = ws.read_csv(path)
+                for r in rows:
+                    if r.get("org_id") == oid and r.get("value", "").lower() == c["value"].lower():
+                        r["still_listed"] = "no"
+                        r["note"] = (r.get("note", "") + f" not on its page any more ({ws._now()[:10]})").strip()
+                ws.write_csv(path, ws.CONTACT_COLS, rows)
+    return checked
+
+
+def _corroborate(pdir, org: dict, weights: dict, most: int = 3) -> int:
+    """More evidence for this organisation's A/B addresses that are not yet strong: search for
+    the address itself and read the pages that print it (each extra page raises the score).
+    At most `most` addresses per organisation, all at the same time."""
+    from concurrent.futures import ThreadPoolExecutor
+    oid = _oid(org)
+    todo = [c for c in _emails_of(pdir, oid) if c.get("grade") in ("A", "B") and c.get("evidence") != "strong"][:most]
+
+    def one(c) -> int:
         try:
             res = mo_providers.search(f'"{c["value"]}"', None, n=5, project_dir=pdir, weights=weights)
         except Exception:  # noqa: BLE001
-            continue
-        seen = set(ws._pages(pdir))
-        for hit in res["results"][:3]:
+            return 0
+        seen, n = set(ws._pages(pdir)), 0
+        for hit in res["results"][:2]:
             url = hit.get("url") or ""
             if url.startswith("http") and url not in seen:
                 try:
-                    ws.fetch(pdir, url, None, oid, str(org.get("name") or ""), mo_pages.site_of(str(org.get("website") or "")))
+                    ws.fetch(pdir, url, None, oid, str(org.get("name") or ""),
+                             mo_pages.site_of(str(org.get("website") or "")))
                     n += 1
                 except Exception:  # noqa: BLE001
                     continue
-    return n
+        return n
+    if not todo:
+        return 0
+    with ThreadPoolExecutor(max_workers=len(todo)) as pool:
+        return sum(pool.map(one, todo))
 
 
 class _Grader:
@@ -334,8 +370,10 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
                 except Exception:  # noqa: BLE001
                     pass
         move("digging", "evidence")
-        if not stopping() and _corroborate(pdir, org, weights):
-            grader.wait_for(oid)
+        if not stopping():
+            _reverify(pdir, org)
+            if _corroborate(pdir, org, weights):
+                grader.wait_for(oid)
         ws.append_csv(pdir / "crawl.csv", ws.CRAWL_COLS, {"org_id": oid, "org": org.get("name", ""), "pass": "final",
                                                           "status": "done", "time": ws._now()})
         move("evidence", "done")
