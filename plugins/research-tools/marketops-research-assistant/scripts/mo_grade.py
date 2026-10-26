@@ -71,8 +71,7 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 8, workers: i
         return {"graded": 0, "note": "no Jev key: read the quotes and set grades with grade(set=[...])"}
     import typesafe_sdk as sdk
     from concurrent.futures import ThreadPoolExecutor
-    path = pdir / "contacts.csv"
-    rows = ws.read_csv(path)
+    rows = ws.read_contacts(pdir)
     import mo_pages
     org_site = {str(o.get("id") or o.get("org_id") or ""): mo_pages.site_of(str(o.get("website") or ""))
                 for o in ws.read_csv(pdir / "orgs.csv")}
@@ -155,18 +154,15 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 8, workers: i
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         list(pool.map(one_batch, [todo[i:i + batch] for i in range(0, len(todo), batch)]))
-    with ws._lock(path):
-        current = {(r["org_id"], r["value"].lower()): r for r in ws.read_csv(path)}
-        for r in todo:
-            k = (r["org_id"], r["value"].lower())
-            if k in current and r.get("graded_by") == "jev" and not current[k].get("graded_by", "").startswith("agent"):
-                current[k].update({f: r.get(f, "") for f in ("grade", "graded_by", "grade_reason", "review", "review_reason")})
-        ws.write_csv(path, ws.CONTACT_COLS, list(current.values()))
+    ws.update_contacts(pdir, [r for r in todo if r.get("graded_by") == "jev"],
+                       ["grade", "graded_by", "grade_reason", "review", "review_reason"],
+                       guard=lambda cur: not cur.get("graded_by", "").startswith("agent"))
     named = fill_people(pdir)
     import mo_evidence
     evidence = mo_evidence.rescore(pdir)
-    left = sum(1 for r in ws.read_csv(path) if r.get("kind") == "email" and not r.get("grade"))
-    review = sum(1 for r in ws.read_csv(path) if r.get("review") == "yes")
+    after = ws.read_contacts(pdir)
+    left = sum(1 for r in after if r.get("kind") == "email" and not r.get("grade"))
+    review = sum(1 for r in after if r.get("review") == "yes")
     return {**counts, "people_filled": named, "evidence": evidence, "still_ungraded": left, "to_review": review}
 
 
@@ -187,8 +183,7 @@ def fill_people(pdir, batch: int = 6) -> int:
     if not mo_config.key("jev"):
         return 0
     import typesafe_sdk as sdk
-    path = pdir / "contacts.csv"
-    rows = [r for r in ws.read_csv(path) if r.get("kind") == "email" and r.get("grade") in ("A", "B")
+    rows = [r for r in ws.read_contacts(pdir) if r.get("kind") == "email" and r.get("grade") in ("A", "B")
             and not r.get("person") and not r.get("graded_by", "").startswith("agent")]
     filled = {}
     for i in range(0, len(rows), batch):
@@ -231,33 +226,29 @@ def fill_people(pdir, batch: int = 6) -> int:
             if got.get("person") or got.get("role"):
                 filled[(r["org_id"], r["value"].lower())] = got
     if filled:
-        with ws._lock(path):
-            current = ws.read_csv(path)
-            for r in current:
-                got = filled.get((r.get("org_id"), r.get("value", "").lower()))
-                if got and not r.get("person"):
-                    r.update(got)
-            ws.write_csv(path, ws.CONTACT_COLS, current)
+        updates = [{"org_id": k[0], "value": v_, **got} for (k, got) in filled.items() for v_ in [k[1]]]
+        for u in updates:
+            u.setdefault("person", "")
+            u.setdefault("role", "")
+        ws.update_contacts(pdir, updates, ["person", "role"], guard=lambda cur: not cur.get("person"))
     return len(filled)
 
 
 def manual(pdir, updates: list[dict]) -> dict:
     """The agent sets grade/person/role/note on rows, matched by value (+ org_id if given)."""
-    path = pdir / "contacts.csv"
-    changed = 0
-    with ws._lock(path):
-        rows = ws.read_csv(path)
-        for u in updates:
-            value = str(u.get("value") or "").lower()
-            for r in rows:
-                if r.get("value", "").lower() == value and (not u.get("org_id") or r.get("org_id") == str(u["org_id"])):
-                    for f in ("grade", "person", "role", "note", "grade_reason"):
-                        if f in u:
-                            r[f] = str(u[f])
-                    r["graded_by"] = "agent"
-                    r["review"] = ""
-                    changed += 1
-        ws.write_csv(path, ws.CONTACT_COLS, rows)
+    rows = ws.read_contacts(pdir)
+    picked = []
+    for u in updates:
+        value = str(u.get("value") or "").lower()
+        for r in rows:
+            if r.get("value", "").lower() == value and (not u.get("org_id") or r.get("org_id") == str(u["org_id"])):
+                for f in ("grade", "person", "role", "note", "grade_reason"):
+                    if f in u:
+                        r[f] = str(u[f])
+                r["graded_by"], r["review"] = "agent", ""
+                picked.append(r)
+    changed = ws.update_contacts(pdir, picked, ["grade", "person", "role", "note", "grade_reason", "graded_by",
+                                                "review"])
     import mo_evidence
     mo_evidence.rescore(pdir)
     return {"updated": changed}
@@ -279,7 +270,8 @@ def judge(pdir, file: str, question: str, options: dict, column: str, fields: li
     path = pdir / file
     if path.resolve().parent != pdir.resolve() or path.suffix != ".csv":
         return {"error": "file: a .csv in the project folder"}
-    rows = ws.read_csv(path)
+    contacts = file == "contacts.csv"
+    rows = ws.read_contacts(pdir) if contacts else ws.read_csv(path)
     todo = [r for r in rows if redo or not r.get(column)][:limit]
     judged = failed = 0
     for i in range(0, len(todo), batch):
@@ -307,15 +299,19 @@ def judge(pdir, file: str, question: str, options: dict, column: str, fields: li
             conf = getattr(a, "confidence", None)
             r[column + "_conf"] = f"{conf:.2f}" if isinstance(conf, float) else ""
             judged += 1
-    with ws._lock(path):
-        fresh = ws.read_csv(path)
-        if len(fresh) == len(rows):  # nobody rewrote the file meanwhile: keep their edits, add ours
-            for old, new in zip(rows, fresh):
-                if column in old:
-                    new[column], new[column + "_conf"] = old[column], old.get(column + "_conf", "")
-            rows = fresh
-        cols = list(rows[0].keys()) if rows else []
-        ws.write_csv(path, cols, rows)
+    if contacts:
+        ws.update_contacts(pdir, todo, [column, column + "_conf"])
+        rows = ws.read_contacts(pdir)
+    else:
+        with ws._lock(pdir / "pools" if file in ("orgs.csv", "venues.csv") else path):
+            fresh = ws.read_csv(path)
+            if len(fresh) == len(rows):  # nobody rewrote the file meanwhile: keep their edits, add ours
+                for old, new in zip(rows, fresh):
+                    if column in old:
+                        new[column], new[column + "_conf"] = old[column], old.get(column + "_conf", "")
+                rows = fresh
+            cols = list(rows[0].keys()) if rows else []
+            ws.write_csv(path, cols, rows)
     counts: dict = {}
     for r in rows:
         counts[r.get(column, "")] = counts.get(r.get(column, ""), 0) + 1

@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""MarketOps research MCP: eleven tools, one project folder, no gates, many agents at once.
+"""MarketOps research MCP: ten tools, one project folder, no gates, many agents at once.
 
 project  open/create a project folder, write the brief, see progress and costs
 search   Serper + SerpApi + DeepSeek + TinyFish at once (web or maps)
 pool     build venues.csv / orgs.csv from a saved open-data file (filter, map, group by operator)
 fetch    read one page with Crawl4AI + TinyFish + DeepSeek at once; data files download
-crawl    background: read many organisation sites (home + contact/people pages)
 browse   background: TinyFish Agent for pages that need clicks
 judge    Jev answers one multiple-choice question per row of any pool (in scope? own site?)
 grade    Jev grades contacts A/B/C/D/X from the brief; or set grades yourself
-run      background long research: crawl, grade, dig the gaps round after round, export
+run      the pipeline in background processes: discover sources and organisations, read their
+         sites, grade, dig the gaps, corroborate - all at once - then export
 tasks    shared work queue: the coordinator plans packages, worker agents claim and finish them
 export   one Excel workbook (+ Bruce's 18-column routes CSV) for the salesperson
 
@@ -52,7 +52,7 @@ def project(name: str, brief: dict | None = None) -> dict:
     brief (optional, saved as brief.json): {"goal": "...", "region": "...",
     "grades": {"A": "...", "B": "...", "C": "...", "D": "...", "X": "..."}, "exclude": "..."}.
     Grades describe, in plain words and the market's own job titles, what counts as each
-    grade; leave any out to use Bruce's default. Returns pools, contacts by grade, crawl and
+    grade; leave any out to use Bruce's default. Returns pools, contacts by grade, run and
     agent progress, costs, and account balances with their red lines.
     """
     try:
@@ -95,38 +95,17 @@ def fetch(project: str, url: str, readers: list[str] | str | None = None, org_id
 
     Returns each reader's outcome, the emails/phones found (with the lines around them),
     same-site links that look like contact/people pages, and the page text (max_chars;
-    0 for none). With org_id/org the contacts are added to contacts.csv for that
-    organisation. readers: a subset of crawl4ai, tinyfish, deepseek, or "download" for a
+    0 for none). With org_id/org the contacts are added to that organisation's contacts.
+    readers: a subset of crawl4ai, tinyfish, deepseek, or "download" for a
     data file (CSV/JSON/XLSX/PDF exports are downloaded automatically).
     """
     try:
         out = ws.fetch(ws.project_dir(project), url, readers, org_id, org)
         out["text"] = out["text"][:max_chars]
+        out.pop("content_links", None)
         out["contacts"] = [{k: c[k] for k in ("kind", "value", "mailbox", "same_site", "found_by", "quote")}
                            for c in out["contacts"]]
         return out
-    except Exception as exc:  # noqa: BLE001
-        return _err(exc)
-
-
-def crawl(project: str, targets: list[dict] | str = "orgs.csv", max_pages: int = 15,
-          readers: list[str] | None = None, workers: int = 12) -> dict:
-    """Read many organisation sites in the background and return at once.
-
-    targets: "orgs.csv" (every row with id, name, website) or a list of
-    {"id", "name", "website"} (optional "priority": high/normal/low goes first). For each
-    site: the home page, then the best-scoring same-site pages two levels deep (contact,
-    imprint, team, board, staff, venue pages and PDFs), up to max_pages; every email and
-    phone goes to contacts.csv. Saved pages are never fetched twice; finished organisations
-    are skipped, so calling again resumes. Progress: project(name). For the whole job
-    (crawl, grade, dig the gaps, export) use run instead.
-    """
-    try:
-        pdir = ws.project_dir(project)
-        rows = ws.read_csv(pdir / targets) if isinstance(targets, str) else targets
-        if not rows:
-            return {"error": f"no targets (is {targets} empty?)"}
-        return ws.crawl(pdir, rows, max_pages, readers, workers)
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
 
@@ -145,7 +124,7 @@ def browse(project: str, url: str, goal: str = "", org_id: str = "", org: str = 
 
 
 def grade(project: str, set: list[dict] | None = None, regrade: bool = False, limit: int = 0) -> dict:
-    """Grade email candidates in contacts.csv.
+    """Grade the project's email candidates.
 
     Without set: Jev grades ungraded rows from each row's quote against the brief's grades
     (any language), all of them unless limit. A/B rows that need a look (low confidence,
@@ -208,7 +187,8 @@ def tasks(project: str, action: str = "status", kind: str = "", size: int = 15, 
 
     Coordinator: action="plan", kind="dig" (organisations still without a confirmed A/B),
     "review" (A/B rows to check), "evidence" (A/B rows with weak or medium evidence),
-    "browse" (pages whose email buttons hide addresses) or "crawl", cut into packages of `size`; action="add", title="..." for any other job (a source
+    "browse" (pages whose email buttons hide addresses), cut into packages of `size`;
+    action="add", title="..." for any other job (a source
     family, a district, a federation list). Worker: action="claim", agent="<your name>"
     (optionally kind) returns one package with its organisations or rows and how to do it;
     work it with the other tools, then action="done", task_id, note="what you found/tried"
@@ -259,7 +239,7 @@ def export(project: str) -> dict:
         return _err(exc)
 
 
-TOOLS = (project, search, pool, fetch, crawl, browse, judge, grade, run, tasks, export)
+TOOLS = (project, search, pool, fetch, browse, judge, grade, run, tasks, export)
 
 
 def check() -> int:

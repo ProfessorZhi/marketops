@@ -72,11 +72,19 @@ class _Text(HTMLParser):
         self.ranges: list[tuple[int, int]] = []  # closed block elements: (first chunk, end chunk)
         self.hidden_email_buttons = 0
         self.mailtos: set[str] = set()
+        self.chrome: list[str] = []          # open header/footer/nav/menu elements
+        self.content_links: list[tuple[str, str]] = []
 
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
         if tag == "title":
             self._in_title = True
+        marker = f"{a.get('class') or ''} {a.get('id') or ''} {a.get('role') or ''}".lower()
+        if tag in ("nav", "header", "footer") or (tag in ("div", "ul", "section", "aside") and any(
+                w in marker for w in ("menu", "navbar", "navigation", "footer", "header", "breadcrumb", "cookie"))):
+            self.chrome.append(tag)
+        elif self.chrome and tag == self.chrome[-1]:
+            self.chrome.append(tag)
         if tag in SKIP:
             self.skip += 1
             return
@@ -95,6 +103,8 @@ class _Text(HTMLParser):
     def handle_endtag(self, tag):
         if tag == "title":
             self._in_title = False
+        if self.chrome and tag == self.chrome[-1]:
+            self.chrome.pop()
         if tag in SKIP:
             self.skip = max(0, self.skip - 1)
             return
@@ -114,7 +124,10 @@ class _Text(HTMLParser):
                 if EMAIL_WORDS.match(text):
                     self.hidden_email_buttons += 1
             else:
-                self.links.append((urllib.parse.urljoin(self.base, href), text))
+                link = (urllib.parse.urljoin(self.base, href), text)
+                self.links.append(link)
+                if not self.chrome:
+                    self.content_links.append(link)
             self._href = None
         if tag in BLOCK:
             for k in range(len(self.open) - 1, -1, -1):
@@ -183,7 +196,8 @@ def from_html(raw: str, base: str) -> dict:
         p.ranges.append((start, len(p.out)))
     lines = [" ".join(line.split()) for line in "".join(p.out).split("\n")]
     return {"title": " ".join(p.title.split()), "lines": [x for x in lines if x], "links": p.links,
-            "blocks": _blocks(p), "hidden_email_buttons": p.hidden_email_buttons, "mailtos": p.mailtos}
+            "blocks": _blocks(p), "hidden_email_buttons": p.hidden_email_buttons, "mailtos": p.mailtos,
+            "content_links": p.content_links}
 
 
 def from_markdown(text: str, base: str) -> dict:

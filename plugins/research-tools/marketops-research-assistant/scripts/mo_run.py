@@ -7,21 +7,9 @@ the stages one by one, many at a time, and new ones join while the pool is still
     evidence  A/B addresses not yet strong: search the address itself, read pages printing it
     done      the organisation is finished; the workbook is refreshed every half hour
 
-Former description of the dig rounds (still how each round digs):
-
-    round 0  read every organisation's own site (home + best contact/people pages, PDFs)
-    grade    Jev grades every new address
-    round n  for organisations still without A/B, dig a different way each round:
-             1 name + the market's words for the people wanted (focus.search_terms)
-             2 inside their own site, PDFs included (site:, filetype:pdf)
-             3 third-party lists: associations, federations, council directories
-               (focus.directory_terms); maps for organisations without a website
-             4 broad name + city + email; then the cycle repeats with what is still missing
-             read what was found, optionally let the TinyFish Agent open pages whose email
-             buttons hide the address; grade again
-    stop     when the goal is met, two rounds in a row add no new A/B organisation, or
-             rounds run out (default 6)
-    export   the workbook and the routes CSV
+Each dig round digs a different way: 1 the organisation with the market's words for the people
+wanted (focus.search_terms); 2 inside its site and PDFs; 3 third-party lists (focus.directory_terms),
+maps for organisations without a website; 4 broad name + city + email; then the cycle repeats.
 
 Progress is kept in <project>/run.json; calling run again resumes where it stopped
 (finished crawls are never repeated, saved pages are never fetched twice).
@@ -56,15 +44,8 @@ def _mine(orgs: list[dict], shard: tuple[int, int]) -> list[dict]:
 
 
 def measure(pdir, shard: tuple[int, int] = (0, 1)) -> dict:
-    emails = [c for c in ws.read_csv(pdir / "contacts.csv") if c.get("kind") == "email"]
+    emails = [c for c in ws.read_contacts(pdir) if c.get("kind") == "email"]
     return mo_export.metrics(_mine(ws.read_csv(pdir / "orgs.csv"), shard), emails)
-
-
-def _gap_orgs(pdir, shard: tuple[int, int] = (0, 1)) -> list[dict]:
-    have = {c["org_id"] for c in ws.read_csv(pdir / "contacts.csv")
-            if c.get("kind") == "email" and c.get("grade") in ("A", "B") and c.get("review") != "yes"}
-    return [o for o in _mine(ws.read_csv(pdir / "orgs.csv"), shard)
-            if str(o.get("id") or o.get("org_id") or "") not in have]
 
 
 def _queries(org: dict, rnd: int, terms: list[str], dir_terms: list[str]) -> list[tuple[str, bool]]:
@@ -123,7 +104,7 @@ def _rank(pdir, org: dict, hits: list[dict]) -> list[dict]:
 
 
 def _leads(pdir, org: dict, rnd: int, terms: list[str], dir_terms: list[str], engines: list[str] | None,
-           per_org: int = 8) -> list[str]:
+           per_org: int = 8, rank: bool = True) -> list[str]:
     """Pages worth reading for one organisation: its own pages and PDFs, and other sites
     whose result mentions it (directories, federation and council pages)."""
     name = str(org.get("name") or "").strip()
@@ -145,7 +126,7 @@ def _leads(pdir, org: dict, rnd: int, terms: list[str], dir_terms: list[str], en
             mentions = name and all(w in hay for w in name.lower().split()[:3])
             if own or mentions or (maps and not site):
                 found[url] = hit
-    ranked = _rank(pdir, org, list(found.values())[:20])
+    ranked = _rank(pdir, org, list(found.values())[:20]) if rank else list(found.values())
     return [h["url"] for h in ranked][:per_org]
 
 
@@ -158,30 +139,12 @@ def _button_pages(pdir, org_ids: set[str]) -> list[tuple[str, str]]:
     return pages
 
 
-def _progress(pdir, state: dict, job: dict) -> None:
-    """Throughput, time left and projected cost of the current stage, written to run.json."""
-    import mo_budget
-    now = time.time()
-    t0 = job.setdefault("t0", now)
-    done, total = job.get("finished", 0), job.get("total", 0)
-    spent = sum(v["usd"] for v in mo_budget.summary(pdir).values())
-    rate = done / max(now - t0, 1) * 60
-    left = max(total - done, 0)
-    state["progress"] = {"stage": state.get("stage"), "done": done, "total": total,
-                         "orgs_per_minute": round(rate, 2),
-                         "minutes_left_this_stage": round(left / rate, 1) if rate else None,
-                         "usd_spent": round(spent, 3),
-                         "usd_per_org_so_far": round(spent / max(done, 1), 4)}
-    if job.get("finished", 0) % 5 in (0, 1) or not left:
-        _save_state(pdir, state)
-
-
 def _oid(o: dict) -> str:
     return str(o.get("id") or o.get("org_id") or "")
 
 
 def _emails_of(pdir, oid: str) -> list[dict]:
-    return [c for c in ws.read_csv(pdir / "contacts.csv") if c.get("org_id") == oid and c.get("kind") == "email"]
+    return [c for c in ws.contacts_of(pdir, oid) if c.get("kind") == "email"]
 
 
 def _has_ab(pdir, oid: str) -> bool:
@@ -201,19 +164,14 @@ def _reverify(pdir, org: dict) -> int:
             continue
         try:
             got = ws.fetch(pdir, c["page_url"], None, oid, str(org.get("name") or ""),
-                           mo_pages.site_of(str(org.get("website") or "")), refresh=True)
+                           mo_pages.site_of(str(org.get("website") or "")), refresh=True, via="reverify")
         except Exception:  # noqa: BLE001
             continue
         checked += 1
         if not any(x["value"].lower() == c["value"].lower() for x in got["contacts"]):
-            path = pdir / "contacts.csv"
-            with ws._lock(path):
-                rows = ws.read_csv(path)
-                for r in rows:
-                    if r.get("org_id") == oid and r.get("value", "").lower() == c["value"].lower():
-                        r["still_listed"] = "no"
-                        r["note"] = (r.get("note", "") + f" not on its page any more ({ws._now()[:10]})").strip()
-                ws.write_csv(path, ws.CONTACT_COLS, rows)
+            c["still_listed"] = "no"
+            c["note"] = (c.get("note", "") + f" not on its page any more ({ws._now()[:10]})").strip()
+            ws.update_contacts(pdir, [c], ["still_listed", "note"])
     return checked
 
 
@@ -236,7 +194,7 @@ def _corroborate(pdir, org: dict, weights: dict, most: int = 3) -> int:
             if url.startswith("http") and url not in seen:
                 try:
                     ws.fetch(pdir, url, None, oid, str(org.get("name") or ""),
-                             mo_pages.site_of(str(org.get("website") or "")))
+                             mo_pages.site_of(str(org.get("website") or "")), via="evidence")
                     n += 1
                 except Exception:  # noqa: BLE001
                     continue
@@ -255,10 +213,11 @@ class _Grader:
         import threading
         self.pdir, self.stop, self.busy = pdir, threading.Event(), threading.Lock()
         self.kick = threading.Event()
+        self.enabled = bool(mo_config.key("jev"))   # no Jev: nothing to wait for, the agent grades later
         self.thread = threading.Thread(target=self._loop, daemon=True, name="grader")
 
     def _pending(self) -> bool:
-        return any(c.get("kind") == "email" and not c.get("grade") for c in ws.read_csv(self.pdir / "contacts.csv"))
+        return any(c.get("kind") == "email" and not c.get("grade") for c in ws.read_contacts(self.pdir))
 
     def grade_now(self) -> None:
         with self.busy:
@@ -288,7 +247,9 @@ class _Grader:
             self.kick.wait(8)
             self.kick.clear()
 
-    def wait_for(self, oid: str, timeout: int = 240) -> None:
+    def wait_for(self, oid: str, timeout: int = 90) -> None:
+        if not self.enabled:
+            return
         deadline = time.time() + timeout
         while time.time() < deadline:
             if not any(not c.get("grade") for c in _emails_of(self.pdir, oid)):
@@ -323,6 +284,8 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
     terms = focus.get("search_terms") or DEFAULT_TERMS
     dir_terms = focus.get("directory_terms") or DEFAULT_DIRECTORY_TERMS
     weights = ws.weights(pdir, "search")
+    # Ablation: switch stages off to measure what each one brings (brief.ablate).
+    off = set(b.get("ablate") or [])
     finished = {r["org_id"] for r in ws.read_csv(pdir / "crawl.csv") if r.get("pass") == "final"}
     flow = {"queued": 0, "site": 0, "grading": 0, "digging": 0, "evidence": 0, "done": len(finished)}
     agent_budget = [AGENT_PAGES_PER_ROUND * max(1, rounds // 2)]
@@ -348,11 +311,11 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
         grader.wait_for(oid)
         move("grading", "digging")
         dry = 0
-        for rnd in range(1, rounds + 1):
+        for rnd in range(1, 0 if "dig" in off else rounds + 1):
             if stopping() or _has_ab(pdir, oid):
                 break
             before = len(_emails_of(pdir, oid))
-            leads = _leads(pdir, org, rnd, terms, dir_terms, None)
+            leads = _leads(pdir, org, rnd, terms, dir_terms, None, rank="rank" not in off)
             if leads:
                 ws.append_csv(pdir / "crawl.csv", ws.CRAWL_COLS,
                               ws._crawl_one(pdir, org, deep_pages, None, leads, f"deep{rnd}"))
@@ -371,8 +334,9 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
                     pass
         move("digging", "evidence")
         if not stopping():
-            _reverify(pdir, org)
-            if _corroborate(pdir, org, weights):
+            if "reverify" not in off:
+                _reverify(pdir, org)
+            if "evidence" not in off and _corroborate(pdir, org, weights):
                 grader.wait_for(oid)
         ws.append_csv(pdir / "crawl.csv", ws.CRAWL_COLS, {"org_id": oid, "org": org.get("name", ""), "pass": "final",
                                                           "status": "done", "time": ws._now()})
@@ -389,12 +353,26 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
                              "usd_this_run": round(spent, 3),
                              "usd_per_org": round(spent / max(flow["done"] - len(finished), 1), 4)}
         state["result"] = m
+        if agent and (pdir / "agent.csv").exists():
+            ws.refresh_agent_runs(pdir)   # merge finished TinyFish Agent pages while the run goes on
         if goal_ab_org_share and m["ab_org_share"] >= goal_ab_org_share:
             goal_hit[0] = True
             state["stopped_because"] = f"goal reached ({m['ab_org_share']}% of organisations have A/B)"
         _save_state(pdir, state)
         return m
 
+    import threading
+    import mo_discover
+    discovering = threading.Event()
+    if k == 0 and "discover" not in off and mo_discover.combos(pdir):
+        discovering.set()
+
+        def discovery_line():
+            try:
+                state["discovery"] = mo_discover.discover(pdir, stopping)
+            finally:
+                discovering.clear()
+        threading.Thread(target=discovery_line, daemon=True, name="discover").start()
     submitted, futures = set(finished), []
     last_new, last_snap, last_export = time.time(), 0.0, time.time()
     with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -402,16 +380,18 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
             if not stopping():
                 for org in _mine(ws.read_csv(pdir / "orgs.csv"), sh):
                     oid = _oid(org)
-                    if oid and oid not in submitted:
+                    if oid and oid not in submitted and org.get("scope") != "out":
                         submitted.add(oid)
                         flow["queued"] += 1
                         futures.append(pool.submit(org_flow, org))
                         last_new = time.time()
             busy = any(not f.done() for f in futures)
-            pool_open = follow and not (pdir / "POOL_DONE").exists() and time.time() - last_new < 1800
+            pool_open = discovering.is_set() or (
+                follow and not (pdir / "POOL_DONE").exists() and time.time() - last_new < 1800)
             if time.time() - last_snap > 30:
                 last_snap = time.time()
                 m = snapshot()
+                ws.snapshot_contacts(pdir)
                 if time.time() - last_export > 1800:   # long runs: a fresh workbook every half hour
                     last_export = time.time()
                     mo_export.export(pdir)

@@ -120,11 +120,42 @@ def _merge_into(existing: list[dict], incoming: list[dict], key, source: str,
     return added, merged, index
 
 
+SOURCE_COLS = ["time", "source", "kind", "query", "read", "kept", "venues_added", "venues_merged",
+               "orgs_added", "orgs_merged"]
+
+
+def log_source(pdir: Path, source: str, kind: str, out: dict, query: str = "") -> None:
+    """One line per source pooled: the data-source pool (what was tried, what it brought)."""
+    ws.append_csv(pdir / "sources.csv", SOURCE_COLS, {
+        "time": ws._now(), "source": source, "kind": kind, "query": query, "read": out.get("read", ""),
+        "kept": out.get("kept", ""), "venues_added": out.get("added", ""),
+        "venues_merged": out.get("merged_with_existing", ""), "orgs_added": out.get("orgs_added", ""),
+        "orgs_merged": out.get("orgs_merged", "")})
+
+
 def pool(pdir: Path, file: str, into: str = "venues", filters: dict | None = None,
-         map: dict | None = None, group_by: str = "", org_fields: dict | None = None) -> dict:
+         map: dict | None = None, group_by: str = "", org_fields: dict | None = None,
+         kind: str = "file") -> dict:
     # several agents may build pools at once: one writer per project for the pool files
     with ws._lock(pdir / "pools"):
-        return _pool(pdir, file, into, filters, map, group_by, org_fields)
+        out = _pool(pdir, file, into, filters, map, group_by, org_fields)
+    if "error" not in out:
+        log_source(pdir, file, kind, out)
+    return out
+
+
+def add_orgs(pdir: Path, rows: list[dict], source: str, kind: str, query: str = "") -> dict:
+    """Organisations found by discovery (maps, directory pages): merged into orgs.csv."""
+    with ws._lock(pdir / "pools"):
+        orgs = ws.read_csv(pdir / "orgs.csv")
+        added, merged, _ = _merge_into(orgs, rows, org_key, source, by_name=True)
+        for o in orgs:
+            if not o.get("id"):
+                o["id"] = _oid(org_key(o))
+        _write(pdir / "orgs.csv", orgs, ["id", "name", "website", "city"])
+    out = {"read": len(rows), "kept": len(rows), "orgs_added": added, "orgs_merged": merged}
+    log_source(pdir, source, kind, out, query)
+    return out
 
 
 def _pool(pdir: Path, file: str, into: str, filters: dict | None, map: dict | None, group_by: str,

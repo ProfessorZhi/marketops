@@ -3,8 +3,10 @@
     <project>/brief.json      what is wanted (roles per grade, region, exclusions)
     <project>/venues.csv      the venue pool       (agent-owned: write it any way you like)
     <project>/orgs.csv        the organisation pool (agent-owned; crawl reads id,name,website)
-    <project>/contacts.csv    contact candidates with quote, page and grade (tools add rows;
-                              the agent may edit person/role/grade/note by hand)
+    <project>/sources.csv     every data source pooled, with what it added
+    <project>/contacts/       contact candidates, one file per organisation (tools write them;
+                              change grades/people with grade(set=...))
+    <project>/contacts.csv    a snapshot of all contacts for people to open
     <project>/crawl.csv       one line per crawled organisation (status, pages, contacts)
     <project>/pages/          every page as read, one file per reader
     <project>/pages.csv       index of saved pages
@@ -14,11 +16,9 @@
 from __future__ import annotations
 
 import csv
-import hashlib
 import json
 import re
 import threading
-import time
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -31,7 +31,7 @@ import mo_providers
 
 CONTACT_COLS = ["org_id", "org", "kind", "value", "person", "role", "grade", "grade_reason",
                 "graded_by", "review", "review_reason", "evidence", "evidence_score", "evidence_why",
-                "pages_seen", "also_on", "last_verified", "still_listed", "email_on_org", "mailbox", "same_site", "email_site", "page_site", "page_on_org_site",
+                "pages_seen", "also_on", "last_verified", "still_listed", "email_on_org", "found_in", "mailbox", "same_site", "email_site", "page_site", "page_on_org_site",
                 "page_url", "found_by", "quote", "quote_from", "note", "added"]
 PHONE_COLS = ["org_id", "org", "value", "page_url", "quote", "found_by", "added"]
 PAGE_COLS = ["url", "final_url", "reader", "file", "chars", "org_id", "time"]
@@ -43,7 +43,7 @@ PAGE_PARALLEL = 4   # pages of one organisation read at the same time
 PDF = re.compile(r"\.pdf(\?|$)", re.I)
 _page_index: dict[str, dict[str, list[dict]]] = {}
 
-_jobs: dict[str, dict] = {}
+_agent_orgs: dict[str, str] = {}
 
 
 class _PathLock:
@@ -165,37 +165,116 @@ def _pages(pdir: Path) -> dict[str, list[dict]]:
     return _page_index[key]
 
 
+# ------------------------------------------------------------------ contact store
+# One small file per organisation (contacts/<org>.csv), so finishing a page rewrites only that
+# organisation's file - a project with tens of thousands of addresses stays fast with many
+# workers. contacts.csv is a snapshot of all of them for people to open (written on export
+# and every few minutes during a run); change contacts through the tools, not that snapshot.
+_contact_cache: dict[str, tuple] = {}
+_phone_seen: dict[str, set] = {}
+
+
+def _cfile(pdir: Path, oid: str) -> Path:
+    return pdir / "contacts" / (re.sub(r"[^\w.-]", "_", oid or "_none")[:90] + ".csv")
+
+
+def _migrate(pdir: Path) -> None:
+    folder = pdir / "contacts"
+    if folder.exists():
+        return
+    folder.mkdir(parents=True, exist_ok=True)
+    groups: dict[str, list[dict]] = {}
+    for r in read_csv(pdir / "contacts.csv"):   # a project from before per-organisation files
+        groups.setdefault(r.get("org_id", ""), []).append(r)
+    for oid, rows in groups.items():
+        write_csv(_cfile(pdir, oid), CONTACT_COLS, rows)
+
+
+def read_contacts(pdir: Path) -> list[dict]:
+    """Every contact row of the project (fresh copies; cached until a file changes)."""
+    _migrate(pdir)
+    files = sorted((pdir / "contacts").glob("*.csv"))
+    sig = tuple((f.name, f.stat().st_mtime_ns, f.stat().st_size) for f in files)
+    cached = _contact_cache.get(str(pdir))
+    if not cached or cached[0] != sig:
+        rows = [r for f in files for r in read_csv(f)]
+        _contact_cache[str(pdir)] = cached = (sig, rows)
+    return [dict(r) for r in cached[1]]
+
+
+def contacts_of(pdir: Path, oid: str) -> list[dict]:
+    _migrate(pdir)
+    return read_csv(_cfile(pdir, oid))
+
+
+def update_contacts(pdir: Path, rows: list[dict], fields: list[str], guard=None) -> int:
+    """Write `fields` of these rows back, organisation by organisation, each under its own
+    lock and re-read first, so nothing another worker added meanwhile is lost. guard(current
+    row) -> False keeps that row as it is (e.g. a grade the agent set)."""
+    groups: dict[str, list[dict]] = {}
+    for r in rows:
+        groups.setdefault(r.get("org_id", ""), []).append(r)
+    changed = 0
+    for oid, group in groups.items():
+        path = _cfile(pdir, oid)
+        with _lock(path):
+            current = read_csv(path)
+            index = {r.get("value", "").lower(): r for r in current}
+            for r in group:
+                cur = index.get(r.get("value", "").lower())
+                if cur is not None and (guard is None or guard(cur)):
+                    cur.update({f: r.get(f, "") for f in fields})
+                    changed += 1
+            write_csv(path, CONTACT_COLS, current)
+    return changed
+
+
+def snapshot_contacts(pdir: Path) -> None:
+    write_csv(pdir / "contacts.csv", CONTACT_COLS, read_contacts(pdir))
+
+
 def _merge_phones(pdir: Path, phones: list[dict], org_id: str, org: str) -> None:
     path = pdir / "phones.csv"
     with _lock(path):
-        rows = read_csv(path)
-        have = {(r["org_id"], re.sub(r"\D", "", r["value"])) for r in rows}
+        seen = _phone_seen.get(str(pdir))
+        if seen is None:
+            seen = {(r["org_id"], re.sub(r"\D", "", r["value"])) for r in read_csv(path)}
+            _phone_seen[str(pdir)] = seen
         for c in phones:
             key = (org_id, re.sub(r"\D", "", c["value"]))
-            if key not in have:
-                have.add(key)
-                rows.append({"org_id": org_id, "org": org, "value": c["value"], "page_url": c.get("page_url", ""),
-                             "quote": c.get("quote", ""), "found_by": c.get("found_by", ""), "added": _now()})
-        write_csv(path, PHONE_COLS, rows)
+            if key not in seen:
+                seen.add(key)
+                new = not path.exists()
+                with open(path, "a", newline="", encoding="utf-8") as fh:
+                    w = csv.DictWriter(fh, fieldnames=PHONE_COLS, extrasaction="ignore")
+                    if new:
+                        w.writeheader()
+                    w.writerow({"org_id": org_id, "org": org, "value": c["value"], "page_url": c.get("page_url", ""),
+                                "quote": c.get("quote", ""), "found_by": c.get("found_by", ""), "added": _now()})
 
 
-def merge_contacts(pdir: Path, found: list[dict], org_id: str = "", org: str = "") -> int:
-    """Add candidates to contacts.csv (emails) and phones.csv; one row per value and org."""
+def merge_contacts(pdir: Path, found: list[dict], org_id: str = "", org: str = "", via: str = "") -> int:
+    """Add candidates to the organisation's contact file (emails) and phones.csv; one row per
+    address and organisation. via: the stage that found them (site, deep2, evidence, ...)."""
     phones = [c for c in found if c.get("kind") == "phone"]
     if phones:
         _merge_phones(pdir, phones, org_id, org)
     found = [c for c in found if c.get("kind") != "phone"]
-    path = pdir / "contacts.csv"
+    if not found:
+        return 0
+    _migrate(pdir)
+    path = _cfile(pdir, org_id)
     with _lock(path):
         rows = read_csv(path)
-        index = {(r.get("org_id", ""), r.get("value", "").lower()): r for r in rows}
+        index = {r.get("value", "").lower(): r for r in rows}
         added = 0
         for c in found:
-            key = (org_id, c["value"].lower())
+            key = c["value"].lower()
             row = index.get(key)
             if row is None:
                 row = {**{k: "" for k in CONTACT_COLS}, **{k: c.get(k, "") for k in CONTACT_COLS},
-                       "org_id": org_id, "org": org, "found_by": c.get("found_by", ""), "added": _now()}
+                       "org_id": org_id, "org": org, "found_by": c.get("found_by", ""), "added": _now(),
+                       "found_in": via or c.get("found_in", "")}
                 if c.get("kind") == "email" and c.get("mailbox") == "generic":
                     row["grade"], row["graded_by"] = "D", "rule: generic mailbox"
                 rows.append(row)
@@ -246,7 +325,7 @@ def _parse_saved(pdir: Path, row: dict) -> dict:
 
 
 def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
-          org_site: str = "", refresh: bool = False) -> dict:
+          org_site: str = "", refresh: bool = False, via: str = "fetch") -> dict:
     """Read a page with every chosen reader at once; save each version; collect contacts.
 
     A URL already read in this project is parsed from its saved copies (no new calls)
@@ -319,9 +398,11 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
     org_site = org_site or page_site
     found: dict[str, dict] = {}
     links: list = []
+    content_links: list = []
     buttons = 0
     for reader, parsed in parsed_by.items():
         links += parsed["links"]
+        content_links += parsed.get("content_links", parsed["links"])
         buttons = max(buttons, parsed.get("hidden_email_buttons", 0))
         for c in mo_pages.contacts(parsed["lines"], url, org_site, parsed.get("blocks"), parsed.get("mailtos")):
             c.update(page_site=page_site, page_on_org_site=on_org, last_verified=read_at.get(reader, ""),
@@ -335,13 +416,14 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
             else:
                 found[k] = {**c, "found_by": reader}
     contacts = list(found.values())
-    added = merge_contacts(pdir, contacts, org_id, org) if (org_id or org) else 0
+    added = merge_contacts(pdir, contacts, org_id, org, via) if (org_id or org) else 0
     best = max((p["lines"] for p in parsed_by.values()), key=lambda ls: sum(map(len, ls)), default=[])
     emails_seen = sum(c["kind"] == "email" for c in contacts)
     return {"url": url, "readers": report, "contacts": contacts, "contacts_added": added,
             "links": mo_pages.contact_links(links, url, limit=25),
             "scored_links": mo_pages.contact_links(links, url, limit=25, scores=True),
-            "links_total": len(links), "email_buttons_without_address": max(0, buttons - emails_seen),
+            "links_total": len(links), "content_links": content_links[:800],
+            "email_buttons_without_address": max(0, buttons - emails_seen),
             "text": "\n".join(best)}
 
 
@@ -366,7 +448,7 @@ def _crawl_one(pdir: Path, t: dict, max_pages: int, readers, extra: list[str] | 
 
     def get(url):
         try:
-            return url, fetch(pdir, url, readers, org_id, org, org_site), None
+            return url, fetch(pdir, url, readers, org_id, org, org_site, via=label), None
         except Exception as exc:  # noqa: BLE001
             return url, None, exc
 
@@ -407,65 +489,8 @@ def _crawl_one(pdir: Path, t: dict, max_pages: int, readers, extra: list[str] | 
             "readers_ok": "+".join(sorted(ok_readers)), "note": "; ".join(notes)[:400]}
 
 
-def _ordered(targets: list[dict]) -> list[dict]:
-    rank = {"high": 0, "1": 0, "normal": 1, "": 1, "2": 1, "low": 2, "3": 2}
-    return sorted(targets, key=lambda t: rank.get(str(t.get("priority", "")).strip().lower(), 1))
-
-
-def _todo(pdir: Path, targets: list[dict], label: str) -> list[dict]:
-    done = {(r["org_id"], r.get("pass") or "site") for r in read_csv(pdir / "crawl.csv")
-            if r.get("status") in ("done", "no_website")}
-    return [t for t in _ordered(targets) if (str(t.get("id") or t.get("org_id") or ""), label) not in done]
-
-
-def crawl_sync(pdir: Path, targets: list[dict], max_pages: int = 15, readers=None, workers: int = 6,
-               job: dict | None = None, label: str = "site", extra_urls: dict | None = None) -> int:
-    todo = _todo(pdir, targets, label)
-    if job is not None:
-        job.update(total=job.get("total", 0) + len(todo), stage=label)
-        if callable(job.get("on_progress")):
-            job["on_progress"]()
-
-    def one(t):
-        if stop_requested(pdir):
-            return None
-        oid = str(t.get("id") or t.get("org_id") or "")
-        return _crawl_one(pdir, t, max_pages, readers, (extra_urls or {}).get(oid), label)
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        for result in pool.map(one, todo):
-            if result is None:
-                continue
-            append_csv(pdir / "crawl.csv", CRAWL_COLS, result)
-            if job is not None:
-                job["finished"] = job.get("finished", 0) + 1
-                if callable(job.get("on_progress")):
-                    job["on_progress"]()
-    return len(todo)
-
-
 def stop_requested(pdir: Path) -> bool:
     return (pdir / "STOP").exists()
-
-
-def crawl(pdir: Path, targets: list[dict], max_pages: int = 15, readers=None, workers: int = 6) -> dict:
-    """Start crawling organisation sites in the background; returns at once."""
-    job = new_job(pdir, "crawl")
-    queued = len(_todo(pdir, targets, "site"))
-
-    def work():
-        try:
-            crawl_sync(pdir, targets, max_pages, readers, workers, job)
-        finally:
-            job["running"] = False
-    threading.Thread(target=work, daemon=True, name=job["id"]).start()
-    return {"job": job["id"], "queued": queued, "skipped_already_done": len(targets) - queued}
-
-
-def new_job(pdir: Path, kind: str) -> dict:
-    job = {"id": f"{kind}-" + hashlib.sha256(f"{pdir}{time.time()}".encode()).hexdigest()[:8],
-           "project": str(pdir), "total": 0, "finished": 0, "running": True, "started": _now()}
-    _jobs[job["id"]] = job
-    return job
 
 
 # ------------------------------------------------------------------ TinyFish Agent
@@ -482,7 +507,7 @@ def browse(pdir: Path, url: str, goal: str = "", org_id: str = "", org: str = ""
     run_id = mo_providers.agent_submit(url, goal or DEFAULT_GOAL)
     append_csv(pdir / "agent.csv", AGENT_COLS, {"run_id": run_id, "url": url, "goal": goal or "default",
                                                 "org_id": org_id, "status": "RUNNING", "time": _now()})
-    _jobs["agent-" + run_id] = {"org": org}
+    _agent_orgs[run_id] = org
     return {"run_id": run_id, "status": "RUNNING", "next": "check project status in a few minutes"}
 
 
@@ -507,8 +532,8 @@ def refresh_agent_runs(pdir: Path) -> list[dict]:
             mo_budget.record(pdir, "tinyfish", "agent", True, r["url"][:120], usd=0.016 * float(steps))
             lines = [ln for ln in (" ".join(x.split()) for x in text.splitlines()) if ln]
             found = [{**c, "found_by": "tinyfish-agent"} for c in mo_pages.contacts(lines, r["url"])]
-            org = (_jobs.get("agent-" + r["run_id"]) or {}).get("org", "")
-            merge_contacts(pdir, found, r["org_id"], org)
+            org = _agent_orgs.get(r["run_id"], "")
+            merge_contacts(pdir, found, r["org_id"], org, "agent")
         elif status in ("FAILED", "CANCELLED"):
             mo_budget.record(pdir, "tinyfish", "agent", False, r["url"][:120])
         r["status"] = status
@@ -519,7 +544,7 @@ def refresh_agent_runs(pdir: Path) -> list[dict]:
 
 
 def status(pdir: Path) -> dict:
-    contacts = read_csv(pdir / "contacts.csv")
+    contacts = read_contacts(pdir)
     grades: dict[str, int] = {}
     orgs_with = {}
     for c in contacts:
@@ -528,9 +553,8 @@ def status(pdir: Path) -> dict:
         g = c.get("grade") or "ungraded"
         grades[g] = grades.get(g, 0) + 1
         orgs_with.setdefault(g, set()).add(c.get("org_id"))
-    crawl = read_csv(pdir / "crawl.csv")
+    crawl = [r for r in read_csv(pdir / "crawl.csv") if (r.get("pass") or "site") == "site"]
     agent = refresh_agent_runs(pdir) if (pdir / "agent.csv").exists() else []
-    jobs = [j for j in _jobs.values() if j.get("project") == str(pdir)]
     return {
         "project": str(pdir), "brief": brief(pdir) or "missing: write brief.json (see skill)",
         "files": sorted(p.name for p in pdir.iterdir() if p.is_file()),
@@ -538,8 +562,7 @@ def status(pdir: Path) -> dict:
         "contacts": {"emails_by_grade": grades,
                      "orgs_by_grade": {g: len(s) for g, s in orgs_with.items()},
                      "phones": len(read_csv(pdir / "phones.csv"))},
-        "crawl": {"orgs": len(crawl), "by_status": _count(crawl, "status"),
-                  "jobs": [{k: j.get(k) for k in ("id", "total", "finished", "running", "stage")} for j in jobs]},
+        "sites_read": {"orgs": len(crawl), "by_status": _count(crawl, "status")},
         "stop_requested": stop_requested(pdir),
         "run": _runs(pdir),
         "queue": _queue(pdir),

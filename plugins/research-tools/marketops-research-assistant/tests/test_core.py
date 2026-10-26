@@ -3,7 +3,6 @@ import json
 import os
 import sys
 import tempfile
-import time
 import unittest
 import zipfile
 from pathlib import Path
@@ -80,25 +79,20 @@ class Flow(unittest.TestCase):
         self.assertEqual({"crawl4ai", "tinyfish"}, set(out["readers"]))
         by = {c["value"]: c for c in out["contacts"]}
         self.assertEqual("crawl4ai+tinyfish", by["praesident@fc-beispiel.ch"]["found_by"])
-        rows = ws.read_csv(ws.project_dir("t1") / "contacts.csv")
+        rows = ws.read_contacts(ws.project_dir("t1"))
         self.assertEqual(1, sum(r["value"] == "praesident@fc-beispiel.ch" for r in rows))
         self.assertEqual("D", next(r for r in rows if r["value"] == "info@fc-beispiel.ch")["grade"])
         self.assertGreaterEqual(len(ws.read_csv(ws.project_dir("t1") / "pages.csv")), 2)
 
-    def test_crawl_grade_export_end_to_end(self):
+    def test_site_grade_export_end_to_end(self):
         pdir = ws.project_dir("t2")
         (pdir / "orgs.csv").write_text("id,name,website\no1,FC Beispiel,fc-beispiel.ch\no2,No Site,\n", encoding="utf-8")
-        job = server.crawl("t2")
-        self.assertEqual(2, job["queued"])
-        for _ in range(100):
-            if not server.project("t2")["crawl"]["jobs"][-1]["running"]:
-                break
-            time.sleep(0.05)
+        for org in ws.read_csv(pdir / "orgs.csv"):
+            ws.append_csv(pdir / "crawl.csv", ws.CRAWL_COLS, ws._crawl_one(pdir, org, 15, None, None, "site"))
         crawl = {r["org_id"]: r for r in ws.read_csv(pdir / "crawl.csv")}
         self.assertEqual("done", crawl["o1"]["status"])
         self.assertEqual("no_website", crawl["o2"]["status"])
-        self.assertEqual(0, server.crawl("t2")["queued"])  # resumes, never repeats
-        values = {r["value"] for r in ws.read_csv(pdir / "contacts.csv")}
+        values = {r["value"] for r in ws.read_contacts(pdir)}
         self.assertIn("sekretariat@fc-beispiel.ch", values)  # found on the linked Vorstand page
         self.assertIn("no Jev key", server.grade("t2")["note"])
         self.assertEqual(1, server.grade("t2", set=[{"value": "praesident@fc-beispiel.ch", "grade": "A",
@@ -146,7 +140,7 @@ class Reach(unittest.TestCase):
             out = server.fetch("lib-b", "https://club-lib.ch/kontakt", org_id="x9", org="Club")
         self.assertEqual(1, read.call_count)                       # the second project read nothing
         self.assertTrue(all(v.get("cached") == "library" for v in out["readers"].values()))
-        rows = ws.read_csv(ws.project_dir("lib-b") / "contacts.csv")
+        rows = ws.read_contacts(ws.project_dir("lib-b"))
         self.assertTrue(rows and all(r["last_verified"] for r in rows))  # dated from the page read
 
     def test_search_answers_are_reused(self):
@@ -177,20 +171,18 @@ class Reach(unittest.TestCase):
                 "routes": {}}
 
         def fake_grade(p, **k):
-            with ws._lock(p / "contacts.csv"):  # like the real grader: write under the file lock
-                rows = ws.read_csv(p / "contacts.csv")
-                for r in rows:
-                    if not r.get("grade"):
-                        r["grade"] = {"praesident@fc-beispiel.ch": "A", "platz@sc-leer.ch": "B"}.get(r["value"], "C")
-                        r["graded_by"] = "jev"
-                ws.write_csv(p / "contacts.csv", ws.CONTACT_COLS, rows)
+            rows = [r for r in ws.read_contacts(p) if not r.get("grade")]
+            for r in rows:
+                r["grade"] = {"praesident@fc-beispiel.ch": "A", "platz@sc-leer.ch": "B"}.get(r["value"], "C")
+                r["graded_by"] = "jev"
+            ws.update_contacts(p, rows, ["grade", "graded_by"])   # like the real grader: per-org, locked
             return {}
         with mock.patch.object(mo_providers, "read", side_effect=read), \
                 mock.patch.object(mo_providers, "public_url", side_effect=lambda u: u), \
                 mock.patch.object(mo_providers, "search", return_value=hits), \
                 mock.patch("mo_grade.auto", side_effect=fake_grade):
             state = mo_run.run_sync(pdir, rounds=2, workers=2)
-        values = {r["value"] for r in ws.read_csv(pdir / "contacts.csv")}
+        values = {r["value"] for r in ws.read_contacts(pdir)}
         self.assertIn("platz@sc-leer.ch", values)  # found only by digging
         self.assertTrue(state["done"])
         self.assertEqual(100.0, state["result"]["ab_org_share"])
@@ -211,7 +203,8 @@ class Reach(unittest.TestCase):
         self.assertEqual("weak", level)
         self.assertIn("other organisations", why)
         pdir = ws.project_dir("t11")
-        ws.write_csv(pdir / "contacts.csv", ws.CONTACT_COLS, [{"org_id": "o1", "kind": "email", "value": "x@gmail.com",
+        (pdir / "contacts").mkdir(exist_ok=True)
+        ws.write_csv(ws._cfile(pdir, "o1"), ws.CONTACT_COLS, [{"org_id": "o1", "kind": "email", "value": "x@gmail.com",
                                                                 "grade": "B", **weak}])
         out = server.export("t11")
         self.assertEqual(1, out["contacts"])  # the weak row is delivered, marked weak
@@ -310,9 +303,63 @@ class Reach(unittest.TestCase):
                                    always=("crawl4ai",))
         self.assertIn("crawl4ai", now)
 
-    def test_jobs_stay_in_their_project(self):
-        ws.new_job(ws.project_dir("t6"), "crawl")
-        self.assertEqual([], server.project("t7")["crawl"]["jobs"])
+    def test_contact_files_are_per_organisation_and_merge_safely(self):
+        pdir = ws.project_dir("t13")
+        ws.merge_contacts(pdir, [{"kind": "email", "value": "a@x.ch", "quote": "q", "page_url": "u"}], "o1", "X", "site")
+        ws.merge_contacts(pdir, [{"kind": "email", "value": "b@y.ch", "quote": "q", "page_url": "u"}], "o2", "Y", "deep1")
+        self.assertEqual(2, len(list((pdir / "contacts").glob("*.csv"))))
+        rows = ws.read_contacts(pdir)
+        rows[0]["grade"] = "B"
+        ws.update_contacts(pdir, rows[:1], ["grade"])
+        ws.merge_contacts(pdir, [{"kind": "email", "value": "c@x.ch", "quote": "q", "page_url": "u"}], "o1", "X", "site")
+        got = {r["value"]: r for r in ws.read_contacts(pdir)}
+        self.assertEqual(3, len(got))                      # nothing lost between the two writers
+        self.assertEqual("B", got[rows[0]["value"]]["grade"])
+        self.assertEqual("deep1", got["b@y.ch"]["found_in"])
+
+    def test_pipeline_starts_from_nothing_and_flows(self):
+        pdir = ws.project_dir("t15")
+        (pdir / "brief.json").write_text(json.dumps({"goal": "indoor sports", "ablate": ["dig", "evidence"],
+                                                     "focus": {"find": ["gymnase"], "areas": ["Paris 1er"]}}),
+                                         encoding="utf-8")
+        maps = {"results": [{"title": "FC Beispiel", "url": "https://fc-beispiel.ch/"}], "routes": {}}
+        with mock.patch.object(mo_providers, "search", return_value=maps), \
+                mock.patch.object(mo_providers, "read", side_effect=fake_read), \
+                mock.patch.object(mo_providers, "public_url", side_effect=lambda u: u), \
+                mock.patch("mo_grade.auto", side_effect=lambda p, **k: ws.update_contacts(
+                    p, [{**r, "grade": "A"} for r in ws.read_contacts(p) if r["value"].startswith("praesident")],
+                    ["grade"])):
+            state = mo_run.run_sync(pdir, rounds=2, workers=2)
+        self.assertEqual(1, state["progress"]["flow"]["done"])          # found by discovery, then worked
+        self.assertIn("praesident@fc-beispiel.ch", {r["value"] for r in ws.read_contacts(pdir)})
+        self.assertFalse(any(r.get("pass", "").startswith("deep") for r in ws.read_csv(pdir / "crawl.csv")))
+        book = zipfile.ZipFile(state["export"]["file"]).read("xl/workbook.xml").decode()
+        self.assertIn("数据源", book)
+        self.assertIn("贡献", book)
+
+    def test_discovery_adds_organisations_and_logs_sources(self):
+        import mo_discover
+        pdir = ws.project_dir("t14")
+        (pdir / "brief.json").write_text(json.dumps({"goal": "indoor sports", "focus": {
+            "find": ["gymnase"], "areas": ["Paris 15e"]}}), encoding="utf-8")
+        maps = {"results": [{"title": "Gymnase Alpha", "url": "https://alpha.fr", "address": "1 rue",
+                             "snippet": "Gym"}], "routes": {}}
+        listing = ("<header><a href='https://bcorp.fr/'>B Corp</a></header><ul>"
+                   + "".join(f"<li><a href='https://club-{n}.fr/x'>Club {n.title()}</a></li>"
+                             for n in ("beta", "gamma", "delta", "epsilon", "zeta"))
+                   + "<li><a href='/in'>In</a></li></ul>")
+        with mock.patch.object(mo_providers, "search", return_value=maps), \
+                mock.patch.object(mo_providers, "read", return_value={
+                    "crawl4ai": {"final_url": "https://annuaire.fr/", "html": listing, "text": ""}}), \
+                mock.patch.object(mo_providers, "public_url", side_effect=lambda u: u):
+            out = mo_discover.discover(pdir, lambda: False)
+        names = {o["name"] for o in ws.read_csv(pdir / "orgs.csv")}
+        self.assertEqual({"Gymnase Alpha", "Club Beta", "Club Gamma", "Club Delta", "Club Epsilon", "Club Zeta"},
+                         names)                                     # the header link is not an organisation
+        self.assertEqual(6, out["new_orgs"])
+        kinds = {r["kind"] for r in ws.read_csv(pdir / "sources.csv")}
+        self.assertEqual({"maps", "list page"}, kinds)
+        self.assertEqual(0, mo_discover.discover(pdir, lambda: False)["new_orgs"])  # each combination once
 
 
 class Search(unittest.TestCase):
@@ -336,8 +383,7 @@ class Search(unittest.TestCase):
 
 class Package(unittest.TestCase):
     def test_tools_and_manifest(self):
-        self.assertEqual(["project", "search", "pool", "fetch", "crawl", "browse", "judge", "grade", "run", "tasks",
-                          "export"],
+        self.assertEqual(["project", "search", "pool", "fetch", "browse", "judge", "grade", "run", "tasks", "export"],
                          [f.__name__ for f in server.TOOLS])
         manifest = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["version"], server.VERSION)

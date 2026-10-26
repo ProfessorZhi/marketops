@@ -69,21 +69,19 @@ def score(row: dict, org_site: str, shared: int) -> tuple[int, str, str]:
 
 def rescore(pdir) -> dict:
     """Write evidence_score / evidence / evidence_why on every email row."""
-    path = pdir / "contacts.csv"
     sites = {str(o.get("id") or o.get("org_id") or ""): mo_pages.site_of(str(o.get("website") or ""))
              for o in ws.read_csv(pdir / "orgs.csv")}
     counts = {"strong": 0, "medium": 0, "weak": 0}
-    with ws._lock(path):
-        rows = ws.read_csv(path)
-        holders: dict[str, set] = {}
-        for r in rows:
-            if r.get("kind") == "email":
-                holders.setdefault(r["value"].lower(), set()).add(sites.get(r.get("org_id")) or r.get("org_id"))
-        for r in rows:
-            if r.get("kind") != "email":
-                continue
-            pts, level, why = score(r, sites.get(r.get("org_id"), ""), len(holders[r["value"].lower()]) - 1)
+    rows = [r for r in ws.read_contacts(pdir) if r.get("kind") == "email"]
+    holders: dict[str, set] = {}
+    for r in rows:
+        holders.setdefault(r["value"].lower(), set()).add(sites.get(r.get("org_id")) or r.get("org_id"))
+    changed = []
+    for r in rows:
+        pts, level, why = score(r, sites.get(r.get("org_id"), ""), len(holders[r["value"].lower()]) - 1)
+        if (str(pts), level, why) != (r.get("evidence_score"), r.get("evidence"), r.get("evidence_why")):
             r["evidence_score"], r["evidence"], r["evidence_why"] = str(pts), level, why
-            counts[level] += 1
-        ws.write_csv(path, ws.CONTACT_COLS, rows)
+            changed.append(r)
+        counts[level] += 1
+    ws.update_contacts(pdir, changed, ["evidence_score", "evidence", "evidence_why"])
     return counts
