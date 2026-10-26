@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: france-grass-plan-sources-first
+expected_outcome: |
+  A plan that pools whole official lists first (the RES sports-facility register and the national administration directory export for communes), adds federation club lists and tenders for contractors, reads people / legal / sports pages first, and drops a source by its measured yield on about 30 organisations.

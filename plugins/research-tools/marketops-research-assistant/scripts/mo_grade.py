@@ -44,7 +44,7 @@ def _jev(state: dict, questions: dict):
     with sdk.TypeSafeClient(
             api_key=mo_config.key("jev"), timeout=120,
             model=os.environ.get("MARKETOPS_JEV_MODEL") or None,
-            retry=sdk.RetryPolicy(max_retries=1)) as client:
+            ) as client:   # the SDK's default retry backs off on 429 / 529 (docs.typesafe.ai)
         return client.system_one(state, questions)
 
 
@@ -67,7 +67,7 @@ def _address_words(email: str) -> str:
     return " ".join(w for w in re.split(r"[._\-+0-9]+", local) if len(w) > 1)
 
 
-def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 8, workers: int = 8) -> dict:
+def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: int = 8) -> dict:
     """Jev grades the email candidates that have no grade yet (or all, with regrade). limit 0 = all."""
     if not mo_config.key("jev"):
         return {"graded": 0, "note": "no Jev key: read the quotes and set grades with grade(set=[...])"}
@@ -111,30 +111,36 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 8, workers: i
                f"Exclusions: {b.get('exclude', '')}\nFocus: {json.dumps(focus, ensure_ascii=False) if focus else ''}").strip()
     counts = {"graded": 0, "failed": 0}
 
+    # TypeSafe's own guidance (docs.typesafe.ai, typesafe-ai/skills): option names that describe
+    # the content (letters bias the model), each candidate inside its own question rather than a
+    # number in a shared list, a yes/no question (Noul) for "is a person named", the chosen
+    # option's probability - not confidence - as the review signal, decisions in code.
+    options = {OPTION[g]: text for g, text in rub.items()}
+    state = {"research_brief": context, "how_to_judge": GUIDE}
+
+    def card(r: dict) -> str:
+        return (f"organisation: {r.get('org')}\nemail: {r.get('value')} (address words: "
+                f"{_address_words(r.get('value', '')) or '-'}; email domain {r.get('email_site')}; "
+                f"same site as the organisation: {r.get('same_site')})\n"
+                f"page: {r.get('page_url')} (on the organisation's own site: {r.get('page_on_org_site') or '?'})\n"
+                f"also listed for {len(holders.get(r['value'].lower(), ())) - 1} other organisations in this project\n"
+                f"text around it: {r.get('quote')}")
+
     def one_batch(chunk):
-        listing = "\n\n".join(
-            f"[{n + 1}] organisation: {r.get('org')}\nemail: {r.get('value')} (address words: "
-            f"{_address_words(r.get('value', '')) or '-'}; email domain {r.get('email_site')}; "
-            f"same site as the organisation: {r.get('same_site')})\n"
-            f"page: {r.get('page_url')} (on the organisation's own site: {r.get('page_on_org_site') or '?'})\n"
-            f"also listed for {len(holders.get(r['value'].lower(), ())) - 1} other organisations in this project\n"
-            f"text around it: {r.get('quote')}"
-            for n, r in enumerate(chunk))
         questions = {}
         for n, r in enumerate(chunk):
             questions[f"grade_{n + 1}"] = sdk.Choice(
-                instructions=f"Grade candidate [{n + 1}] ({r.get('value')}) for the research goal. " + GUIDE,
-                criteria=rub)
-            questions[f"named_{n + 1}"] = sdk.Choice(
-                instructions=f"Does the text around candidate [{n + 1}] name a real person who uses "
-                             f"{r.get('value')}?", criteria={"yes": "a person's name is tied to it",
-                                                             "no": "no person's name tied to it"})
+                instructions=f"For `research_brief`, what kind of route to {r.get('org')} is this address?\n\n"
+                             + card(r), criteria=options)
+            questions[f"named_{n + 1}"] = sdk.Noul(
+                instructions=f"Does this text name the person who uses {r.get('value')}?\n\n"
+                             f"text: {r.get('quote')}")
         ok, _why = mo_budget.allowed("jev")
         if not ok:
             counts["failed"] += len(chunk)
             return
         try:
-            resp = _jev({"brief": context, "candidates": listing}, questions)
+            resp = _jev(state, questions)
         except Exception as exc:  # noqa: BLE001
             text = f"{type(exc).__name__} {exc}".lower()
             if "402" in text or "quota" in text or "credit" in text or "payment" in text:
@@ -143,22 +149,23 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 8, workers: i
             counts["failed"] += len(chunk)
             return
         mo_budget.record(pdir, "jev", "grade", True, f"{len(chunk)} candidates")
-        choices = getattr(resp, "choices", None) or {}
+        got = answers(resp)
         for n, r in enumerate(chunk):
-            g, named = choices.get(f"grade_{n + 1}"), choices.get(f"named_{n + 1}")
-            if g is None:
+            g, named = got.get(f"grade_{n + 1}"), got.get(f"named_{n + 1}")
+            if g is None or getattr(g, "choice", None) not in GRADE_OF:
                 counts["failed"] += 1
                 continue
-            grade, conf = g.choice, getattr(g, "confidence", None)
+            grade, prob = GRADE_OF[g.choice], probability(g)
+            p_named = yes(named)
             note = ""
-            if grade == "A" and named is not None and named.choice == "no":
+            if grade == "A" and p_named is not None and p_named < 0.5:
                 grade, note = "B", "A without a named person -> B"
             shared = len(holders.get(r["value"].lower(), ())) - 1
             why = []
             if grade in ("A", "B"):
                 own = r.get("page_on_org_site") in ("yes", "likely") or r.get("email_on_org") in ("yes", "likely")
-                if isinstance(conf, float) and conf < (REVIEW_BELOW_OWN_SITE if own else REVIEW_BELOW):
-                    why.append(f"low confidence {conf:.2f}")
+                if isinstance(prob, float) and prob < (REVIEW_BELOW_OWN_SITE if own else REVIEW_BELOW):
+                    why.append(f"unsure grade (p={prob:.2f})")
                 if shared >= SHARED_REVIEW:
                     why.append(f"address also listed for {shared} other organisations")
                 if r.get("page_on_org_site") == "no" and not mentions(r.get("org", ""), r.get("quote", "")):
@@ -168,8 +175,8 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 8, workers: i
                     why.append("neither the page nor the address is on the organisation's own site")
             r["grade"], r["graded_by"], r["review"] = grade, "jev", "yes" if why else ""
             r["review_reason"] = "; ".join(why)
-            r["grade_reason"] = (f"jev {grade} conf {conf:.2f}" if isinstance(conf, float) else f"jev {grade}") + \
-                (f"; named={named.choice}" if named is not None else "") + (f"; {note}" if note else "") + \
+            r["grade_reason"] = (f"jev {grade} p {prob:.2f}" if isinstance(prob, float) else f"jev {grade}") + \
+                (f"; named p {p_named:.2f}" if p_named is not None else "") + (f"; {note}" if note else "") + \
                 (f"; also listed for {shared} other orgs" if shared > 0 else "") + \
                 ("; page on another site" if r.get("page_on_org_site") == "no" else "")
             counts["graded"] += 1
@@ -194,6 +201,35 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 8, workers: i
 
 
 GRADES = ("A", "B", "C", "D", "X")
+# Descriptive option names for Jev (the names are read by the model); grades stay letters in code.
+OPTION = {"A": "decision_maker", "B": "operator_or_forwarder", "C": "team_inbox", "D": "general_inbox",
+          "X": "not_a_route"}
+GRADE_OF = {v: k for k, v in OPTION.items()}
+
+
+def answers(resp) -> dict:
+    """The answers by question id (`answers` in the current SDK, `choices` in older ones)."""
+    return getattr(resp, "answers", None) or getattr(resp, "choices", None) or {}
+
+
+def probability(a):
+    """Probability of the chosen option; the confidence value only when there is none."""
+    probs = getattr(a, "probabilities", None)
+    if isinstance(probs, dict) and getattr(a, "choice", None) in probs:
+        return float(probs[a.choice])
+    conf = getattr(a, "confidence", None)
+    return float(conf) if isinstance(conf, (int, float)) else None
+
+
+def yes(a):
+    """A Noul's probability of yes (None when there is no answer)."""
+    if a is None:
+        return None
+    v = getattr(a, "noul", None)
+    if isinstance(v, (int, float)):
+        return float(v)
+    c = getattr(a, "choice", None)   # older yes/no Choice answers
+    return None if c is None else (1.0 if c == "yes" else 0.0)
 
 
 def _same(r: dict) -> tuple:
@@ -250,7 +286,7 @@ def fill_people(pdir, only: set | None = None, batch: int = 6, workers: int = 8)
             mo_budget.record(pdir, "jev", "grade", False, f"{type(exc).__name__}: {exc}")
             return
         mo_budget.record(pdir, "jev", "grade", True, f"people x{len(chunk)}")
-        choices = getattr(resp, "choices", None) or {}
+        choices = answers(resp)
         for n, (r, segs) in enumerate(chunk):
             got = {}
             for field in ("person", "role"):
@@ -336,7 +372,7 @@ def judge(pdir, file: str, question: str, options: dict, column: str, fields: li
             failed += len(chunk)
             continue
         mo_budget.record(pdir, "jev", "grade", True, f"judge {column} x{len(chunk)}")
-        choices = getattr(resp, "choices", None) or {}
+        choices = answers(resp)
         for n, r in enumerate(chunk):
             a = choices.get(f"q{n + 1}")
             if a is None:

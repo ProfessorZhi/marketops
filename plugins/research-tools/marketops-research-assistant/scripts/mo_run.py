@@ -91,7 +91,7 @@ def _rank(pdir, org: dict, hits: list[dict]) -> list[dict]:
         resp = mo_grade._jev({"organisation": str(org.get("name")), "pages": listing}, qs)
         import mo_budget
         mo_budget.record(pdir, "jev", "grade", True, f"rank leads x{len(hits)}")
-        choices = getattr(resp, "choices", None) or {}
+        choices = mo_grade.answers(resp)
 
         def score(k):
             a = choices.get(f"r{k + 1}")

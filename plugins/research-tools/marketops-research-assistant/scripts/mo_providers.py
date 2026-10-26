@@ -68,7 +68,42 @@ def _again(call, tries: int = 2, wait: float = 3.0, transient=TRANSIENT):
             time.sleep(wait * (n + 1))
 
 
-def _check_money(provider: str, response: httpx.Response) -> None:
+class _Rate:
+    """Per-endpoint pace. Starts from the provider's documented limit where there is one and
+    adopts the limit a 429 reports (TinyFish puts it in error.details)."""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.per_min: dict[str, float] = {"tinyfish:search": 30}   # docs.tinyfish.ai error codes
+        self.next_at: dict[str, float] = {}
+
+    def wait(self, key: str) -> None:
+        import time
+        rate = self.per_min.get(key)
+        if not rate:
+            return
+        with self.lock:
+            now = time.time()
+            at = max(now, self.next_at.get(key, 0.0))
+            self.next_at[key] = at + 60.0 / rate
+        if at > now:
+            time.sleep(at - now)
+
+    def learn(self, key: str, response) -> None:
+        try:
+            d = ((response.json() or {}).get("error") or {}).get("details") or {}
+            if d.get("limit") and d.get("window_seconds"):
+                self.per_min[key] = float(d["limit"]) * 60.0 / float(d["window_seconds"])
+        except Exception:  # noqa: BLE001
+            pass
+
+
+RATE = _Rate()
+
+
+def _check_money(provider: str, response: httpx.Response, kind: str = "") -> None:
+    if response.status_code == 429:
+        RATE.learn(f"{provider}:{kind}", response)
     if response.status_code in (402,) or (response.status_code == 429 and provider != "crawl4ai"):
         if response.status_code == 402:
             mo_budget.mark_exhausted(provider, "provider refused for money (HTTP 402)")
@@ -100,7 +135,7 @@ def public_url(url: str) -> str:
 
 
 # ---------------------------------------------------------------- search
-def _serper(q, country, lang, n, maps):
+def _serper(q, country, lang, n, maps, purpose=""):
     body = {"q": q, "num": n}
     if country:
         body["gl"] = country.lower()
@@ -116,7 +151,7 @@ def _serper(q, country, lang, n, maps):
     return [{"title": o.get("title"), "url": o.get("link"), "snippet": o.get("snippet")} for o in d.get("organic", [])]
 
 
-def _serpapi(q, country, lang, n, maps):
+def _serpapi(q, country, lang, n, maps, purpose=""):
     params = {"api_key": mo_config.key("serpapi"), "q": q,
               "engine": "google_maps" if maps else "google"}
     if not maps:
@@ -138,23 +173,42 @@ def _serpapi(q, country, lang, n, maps):
             for o in d.get("organic_results", [])]
 
 
-def _deepseek(q, country, lang, n, maps):
+def _deepseek(q, country, lang, n, maps, purpose=""):
+    """api-docs.deepseek.com/guides/search: query <= 128 chars with operators (site:, "...",
+    lang:), count 1-50, ori_question = the intent; results carry a long summary, a rerank score
+    (>= 1.5 good) and an authority tier."""
     if maps:
         return []
-    r = httpx.post("https://api.deepseek.com/v1/tools/search", json={"query": q[:128], "count": min(n, 50),
-                   "need_content": False}, headers={"Authorization": "Bearer " + mo_config.key("deepseek")},
-                   timeout=40)
-    _check_money("deepseek", r)
-    return [{"title": o.get("title"), "url": o.get("url"), "snippet": o.get("snippet") or o.get("summary")}
+    if lang and "lang:" not in q and len(q) + len(lang) + 6 <= 128:
+        q = f"{q} lang:{lang.lower()}"
+    body = {"query": q[:128], "count": max(1, min(n, 50)), "need_content": False}
+    if purpose:
+        body["ori_question"] = purpose[:128]
+    r = httpx.post("https://api.deepseek.com/v1/tools/search", json=body,
+                   headers={"Authorization": "Bearer " + mo_config.key("deepseek")}, timeout=40)
+    _check_money("deepseek", r, "search")
+    return [{"title": o.get("title"), "url": o.get("url"),
+             "snippet": " ".join(x for x in (o.get("snippet"), o.get("summary")) if x)[:900],
+             "score": o.get("rerank_score")}
             for o in r.json().get("results", [])]
 
 
-def _tinyfish(q, country, lang, n, maps):
+def _tinyfish(q, country, lang, n, maps, purpose=""):
+    """docs.tinyfish.ai/search-api: without location / language it searches as US / English;
+    `purpose` (the goal) improves ranking; 30 requests a minute by default."""
     if maps:
         return []
-    r = httpx.get("https://api.search.tinyfish.ai", params={"query": q},
+    params = {"query": q}
+    if country:
+        params["location"] = country.upper()
+    if lang:
+        params["language"] = lang.lower()
+    if purpose:
+        params["purpose"] = purpose[:2000]
+    RATE.wait("tinyfish:search")
+    r = httpx.get("https://api.search.tinyfish.ai", params=params,
                   headers={"X-API-Key": mo_config.key("tinyfish")}, timeout=40)
-    _check_money("tinyfish", r)
+    _check_money("tinyfish", r, "search")
     return [{"title": o.get("title"), "url": o.get("url"), "snippet": o.get("snippet")}
             for o in r.json().get("results", [])]
 
@@ -173,6 +227,11 @@ SEARCH_GRACE = 5.0   # seconds the slower engines get after the first answer
 
 def search(query: str, engines=None, country: str = "", lang: str = "", n: int = 10,
            maps: bool = False, project_dir=None, weights: dict | None = None) -> dict:
+    purpose = ""
+    if project_dir is not None:
+        import mo_workspace
+        loc = mo_workspace.locale(project_dir)
+        country, lang, purpose = country or loc["country"], lang or loc["language"], loc["purpose"]
     available = [e for e in (engines or SEARCH_ENGINES) if e in _SEARCH and mo_config.key(e)]
     if engines or weights is None:
         wanted, held = available, []
@@ -190,7 +249,7 @@ def search(query: str, engines=None, country: str = "", lang: str = "", n: int =
         if not ok:
             return engine, None, why
         try:
-            rows = _again(lambda: _SEARCH[engine](query, country, lang, n, maps))
+            rows = _again(lambda: _SEARCH[engine](query, country, lang, n, maps, purpose))
             mo_budget.record(project_dir, engine, "search", True, query[:80])
             mo_library.put_search(key, rows)
             return engine, rows, ""
@@ -279,21 +338,27 @@ def _read_crawl4ai(url):
 
 
 def _read_tinyfish(url):
-    r = httpx.post("https://api.fetch.tinyfish.ai", json={"urls": [url]},
+    """docs.tinyfish.ai/fetch-api: a real browser render; format=html keeps the page structure
+    (cards, mailto links) for the contact parser; per-URL timeout below our own."""
+    RATE.wait("tinyfish:fetch")
+    r = httpx.post("https://api.fetch.tinyfish.ai",
+                   json={"urls": [url], "format": "html", "per_url_timeout_ms": 35000},
                    headers={"X-API-Key": mo_config.key("tinyfish")}, timeout=40)
-    _check_money("tinyfish", r)
+    _check_money("tinyfish", r, "fetch")
     rows = r.json().get("results") or []
     if not rows or not (rows[0].get("text") or "").strip():
         err = (r.json().get("errors") or [{}])[0] if r.json().get("errors") else {}
-        raise ProviderError(str(err.get("error") or "no text")[:160])
-    return {"final_url": rows[0].get("final_url") or url, "html": "", "text": rows[0]["text"],
-            "title": rows[0].get("title")}
+        raise ProviderError(str(err.get("error") or err.get("message") or "no text")[:160])
+    body = rows[0]["text"]
+    is_html = isinstance(body, str) and "<" in body[:2000]
+    return {"final_url": rows[0].get("final_url") or url, "html": body if is_html else "",
+            "text": "" if is_html else str(body), "title": rows[0].get("title")}
 
 
 def _read_deepseek(url):
     r = httpx.post("https://api.deepseek.com/v1/tools/fetch", json={"url": url},
                    headers={"Authorization": "Bearer " + mo_config.key("deepseek")}, timeout=40)
-    _check_money("deepseek", r)
+    _check_money("deepseek", r, "fetch")
     content = (r.json() or {}).get("content") or ""
     if not content.strip():
         raise ProviderError("no text")

@@ -6,7 +6,16 @@ description: How to get the most out of each MarketOps provider - Serper, SerpAp
 # Using the tools well
 
 The plugin's tools already run providers in parallel, cache everything in the library and log
-every call against the red lines. This page is about choosing and phrasing.
+every call against the red lines. This page is about choosing and phrasing; each provider's
+official parameters, limits and pitfalls are in `references/` - read the one you need:
+[deepseek](references/deepseek.md), [tinyfish](references/tinyfish.md) (search, fetch, agent),
+[jev](references/jev.md), [serper / serpapi](references/serper-serpapi.md),
+[crawl4ai](references/crawl4ai.md).
+
+**Set `country` and `language` in the brief** (`"country": "FR", "language": "fr"`). Every
+search engine answers as US / English without them; the plugin passes them to Serper and
+SerpApi (`gl` / `hl`), TinyFish (`location` / `language`) and DeepSeek (`lang:`), and sends the
+brief's goal as the search intent (TinyFish `purpose`, DeepSeek `ori_question`).
 
 ## Search: `search(query, maps?)`
 
@@ -15,8 +24,8 @@ counts and slower engines get a few seconds; late answers land in the library fo
 
 | Engine | Good at | Use |
 |---|---|---|
-| DeepSeek | broad web search | freely |
-| TinyFish search | broad web search, fast | freely |
+| DeepSeek | broad web search; operators `site:`, `"..."`, `lang:`, `after:`; long summaries | freely (paid per request, cheap) |
+| TinyFish search | broad web search, fast; `include_domains` | freely (free, 30 a minute - paced) |
 | Serper (Google) | exact phrases, `site:`, `filetype:pdf`, maps places with website and phone | moderately (credits) |
 | SerpApi (Google / Bing) | the same, smaller quota | sparingly |
 
@@ -37,8 +46,8 @@ Recipes Bruce used most (`derived/websearch-queries.csv`, 1,000 queries):
 | Reader | Strength | Note |
 |---|---|---|
 | Crawl4AI (local browser) | renders JavaScript, keeps `mailto:` and decoded addresses | always on, up to 10 tabs; slowest |
-| TinyFish fetch | fast, reads PDFs | freely |
-| DeepSeek fetch | reads PDFs and awkward pages | freely |
+| TinyFish fetch | real browser render, HTML out, reads PDFs | freely (free) |
+| DeepSeek fetch | Markdown out, reads PDFs and awkward pages | freely |
 
 A page is as fast as its fastest reader; slower readers finish in the background and their
 contacts are merged. Data files (CSV, JSON, XLSX) are downloaded, then `pool`ed.
@@ -48,9 +57,11 @@ When a page will not read:
    (gzip, encoding), not a block - check the saved page in the library.
 2. **403 / 429 / reset**: retried once automatically. A Cloudflare page with a Ray ID is an IP
    block - another reader may pass, more retries will not.
-3. **Content behind a click** (email buttons, "show contact", forms): `browse(project, url)` -
+3. **Content behind a click** (email buttons, "show contact", tabs): `browse(project, url)` -
    the TinyFish Agent, paid; the pipeline notes pages with several email buttons and no
-   address. Use it on pages that carry several people, not on single inboxes.
+   address. Use it on pages that carry several people, not on single inboxes. A custom `goal`
+   should name the fields, the steps, what not to do and the output shape (see
+   `references/tinyfish.md`).
 4. **Dead domain** (no DNS): the organisation may have moved to a platform or a new domain -
    search its name and town.
 5. Record the blocker and move on; a missing page is a finding, not a reason to guess.

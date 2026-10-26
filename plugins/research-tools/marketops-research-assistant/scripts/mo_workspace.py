@@ -145,6 +145,14 @@ def brief(pdir: Path) -> dict:
         return {}
 
 
+def locale(pdir: Path) -> dict:
+    """Where and in what language to search (brief.country ISO-2, brief.language), and the goal
+    as the search intent. Engines default to US / English without them."""
+    b = brief(pdir)
+    return {"country": str(b.get("country") or "").strip(), "language": str(b.get("language") or "").strip(),
+            "purpose": str(b.get("goal") or "").strip()}
+
+
 # ------------------------------------------------------------------ pages
 def _save(pdir: Path, url: str, reader: str, body: bytes, ext: str, final_url: str, org_id: str) -> str:
     """The page goes into the shared library (one copy for every project); the project
@@ -574,9 +582,18 @@ def stop_requested(pdir: Path) -> bool:
 
 
 # ------------------------------------------------------------------ TinyFish Agent
-DEFAULT_GOAL = ("Return the visible text of this page verbatim, including every person's name, "
-                "role or job title, email address and phone number. Open on-page tabs or 'show more' "
-                "if needed. Do not log in, submit forms or accept anything.")
+# Written to TinyFish's goal guide (docs.tinyfish.ai/prompting-guide): objective, target, steps,
+# fields, output shape, guardrails, edge case - specific goals ran 4.9x faster in their tests.
+# One line per entry so the contact parser keeps each role, name and address together.
+DEFAULT_GOAL = """Extract every person and every role mailbox shown on this page (staff, board, committee, contact or venue sections).
+Steps:
+1. If a cookie or consent banner appears, close it.
+2. On this page only, click tabs, accordions, "show more", "show email" or "contact" buttons that reveal contact details.
+For each entry return: role or job title as displayed; person name as displayed; email address as displayed or revealed; phone number.
+Return one entry per line, exactly: ROLE | NAME | EMAIL | PHONE - use - for anything missing.
+Do not log in, submit forms, send messages, or accept terms. Do not leave the site. Never guess or construct an email address: only addresses shown on the page.
+If no person and no address is shown, return NONE.
+"""
 
 
 def browse(pdir: Path, url: str, goal: str = "", org_id: str = "", org: str = "") -> dict:

@@ -14,6 +14,8 @@ whole reruns.
 {
   "goal": "people who look after natural-grass pitches (mowing, line marking)",
   "region": "France",
+  "country": "FR",
+  "language": "fr",
   "exclude": "golf courses; shops and distributors",
   "grades": {"A": "...", "B": "...", "C": "...", "D": "...", "X": "..."},
   "address_rules": {"info": "X", "admin": "X", "book": "X"},
@@ -30,6 +32,12 @@ whole reruns.
 
 Before writing it, read the matching file in `references/projects/` (same market or same
 kind of organisation): its titles, sources and corrections are where to start.
+
+`country` (ISO-2) and `language` steer every search engine - without them they answer as for the
+US in English.
+
+Bruce's own one-line definition of who to find, worth reusing as the `goal`: the people who
+**would want to see a demo of the product, can recommend it, or can decide on it**.
 
 ## Questions to settle (each one cost Bruce a rerun when left open)
 

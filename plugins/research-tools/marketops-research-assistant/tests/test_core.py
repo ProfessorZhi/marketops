@@ -385,20 +385,21 @@ class Reach(unittest.TestCase):
         sent = []
 
         class Pick:
-            choice, confidence = "C", 0.9
+            choice, probabilities, noul = "team_inbox", {"team_inbox": 0.9}, 0.1
 
         def jev(state, questions):
-            sent.append(state["candidates"])
-            return type("R", (), {"choices": {q: Pick() for q in questions}})()
+            sent.append(json.dumps(questions, default=str, ensure_ascii=False))
+            return type("R", (), {"answers": {q: Pick() for q in questions}})()
         sdk = type(sys)("typesafe_sdk")
         sdk.Choice = lambda **kw: kw
+        sdk.Noul = lambda **kw: kw
         with mock.patch.dict(sys.modules, {"typesafe_sdk": sdk}), \
                 mock.patch("mo_config.key", return_value="k"), mock.patch("mo_budget.allowed", return_value=(True, "")), \
                 mock.patch.object(mo_grade, "_jev", side_effect=jev), mock.patch.object(mo_grade, "fill_people", return_value=0), \
                 mock.patch("mo_evidence.rescore", return_value={}):
             mo_grade.auto(pdir)
         self.assertEqual(1, len(sent))
-        self.assertEqual(1, sent[0].count("dsp@city.fr"))            # one Jev question for three copies
+        self.assertEqual(2, len(json.loads(sent[0])))                  # one grade + one name question for three copies
         grades = {(r["org_id"], r["value"]): (r["grade"], r["graded_by"]) for r in ws.read_contacts(pdir)}
         self.assertEqual({("C", "jev")}, {v for (o, e), v in grades.items() if e.startswith("dsp")})
         self.assertEqual({("X", "rule")}, {v for (o, e), v in grades.items() if e.startswith("info")})
@@ -516,6 +517,57 @@ class Search(unittest.TestCase):
         finally:
             os.environ.pop("SERPER_API_KEY")
             os.environ.pop("TINYFISH_API_KEY")
+
+
+class Providers(unittest.TestCase):
+    def test_searches_carry_the_projects_country_language_and_goal(self):
+        pdir = ws.project_dir("t30")
+        (pdir / "brief.json").write_text(json.dumps({"goal": "grass pitches", "country": "FR", "language": "fr"}),
+                                         encoding="utf-8")
+        sent = {}
+
+        class R:
+            status_code = 200
+
+            def json(self):
+                return {"results": [{"title": "t", "url": "https://x.fr/", "snippet": "s", "summary": "long"}]}
+
+        def get(url, params=None, headers=None, timeout=None):
+            sent["tinyfish"] = params
+            return R()
+
+        def post(url, json=None, headers=None, timeout=None):
+            sent["deepseek"] = json
+            return R()
+        with mock.patch("mo_config.key", return_value="k"), mock.patch("mo_budget.allowed", return_value=(True, "")), \
+                mock.patch.object(mo_providers.httpx, "get", side_effect=get), \
+                mock.patch.object(mo_providers.httpx, "post", side_effect=post):
+            mo_providers.search("stade municipal", ["tinyfish", "deepseek"], project_dir=pdir)
+        self.assertEqual(("FR", "fr", "grass pitches"),
+                         (sent["tinyfish"]["location"], sent["tinyfish"]["language"], sent["tinyfish"]["purpose"]))
+        self.assertTrue(sent["deepseek"]["query"].endswith("lang:fr"))
+        self.assertEqual("grass pitches", sent["deepseek"]["ori_question"])
+
+    def test_a_reported_rate_limit_is_adopted(self):
+        rate = mo_providers._Rate()
+
+        class R:
+            def json(self):
+                return {"error": {"code": "RATE_LIMIT_EXCEEDED", "details": {"limit": 60, "window_seconds": 60}}}
+        rate.learn("tinyfish:fetch", R())
+        self.assertEqual(60, rate.per_min["tinyfish:fetch"])
+
+    def test_transient_errors_are_tried_once_more(self):
+        calls = []
+
+        def flaky():
+            calls.append(1)
+            if len(calls) == 1:
+                raise mo_providers.ProviderError("HTTP 429")
+            return "ok"
+        with mock.patch("time.sleep"):
+            self.assertEqual("ok", mo_providers._again(flaky))
+        self.assertEqual(2, len(calls))
 
 
 class Package(unittest.TestCase):
