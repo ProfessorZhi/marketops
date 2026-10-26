@@ -1,4 +1,4 @@
-# MarketOps Research Assistant 0.5.11-rc15
+# MarketOps Research Assistant 0.5.11-rc16
 
 **Release candidate — 不是正式发行版。** 本包只用于 RC 验收；不得覆盖或重命名既有的
 0.5.5 ZIP，不得据此宣布正式发布。正式发布前仍需完成真实供应商费用与客户授权验收。
@@ -20,6 +20,17 @@ Claude Code 也可以从仓库的 marketplace 装插件：
 ```
 
 市场版只拷贝插件、不带运行时：先跑一次上面的安装器（或设 `MARKETOPS_RESEARCH_PYTHON`），否则不会出现 `marketops_*` 工具，会话开始时插件会提示缺什么。Windows 上市场版不能单独使用（MCP 用 `sh` 启动）。
+
+### 看得更准、少设限（0.5.11-rc16）
+
+来自第一次 Bruce 对照（英国学校，插件 A/B 精度 46%、覆盖 88.7%）的通用修复，不含任何题目专属内容：
+- 网页保留段落/卡片/表格单元的边界；岗位只认同一行或紧邻上一两行，不再把隔壁卡片的岗位套给这个地址。
+- 页面自报的名称（标题、og:site_name、JSON-LD）可作身份证据；带编号或「|」的机构名每一段都试。
+- 简报的 roles_wanted 和 exclusions 优先于场景包：用户没要的岗位最多 C；没有场景包时有通用的入口/排除词。
+- 地址拼出来的「人名」若是岗位词或机构词，不算人名。
+- 能力而非关卡：来源产出判定默认只作建议（`source_gate:{park:true}` 才自动挂起）；Agent 调 `handoff(mode='final')` 即定稿，插件意见放在 `plugin_advice`。
+- 本地阅读器放弃（跳转、超时）时由 TinyFish/DeepSeek 接着读；畸形邮箱在提取时剔除。
+- 联系人路线表新增 角色类别 / 评级理由 / 原文引用 三列。
 
 ### 重读不再让交付变小（0.5.11-rc15）
 

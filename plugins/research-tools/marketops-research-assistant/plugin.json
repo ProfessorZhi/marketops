@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "marketops-research-assistant",
-  "version": "0.5.11-rc15",
-  "description": "Member-A-informed semi-automatic evidence-first market research with six upstream provider capabilities and local research MCP (release candidate 0.5.11-rc15)",
+  "version": "0.5.11-rc16",
+  "description": "Member-A-informed semi-automatic evidence-first market research with six upstream provider capabilities and local research MCP (release candidate 0.5.11-rc16)",
   "repository": "https://github.com/ProfessorZhi/marketops",
   "keywords": [
     "market-research",

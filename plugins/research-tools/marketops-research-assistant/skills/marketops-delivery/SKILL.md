@@ -43,8 +43,9 @@ read the databases or plugin code; the handoff applies the evidence gate you wou
    `CHECKPOINT_RESEARCH_NOT_FINISHED` / `continuation_required=true` means save the
    file, follow `execution.next_action`, and continue the same task. Pending or
    leased targets, active jobs, and saved results awaiting finalization are not
-   completed research. `mode='final'` cannot override these checks; it returns a
-   checkpoint with `finalization_refused` instead. Use a fresh operation ID for a
+   completed research. When you judge the work done, `mode='final'` delivers the final
+   package; `plugin_advice` then says what the plugin would still research, and your
+   report says what was left and why. Use a fresh operation ID for a
    later snapshot; preserve previous files.
    A drained shortlist with an unmet contacts goal calls for another method or
    more sources while budget remains. A final partial result is appropriate for

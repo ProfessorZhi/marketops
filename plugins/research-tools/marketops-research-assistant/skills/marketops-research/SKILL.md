@@ -184,9 +184,9 @@ distinct people per 100 finished targets. That number is the KPI; C/D are counte
 never presented as key contacts.
 
 **Sources are judged by what they yield.** `execution.source_gate` gives each import source's A+B
-rate. After 30 finished targets a source under 5% is parked (its pending targets go to HOLD
-`SOURCE_YIELD_STOP`); 5–10% means change the approach for it once. Follow
-`execution.source_advice`: a better list for the same target type is worth more than deeper
+rate. After 30 finished targets a source under 5% gets a STOP verdict, 5–10% means change the
+approach for it once; these are advice, not a stop. `execution.source_advice`: a better list for
+the same target type is usually worth more than deeper
 research on a poor one (past work: 30% vs 3% from two lists of the same kind).
 
 Where named, role-bound emails come from (live Paris run, 215 targets, 1.4 A+B per 100):

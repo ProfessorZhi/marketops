@@ -260,9 +260,24 @@ def _note_yields(root, run_id: str, stopped: list[dict]) -> None:
             continue  # the parking stands; a note that cannot be written is not a reason to undo it
 
 
+def _park_requested(root, run_id: str) -> bool:
+    gate = _brief(_records(root, run_id)).get("source_gate")
+    return isinstance(gate, dict) and gate.get("park") is True
+
+
 def park_stopped(root, run_id: str) -> dict:
-    """Park pending targets of STOP sources; returns what was parked."""
+    """Park pending targets of STOP sources, only when the brief asks for it.
+
+    By default a STOP verdict is advice the Agent sees in `source_yield` and acts
+    on (switch source, or carry on with a fixed list). Parking on its own took a
+    whole list away from a task whose list was the task.
+    """
     report = yields(root, run_id)
+    if not _park_requested(root, run_id):
+        stopping = [r for r in report["sources"] if r["verdict"] == "STOP" and r["pending"]]
+        return {"parked": 0, "sources": [], "advice": [
+            {k: r[k] for k in ("pool_id", "source_id", "finished", "with_ab", "ab_rate")}
+            for r in stopping]}
     stopped = [r for r in report["sources"] if r["verdict"] == "STOP" and r["pending"]]
     if not stopped:
         return {"parked": 0, "sources": []}

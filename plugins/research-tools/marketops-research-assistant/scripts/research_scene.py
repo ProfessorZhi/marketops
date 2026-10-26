@@ -85,22 +85,64 @@ def load(brief: dict | None) -> dict:
     brief = brief or {}
     pack = shipped(brief.get("scene", "")) if brief.get("scene") else None
     rules = brief.get("scene_rules")
+    wanted = _phrases(brief.get("roles_wanted"))
+    excluded = _phrases(brief.get("exclusions") or brief.get("roles_excluded"))
     if isinstance(rules, dict) and not validate(rules):
         base = (pack or {}).get("roles", {})
         merged = {key: list(rules.get(key) or base.get(key) or []) for key in CLASSES}
-        return {"source": "brief.scene_rules" + (f"+{brief['scene']}" if pack else ""),
-                "roles": merged, "scene": brief.get("scene", "")}
+        return _the_users_words({"source": "brief.scene_rules" + (f"+{brief['scene']}" if pack else ""),
+                                 "roles": merged, "scene": brief.get("scene", "")}, wanted, excluded)
     if pack:
-        return {"source": f"shipped:{brief['scene']}", "roles": pack["roles"],
-                "scene": brief["scene"]}
-    wanted = brief.get("roles_wanted")
-    if isinstance(wanted, str):
-        wanted = [part for part in re.split(r"[,;/]| or ", wanted) if part.strip()]
-    if isinstance(wanted, list) and any(fold(w) for w in wanted):
-        return {"source": "brief.roles_wanted", "scene": "",
-                "roles": {"decision": [w for w in wanted if fold(w)], "operational": [],
-                          "entry": [], "excluded": []}}
+        return _the_users_words({"source": f"shipped:{brief['scene']}",
+                                 "roles": {k: list(v) for k, v in pack["roles"].items()},
+                                 "scene": brief["scene"]}, wanted, excluded)
+    if wanted:
+        entry = [w for w in wanted if set(fold(w).split()) & _ENTRY_WORDS]
+        return {"source": "brief.roles_wanted+generic", "scene": "",
+                "roles": {"decision": [w for w in wanted if w not in entry], "operational": [],
+                          "entry": entry + sorted(_ENTRY_WORDS),
+                          "excluded": excluded + sorted(GENERIC_EXCLUDED)}}
     return {"source": "", "scene": "", "roles": {}}
+
+
+#: When no scene pack applies, these are the usual service entries and the usual
+#: functions nobody asks for in venue/organisation research. A brief's own words win.
+_ENTRY_WORDS = frozenset("bookings booking lettings letting hire enquiries reception office".split())
+GENERIC_EXCLUDED = frozenset(["finance", "accounts", "payroll", "human resources", "hr",
+                              "admissions", "marketing", "it support", "sales", "fundraising"])
+
+
+def _phrases(value) -> list[str]:
+    if isinstance(value, str):
+        value = re.split(r"[,;/]| or ", value)
+    return [v.strip() for v in value if isinstance(v, str) and fold(v)] if isinstance(value, list) else []
+
+
+def _the_users_words(rules: dict, wanted: list[str], excluded: list[str]) -> dict:
+    """The brief speaks for this task; the scene pack only fills in.
+
+    A pack title the user did not ask for (a finance post when the brief wants
+    grounds and facilities) is an entry, not an A/B role; the user's own titles are
+    recognised even when the pack lacks them; the brief's exclusions win outright.
+    """
+    roles = rules["roles"]
+    if wanted:
+        folded = [fold(w) for w in wanted]
+
+        def asked(title):
+            t = fold(title)
+            return any(_matches(t, w) or _matches(w, t) for w in folded)
+        for key in ("decision", "operational"):
+            keep = [t for t in roles.get(key, []) if asked(t)]
+            roles["entry"] = list(roles.get("entry", [])) + [t for t in roles.get(key, []) if not asked(t)]
+            roles[key] = keep
+        known = {fold(t) for key in CLASSES for t in roles.get(key, [])}
+        roles["operational"] = roles.get("operational", []) + [w for w in wanted if fold(w) not in known]
+        rules["source"] += "+roles_wanted"
+    if excluded:
+        roles["excluded"] = list(roles.get("excluded", [])) + excluded
+        rules["source"] += "+exclusions"
+    return rules
 
 
 def _matches(title: str, words: str) -> bool:
@@ -166,7 +208,12 @@ def nearest_title(text: str, email: str, rules: dict, *, before: int = 70,
         return "", "", -1
     left = plain[max(0, at - before):at]
     left = re.split(r"[\w.+-]+@[\w.-]+\.[a-z]{2,24}", left)[-1]
+    # A role belongs to an address when it is on the address's own line or the
+    # one or two lines just above it (a card: name / role / address). The next
+    # card's role, or a role three blocks up, is someone else's.
+    left = "\n".join(left.split("\n")[-3:])
     right = re.split(r"[\w.+-]+@[\w.-]+\.[a-z]{2,24}", plain[at + len(email):at + len(email) + after])[0]
+    right = right.split("\n", 1)[0]
     best = ("", "", -1)
     for side, chunk in (("left", _STREET.sub(" ", left)), ("right", _STREET.sub(" ", right))):
         words_text = " ".join(re.findall(r"[0-9a-z]+", chunk))
