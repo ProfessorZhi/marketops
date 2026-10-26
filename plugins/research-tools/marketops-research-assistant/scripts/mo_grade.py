@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 
 import mo_budget
 import mo_config
@@ -46,76 +47,109 @@ def _jev(state: dict, questions: dict):
         return client.system_one(state, questions)
 
 
-def auto(pdir, limit: int = 200, regrade: bool = False, batch: int = 8) -> dict:
-    """Jev grades the email candidates that have no grade yet (or all, with regrade)."""
+GUIDE = ("Read any language. Judge job titles and abbreviations by this kind of organisation (in a "
+         "school 'FS' is Foundation Stage, not facilities). An address whose own words name a role "
+         "(facilities@, grounds@, groundsman@, caretaker@, bursar@, sbm@ = school business manager, "
+         "platzwart@, estates@) counts for that role even when no person is named. If the address "
+         "is also listed for other organisations, or the page belongs to another organisation (a "
+         "directory, a council or canton staff list), give A or B only when the text ties the "
+         "person to THIS organisation or its venue; otherwise C or X. Grade only this address, not "
+         "the neighbouring entries.")
+REVIEW_BELOW = 0.6
+
+
+def _address_words(email: str) -> str:
+    local = email.split("@")[0]
+    return " ".join(w for w in re.split(r"[._\-+0-9]+", local) if len(w) > 1)
+
+
+def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 8, workers: int = 4) -> dict:
+    """Jev grades the email candidates that have no grade yet (or all, with regrade). limit 0 = all."""
     if not mo_config.key("jev"):
         return {"graded": 0, "note": "no Jev key: read the quotes and set grades with grade(set=[...])"}
     import typesafe_sdk as sdk
+    from concurrent.futures import ThreadPoolExecutor
     path = pdir / "contacts.csv"
     rows = ws.read_csv(path)
+    holders: dict[str, set] = {}
+    for r in rows:
+        if r.get("kind") == "email":
+            holders.setdefault(r["value"].lower(), set()).add(r.get("org_id"))
     todo = [r for r in rows if r.get("kind") == "email" and not r.get("graded_by", "").startswith("agent")
-            and (regrade or not r.get("grade") or r.get("graded_by", "").startswith("rule"))][:limit]
+            and (regrade or not r.get("grade"))]
+    if limit:
+        todo = todo[:limit]
     rub = rubric(pdir)
     b = ws.brief(pdir)
+    focus = b.get("focus") or ""
     context = (f"Research goal: {b.get('goal', '')}\nRegion: {b.get('region', '')}\n"
-               f"Exclusions: {b.get('exclude', '')}\n").strip()
-    graded, failed = 0, 0
-    for i in range(0, len(todo), batch):
-        chunk = todo[i:i + batch]
+               f"Exclusions: {b.get('exclude', '')}\nFocus: {json.dumps(focus, ensure_ascii=False) if focus else ''}").strip()
+    counts = {"graded": 0, "failed": 0}
+
+    def one_batch(chunk):
         listing = "\n\n".join(
-            f"[{n + 1}] organisation: {r.get('org')} (site {r.get('email_site')}, same site as page: {r.get('same_site')})\n"
-            f"email: {r.get('value')}\npage: {r.get('page_url')}\ntext around it: {r.get('quote')}"
+            f"[{n + 1}] organisation: {r.get('org')}\nemail: {r.get('value')} (address words: "
+            f"{_address_words(r.get('value', '')) or '-'}; email domain {r.get('email_site')}; "
+            f"same site as the organisation: {r.get('same_site')})\n"
+            f"page: {r.get('page_url')} (on the organisation's own site: {r.get('page_on_org_site') or '?'})\n"
+            f"also listed for {len(holders.get(r['value'].lower(), ())) - 1} other organisations in this project\n"
+            f"text around it: {r.get('quote')}"
             for n, r in enumerate(chunk))
-        state = {"brief": context, "candidates": listing}
         questions = {}
         for n, r in enumerate(chunk):
             questions[f"grade_{n + 1}"] = sdk.Choice(
-                instructions=f"Grade candidate [{n + 1}] ({r.get('value')}) for the research goal, "
-                             "using only its text around it. Read any language.",
+                instructions=f"Grade candidate [{n + 1}] ({r.get('value')}) for the research goal. " + GUIDE,
                 criteria=rub)
             questions[f"named_{n + 1}"] = sdk.Choice(
                 instructions=f"Does the text around candidate [{n + 1}] name a real person who uses "
                              f"{r.get('value')}?", criteria={"yes": "a person's name is tied to it",
                                                              "no": "no person's name tied to it"})
-        ok, why = mo_budget.allowed("jev")
+        ok, _why = mo_budget.allowed("jev")
         if not ok:
-            break
+            counts["failed"] += len(chunk)
+            return
         try:
-            resp = _jev(state, questions)
+            resp = _jev({"brief": context, "candidates": listing}, questions)
         except Exception as exc:  # noqa: BLE001
             text = f"{type(exc).__name__} {exc}".lower()
             if "402" in text or "quota" in text or "credit" in text or "payment" in text:
                 mo_budget.mark_exhausted("jev", "Jev refused for money")
             mo_budget.record(pdir, "jev", "grade", False, f"{type(exc).__name__}: {exc}")
-            failed += len(chunk)
-            continue
+            counts["failed"] += len(chunk)
+            return
         mo_budget.record(pdir, "jev", "grade", True, f"{len(chunk)} candidates")
         choices = getattr(resp, "choices", None) or {}
         for n, r in enumerate(chunk):
             g, named = choices.get(f"grade_{n + 1}"), choices.get(f"named_{n + 1}")
             if g is None:
-                failed += 1
+                counts["failed"] += 1
                 continue
-            grade = g.choice
-            conf = getattr(g, "confidence", None)
+            grade, conf = g.choice, getattr(g, "confidence", None)
+            note = ""
             if grade == "A" and named is not None and named.choice == "no":
                 grade, note = "B", "A without a named person -> B"
-            else:
-                note = ""
-            r["grade"] = grade
-            r["graded_by"] = "jev"
+            shared = len(holders.get(r["value"].lower(), ())) - 1
+            review = grade in ("A", "B") and (
+                (isinstance(conf, float) and conf < REVIEW_BELOW) or shared > 0 or r.get("page_on_org_site") == "no")
+            r["grade"], r["graded_by"], r["review"] = grade, "jev", "yes" if review else ""
             r["grade_reason"] = (f"jev {grade} conf {conf:.2f}" if isinstance(conf, float) else f"jev {grade}") + \
-                (f"; named={named.choice}" if named is not None else "") + (f"; {note}" if note else "")
-            graded += 1
+                (f"; named={named.choice}" if named is not None else "") + (f"; {note}" if note else "") + \
+                (f"; also listed for {shared} other orgs" if shared > 0 else "") + \
+                ("; page on another site" if r.get("page_on_org_site") == "no" else "")
+            counts["graded"] += 1
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        list(pool.map(one_batch, [todo[i:i + batch] for i in range(0, len(todo), batch)]))
     with ws._lock(path):
         current = {(r["org_id"], r["value"].lower()): r for r in ws.read_csv(path)}
         for r in todo:
             k = (r["org_id"], r["value"].lower())
-            if k in current and r.get("graded_by") == "jev":
-                current[k].update({f: r[f] for f in ("grade", "graded_by", "grade_reason")})
+            if k in current and r.get("graded_by") == "jev" and not current[k].get("graded_by", "").startswith("agent"):
+                current[k].update({f: r[f] for f in ("grade", "graded_by", "grade_reason", "review")})
         ws.write_csv(path, ws.CONTACT_COLS, list(current.values()))
     left = sum(1 for r in ws.read_csv(path) if r.get("kind") == "email" and not r.get("grade"))
-    return {"graded": graded, "failed": failed, "still_ungraded": left}
+    review = sum(1 for r in ws.read_csv(path) if r.get("review") == "yes")
+    return {**counts, "still_ungraded": left, "to_review": review}
 
 
 def manual(pdir, updates: list[dict]) -> dict:
@@ -132,6 +166,7 @@ def manual(pdir, updates: list[dict]) -> dict:
                         if f in u:
                             r[f] = str(u[f])
                     r["graded_by"] = "agent"
+                    r["review"] = ""
                     changed += 1
         ws.write_csv(path, ws.CONTACT_COLS, rows)
     return {"updated": changed}
