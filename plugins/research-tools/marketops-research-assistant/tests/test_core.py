@@ -18,6 +18,7 @@ for k in ("SERPER_API_KEY", "SERPAPI_API_KEY", "DEEPSEEK_API_KEY", "TINYFISH_API
 
 import mo_pages  # noqa: E402
 import mo_providers  # noqa: E402
+import mo_run  # noqa: E402
 import mo_workspace as ws  # noqa: E402
 import server  # noqa: E402
 
@@ -103,7 +104,8 @@ class Flow(unittest.TestCase):
                                                      "person": "Hans Muster", "role": "Präsident"}])["updated"])
         self.assertEqual(1, server.grade("t2", set=[{"value": "hello@studio-x.ch", "grade": "X"}])["updated"])
         out = server.export("t2")
-        self.assertEqual(50.0, out["ab_orgs_per_100"])
+        self.assertEqual(50.0, out["ab_routes_per_100_orgs"])
+        self.assertTrue(Path(out["routes_csv"]).read_text(encoding="utf-8-sig").startswith("account_id,account_name"))
         with zipfile.ZipFile(out["file"]) as z:
             names = z.namelist()
             book = z.read("xl/workbook.xml").decode()
@@ -115,6 +117,57 @@ class Flow(unittest.TestCase):
         pdir = ws.project_dir("t3")
         (pdir / "venues.csv").write_text("id,name\nv1,Rasen\n", encoding="utf-8")
         self.assertIn("no Jev key", server.judge("t3", "venues.csv", "in scope?", {"yes": "y", "no": "n"}, "scope")["note"])
+
+
+class Reach(unittest.TestCase):
+    def test_cards_get_their_own_name_and_role(self):
+        html = ("<div><div class=c><a href='mailto:anna@x.ch'>Email</a><h3>Anna A</h3><p>Head of Grounds</p></div>"
+                "<div class=c><a href='mailto:ben@x.ch'>Email</a><h3>Ben B</h3><p>Welfare Officer</p></div>"
+                "<div class=c><h3>Cara</h3><a href='#'>Email</a></div></div>")
+        page = mo_pages.from_html(html, "https://x.ch/")
+        q = {c["value"]: c["quote"] for c in mo_pages.contacts(page["lines"], "https://x.ch/", blocks=page["blocks"])}
+        self.assertIn("Welfare", q["ben@x.ch"])
+        self.assertNotIn("Grounds", q["ben@x.ch"])
+        self.assertEqual(1, page["hidden_email_buttons"])
+
+    def test_saved_pages_are_not_fetched_again(self):
+        with mock.patch.object(mo_providers, "read", side_effect=fake_read) as read, \
+                mock.patch.object(mo_providers, "public_url", side_effect=lambda u: u):
+            server.fetch("t4", "https://fc-beispiel.ch/", org_id="o1", org="FC")
+            again = server.fetch("t4", "https://fc-beispiel.ch/", org_id="o1", org="FC")
+        self.assertEqual(1, read.call_count)
+        self.assertTrue(all(v.get("cached") for v in again["readers"].values()))
+
+    def test_run_digs_the_gaps_and_exports(self):
+        pdir = ws.project_dir("t5")
+        (pdir / "orgs.csv").write_text("id,name,website,batch\no1,FC Beispiel,fc-beispiel.ch,b1\n"
+                                       "o2,SC Leer,sc-leer.ch,b2\n", encoding="utf-8")
+
+        def read(url, readers=None, project_dir=None):
+            if "leer" in url and "vorstand" not in url:
+                return {"crawl4ai": {"final_url": url, "html": "<p>Willkommen</p>", "text": ""}}
+            if "sc-leer.ch/vorstand" in url:
+                return {"crawl4ai": {"final_url": url, "html": "<div><p>Platzwart</p><p>platz@sc-leer.ch</p></div>", "text": ""}}
+            return fake_read(url)
+        hits = {"results": [{"url": "https://sc-leer.ch/vorstand", "title": "SC Leer Vorstand", "found_by": ["serper"]}],
+                "routes": {}}
+        with mock.patch.object(mo_providers, "read", side_effect=read), \
+                mock.patch.object(mo_providers, "public_url", side_effect=lambda u: u), \
+                mock.patch.object(mo_providers, "search", return_value=hits), \
+                mock.patch("mo_grade.auto", side_effect=lambda p, **k: server.grade(
+                    "t5", set=[{"value": "praesident@fc-beispiel.ch", "grade": "A"},
+                               {"value": "platz@sc-leer.ch", "grade": "B"}]) if (p / "contacts.csv").exists() else {}):
+            state = mo_run.run_sync(pdir, rounds=2, workers=2)
+        values = {r["value"] for r in ws.read_csv(pdir / "contacts.csv")}
+        self.assertIn("platz@sc-leer.ch", values)  # found only by the deep round
+        self.assertTrue(state["done"])
+        self.assertEqual(100.0, state["result"]["ab_org_share"])
+        self.assertIn("every organisation", state["stopped_because"])
+        self.assertTrue(Path(state["export"]["file"]).exists())
+
+    def test_jobs_stay_in_their_project(self):
+        ws.new_job(ws.project_dir("t6"), "crawl")
+        self.assertEqual([], server.project("t7")["crawl"]["jobs"])
 
 
 class Search(unittest.TestCase):
@@ -138,7 +191,7 @@ class Search(unittest.TestCase):
 
 class Package(unittest.TestCase):
     def test_tools_and_manifest(self):
-        self.assertEqual(["project", "search", "fetch", "crawl", "browse", "judge", "grade", "export"],
+        self.assertEqual(["project", "search", "fetch", "crawl", "browse", "judge", "grade", "run", "export"],
                          [f.__name__ for f in server.TOOLS])
         manifest = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["version"], server.VERSION)

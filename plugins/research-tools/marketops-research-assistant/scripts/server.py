@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MarketOps research MCP: eight tools, one project folder, no gates.
+"""MarketOps research MCP: nine tools, one project folder, no gates.
 
 project  open/create a project folder, write the brief, see progress and costs
 search   Serper + SerpApi + DeepSeek + TinyFish at once (web or maps)
@@ -8,7 +8,10 @@ crawl    background: read many organisation sites (home + contact/people pages)
 browse   background: TinyFish Agent for pages that need clicks
 judge    Jev answers one multiple-choice question per row of any pool (in scope? own site?)
 grade    Jev grades contacts A/B/C/D/X from the brief; or set grades yourself
-export   one Excel workbook for the salesperson
+run      background long research: crawl, grade, dig the gaps round after round, export
+export   one Excel workbook (+ Bruce's 18-column routes CSV) for the salesperson
+
+Headless: python server.py run <project> [--rounds N] [--agent]
 """
 from __future__ import annotations
 
@@ -25,6 +28,7 @@ import mo_config  # noqa: E402
 import mo_export  # noqa: E402
 import mo_grade  # noqa: E402
 import mo_providers  # noqa: E402
+import mo_run  # noqa: E402
 import mo_workspace as ws  # noqa: E402
 
 try:
@@ -97,15 +101,17 @@ def fetch(project: str, url: str, readers: list[str] | str | None = None, org_id
         return _err(exc)
 
 
-def crawl(project: str, targets: list[dict] | str = "orgs.csv", max_pages: int = 6,
-          readers: list[str] | None = None, workers: int = 4) -> dict:
+def crawl(project: str, targets: list[dict] | str = "orgs.csv", max_pages: int = 15,
+          readers: list[str] | None = None, workers: int = 6) -> dict:
     """Read many organisation sites in the background and return at once.
 
     targets: "orgs.csv" (every row with id, name, website) or a list of
-    {"id", "name", "website"}. For each site: the home page, then the same-site pages
-    that look like contact, imprint, team, board or venue pages, up to max_pages; every
-    email and phone goes to contacts.csv. Already finished organisations are skipped, so
-    calling again resumes. Progress: project(name).
+    {"id", "name", "website"} (optional "priority": high/normal/low goes first). For each
+    site: the home page, then the best-scoring same-site pages two levels deep (contact,
+    imprint, team, board, staff, venue pages and PDFs), up to max_pages; every email and
+    phone goes to contacts.csv. Saved pages are never fetched twice; finished organisations
+    are skipped, so calling again resumes. Progress: project(name). For the whole job
+    (crawl, grade, dig the gaps, export) use run instead.
     """
     try:
         pdir = ws.project_dir(project)
@@ -130,12 +136,14 @@ def browse(project: str, url: str, goal: str = "", org_id: str = "", org: str = 
         return _err(exc)
 
 
-def grade(project: str, set: list[dict] | None = None, regrade: bool = False, limit: int = 200) -> dict:
+def grade(project: str, set: list[dict] | None = None, regrade: bool = False, limit: int = 0) -> dict:
     """Grade email candidates in contacts.csv.
 
     Without set: Jev grades ungraded rows from each row's quote against the brief's grades
-    (any language). With set: your own judgement, a list of {"value": email, "org_id"?,
-    "grade"?, "person"?, "role"?, "note"?}; rows you set are never regraded by Jev.
+    (any language), all of them unless limit. A/B rows that need a look (low confidence,
+    address shared with other organisations, page on another site) get review=yes. With
+    set: your own judgement, a list of {"value": email, "org_id"?, "grade"?, "person"?,
+    "role"?, "note"?}; rows you set are never regraded by Jev.
     """
     try:
         pdir = ws.project_dir(project)
@@ -159,15 +167,36 @@ def judge(project: str, file: str, question: str, options: dict, column: str,
         return _err(exc)
 
 
+def run(project: str, rounds: int = 6, max_pages: int = 15, goal_ab_per_100: float | None = None,
+        agent: bool = False) -> dict:
+    """Long research in the background, without stopping: the whole orgs.csv to graded contacts.
+
+    Round 0 crawls every site and grades. Each further round takes the organisations still
+    without A/B and digs a different way (the market's words from brief.focus.search_terms,
+    inside the site and its PDFs, third-party directories from focus.directory_terms, maps,
+    broad searches), reads what it finds and grades again. Stops at goal_ab_per_100 (A+B
+    routes per 100 organisations), after two rounds with no new A/B organisation, or after
+    `rounds`; then exports. agent=True also lets the TinyFish Agent open pages whose email
+    buttons hide the address (paid per step). Resumable; progress in project(name).run.
+    """
+    try:
+        return mo_run.run(ws.project_dir(project), rounds=rounds, max_pages=max_pages,
+                          goal_ab_per_100=goal_ab_per_100, agent=agent)
+    except Exception as exc:  # noqa: BLE001
+        return _err(exc)
+
+
 def export(project: str) -> dict:
-    """Write the Excel workbook: summary, contacts (A first, each with page and quote), organisations, venues, costs."""
+    """Write the Excel workbook (summary with clearly defined metrics, per-batch table, contacts A
+    first with page, quote and review flag, organisations, venues, costs, X rows) and Bruce's
+    18-column routes CSV."""
     try:
         return mo_export.export(ws.project_dir(project))
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
 
 
-TOOLS = (project, search, fetch, crawl, browse, judge, grade, export)
+TOOLS = (project, search, fetch, crawl, browse, judge, grade, run, export)
 
 
 def check() -> int:
@@ -188,9 +217,28 @@ def check() -> int:
     return 1 if problems else 0
 
 
+def headless(argv: list[str]) -> int:
+    """python server.py run <project> [--rounds N] [--max-pages N] [--goal X] [--agent]"""
+    import argparse
+    ap = argparse.ArgumentParser(prog="server.py run")
+    ap.add_argument("project")
+    ap.add_argument("--rounds", type=int, default=6)
+    ap.add_argument("--max-pages", type=int, default=15)
+    ap.add_argument("--goal", type=float, default=None)
+    ap.add_argument("--agent", action="store_true")
+    a = ap.parse_args(argv)
+    state = mo_run.run_sync(ws.project_dir(a.project), rounds=a.rounds, max_pages=a.max_pages,
+                            goal_ab_per_100=a.goal, agent=a.agent)
+    print(json.dumps({k: state.get(k) for k in ("stopped_because", "result", "export", "history")},
+                     ensure_ascii=False, indent=1))
+    return 0
+
+
 def main() -> None:
     if "--check" in sys.argv:
         raise SystemExit(check())
+    if len(sys.argv) > 1 and sys.argv[1] == "run":
+        raise SystemExit(headless(sys.argv[2:]))
     from mcp.server import MCPServer
     server = MCPServer("MarketOps Research", version=VERSION)
     for fn in TOOLS:

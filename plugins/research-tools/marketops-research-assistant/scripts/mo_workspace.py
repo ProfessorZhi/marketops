@@ -30,12 +30,15 @@ import mo_pages
 import mo_providers
 
 CONTACT_COLS = ["org_id", "org", "kind", "value", "person", "role", "grade", "grade_reason",
-                "graded_by", "mailbox", "same_site", "email_site", "page_url", "found_by",
-                "quote", "note", "added"]
+                "graded_by", "review", "mailbox", "same_site", "email_site", "page_site", "page_on_org_site",
+                "page_url", "found_by", "quote", "quote_from", "note", "added"]
 PAGE_COLS = ["url", "final_url", "reader", "file", "chars", "org_id", "time"]
-CRAWL_COLS = ["org_id", "org", "website", "status", "pages", "emails", "readers_ok", "note", "time"]
+CRAWL_COLS = ["org_id", "org", "website", "status", "pages", "emails", "readers_ok", "email_buttons",
+              "pass", "note", "time"]
 AGENT_COLS = ["run_id", "url", "goal", "org_id", "status", "file", "time"]
-DATA_EXT = re.compile(r"\.(csv|json|geojson|xlsx?|pdf|zip|xml|txt)(\?|$)|/exports?/|/api/|format=(csv|json)", re.I)
+DATA_EXT = re.compile(r"\.(csv|json|geojson|xlsx?|zip|xml|txt)(\?|$)|/exports?/|/api/|format=(csv|json)", re.I)
+PDF = re.compile(r"\.pdf(\?|$)", re.I)
+_page_index: dict[str, dict[str, list[dict]]] = {}
 
 _locks: dict[str, threading.Lock] = {}
 _jobs: dict[str, dict] = {}
@@ -99,10 +102,21 @@ def brief(pdir: Path) -> dict:
 def _save(pdir: Path, url: str, reader: str, body: bytes, ext: str, final_url: str, org_id: str) -> str:
     name = hashlib.sha256(url.encode()).hexdigest()[:16] + f".{reader}.{ext}"
     (pdir / "pages" / name).write_bytes(body)
-    append_csv(pdir / "pages.csv", PAGE_COLS, {"url": url, "final_url": final_url, "reader": reader,
-                                               "file": "pages/" + name, "chars": len(body),
-                                               "org_id": org_id, "time": _now()})
+    row = {"url": url, "final_url": final_url, "reader": reader, "file": "pages/" + name,
+           "chars": len(body), "org_id": org_id, "time": _now()}
+    append_csv(pdir / "pages.csv", PAGE_COLS, row)
+    _pages(pdir).setdefault(url, []).append(row)
     return "pages/" + name
+
+
+def _pages(pdir: Path) -> dict[str, list[dict]]:
+    key = str(pdir)
+    if key not in _page_index:
+        index: dict[str, list[dict]] = {}
+        for r in read_csv(pdir / "pages.csv"):
+            index.setdefault(r["url"], []).append(r)
+        _page_index[key] = index
+    return _page_index[key]
 
 
 def merge_contacts(pdir: Path, found: list[dict], org_id: str = "", org: str = "") -> int:
@@ -126,86 +140,123 @@ def merge_contacts(pdir: Path, found: list[dict], org_id: str = "", org: str = "
             else:
                 by = set(filter(None, row.get("found_by", "").split("+"))) | set(filter(None, c.get("found_by", "").split("+")))
                 row["found_by"] = "+".join(sorted(by))
-                if len(c.get("quote", "")) > len(row.get("quote", "")) and not row.get("graded_by", "").startswith("agent"):
-                    row["quote"], row["page_url"] = c["quote"], c["page_url"]
+                better = (c.get("quote_from") == "block") > (row.get("quote_from") == "block") or (
+                    c.get("quote_from") == row.get("quote_from") and len(c.get("quote", "")) > len(row.get("quote", "")))
+                if better and not row.get("graded_by", "").startswith("agent"):
+                    for f in ("quote", "quote_from", "page_url", "page_site", "page_on_org_site"):
+                        row[f] = c.get(f, row.get(f, ""))
         write_csv(path, CONTACT_COLS, rows)
     return added
 
 
+def _download(pdir: Path, url: str, org_id: str) -> dict:
+    report = {}
+    try:
+        got = mo_providers.download(url)
+        ext = (re.search(r"\.(\w{2,5})(\?|$)", urllib.parse.urlsplit(got["final_url"]).path) or [None, "bin"])[1]
+        for kind in ("json", "csv", "html"):
+            if kind in got["content_type"]:
+                ext = kind
+        f = _save(pdir, url, "download", got["bytes"], ext, got["final_url"], org_id)
+        mo_budget.record(pdir, "download", "fetch", True, url[:120])
+        report["download"] = {"file": f, "bytes": len(got["bytes"]), "type": got["content_type"]}
+    except Exception as exc:  # noqa: BLE001
+        report["download"] = {"error": f"{type(exc).__name__}: {exc}"[:160]}
+    return {"url": url, "readers": report, "contacts": [], "links": [], "text": ""}
+
+
+def _parse_saved(pdir: Path, row: dict) -> dict:
+    body = (pdir / row["file"]).read_text(encoding="utf-8", errors="replace")
+    if row["file"].endswith(".html"):
+        return mo_pages.from_html(body, row["final_url"] or row["url"])
+    return mo_pages.from_markdown(body, row["final_url"] or row["url"])
+
+
 def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
-          org_site: str = "") -> dict:
-    """Read a page with every chosen reader at once; save each version; collect contacts."""
+          org_site: str = "", refresh: bool = False) -> dict:
+    """Read a page with every chosen reader at once; save each version; collect contacts.
+
+    A URL already read in this project is parsed from its saved copies (no new calls)
+    unless refresh. PDFs go to the readers that can read them (TinyFish, DeepSeek).
+    """
     url = mo_providers.public_url(url)
     if readers in (None, "auto", "all", []) and DATA_EXT.search(url):
         readers = ["download"]
     readers = readers if isinstance(readers, list) else (None if readers in (None, "auto", "all") else [readers])
-    report, texts, links = {}, {}, []
     if readers == ["download"]:
-        try:
-            got = mo_providers.download(url)
-            ext = (re.search(r"\.(\w{2,5})(\?|$)", urllib.parse.urlsplit(got["final_url"]).path) or [None, "bin"])[1]
-            if "json" in got["content_type"]:
-                ext = "json"
-            elif "csv" in got["content_type"]:
-                ext = "csv"
-            elif "html" in got["content_type"]:
-                ext = "html"
-            f = _save(pdir, url, "download", got["bytes"], ext, got["final_url"], org_id)
-            mo_budget.record(pdir, "download", "fetch", True, url[:120])
-            report["download"] = {"file": f, "bytes": len(got["bytes"]), "type": got["content_type"]}
-            if ext == "html":
-                parsed = mo_pages.from_html(got["bytes"].decode("utf-8", "replace"), got["final_url"])
-                texts["download"], links = parsed["lines"], parsed["links"]
-            elif ext in ("txt",):
-                texts["download"] = got["bytes"].decode("utf-8", "replace").splitlines()
-        except Exception as exc:  # noqa: BLE001
-            report["download"] = {"error": f"{type(exc).__name__}: {exc}"[:160]}
-        return {"url": url, "readers": report, "contacts": [], "links": [], "text": ""}
-    results = mo_providers.read(url, readers, project_dir=pdir)
-    for reader, res in results.items():
-        if "error" in res:
-            report[reader] = {"error": res["error"]}
-            continue
-        if res.get("html"):
-            f = _save(pdir, url, reader, res["html"].encode("utf-8"), "html", res["final_url"], org_id)
-            parsed = mo_pages.from_html(res["html"], res["final_url"])
-        else:
-            f = _save(pdir, url, reader, res["text"].encode("utf-8"), "md", res["final_url"], org_id)
-            parsed = mo_pages.from_markdown(res["text"], res["final_url"])
-        texts[reader] = parsed["lines"]
-        links += parsed["links"]
-        report[reader] = {"file": f, "chars": sum(map(len, parsed["lines"])), "final_url": res["final_url"]}
+        return _download(pdir, url, org_id)
+    if readers is None and PDF.search(url):
+        readers = [r for r in ("tinyfish", "deepseek") if mo_config.key(r)] or ["crawl4ai"]
+    report, parsed_by = {}, {}
+    saved = [] if refresh else [r for r in _pages(pdir).get(url, []) if r["reader"] != "download"]
+    if saved:
+        for row in saved:
+            try:
+                parsed_by[row["reader"]] = _parse_saved(pdir, row)
+                report[row["reader"]] = {"file": row["file"], "cached": True}
+            except OSError:
+                continue
+    if not parsed_by:
+        for reader, res in mo_providers.read(url, readers, project_dir=pdir).items():
+            if "error" in res:
+                report[reader] = {"error": res["error"]}
+                continue
+            if res.get("html"):
+                f = _save(pdir, url, reader, res["html"].encode("utf-8"), "html", res["final_url"], org_id)
+                parsed = mo_pages.from_html(res["html"], res["final_url"])
+            else:
+                f = _save(pdir, url, reader, res["text"].encode("utf-8"), "md", res["final_url"], org_id)
+                parsed = mo_pages.from_markdown(res["text"], res["final_url"])
+            parsed_by[reader] = parsed
+            report[reader] = {"file": f, "chars": sum(map(len, parsed["lines"])), "final_url": res["final_url"]}
+    page_site = mo_pages.site_of(url)
+    org_site = org_site or page_site
     found: dict[str, dict] = {}
-    for reader, lines in texts.items():
-        for c in mo_pages.contacts(lines, url, org_site or mo_pages.site_of(url)):
+    links: list = []
+    buttons = 0
+    for reader, parsed in parsed_by.items():
+        links += parsed["links"]
+        buttons = max(buttons, parsed.get("hidden_email_buttons", 0))
+        for c in mo_pages.contacts(parsed["lines"], url, org_site, parsed.get("blocks")):
+            c.update(page_site=page_site, page_on_org_site="yes" if page_site == org_site else "no")
             k = c["value"].lower()
             if k in found:
                 found[k]["found_by"] = "+".join(sorted(set(found[k]["found_by"].split("+")) | {reader}))
-                if len(c["quote"]) > len(found[k]["quote"]):
-                    found[k]["quote"] = c["quote"]
+                if (c["quote_from"] == "block") > (found[k]["quote_from"] == "block"):
+                    found[k]["quote"], found[k]["quote_from"] = c["quote"], "block"
             else:
                 found[k] = {**c, "found_by": reader}
     contacts = list(found.values())
     added = merge_contacts(pdir, contacts, org_id, org) if (org_id or org) else 0
-    best = max(texts.values(), key=lambda ls: sum(map(len, ls)), default=[])
+    best = max((p["lines"] for p in parsed_by.values()), key=lambda ls: sum(map(len, ls)), default=[])
+    emails_seen = sum(c["kind"] == "email" for c in contacts)
     return {"url": url, "readers": report, "contacts": contacts, "contacts_added": added,
-            "links": mo_pages.contact_links(links, url), "links_total": len(links),
+            "links": mo_pages.contact_links(links, url, limit=25),
+            "scored_links": mo_pages.contact_links(links, url, limit=25, scores=True),
+            "links_total": len(links), "email_buttons_without_address": max(0, buttons - emails_seen),
             "text": "\n".join(best)}
 
 
 # ------------------------------------------------------------------ crawl jobs
-def _crawl_one(pdir: Path, t: dict, max_pages: int, readers) -> dict:
+def _crawl_one(pdir: Path, t: dict, max_pages: int, readers, extra: list[str] | None = None,
+               label: str = "site") -> dict:
+    """Read one organisation's site: home, then the best-scoring same-site pages two levels
+    deep (contact, imprint, team, board, staff, venue pages and PDFs), up to max_pages."""
+    import heapq
     org_id, org, site = str(t.get("id") or t.get("org_id") or ""), str(t.get("name") or t.get("org") or ""), \
         str(t.get("website") or t.get("url") or "").strip()
-    row = {"org_id": org_id, "org": org, "website": site, "time": _now()}
-    if not site:
+    row = {"org_id": org_id, "org": org, "website": site, "time": _now(), "pass": label}
+    if not site and not extra:
         return {**row, "status": "no_website"}
-    if not site.startswith(("http://", "https://")):
+    if site and not site.startswith(("http://", "https://")):
         site = "https://" + site
-    org_site = mo_pages.site_of(site)
-    seen, queue, pages, emails, ok_readers, notes = set(), [site], 0, 0, set(), []
-    while queue and pages < max_pages:
-        url = queue.pop(0)
+    org_site = mo_pages.site_of(site) if site else ""
+    heap: list = []
+    for n, u in enumerate(([site] if site else []) + (extra or [])):
+        heapq.heappush(heap, (-100 + n, 0, u))
+    seen, pages, emails, ok_readers, notes, buttons = set(), 0, 0, set(), [], 0
+    while heap and pages < max_pages:
+        _neg, depth, url = heapq.heappop(heap)
         if url in seen:
             continue
         seen.add(url)
@@ -214,37 +265,75 @@ def _crawl_one(pdir: Path, t: dict, max_pages: int, readers) -> dict:
         except Exception as exc:  # noqa: BLE001
             notes.append(f"{url[:60]}: {exc}"[:100])
             if pages == 0 and url.startswith("https://") and "://www." not in url:
-                queue.insert(0, url.replace("https://", "https://www.", 1))
+                heapq.heappush(heap, (-100, 0, url.replace("https://", "https://www.", 1)))
+            continue
+        ok = [r for r, v in got["readers"].items() if "error" not in v]
+        if not ok:
+            if pages == 0 and url == site:
+                notes.append("no reader could open the home page")
             continue
         pages += 1
-        ok = [r for r, v in got["readers"].items() if "error" not in v]
         ok_readers |= set(ok)
         emails += sum(c["kind"] == "email" for c in got["contacts"])
-        if not ok and pages == 1:
-            notes.append("no reader could open the home page")
-        if pages == 1:
-            queue += [u for u in got["links"] if u not in seen]
+        if got["email_buttons_without_address"] >= 3:
+            buttons += got["email_buttons_without_address"]
+            notes.append(f"{got['email_buttons_without_address']} email buttons without address on {url[:80]}: try browse")
+        if depth < 2 and mo_pages.site_of(url) == (org_site or mo_pages.site_of(url)):
+            for link, score in got["scored_links"]:
+                if link not in seen:
+                    heapq.heappush(heap, (-score + depth, depth + 1, link))
     status = "done" if ok_readers else "unreadable"
-    return {**row, "status": status, "pages": pages, "emails": emails,
-            "readers_ok": "+".join(sorted(ok_readers)), "note": "; ".join(notes)[:300]}
+    return {**row, "status": status, "pages": pages, "emails": emails, "email_buttons": buttons,
+            "readers_ok": "+".join(sorted(ok_readers)), "note": "; ".join(notes)[:400]}
 
 
-def crawl(pdir: Path, targets: list[dict], max_pages: int = 6, readers=None, workers: int = 4) -> dict:
+def _ordered(targets: list[dict]) -> list[dict]:
+    rank = {"high": 0, "1": 0, "normal": 1, "": 1, "2": 1, "low": 2, "3": 2}
+    return sorted(targets, key=lambda t: rank.get(str(t.get("priority", "")).strip().lower(), 1))
+
+
+def _todo(pdir: Path, targets: list[dict], label: str) -> list[dict]:
+    done = {(r["org_id"], r.get("pass") or "site") for r in read_csv(pdir / "crawl.csv")
+            if r.get("status") in ("done", "no_website")}
+    return [t for t in _ordered(targets) if (str(t.get("id") or t.get("org_id") or ""), label) not in done]
+
+
+def crawl_sync(pdir: Path, targets: list[dict], max_pages: int = 15, readers=None, workers: int = 6,
+               job: dict | None = None, label: str = "site", extra_urls: dict | None = None) -> int:
+    todo = _todo(pdir, targets, label)
+    if job is not None:
+        job.update(total=job.get("total", 0) + len(todo), stage=label)
+
+    def one(t):
+        oid = str(t.get("id") or t.get("org_id") or "")
+        return _crawl_one(pdir, t, max_pages, readers, (extra_urls or {}).get(oid), label)
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for result in pool.map(one, todo):
+            append_csv(pdir / "crawl.csv", CRAWL_COLS, result)
+            if job is not None:
+                job["finished"] = job.get("finished", 0) + 1
+    return len(todo)
+
+
+def crawl(pdir: Path, targets: list[dict], max_pages: int = 15, readers=None, workers: int = 6) -> dict:
     """Start crawling organisation sites in the background; returns at once."""
-    done = {r["org_id"] for r in read_csv(pdir / "crawl.csv") if r.get("status") in ("done", "no_website")}
-    todo = [t for t in targets if str(t.get("id") or t.get("org_id") or "") not in done]
-    job_id = "crawl-" + hashlib.sha256(f"{pdir}{time.time()}".encode()).hexdigest()[:8]
-    job = {"id": job_id, "total": len(todo), "finished": 0, "running": True, "started": _now()}
-    _jobs[job_id] = job
+    job = new_job(pdir, "crawl")
+    queued = len(_todo(pdir, targets, "site"))
 
     def work():
-        with ThreadPoolExecutor(max_workers=workers) as pool:
-            for result in pool.map(lambda t: _crawl_one(pdir, t, max_pages, readers), todo):
-                append_csv(pdir / "crawl.csv", CRAWL_COLS, result)
-                job["finished"] += 1
-        job["running"] = False
-    threading.Thread(target=work, daemon=True, name=job_id).start()
-    return {"job": job_id, "queued": len(todo), "skipped_already_done": len(targets) - len(todo)}
+        try:
+            crawl_sync(pdir, targets, max_pages, readers, workers, job)
+        finally:
+            job["running"] = False
+    threading.Thread(target=work, daemon=True, name=job["id"]).start()
+    return {"job": job["id"], "queued": queued, "skipped_already_done": len(targets) - queued}
+
+
+def new_job(pdir: Path, kind: str) -> dict:
+    job = {"id": f"{kind}-" + hashlib.sha256(f"{pdir}{time.time()}".encode()).hexdigest()[:8],
+           "project": str(pdir), "total": 0, "finished": 0, "running": True, "started": _now()}
+    _jobs[job["id"]] = job
+    return job
 
 
 # ------------------------------------------------------------------ TinyFish Agent
@@ -309,7 +398,7 @@ def status(pdir: Path) -> dict:
         orgs_with.setdefault(g, set()).add(c.get("org_id"))
     crawl = read_csv(pdir / "crawl.csv")
     agent = refresh_agent_runs(pdir) if (pdir / "agent.csv").exists() else []
-    jobs = [j for j in _jobs.values() if j.get("id", "").startswith("crawl-")]
+    jobs = [j for j in _jobs.values() if j.get("project") == str(pdir)]
     return {
         "project": str(pdir), "brief": brief(pdir) or "missing: write brief.json (see skill)",
         "files": sorted(p.name for p in pdir.iterdir() if p.is_file()),
@@ -318,10 +407,18 @@ def status(pdir: Path) -> dict:
                      "orgs_by_grade": {g: len(s) for g, s in orgs_with.items()},
                      "phones": sum(c.get("kind") == "phone" for c in contacts)},
         "crawl": {"orgs": len(crawl), "by_status": _count(crawl, "status"),
-                  "jobs": [{k: j[k] for k in ("id", "total", "finished", "running")} for j in jobs]},
+                  "jobs": [{k: j.get(k) for k in ("id", "total", "finished", "running", "stage")} for j in jobs]},
+        "run": _run_state(pdir),
         "agent_runs": _count(agent, "status"),
         "costs": mo_budget.summary(pdir),
     }
+
+
+def _run_state(pdir: Path) -> dict | None:
+    try:
+        return json.loads((pdir / "run.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
 
 
 def _count(rows, field):
