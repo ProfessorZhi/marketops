@@ -57,10 +57,15 @@
   and do not batch-crawl clubs.
 - Research the operating body rather than the pitch: grounds / estates / facilities / venue
   operations leads.
-- Golf, artificial turf and indoor sites are out of this line.
+- Artificial turf is in scope from 2026-09-21 ("只要是户外的运动场都可以"), which reverses the
+  2026-09-03 exclusion ("排除人造草坪，室内场景"): outdoor artificial-turf pitches count, indoor sites
+  do not.
 - A/B/C/D all mean "a researched, follow-up-valid route"; D stays in the table and is marked,
   never relabelled as a named contact.
-- One pipeline with four stages, not four parallel process variants; classify into the delivery
-  table at the end. Complexity alone was named as the cause of low throughput.
+- One pipeline end to end, not four parallel process variants; classify into the delivery table
+  at the end. Complexity alone was named as the cause of low throughput (2026-09-21).
+
+### Outreach (not this plugin)
+
 - When counting effective replies, apply his 16-type exclusion list; a reply that names a
   replacement contact is a routing event, not just a reply.

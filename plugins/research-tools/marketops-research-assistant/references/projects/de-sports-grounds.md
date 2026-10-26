@@ -38,8 +38,12 @@
 
 - The 16 Länder run as parallel sub-threads under one main agent, not one long serial run.
 - Do not recreate an existing skill, and do not start live research until he approves it.
-- On error: record, skip, continue; report to the thread; retry after the wave.
 - Anything needing his decision is batched into one numbered list in the thread and answered in
   one reply.
-- Reply-monitoring interval was set to 12 h, then 6 h - a setting, and it is changed often.
+
+### Outreach (not this plugin)
+
+- On error: record, skip, continue; report to the thread; retry after the wave.
+- Reply-monitoring interval moved between 2 h, 3 h, 6 h and 12 h; the latest is 12 h
+  (2026-09-16). It is a setting, and he changes it often.
 - A replacement contact named in a reply is itself a new route and is sent to as well.
