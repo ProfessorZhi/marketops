@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import ipaddress
+import re
 import socket
 import threading
 import urllib.parse
@@ -48,6 +49,23 @@ UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chr
 
 class ProviderError(Exception):
     pass
+
+
+TRANSIENT = re.compile(r"HTTP (429|5\d\d)|timed? ?out|Timeout|ConnectError|ConnectionReset|RemoteProtocolError", re.I)
+TRANSIENT_FAST = re.compile(r"HTTP (429|5\d\d)|ConnectError|ConnectionReset|RemoteProtocolError", re.I)
+
+
+def _again(call, tries: int = 2, wait: float = 3.0, transient=TRANSIENT):
+    """A rate limit, a server error or a dropped connection is tried once more after a pause -
+    a site that failed once is not a dead site."""
+    import time
+    for n in range(tries):
+        try:
+            return call()
+        except Exception as exc:  # noqa: BLE001
+            if n == tries - 1 or not transient.search(f"{type(exc).__name__} {exc}"):
+                raise
+            time.sleep(wait * (n + 1))
 
 
 def _check_money(provider: str, response: httpx.Response) -> None:
@@ -172,7 +190,7 @@ def search(query: str, engines=None, country: str = "", lang: str = "", n: int =
         if not ok:
             return engine, None, why
         try:
-            rows = _SEARCH[engine](query, country, lang, n, maps)
+            rows = _again(lambda: _SEARCH[engine](query, country, lang, n, maps))
             mo_budget.record(project_dir, engine, "search", True, query[:80])
             mo_library.put_search(key, rows)
             return engine, rows, ""
@@ -314,7 +332,8 @@ def read(url: str, readers=None, project_dir=None) -> dict:
         if not ok:
             return reader, {"error": "skipped: " + why}
         try:
-            res = _READ[reader](url)
+            # a page that timed out in the browser is not read again (it already took 30 s)
+            res = _again(lambda: _READ[reader](url), transient=TRANSIENT_FAST if reader == "crawl4ai" else TRANSIENT)
             mo_budget.record(project_dir, reader, "fetch", True, url[:120])
             return reader, res
         except Exception as exc:  # noqa: BLE001 - each reader fails on its own
@@ -364,8 +383,23 @@ def read_race(url: str, readers=None, project_dir=None, grace: float = 3.0, on_l
                 first_ok = time.time()
     for f in pending:
         if on_late:
-            f.add_done_callback(lambda f, r=futs[f]: on_late(r, result(f, r)))
+            with _POOLS_LOCK:
+                _LATE.add(f)
+            f.add_done_callback(lambda f, r=futs[f]: (on_late(r, result(f, r)), _LATE.discard(f)))
     return out
+
+
+_LATE: set = set()
+
+
+def drain(timeout: float = 90) -> int:
+    """Wait for readers still finishing in the background (their contacts are merged when they
+    land) so a run's final export has them. Returns how many were still out at the end."""
+    import time
+    end = time.time() + timeout
+    while _LATE and time.time() < end:
+        time.sleep(0.5)
+    return len(_LATE)
 
 
 # ---------------------------------------------------------------- TinyFish MCP (Agent, wallet)

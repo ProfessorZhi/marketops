@@ -62,7 +62,10 @@
 
 **模拟结果**（法国场景 120 家，与本版第一个提交对比）：同样 12 路并发，每分钟 30.7 → 36.9 家，找到的 A/B 机构 47 → 62（共 62 家，零误报），其中俱乐部 5 → 20；默认改 24 路后约每分钟 77 家（240 家规模，127 家全部找到）。巴黎场景同样全部找到。消融：关掉深挖快一倍，但俱乐部的 A/B 少一半以上，保留。
 
-**Skill**：拆成四个——`marketops-research`（流程）、`marketops-brief`（简报、评级、各国岗位词、交付规则）、`marketops-sources`（各国数据源、各类来源产出、有效方法）、`marketops-benchmarks`（两道常设测试题和找卡点的方法）；Bruce 六个项目的经验在 `references/PROJECTS.md`。
+**业务知识**（来自 Bruce 会话分析 `marketops-session`，每个数字有出处，删掉了没有出处的产出率表）：
+- 五个 skill：`marketops-research`（流程，含 Bruce 踩过的坑）、`marketops-brief`（客户/竞品、评级、各国岗位词、交付规则）、`marketops-sources`（建池通道顺序、页面类型产出、来源止损规则、各国起点）、`marketops-tools`（各家搜索/读页/Jev/Agent 怎么用、Bruce 最常用的查询写法）、`marketops-benchmarks`（两道常设题、投入按轮次和人工消息计）。
+- `references/projects/`：每条业务线一个文件（法国天然草、英国球场与学校、美国运动场、德国、瑞士、全球高尔夫、其他线），统一模板；新项目结束后用 `/marketops-research-assistant:learn <项目>` 把来源产出、有效页面、岗位词、纠正和基准追加进去，以后的项目自动从这里起步。
+- 由此改的代码：人员页（staff/team/board/bureau/Vorstand）优先于联系页、首页（Bruce 实测每百页 A/B 1.73 : 0.18 : 0.08）；跟进俱乐部托管平台上的页面；429/5xx/断连自动重试一次（失败一次不等于死站）；来源跑满 30 家后按 A/B 产出分配名额（≥10% 加倍，<5% 排最后，不丢）。
 
 更早版本（0.6.0–0.6.3）见 git 历史和 Release 说明。
 
@@ -73,4 +76,4 @@
 - 结果先放宽：域外邮箱、X 级都保留并打上标签，以后可以再收窄。
 - 每次调用都记账；每个付费账户以首次读到余额的 10% 为红线，低于红线就跳过这家，其他照常跑。没有别的上限。
 
-业务经验见 `skills/` 和 [Bruce 的六个项目](references/PROJECTS.md)。
+业务经验见 `skills/` 和 [`references/projects/`](references/projects/README.md)。

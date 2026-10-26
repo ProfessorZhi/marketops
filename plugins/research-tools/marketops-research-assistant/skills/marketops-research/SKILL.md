@@ -9,9 +9,12 @@ You do the research; the tools give you reach. One project folder (`~/MarketOps/
 plain files you can open. Keep going until the job is done; do not stop to ask.
 
 Before you start, read the other skills when you need them:
-- **marketops-brief**: write the brief - grades, the market's job titles, delivery rules.
-- **marketops-sources**: where the people are in each market, and which sources to pool first.
-- **marketops-benchmarks**: the two standing tests and how to read speed and yield.
+- **marketops-brief**: write the brief - customer, grades, the market's job titles, delivery rules.
+- **marketops-sources**: which sources and pages to use first, and when to stop a source.
+- **marketops-tools**: how to phrase searches and get each provider to work.
+- **marketops-benchmarks**: the two standing tests and how to find what slows or loses results.
+- `references/projects/`: what each market and line taught in earlier projects (Bruce's and
+  ours); read the matching file first, and run the `learn` command when a project ends.
 
 ## Five pools, filled at the same time
 
@@ -55,8 +58,10 @@ Every pool is a union - the same venue or organisation from two sources is one r
    - while it has no confirmed A/B, a different dig each round: your search terms, its site
      and PDFs, directories and federation pages, maps, broad searches;
    - its A/B evidence corroborated.
-   Sources take turns, so a source pooled late is not stuck at the back. With `focus.find`
-   and `focus.areas` a discovery line keeps adding organisations while this runs.
+   Sources take turns, so a source pooled late is not stuck at the back; after 30 organisations
+   a source with >=10% A/B gets two turns, one under 5% waits until the others are empty
+   (`project()` shows each source's yield). With `focus.find` and `focus.areas` a discovery
+   line keeps adding organisations while this runs.
 4. **Workers in parallel**: start 3-6 `marketops-worker` subagents with the project name;
    give them sources to pool (`tasks(action="add", title="pool: <source>")`) and, as the run
    goes, `tasks(action="plan", kind="dig" | "review" | "evidence" | "browse")`.
@@ -78,6 +83,21 @@ A source with near-zero yield after ~30 organisations: stop adding from it, find
 To test a stage, switch it off and rerun on the same project (pages and searches come from
 the library, almost free): `brief.ablate = ["dig", "evidence", "reverify", "rank",
 "discover", "findsite"]` (any of them).
+
+## What went wrong for Bruce, and how this avoids it
+
+- **Green but empty**: status fields said done while nothing was on disk. Judge by what is on
+  disk: contacts, pages, the workbook - never by a "completed" line.
+- **Silent drops**: a stage produced results that never reached the delivery table (953 real
+  municipal addresses in one case). Every organisation must end with contacts or a reason;
+  when the pool is large and the output tiny, find the stage whose output was not merged.
+- **Endless pools**: 128,685 organisations, nothing sendable. Measure each source and move on.
+- **Progress in pages**: 220 pages gave 5 routes. Report organisations with A/B and routes,
+  and attempts next to pages.
+- **Heartbeats instead of work**: polling every few minutes added 8 pages in 14 minutes. Start
+  the run, let it work, look at `project()` when there is something to decide.
+- **Definitions settled late**: most of Bruce's interventions were definitions. Settle them in
+  the brief; a correction updates the brief and the project's knowledge file.
 
 ## Nothing starts from zero
 

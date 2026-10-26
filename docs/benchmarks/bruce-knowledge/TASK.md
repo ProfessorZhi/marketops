@@ -1,9 +1,13 @@
 # Task: extract Bruce's business knowledge for the plugin skills
 
-Runs on the machine that holds Bruce's corpus. The output feeds
-`references/PROJECTS.md` and the `marketops-brief` / `marketops-sources` skills.
+Runs on the machine that holds Bruce's corpus. The output feeds the per-line files in the
+plugin's `references/projects/` (same template as `references/projects/README.md`) and, for
+rules every project needs, the `marketops-brief` / `marketops-sources` / `marketops-tools`
+skills. The first pass from the existing `marketops-session` analysis is already in those
+files; this task fills what that analysis does not have (title counts per market, source
+yields for UK, US and Germany).
 
-## What to extract (per project, the six in PROJECTS.md)
+## What to extract (per line, the files in references/projects/)
 
 1. **Job titles** that Bruce graded A or B, in the market's language, with the grade and how
    often (counts only). Also titles he graded C, D or X when he had to correct himself.
@@ -27,8 +31,8 @@ Runs on the machine that holds Bruce's corpus. The output feeds
 
 ## Output
 
-`docs/benchmarks/bruce-knowledge/KNOWLEDGE.md`, one section per project, tables and short
-bullets. Allowed: counts, batch numbers, job titles, source and page-type names, rule texts.
+Edits to the files in `plugins/research-tools/marketops-research-assistant/references/projects/`,
+in their template's sections, with the source file for every number. Allowed: counts, batch numbers, job titles, source and page-type names, rule texts.
 **Never**: names of the researched organisations, person names, email addresses, phone numbers, account ids.
 Check the file with a scan for `@`, digits runs of 6+, and capitalised name pairs before
 committing; open it as a PR against `main`.

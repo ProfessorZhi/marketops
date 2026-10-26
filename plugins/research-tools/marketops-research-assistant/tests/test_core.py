@@ -259,6 +259,24 @@ class Reach(unittest.TestCase):
         self.assertEqual(3, len(orgs))                                           # BLOC SAS = Bloc SAS
         self.assertEqual("Paris", next(o for o in orgs.values() if norm_name(o["name"]) == "bloc sas")["city"])
 
+    def test_organisations_merge_on_name_and_place_not_on_domain(self):
+        import mo_pool
+        pdir = ws.project_dir("t22")
+        mo_pool.add_orgs(pdir, [{"name": "Gymnase Jean Jaurès", "website": "https://www.paris.fr/lieux/gymnase-jean-jaures-1"},
+                                {"name": "Club Hugo", "website": "https://clubhugo.clubeo.com/"},
+                                {"name": "Stade Municipal", "city": "Lyon", "website": "https://lyon.fr/stade-a"}], "s1", "maps")
+        out = mo_pool.add_orgs(pdir, [
+            {"name": "Gymnase Pasteur", "website": "https://www.paris.fr/lieux/gymnase-pasteur-2"},   # same portal
+            {"name": "Club Zola", "website": "https://clubzola.clubeo.com/"},                      # same platform
+            {"name": "Stade Municipal", "city": "Lyon", "website": "https://lyon.fr/stade-b"},     # same name, other site
+            {"name": "Gymnase Jean-Jaures", "website": "https://paris.fr/lieux/gymnase-jean-jaures-1/"},  # same org
+            {"name": "Club Hugo", "website": "https://clubhugo.clubeo.com/page/contact"}],          # same org, inner page
+            "s2", "list page")
+        self.assertEqual((3, 2), (out["orgs_added"], out["orgs_merged"]))
+        orgs = ws.read_csv(pdir / "orgs.csv")
+        self.assertEqual(6, len(orgs))
+        self.assertEqual(6, len({o["id"] for o in orgs}))                    # every organisation its own id
+
     def test_stop_without_a_run_says_so(self):
         self.assertFalse(server.run("t9", stop=True)["stopped"])
 
@@ -417,6 +435,23 @@ class Reach(unittest.TestCase):
         self.assertEqual("search", ws.read_csv(pdir / "orgs.csv")[0]["website_from"])
         self.assertTrue(mo_run._mentions("Union Sportive Jean-Jaurès", "UNION SPORTIVE JEAN JAURES — Président"))
         self.assertFalse(mo_run._mentions("Union Sportive Jean-Jaurès", "Stade Pasteur"))
+
+    def test_people_pages_first_and_hosted_club_pages_followed(self):
+        links = [("https://fc-x.fr/", "Accueil"), ("https://fc-x.fr/contact", "Contact"),
+                 ("https://fc-x.fr/le-bureau", "Le bureau du club"), ("https://fc-x.fr/terrains", "Nos terrains sport"),
+                 ("https://fcx.clubeo.com/page/comite", "Comité"), ("https://other-club.fr/contact", "Contact")]
+        ranked = mo_pages.contact_links(links, "https://fc-x.fr/")
+        self.assertEqual("https://fc-x.fr/le-bureau", ranked[0])
+        self.assertLess(ranked.index("https://fc-x.fr/contact"), ranked.index("https://fc-x.fr/terrains"))
+        self.assertIn("https://fcx.clubeo.com/page/comite", ranked)            # club site on a hosting platform
+        self.assertNotIn("https://other-club.fr/contact", ranked)               # another organisation's site
+
+    def test_a_source_earns_or_loses_turns_by_its_own_yield(self):
+        self.assertEqual(1, mo_run._turns(None))
+        self.assertEqual(1, mo_run._turns((10, 0)))         # no sample yet
+        self.assertEqual(2, mo_run._turns((30, 4)))         # >= 10%
+        self.assertEqual(1, mo_run._turns((40, 3)))         # 5-10%
+        self.assertEqual(0, mo_run._turns((40, 1)))         # < 5%: waits until the others are empty
 
     def test_role_mailboxes_go_to_jev_not_to_d(self):
         lines = ["Secrétariat du club", "secretariat@fc-x.fr", "Service des sports", "service.sports@ville.fr",

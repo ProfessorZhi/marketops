@@ -302,6 +302,18 @@ def _source(org: dict) -> str:
     return (str(org.get("sources") or org.get("source") or "").split(";")[0].split("|")[0].strip()) or "-"
 
 
+SOURCE_SAMPLE, SOURCE_SCALE, SOURCE_STOP = 30, 0.10, 0.05
+
+
+def _turns(done_ab) -> int:
+    """How many organisations a source starts per round: 1 until it has a sample of 30, then
+    2 at >=10% with A/B, 0 (only when nothing else waits) under 5%."""
+    if not done_ab or done_ab[0] < SOURCE_SAMPLE:
+        return 1
+    rate = done_ab[1] / done_ab[0]
+    return 2 if rate >= SOURCE_SCALE else 0 if rate < SOURCE_STOP else 1
+
+
 def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, goal_ab_org_share: float | None = None,
              agent: bool = False, workers: int = 24, job: dict | None = None, shard: str = "0/1",
              follow: bool = False) -> dict:
@@ -410,6 +422,8 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
         ws.append_csv(pdir / "crawl.csv", ws.CRAWL_COLS, {"org_id": oid, "org": org.get("name", ""), "pass": "final",
                                                           "status": "done", "time": ws._now()})
         tr["total_seconds"] = round(sum(tr["seconds"].values()), 1)
+        d, a = yields.get(tr["source"], (0, 0))
+        yields[tr["source"]] = (d + 1, a + _has_ab(pdir, oid))
         ws.append_jsonl(pdir / "trace.jsonl", tr)
         move("evidence", "done")
 
@@ -450,6 +464,7 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
                 state.setdefault("errors", []).append(str(f.exception())[:200])
         return [f for f in fs if not f.done()]
 
+    yields: dict[str, tuple[int, int]] = {}   # source -> (organisations done, with A/B) this run
     submitted, futures = set(finished), []
     waiting: dict[str, list] = {}   # source -> organisations not yet started
     last_new, last_snap, last_export = time.time(), 0.0, time.time()
@@ -465,12 +480,22 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
                         last_new = time.time()
                 # Start organisations from every source in turn, a few more than the workers:
                 # a source pooled later (clubs after a big register) does not wait for all of it.
+                # After 30 organisations a source's own A/B rate sets its share (Bruce's rule:
+                # >=10% scale it, <5% stop spending on it): a strong source gets two turns, a
+                # weak one waits until the others are empty - its organisations are never dropped.
                 futures = prune(futures)
                 while waiting and len(futures) < workers * 2:
-                    for src in list(waiting):
-                        futures.append(pool.submit(org_flow, waiting[src].pop(0)))
-                        if not waiting[src]:
-                            del waiting[src]
+                    turns = {src: _turns(yields.get(src)) for src in waiting}
+                    if not any(turns.values()):
+                        turns = dict.fromkeys(waiting, 1)
+                    for src, k in turns.items():
+                        for _ in range(k):
+                            if waiting.get(src):
+                                futures.append(pool.submit(org_flow, waiting[src].pop(0)))
+                        if not waiting.get(src):
+                            waiting.pop(src, None)
+                state["source_yield"] = {src: {"done": d, "with_ab": a, "turns": _turns((d, a))}
+                                         for src, (d, a) in yields.items()}
             else:
                 futures = prune(futures)
             busy = bool(futures)
@@ -488,6 +513,7 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
                 break
             time.sleep(3)
     prune(futures)
+    state["late_readers_left"] = mo_providers.drain()   # slower readers' contacts land before the export
     grader.stop.set()
     grader.kick.set()
     grader.grade_now()
