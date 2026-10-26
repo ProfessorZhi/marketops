@@ -53,12 +53,30 @@
 - **巴黎题的判据比 Bruce 默认严两档**：`info@` / `admin@` / `book@` / 前台 `réservation`
   从“研究资产”降为 `X`（不算路线）；A 与 B 都要求岗位绑定，不再允许“相关部门信箱”混进 A/B。
 
+## 按插件版本隔离工作空间
+
+不同版本的插件不能共用同一个项目根：同名 project 会被后一版覆盖，页面缓存、`run.json`、
+`orgs.csv` 和导出会互相穿插，事后无法判断某条读数是哪一版产出的。所以每个版本一个根：
+
+```text
+/data/home/vince/MarketOps/v0.6.0/   归档：_probe-060、swiss-060、uk-060
+/data/home/vince/MarketOps/v0.6.1/   本轮：swiss-061、uk-061、paris-indoor-061、france-indoor-061
+/data/home/vince/MarketOps/v0.6.2/   下一版（空，从头跑）
+```
+
+隔离靠一个环境变量，不靠改名：`mo_config.projects_root()` 读 `MARKETOPS_PROJECTS`，
+缺省回落 `~/MarketOps`。换版本时**只改这一个值**，项目名保持稳定，跨版本对比才成立。
+`MARKETOPS_HOME`（插件运行时根）与它无关，继续共用同一份预算账本。
+
+归档是**移动，不是删除**：老版本的页面镜像、`contacts.csv`、精度核对脚本全部原地保留，
+路径改成 `v0.6.0/` 前缀。证据不因旧命名而丢弃。
+
 ## 数据边界
 
 本文件不含第三方姓名、邮箱、电话。逐机构明细、页面镜像、联系人表都在东京本机：
 
 ```text
-/data/home/vince/MarketOps/<project>/          # 各题的 orgs.csv、pages/、contacts.csv、run.json、导出
-/data/home/vince/artifacts/marketops/061-test-plan/france-source/   # RES 源数据与 50,719 家名单
-/data/home/vince/artifacts/marketops/061-test-plan/precision-swiss/ # 瑞士题精度核对脚本与页面快照
+/data/home/vince/MarketOps/v0.6.1/<project>/   # 各题的 orgs.csv、pages/、contacts.csv、run.json、导出
+/data/home/vince/artifacts/marketops/bench/v0.6.1/061-test-plan/france-source/   # RES 源数据与 50,719 家名单
+/data/home/vince/artifacts/marketops/bench/v0.6.1/061-test-plan/precision-swiss/ # 瑞士题精度核对脚本与页面快照
 ```

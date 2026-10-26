@@ -180,9 +180,9 @@ run("swiss-pitchfinder-061-20261026", rounds=6, max_pages=15, goal_ab_per_100=11
 
 本机路径（**含第三方姓名与工作邮箱，不进 Git**）：
 
-- 项目与交付：`/data/home/vince/MarketOps/swiss-pitchfinder-061-20261026/`
+- 项目与交付：`/data/home/vince/MarketOps/v0.6.1/swiss-pitchfinder-061-20261026/`
   （`run.json`、`contacts.csv`、`pages.csv`、`*.xlsx`、`*-routes.csv`）
 - 页面快照：同目录 `pages/`（1,227 页，crawl4ai / tinyfish / deepseek 三份）
-- 精度核对：`/data/home/vince/artifacts/marketops/061-test-plan/precision-swiss/`
+- 精度核对：`/data/home/vince/artifacts/marketops/bench/v0.6.1/061-test-plan/precision-swiss/`
   （`fetch.py`、`live_raw.py`、`raw/`、`live/`、`review.md`、`checks.json`）
 - PDF 复核：同目录 `pdf/adressen.txt`（`pdftotext` 输出）

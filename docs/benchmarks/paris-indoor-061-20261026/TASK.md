@@ -77,7 +77,7 @@
 
 ## 7. 数据边界
 
-- 逐机构明细、页面镜像、联系人表只放东京本机：`/data/home/vince/MarketOps/paris-indoor-061-20261026/`
-- 名单与源数据：`/data/home/vince/artifacts/marketops/061-test-plan/france-source/`（`master-institutions.csv`、
+- 逐机构明细、页面镜像、联系人表只放东京本机：`/data/home/vince/MarketOps/v0.6.1/paris-indoor-061-20261026/`
+- 名单与源数据：`/data/home/vince/artifacts/marketops/bench/v0.6.1/061-test-plan/france-source/`（`master-institutions.csv`、
   `res-fr-indoor.json`、`france-wave1.csv`）
 - 本文件与同目录 `RESULT-061.md` 不含任何第三方姓名、邮箱、电话。
