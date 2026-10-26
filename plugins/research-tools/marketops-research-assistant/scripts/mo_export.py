@@ -32,12 +32,23 @@ def metrics(orgs: list, emails: list) -> dict:
     ids = [str(o.get("id") or o.get("org_id") or "") for o in orgs] or list({c.get("org_id") for c in emails})
     idset, n = set(ids), len(set(ids)) or 1
     mine = [c for c in emails if c.get("org_id") in idset]
-    ab = [c for c in mine if c.get("grade") in ("A", "B") and c.get("review") != "yes"]
+    ab, seen_people = [], set()
+    for c in mine:
+        if c.get("grade") in ("A", "B") and c.get("review") != "yes":
+            who = (c.get("org_id"), " ".join(c.get("person", "").lower().split()))
+            if who[1] and who in seen_people:
+                continue  # one person with two addresses is one route
+            seen_people.add(who)
+            ab.append(c)
+    per_org: dict = {}
+    for c in ab:
+        per_org[c["org_id"]] = per_org.get(c["org_id"], 0) + 1
     pending = [c for c in mine if c.get("grade") in ("A", "B") and c.get("review") == "yes"]
     covered = {c.get("org_id") for c in mine if c.get("grade") in ("A", "B", "C", "D")}
     return {"orgs": len(idset), "ab_routes": len(ab), "ab_orgs": len({c["org_id"] for c in ab}),
-            "ab_routes_per_100_orgs": round(100 * len(ab) / n, 1),
             "ab_org_share": round(100 * len({c["org_id"] for c in ab}) / n, 1),
+            "ab_routes_per_100_orgs": round(100 * len(ab) / n, 1),
+            "ab_routes_per_100_orgs_max3": round(100 * sum(min(3, k) for k in per_org.values()) / n, 1),
             "coverage_abcd": round(100 * len(covered) / n, 1),
             "ab_to_review": len(pending),
             "ab_routes_per_100_orgs_if_review_holds": round(100 * (len(ab) + len(pending)) / n, 1)}
@@ -53,8 +64,8 @@ def export(pdir) -> dict:
     contacts = ws.read_csv(pdir / "contacts.csv")
     emails = [c for c in contacts if c.get("kind") == "email"]
     phones = {}
-    for c in contacts:
-        if c.get("kind") == "phone":
+    for c in contacts + ws.read_csv(pdir / "phones.csv"):
+        if c.get("kind", "phone") == "phone":
             phones.setdefault(c.get("org_id"), []).append(c["value"])
     orgs = ws.read_csv(pdir / "orgs.csv")
     venues = ws.read_csv(pdir / "venues.csv")
@@ -75,7 +86,7 @@ def export(pdir) -> dict:
             "邮箱类型": {"generic": "通用", "named_or_role": "个人或岗位"}.get(c.get("mailbox"), c.get("mailbox")),
             "同站": c.get("same_site"), "来源页面": c.get("page_url"), "原文引用": c.get("quote"),
             "读取来源": c.get("found_by"), "评级依据": c.get("grade_reason") or c.get("graded_by"),
-            "待复核": "是" if c.get("review") == "yes" else "", "备注": c.get("note")})
+            "待复核": c.get("review_reason") or ("是" if c.get("review") == "yes" else ""), "备注": c.get("note")})
     route_cols = ["机构", "机构ID", "等级", "待复核", "姓名", "岗位", "邮箱", "机构电话", "邮箱类型", "同站",
                   "来源页面", "原文引用", "读取来源", "评级依据", "备注"]
 
@@ -95,8 +106,9 @@ def export(pdir) -> dict:
     summary = [
         {"项目": "机构数", "值": total},
         {"项目": "场地数", "值": len(venues)},
-        {"项目": "每百机构 A+B 路线数（A+B 条数 ÷ 机构数 × 100，Bruce 口径）", "值": m["ab_routes_per_100_orgs"]},
-        {"项目": "有 A+B 的机构占比（有 A/B 的机构 ÷ 机构数）", "值": f"{m['ab_org_share']}%"},
+        {"项目": "广度：有 A+B 的机构占比（有 A/B 的机构 ÷ 机构数）", "值": f"{m['ab_org_share']}%"},
+        {"项目": "每百机构 A+B 路线数（A+B 条数 ÷ 机构数 × 100，Bruce 口径；同一人两地址计一条）", "值": m["ab_routes_per_100_orgs"]},
+        {"项目": "每百机构 A+B 路线数，每机构最多计 3 条", "值": m["ab_routes_per_100_orgs_max3"]},
         {"项目": "A+B 路线数 / 有 A+B 的机构数", "值": f"{m['ab_routes']} / {m['ab_orgs']}"},
         {"项目": "覆盖率（有任一 A–D 路线的机构 ÷ 机构数）", "值": f"{m['coverage_abcd']}%"},
         {"项目": "待复核的 A/B（低置信度、共用地址或来自他站；不计入上面的数）", "值": m["ab_to_review"]},
@@ -156,6 +168,6 @@ def _routes_csv(pdir, emails: list, stamp: str):
                         "decision_function": c.get("role"), "role_relevance": c.get("grade_reason"),
                         "source_url": c.get("page_url"), "mirror_path": mirror.get(c.get("page_url"), ""),
                         "evidence_text": c.get("quote"), "qualification_rationale": c.get("grade_reason"),
-                        "qualification_status": "needs_review" if c.get("review") == "yes" else "qualified",
+                        "qualification_status": ("needs_review: " + (c.get("review_reason") or "")) if c.get("review") == "yes" else "qualified",
                         "research_only": "TRUE", "send_authorized": "FALSE"})
     return path

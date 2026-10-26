@@ -30,8 +30,9 @@ import mo_pages
 import mo_providers
 
 CONTACT_COLS = ["org_id", "org", "kind", "value", "person", "role", "grade", "grade_reason",
-                "graded_by", "review", "mailbox", "same_site", "email_site", "page_site", "page_on_org_site",
+                "graded_by", "review", "review_reason", "mailbox", "same_site", "email_site", "page_site", "page_on_org_site",
                 "page_url", "found_by", "quote", "quote_from", "note", "added"]
+PHONE_COLS = ["org_id", "org", "value", "page_url", "quote", "found_by", "added"]
 PAGE_COLS = ["url", "final_url", "reader", "file", "chars", "org_id", "time"]
 CRAWL_COLS = ["org_id", "org", "website", "status", "pages", "emails", "readers_ok", "email_buttons",
               "pass", "note", "time"]
@@ -40,12 +41,44 @@ DATA_EXT = re.compile(r"\.(csv|json|geojson|xlsx?|zip|xml|txt)(\?|$)|/exports?/|
 PDF = re.compile(r"\.pdf(\?|$)", re.I)
 _page_index: dict[str, dict[str, list[dict]]] = {}
 
-_locks: dict[str, threading.Lock] = {}
 _jobs: dict[str, dict] = {}
 
 
-def _lock(path: Path) -> threading.Lock:
-    return _locks.setdefault(str(path), threading.Lock())
+class _PathLock:
+    """One writer at a time for a project file: threads in this process, and other processes
+    (the background run, other agents' servers) through an OS lock on <file>.lock."""
+
+    def __init__(self, path: Path):
+        self.thread = threading.Lock()
+        self.lockfile = str(path) + ".lock"
+        self.fh = None
+
+    def __enter__(self):
+        self.thread.acquire()
+        try:
+            import fcntl
+            self.fh = open(self.lockfile, "a")
+            fcntl.flock(self.fh, fcntl.LOCK_EX)
+        except (ImportError, OSError):  # Windows: threads only
+            self.fh = None
+        return self
+
+    def __exit__(self, *exc):
+        if self.fh is not None:
+            import fcntl
+            fcntl.flock(self.fh, fcntl.LOCK_UN)
+            self.fh.close()
+            self.fh = None
+        self.thread.release()
+
+
+_locks: dict[str, _PathLock] = {}
+_locks_guard = threading.Lock()
+
+
+def _lock(path: Path) -> _PathLock:
+    with _locks_guard:
+        return _locks.setdefault(str(path), _PathLock(path))
 
 
 def _now() -> str:
@@ -91,6 +124,12 @@ def append_csv(path: Path, cols: list[str], row: dict) -> None:
             w.writerow({k: row.get(k, "") for k in cols})
 
 
+def weights(pdir: Path, kind: str) -> dict:
+    """Provider shares for 'search' or 'fetch': brief.providers.<kind> over the defaults."""
+    own = (brief(pdir).get("providers") or {}).get(kind) or {}
+    return {**mo_providers.DEFAULT_WEIGHTS[kind], **own}
+
+
 def brief(pdir: Path) -> dict:
     try:
         return json.loads((pdir / "brief.json").read_text(encoding="utf-8"))
@@ -119,8 +158,26 @@ def _pages(pdir: Path) -> dict[str, list[dict]]:
     return _page_index[key]
 
 
+def _merge_phones(pdir: Path, phones: list[dict], org_id: str, org: str) -> None:
+    path = pdir / "phones.csv"
+    with _lock(path):
+        rows = read_csv(path)
+        have = {(r["org_id"], re.sub(r"\D", "", r["value"])) for r in rows}
+        for c in phones:
+            key = (org_id, re.sub(r"\D", "", c["value"]))
+            if key not in have:
+                have.add(key)
+                rows.append({"org_id": org_id, "org": org, "value": c["value"], "page_url": c.get("page_url", ""),
+                             "quote": c.get("quote", ""), "found_by": c.get("found_by", ""), "added": _now()})
+        write_csv(path, PHONE_COLS, rows)
+
+
 def merge_contacts(pdir: Path, found: list[dict], org_id: str = "", org: str = "") -> int:
-    """Add candidates to contacts.csv; the same value for the same org is one row."""
+    """Add candidates to contacts.csv (emails) and phones.csv; one row per value and org."""
+    phones = [c for c in found if c.get("kind") == "phone"]
+    if phones:
+        _merge_phones(pdir, phones, org_id, org)
+    found = [c for c in found if c.get("kind") != "phone"]
     path = pdir / "contacts.csv"
     with _lock(path):
         rows = read_csv(path)
@@ -196,8 +253,8 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
                 report[row["reader"]] = {"file": row["file"], "cached": True}
             except OSError:
                 continue
-    if not parsed_by:
-        for reader, res in mo_providers.read(url, readers, project_dir=pdir).items():
+    def read_with(chosen):
+        for reader, res in mo_providers.read(url, chosen, project_dir=pdir).items():
             if "error" in res:
                 report[reader] = {"error": res["error"]}
                 continue
@@ -209,6 +266,20 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
                 parsed = mo_pages.from_markdown(res["text"], res["final_url"])
             parsed_by[reader] = parsed
             report[reader] = {"file": f, "chars": sum(map(len, parsed["lines"])), "final_url": res["final_url"]}
+
+    if not parsed_by:
+        if readers is None:
+            now, held = mo_providers.pick(url, mo_providers.available_readers(), weights(pdir, "fetch"),
+                                          always=("crawl4ai",))
+        else:
+            now, held = readers, []
+        read_with(now)
+        # Quality floor: nothing read, or a contact-looking page with no address -> the rest too.
+        emails = any(mo_pages.EMAIL.search(" ".join(p["lines"])) for p in parsed_by.values())
+        contactish = any(h in url.lower() for h in ("kontakt", "contact", "impressum", "vorstand", "team",
+                                                     "staff", "people", "board", "committee", "equipe"))
+        if held and (not parsed_by or (contactish and not emails)):
+            read_with(held)
     page_site = mo_pages.site_of(url)
     org_site = org_site or page_site
     found: dict[str, dict] = {}
@@ -217,7 +288,7 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
     for reader, parsed in parsed_by.items():
         links += parsed["links"]
         buttons = max(buttons, parsed.get("hidden_email_buttons", 0))
-        for c in mo_pages.contacts(parsed["lines"], url, org_site, parsed.get("blocks")):
+        for c in mo_pages.contacts(parsed["lines"], url, org_site, parsed.get("blocks"), parsed.get("mailtos")):
             c.update(page_site=page_site, page_on_org_site="yes" if page_site == org_site else "no")
             k = c["value"].lower()
             if k in found:
@@ -303,16 +374,28 @@ def crawl_sync(pdir: Path, targets: list[dict], max_pages: int = 15, readers=Non
     todo = _todo(pdir, targets, label)
     if job is not None:
         job.update(total=job.get("total", 0) + len(todo), stage=label)
+        if callable(job.get("on_progress")):
+            job["on_progress"]()
 
     def one(t):
+        if stop_requested(pdir):
+            return None
         oid = str(t.get("id") or t.get("org_id") or "")
         return _crawl_one(pdir, t, max_pages, readers, (extra_urls or {}).get(oid), label)
     with ThreadPoolExecutor(max_workers=workers) as pool:
         for result in pool.map(one, todo):
+            if result is None:
+                continue
             append_csv(pdir / "crawl.csv", CRAWL_COLS, result)
             if job is not None:
                 job["finished"] = job.get("finished", 0) + 1
+                if callable(job.get("on_progress")):
+                    job["on_progress"]()
     return len(todo)
+
+
+def stop_requested(pdir: Path) -> bool:
+    return (pdir / "STOP").exists()
 
 
 def crawl(pdir: Path, targets: list[dict], max_pages: int = 15, readers=None, workers: int = 6) -> dict:
@@ -405,13 +488,29 @@ def status(pdir: Path) -> dict:
         "pools": {n: len(read_csv(pdir / f"{n}.csv")) for n in ("venues", "orgs")},
         "contacts": {"emails_by_grade": grades,
                      "orgs_by_grade": {g: len(s) for g, s in orgs_with.items()},
-                     "phones": sum(c.get("kind") == "phone" for c in contacts)},
+                     "phones": len(read_csv(pdir / "phones.csv"))},
         "crawl": {"orgs": len(crawl), "by_status": _count(crawl, "status"),
                   "jobs": [{k: j.get(k) for k in ("id", "total", "finished", "running", "stage")} for j in jobs]},
-        "run": _run_state(pdir),
+        "stop_requested": stop_requested(pdir),
+        "run": _runs(pdir),
+        "queue": _queue(pdir),
         "agent_runs": _count(agent, "status"),
         "costs": mo_budget.summary(pdir),
     }
+
+
+def _runs(pdir: Path):
+    import mo_run
+    states = mo_run.run_states(pdir)
+    alive = [p for p in mo_run._pids(pdir) if mo_run._alive(p)]
+    if not states:
+        return None
+    return {"processes_running": len(alive), "parts": states}
+
+
+def _queue(pdir: Path):
+    import mo_tasks
+    return mo_tasks.summary(pdir)["queue"] or None
 
 
 def _run_state(pdir: Path) -> dict | None:

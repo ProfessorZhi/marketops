@@ -22,6 +22,25 @@ import mo_config
 
 SEARCH_ENGINES = ("serper", "serpapi", "deepseek", "tinyfish")
 READERS = ("crawl4ai", "tinyfish", "deepseek")
+# Share of calls each provider takes part in (brief.providers overrides). The rest is held
+# back and called only when the chosen ones come back weak - never at the cost of results.
+DEFAULT_WEIGHTS = {"search": {"deepseek": 1.0, "tinyfish": 1.0, "serper": 0.6, "serpapi": 0.2},
+                   "fetch": {"crawl4ai": 1.0, "tinyfish": 1.0, "deepseek": 0.6}}
+
+
+def pick(key: str, available: list[str], weights: dict | None, always: tuple = ()) -> tuple[list, list]:
+    """Split providers into (call now, hold back) by weight, the same way for the same key."""
+    import hashlib
+    w = weights or {}
+    now, later = [], []
+    for p in available:
+        share = float(w.get(p, 1.0))
+        roll = int(hashlib.sha1(f"{p}:{key}".encode()).hexdigest(), 16) % 1000
+        (now if p in always or roll < share * 1000 else later).append(p)
+    if not now and later:
+        later.sort(key=lambda p: -float(w.get(p, 1.0)))
+        now.append(later.pop(0))
+    return now, later
 UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36"
 
 
@@ -130,8 +149,12 @@ def _norm(url: str) -> str:
 
 
 def search(query: str, engines=None, country: str = "", lang: str = "", n: int = 10,
-           maps: bool = False, project_dir=None) -> dict:
-    wanted = [e for e in (engines or SEARCH_ENGINES) if e in _SEARCH and mo_config.key(e)]
+           maps: bool = False, project_dir=None, weights: dict | None = None) -> dict:
+    available = [e for e in (engines or SEARCH_ENGINES) if e in _SEARCH and mo_config.key(e)]
+    if engines or weights is None:
+        wanted, held = available, []
+    else:
+        wanted, held = pick(query, available, weights)
     routes, merged = {}, {}
 
     def one(engine):
@@ -146,16 +169,22 @@ def search(query: str, engines=None, country: str = "", lang: str = "", n: int =
             mo_budget.record(project_dir, engine, "search", False, f"{type(exc).__name__}: {exc}")
             return engine, None, mo_config.scrub(f"{type(exc).__name__}: {exc}")[:160]
 
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        for engine, rows, why in pool.map(one, wanted):
-            routes[engine] = {"results": len(rows)} if rows is not None else {"skipped": why}
-            for rank, row in enumerate(rows or []):
-                key = _norm(row.get("url") or "") or ("place:" + str(row.get("title")))
-                hit = merged.setdefault(key, {**row, "found_by": []})
-                hit["found_by"].append(engine)
-                for f in ("snippet", "address", "phone", "url"):
-                    if not hit.get(f) and row.get(f):
-                        hit[f] = row[f]
+    def gather(batch):
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            for engine, rows, why in pool.map(one, batch):
+                routes[engine] = {"results": len(rows)} if rows is not None else {"skipped": why}
+                for rank, row in enumerate(rows or []):
+                    key = _norm(row.get("url") or "") or ("place:" + str(row.get("title")))
+                    hit = merged.setdefault(key, {**row, "found_by": []})
+                    hit["found_by"].append(engine)
+                    for f in ("snippet", "address", "phone", "url"):
+                        if not hit.get(f) and row.get(f):
+                            hit[f] = row[f]
+    gather(wanted)
+    if held and len(merged) < 3:   # weak answer: bring in the engines held back
+        gather(held)
+    for e in held:
+        routes.setdefault(e, {"held_back": "weight"})
     results = sorted(merged.values(), key=lambda h: -len(h["found_by"]))
     return {"query": query, "routes": routes, "results": results}
 
@@ -164,10 +193,11 @@ def search(query: str, engines=None, country: str = "", lang: str = "", n: int =
 class _Browser:
     """One Crawl4AI browser on its own event loop, shared by every read."""
 
-    def __init__(self):
+    def __init__(self, pages_at_once: int = 10):
         self.loop = None
         self.crawler = None
         self.lock = threading.Lock()
+        self.slots = threading.Semaphore(pages_at_once)  # one browser, at most this many tabs
 
     def _start(self):
         self.loop = asyncio.new_event_loop()
@@ -187,8 +217,9 @@ class _Browser:
         from crawl4ai import CacheMode, CrawlerRunConfig
         cfg = CrawlerRunConfig(cache_mode=CacheMode.BYPASS, page_timeout=timeout * 1000,
                                verbose=False, delay_before_return_html=1.0)
-        result = asyncio.run_coroutine_threadsafe(self.crawler.arun(url, config=cfg),
-                                                  self.loop).result(timeout + 30)
+        with self.slots:
+            result = asyncio.run_coroutine_threadsafe(self.crawler.arun(url, config=cfg),
+                                                      self.loop).result(timeout + 30)
         if not result.success:
             raise ProviderError((result.error_message or "page did not load")[:160])
         return {"final_url": result.redirected_url or url, "html": result.html or "",
@@ -242,9 +273,13 @@ def download(url: str, max_bytes: int = 60_000_000) -> dict:
 _READ = {"crawl4ai": _read_crawl4ai, "tinyfish": _read_tinyfish, "deepseek": _read_deepseek}
 
 
+def available_readers(readers=None) -> list[str]:
+    return [r for r in (readers or READERS) if r in _READ and (r == "crawl4ai" or mo_config.key(r))]
+
+
 def read(url: str, readers=None, project_dir=None) -> dict:
     """Read one page with several readers at once. {reader: result or {"error": ...}}."""
-    wanted = [r for r in (readers or READERS) if r in _READ and (r == "crawl4ai" or mo_config.key(r))]
+    wanted = available_readers(readers)
     out = {}
 
     def one(reader):

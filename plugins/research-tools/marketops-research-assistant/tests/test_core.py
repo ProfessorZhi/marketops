@@ -165,6 +165,75 @@ class Reach(unittest.TestCase):
         self.assertIn("every organisation", state["stopped_because"])
         self.assertTrue(Path(state["export"]["file"]).exists())
 
+    def test_glued_phone_digits_are_cut(self):
+        page = mo_pages.from_html("<p>Tel 079 123 83 10praesident@fc.ch</p><p>2go@fc.ch</p>", "https://fc.ch/")
+        values = [c["value"] for c in mo_pages.contacts(page["lines"], "https://fc.ch/", mailtos=page["mailtos"])
+                  if c["kind"] == "email"]
+        self.assertEqual(["praesident@fc.ch", "2go@fc.ch"], values)
+
+    def test_pool_builds_venues_and_orgs_from_a_data_file(self):
+        pdir = ws.project_dir("t8")
+        (pdir / "pages" / "res.json").write_text(json.dumps({"results": [
+            {"equip_numero": "1", "equip_nom": "Gymnase A", "dep": "75", "gest": "Ville de Paris", "com": "Paris"},
+            {"equip_numero": "2", "equip_nom": "Gymnase B", "dep": "75", "gest": "Ville de Paris", "com": "Paris"},
+            {"equip_numero": "3", "equip_nom": "Salle C", "dep": "75", "gest": "Club C", "com": "Paris"},
+            {"equip_numero": "4", "equip_nom": "Salle D", "dep": "92", "gest": "Club D", "com": "Nanterre"}]}),
+            encoding="utf-8")
+        out = server.pool("t8", "pages/res.json", filters={"dep": "75"},
+                          map={"id": "equip_numero", "name": "equip_nom", "operator": "gest"},
+                          group_by="gest", org_fields={"city": "com"})
+        self.assertEqual((4, 3, 3, 2), (out["read"], out["kept"], out["added"], out["orgs_added"]))
+        orgs = {o["name"]: o for o in ws.read_csv(pdir / "orgs.csv")}
+        self.assertEqual("2", orgs["Ville de Paris"]["venues"])
+        self.assertEqual("Paris", orgs["Club C"]["city"])
+        self.assertEqual(0, server.pool("t8", "pages/res.json", filters={"dep": "75"},
+                                        map={"id": "equip_numero", "name": "equip_nom"}, group_by="gest")["added"])
+
+    def test_stop_without_a_run_says_so(self):
+        self.assertFalse(server.run("t9", stop=True)["stopped"])
+
+    def test_one_person_two_addresses_is_one_route(self):
+        import mo_export
+        emails = [{"org_id": "o1", "grade": "A", "person": "Ann Lee", "value": "a@x.ch"},
+                  {"org_id": "o1", "grade": "A", "person": "ann  lee", "value": "ann@x.ch"},
+                  {"org_id": "o1", "grade": "B", "person": "", "value": "platz@x.ch"},
+                  {"org_id": "o1", "grade": "B", "person": "", "value": "v@x.ch", "review": "yes"}]
+        m = mo_export.metrics([{"id": "o1"}, {"id": "o2"}], emails)
+        self.assertEqual((2, 1, 50.0, 100.0), (m["ab_routes"], m["ab_to_review"], m["ab_org_share"],
+                                               m["ab_routes_per_100_orgs"]))
+
+    def test_workers_share_a_queue(self):
+        pdir = ws.project_dir("t10")
+        (pdir / "orgs.csv").write_text("id,name,website\n" + "".join(f"o{i},Org {i},o{i}.ch\n" for i in range(5)),
+                                       encoding="utf-8")
+        self.assertEqual(3, server.tasks("t10", action="plan", kind="dig", size=2)["planned"])
+        self.assertEqual(0, server.tasks("t10", action="plan", kind="dig", size=2)["planned"])  # no double booking
+        a = server.tasks("t10", action="claim", agent="w1")
+        b = server.tasks("t10", action="claim", agent="w2")
+        self.assertNotEqual(a["task"]["task_id"], b["task"]["task_id"])
+        self.assertEqual(["o0", "o1"], [i["org_id"] for i in a["items"]])
+        server.tasks("t10", action="done", task_id=a["task"]["task_id"], note="ok")
+        server.tasks("t10", action="done", task_id=b["task"]["task_id"], release=True)
+        q = server.tasks("t10")["queue"]["dig"]
+        self.assertEqual((2, 0, 1), (q["open"], q["claimed"], q["done"]))
+        server.tasks("t10", action="add", title="pool: federation list district 15")
+        self.assertEqual(1, server.tasks("t10")["queue"]["custom"]["open"])
+
+    def test_shards_split_the_pool_without_overlap(self):
+        orgs = [{"id": f"o{i}"} for i in range(7)]
+        parts = [mo_run._mine(orgs, (k, 3)) for k in range(3)]
+        self.assertEqual(7, sum(map(len, parts)))
+        self.assertFalse(set(o["id"] for o in parts[0]) & set(o["id"] for o in parts[1]))
+
+    def test_weights_hold_providers_back_but_never_all(self):
+        now, held = mo_providers.pick("q", ["deepseek", "serpapi"], {"deepseek": 1.0, "serpapi": 0.0})
+        self.assertEqual((["deepseek"], ["serpapi"]), (now, held))
+        now, held = mo_providers.pick("q", ["serpapi"], {"serpapi": 0.0})
+        self.assertEqual(["serpapi"], now)
+        now, _ = mo_providers.pick("u", ["crawl4ai", "deepseek"], {"crawl4ai": 0.0, "deepseek": 0.0},
+                                   always=("crawl4ai",))
+        self.assertIn("crawl4ai", now)
+
     def test_jobs_stay_in_their_project(self):
         ws.new_job(ws.project_dir("t6"), "crawl")
         self.assertEqual([], server.project("t7")["crawl"]["jobs"])
@@ -191,7 +260,8 @@ class Search(unittest.TestCase):
 
 class Package(unittest.TestCase):
     def test_tools_and_manifest(self):
-        self.assertEqual(["project", "search", "fetch", "crawl", "browse", "judge", "grade", "run", "export"],
+        self.assertEqual(["project", "search", "pool", "fetch", "crawl", "browse", "judge", "grade", "run", "tasks",
+                          "export"],
                          [f.__name__ for f in server.TOOLS])
         manifest = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["version"], server.VERSION)
