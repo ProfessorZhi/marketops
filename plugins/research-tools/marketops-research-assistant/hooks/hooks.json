@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/guard.py\" || python \"${CLAUDE_PLUGIN_ROOT}/hooks/guard.py\""
+            "command": "sh -c 'P=python3; command -v python3 >/dev/null 2>&1 || P=python; exec \"$P\" \"$1\"' guard \"${CLAUDE_PLUGIN_ROOT}/hooks/guard.py\""
           }
         ]
       }
