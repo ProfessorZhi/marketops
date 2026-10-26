@@ -11,7 +11,7 @@
     {
       "name": "marketops-research-assistant",
       "source": "./plugins/research-tools/marketops-research-assistant",
-      "description": "Evidence-first market research: one managed MarketOps research MCP plus the skills that tell an agent how to search, read pages, bind evidence and grade contact routes.",
+      "description": "Lean market research for sales: public datasets to venue and organisation pools to graded contacts with evidence, as Excel. Search x4, page reading x3, TinyFish Agent, Jev.",
       "category": "productivity",
       "tags": [
         "market-research",

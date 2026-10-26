@@ -1,9 +1,7 @@
 name: research-plugin-release
 
-# Push a tag `marketops-v<version>` (matching plugin.json) to publish the
-# portable source package as a GitHub Release. Installed copies update from it
-# with Update.cmd / update.sh. A tag with `-rc` is published as a pre-release,
-# which the updater only takes with --prerelease.
+# Push a tag `marketops-v<version>` (matching .claude-plugin/plugin.json) to publish the
+# plugin folder as a zip on a GitHub Release. A tag with `-rc` is a pre-release.
 on:
   push:
     tags:
@@ -25,7 +23,7 @@ jobs:
           python-version: "3.12"
       - name: Tag matches the plugin version
         run: |
-          declared=$(python -c "import json;print(json.load(open('plugins/research-tools/marketops-research-assistant/plugin.json'))['version'])")
+          declared=$(python -c "import json;print(json.load(open('plugins/research-tools/marketops-research-assistant/.claude-plugin/plugin.json'))['version'])")
           if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
             test "${GITHUB_REF_NAME}" = "main" || { echo "run the release from main"; exit 1; }
             echo "RELEASE_TAG=marketops-v${declared}" >> "$GITHUB_ENV"
@@ -33,22 +31,13 @@ jobs:
             test "marketops-v${declared}" = "${GITHUB_REF_NAME}" || { echo "tag ${GITHUB_REF_NAME} != plugin.json ${declared}"; exit 1; }
             echo "RELEASE_TAG=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
           fi
-      - name: Build the portable source package
+      - name: Package the plugin folder
         run: |
-          python plugins/research-tools/marketops-research-assistant/scripts/build_client_bundles.py \
-            --source-package --output "${{ runner.temp }}/release"
-      - name: Verify package and checksum
-        run: |
-          python - <<'PY'
-          import hashlib, pathlib, zipfile
-          target = pathlib.Path("${{ runner.temp }}/release")
-          archive = next(target.glob("marketops-research-assistant-v*-source.zip"))
-          checksum = archive.with_name(archive.name + ".sha256").read_text().split()[0]
-          assert hashlib.sha256(archive.read_bytes()).hexdigest() == checksum
-          with zipfile.ZipFile(archive) as z:
-              assert z.testzip() is None
-          print("VERIFIED", archive.name, checksum)
-          PY
+          mkdir -p "${{ runner.temp }}/release"
+          name="marketops-research-assistant-${RELEASE_TAG#marketops-}"
+          cd plugins/research-tools
+          zip -qr "${{ runner.temp }}/release/${name}.zip" marketops-research-assistant -x '*/__pycache__/*' '*/tests/*'
+          cd "${{ runner.temp }}/release" && sha256sum "${name}.zip" > "${name}.zip.sha256" && cat "${name}.zip.sha256"
       - name: Publish the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -57,6 +46,6 @@ jobs:
           case "${RELEASE_TAG}" in *-rc*) flags="--prerelease";; esac
           gh release create "${RELEASE_TAG}" $flags --target "${GITHUB_SHA}" \
             --title "MarketOps ${RELEASE_TAG#marketops-v}" \
-            --notes "Install: unzip and run Install.cmd (Windows) or install.sh. Update an existing install: run Update.cmd / update.sh in the MarketOps folder." \
-            "${{ runner.temp }}"/release/marketops-research-assistant-v*-source.zip \
-            "${{ runner.temp }}"/release/marketops-research-assistant-v*-source.zip.sha256
+            --notes "Install: unzip, run install.sh (Linux/macOS) or Install.ps1 (Windows), then add the plugin in Claude Code." \
+            "${{ runner.temp }}"/release/marketops-research-assistant-v*.zip \
+            "${{ runner.temp }}"/release/marketops-research-assistant-v*.zip.sha256

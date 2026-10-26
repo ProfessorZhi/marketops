@@ -1,4 +1,4 @@
-# Dedicated MarketOps Research Plugin tests. Does not use paid provider secrets.
+# MarketOps research plugin: offline tests only (no network, no provider keys). Seconds, not minutes.
 name: research-plugin-e2e
 
 on:
@@ -13,128 +13,16 @@ permissions:
 
 jobs:
   offline:
-    name: offline-${{ matrix.python-version }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.12"]
-    defaults:
-      run:
-        working-directory: plugins/research-tools/marketops-research-assistant
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Install minimal MCP dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements-lite.txt
-      - name: Compile
-        run: python -m compileall -q scripts tests
-      - name: Test full offline plugin suite
-        run: python -m unittest discover -s tests -v
-      - name: Static source and security preflight
-        run: python scripts/preflight.py
-
-  live-public-source:
-    name: live-readonly-public-source-to-xlsx
     runs-on: ubuntu-latest
     timeout-minutes: 5
     defaults:
       run:
         working-directory: plugins/research-tools/marketops-research-assistant
-    env:
-      MARKETOPS_LIVE_PUBLIC_E2E: "1"
-      MARKETOPS_RESEARCH_ALLOW_NETWORK: "0"
-      MARKETOPS_SEARCH_ALLOW_NETWORK: "0"
-      MARKETOPS_RESEARCH_MAX_EXTERNAL_CALLS: "0"
-      MARKETOPS_SEARCH_MAX_CALLS: "0"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install minimal MCP dependencies
-        run: python -m pip install -r requirements-lite.txt
-      - name: Live read-only official council page -> SQLite -> XLSX
-        run: python -m unittest discover -s tests -p test_workflow_live_e2e.py -v
-
-  installed-package:
-    name: installed-${{ matrix.os }}-3.12
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    defaults:
-      run:
-        working-directory: plugins/research-tools/marketops-research-assistant
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Install core runtime and exercise the installed stdio server
-        run: python tests/installed_smoke.py --output "${{ runner.temp }}/marketops-installed-check"
-      - name: Check native data-path boundaries
-        run: python -m unittest discover -s tests -p test_install_windows_config_contract.py -v
-      - name: Preserve installation evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: installed-${{ matrix.os }}
-          path: |
-            ${{ runner.temp }}/marketops-installed-check/*.log
-            ${{ runner.temp }}/marketops-installed-check/receipt.json
-
-
-  portable-preview-bundle:
-    name: portable-preview-bundle
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Build immutable portable source preview (not a signed release)
-        run: |
-          python plugins/research-tools/marketops-research-assistant/scripts/build_client_bundles.py \
-            --source-package --output "${{ runner.temp }}/marketops-source-preview"
-      - name: Validate preview file manifest and packaging safety
-        run: |
-          python - <<'PY'
-          import hashlib, json, pathlib, zipfile
-          target = pathlib.Path("${{ runner.temp }}/marketops-source-preview")
-          archive = next(target.glob("marketops-research-assistant-v*-source.zip"))
-          checksum = archive.with_name(archive.name + ".sha256").read_text().split()[0]
-          assert hashlib.sha256(archive.read_bytes()).hexdigest() == checksum
-          with zipfile.ZipFile(archive) as z:
-              assert z.testzip() is None
-              members = z.namelist()
-              assert len(members) == len(set(members))
-              assert all(not pathlib.PurePosixPath(n).is_absolute() and ".." not in pathlib.PurePosixPath(n).parts for n in members)
-              manifest_name = next(n for n in members if n.endswith("/SOURCE_MANIFEST.json"))
-              prefix = manifest_name.removesuffix("SOURCE_MANIFEST.json")
-              manifest = json.loads(z.read(manifest_name))
-              declared = json.loads(pathlib.Path("plugins/research-tools/marketops-research-assistant/plugin.json").read_text())["version"]
-              assert manifest["version"] == declared, (manifest["version"], declared)
-              assert manifest["qa_verified"] is False
-              for rel,digest in manifest["files"].items():
-                  assert hashlib.sha256(z.read(prefix + rel)).hexdigest() == digest, rel
-              for required in ("Install.cmd","Install.ps1","install.sh","AGENT_INSTALL.md","START_HERE.md","plugin.json",".mcp.json","scripts/research_credentials.py"):
-                  assert prefix + required in members, required
-              print(f"VERIFIED_PREVIEW version={manifest['version']} files={len(manifest['files'])} sha256={checksum}")
-          PY
-      - name: Upload portable preview ZIP and SHA256
-        uses: actions/upload-artifact@v4
-        with:
-          name: marketops-rc7-source-preview
-          path: |
-            ${{ runner.temp }}/marketops-source-preview/*-source.zip
-            ${{ runner.temp }}/marketops-source-preview/*.sha256
-          if-no-files-found: error
-          retention-days: 7
+      - run: python -m pip install -q "httpx>=0.27"
+      - run: python -m compileall -q scripts tests
+      - run: python -m unittest discover -s tests -v
