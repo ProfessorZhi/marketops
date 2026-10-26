@@ -27,3 +27,16 @@ Short notes on lines outside sports grounds; each becomes its own file when it i
   crawl was halved.
 - A 39,936-document regulation library gave 16 maintenance matches (2.7%): stopped.
 - Guessed domains were ~90% wrong (40 rows voided).
+
+## From his own instructions (supplement)
+
+- A public mailbox on the organisation's own domain is a route - it can forward; a non-work or
+  personal mailbox must not enter the pool. Judge the local part, not the domain.
+- Small organisations: keep one route and hand it over; do not spend the batch on all of them.
+- Use the pool version as it stands, then re-check the source for updates after the research
+  rather than waiting for a frozen copy.
+- Report coverage completeness next to quality: "all quality checks green" does not mean the pool
+  is complete. Blockers must be 100% resolved; key gaps may ship but must be stated.
+- A new line is measured on 30 accounts before it is scaled: improve once, or stop.
+- Keep golf out of the non-golf lines by name, not by inference: the line is called 非高尔夫 for
+  a reason.

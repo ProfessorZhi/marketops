@@ -34,3 +34,17 @@ Mother pool: 16 countries, 23,788 rows.
   postcode or the site's country.
 - Domain as merge key swallowed distinct clubs into a group's domain: 59 collisions became 5
   real merges after keying on name + country + region.
+
+## From his own instructions (supplement)
+
+- One run per country, frozen before the next country starts.
+- Title priority is scenario-specific, not universal: for a ball-picker robot, Range Manager ->
+  Director of Golf -> Golf Operations, with the Superintendent explicitly not first; for the ATX
+  line, Equipment Manager ranks much higher. Ask which scenario before ranking titles.
+- A reply that names a replacement contact is a routing event: that address is added and sent to.
+- Failures are recorded and skipped, the wave finishes, then the skipped ones are retried in a
+  second and third pass.
+- Reply monitoring lives in the sending thread; the 15-minute send-progress report stops when the
+  queue empties.
+- Non-golf and artificial-turf venues are excluded from this line (they belong to
+  `other-lines.md` / `uk-pitches-schools.md`).

@@ -48,3 +48,17 @@
 | Run | Organisations | With A/B | Named A/B | Time | Note |
 |---|---|---|---|---|---|
 | Bruce, graded accounts | 249 | 71 (28.5%) | - | 333 turns, 4.13 h of agent turns, 740.9 h span, 422 user messages | the reference for `marketops-benchmarks` |
+
+## From his own instructions (supplement)
+
+- Mowing and line marking are one research task for one site, not two projects ("只有一个调研任务").
+- Four stage threads run strictly in order and never cross: 网页提取 -> 网页质量 -> 网页镜像 ->
+  邮箱提取 / 邮箱质量 -> 飞书入库. A thread's output is the file the next thread reads.
+- Do not mirror a page that already shows no email clue. "This page has no address" is not "this
+  organisation has none": check the Contact / Équipements sportifs / Annuaire entry pages first.
+- Page budget per organisation: 4-6 high-signal page types, at most 6-8 pages, no site-wide
+  crawl; default cross-domain concurrency 12-24, per-URL timeout 15-20 s, per-response cap 5 MB.
+- The delivery sheet is the list of valid email routes, not a research log - a duplicate route
+  has no place in it.
+- D-grade routes are sent to, not dropped: they are marked D and never dressed up as a named
+  contact or a field manager.

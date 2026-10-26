@@ -49,3 +49,32 @@ summaries are LLM syntheses: treat single numbers as a guide and measure your ow
 
 Never write the researched organisations' names, people's names, addresses, phone numbers
 or account ids into these files: counts, titles, source names, page types and rules only.
+
+
+## Rules that come from his own instructions
+
+Extracted from 3,151 of his own messages across 168 sessions; the evidence rows (quote, locator,
+count) are in `docs/benchmarks/bruce-knowledge/`. These apply to every line above.
+
+- One thread, one job. Pool building, deep research, first touch and reply monitoring are four
+  separate flows that hand off in order; an end-to-end thread was rejected because a fix in one
+  stage then forced a rerun of all of them.
+- Research never sends. "不自动发送开发信" is a thread rule; the send queue is built from the
+  research output and shown once for confirmation before the first wave.
+- A country batch freezes before the next starts; the order he used was UK -> FR -> DE ->
+  IT/NL -> AU/NZ/IE/CA -> rest. Within a large country, states run as parallel sub-threads under
+  one main agent.
+- Measure a batch before scaling it: 20 pages -> check output -> 200 -> 500. A green dashboard is
+  not a measurement (see the mirror pitfall in `fr-natural-grass.md`).
+- The send window is 14:00-22:00 local; outside it the queue waits. The owning thread gets a
+  progress line every 15 minutes, including the send rate.
+- A failed send is recorded and skipped, never retried inside the wave; after the wave the
+  skipped ones are retried, and a third pass runs until the queue is empty.
+- Reply monitoring runs in the same thread as the send, never a new thread. Its interval was
+  changed 3 h -> 6 h -> 12 h as volume grew: treat it as a setting, not a constant.
+- A generic mailbox is a route (it can forward); a D grade is sent to with a lower reply
+  expectation; something explicitly identified as not a mailbox is not a route.
+- The delivered row carries country, state/region and the terminal/scenario, so the sending
+  thread can split the queue without a second lookup.
+- Anything that needs his judgement goes into one numbered list in the owning thread and comes
+  back in one reply, not one question at a time.

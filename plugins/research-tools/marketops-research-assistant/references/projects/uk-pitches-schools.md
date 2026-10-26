@@ -50,3 +50,17 @@
 |---|---|---|---|
 | Bruce, pitchfinder batches 0078-0082 | 344 accounts | - | plugin 0.6.0 passed all criteria (11.3 A+B routes per 100) |
 | Bruce, GB deep research | 7,638 rows (32 columns) | sendable 5,137 / 4,978 unique addresses | - |
+
+## From his own instructions (supplement)
+
+- Build the England pitch pool from the official register first; do not start with email lookup
+  and do not batch-crawl clubs.
+- Research the operating body rather than the pitch: grounds / estates / facilities / venue
+  operations leads.
+- Golf, artificial turf and indoor sites are out of this line.
+- A/B/C/D all mean "a researched, follow-up-valid route"; D stays in the table and is marked,
+  never relabelled as a named contact.
+- One pipeline with four stages, not four parallel process variants; classify into the delivery
+  table at the end. Complexity alone was named as the cause of low throughput.
+- When counting effective replies, apply his 16-type exclusion list; a reply that names a
+  replacement contact is a routing event, not just a reply.
