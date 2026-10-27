@@ -2,6 +2,22 @@
 
 本文回答：一次调研从简报到交付，整条业务链怎么由多个 agent 团队分段协同、同时推进；脚本、skill、业务知识、六家 provider 各自在里面做什么；怎么保证质量。
 
+## 定义：这是一个插件
+
+**插件 = MCP 加 skill 的组合。** 宿主 agent（Claude Code / Codex / WorkBuddy）用自己的能力干活；插件给它工具，并教它怎么做。
+
+| 部分 | 是什么 | 在本插件里 |
+|---|---|---|
+| MCP | 工具 | 本插件的 MCP server（`project`、`search`、`fetch`、`pool`、`run`、`tasks`、`grade`、`judge`、`browse`、`export`），以及它背后的六家 provider SDK/API（Serper、SerpApi、DeepSeek、TinyFish、Crawl4AI、Jev） |
+| skill：怎么用工具 | 各家 MCP 和 SDK 的用法经验：参数、限速、写法、坑 | `marketops-tools` 及其 `references/*.md` |
+| skill：业务知识 | 客户和等级定义、来源、页面类型、岗位词、Bruce 六条业务线的经验 | `marketops-brief`、`marketops-sources`、`marketops-benchmarks`、`references/projects/` |
+| skill：推动工作流 | 整条业务链怎么分段、每段谁做、怎么用宿主的多智能体并行推进、什么时候问用户、什么时候交付 | `marketops-research`、角色说明（`references/roles/`，0.7 新增）、`commands/` |
+
+判据：
+- 新能力先问：这是工具（MCP 代码）还是知识与做法（skill）？能写进 skill 的，不写成代码。
+- 代码只做 agent 自己做不到或做不安全的事：调用 provider、批量处理、共享状态、并行安全、规则底线。
+- 调度、分工、判断都交给宿主 agent，由 skill 写清楚，插件不写自己的调度器。
+
 ## 0. 原则
 
 1. **质量第一**：交付的每一条都必须经得起打开原页核对。token 预算宽松，宁可多花 agent 的判断，也不要牺牲质量。
