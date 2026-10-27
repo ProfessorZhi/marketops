@@ -26,11 +26,11 @@ SEARCH_ENGINES = ("serper", "serpapi", "deepseek", "tinyfish")
 READERS = ("crawl4ai", "tinyfish", "deepseek")
 # Share of calls each provider takes part in (brief.providers overrides). The rest is held
 # back and called only when the chosen ones come back weak - never at the cost of results.
-# Search: Serper (Google results, ~1-2 s, site:/filetype: precise) and DeepSeek carry it; TinyFish
-# searches too (30 a minute per account, paced for the whole machine); SerpApi has little quota
-# and backs them up. Reading: DeepSeek, Crawl4AI and TinyFish race on every page. The paid
+# Search: Serper and SerpApi (Google results, ~1-2 s, site:/filetype: precise, each standing in
+# for the other when its quota runs out) and DeepSeek carry it; TinyFish searches too (30 a
+# minute per account, paced for the whole machine). Reading: DeepSeek, Crawl4AI and TinyFish race on every page. The paid
 # TinyFish Agent is opt-in only.
-DEFAULT_WEIGHTS = {"search": {"serper": 1.0, "deepseek": 1.0, "tinyfish": 1.0, "serpapi": 0.3},
+DEFAULT_WEIGHTS = {"search": {"serper": 1.0, "serpapi": 1.0, "deepseek": 1.0, "tinyfish": 1.0},
                    "fetch": {"crawl4ai": 1.0, "tinyfish": 1.0, "deepseek": 1.0}}
 
 
@@ -284,6 +284,10 @@ def search(query: str, engines=None, country: str = "", lang: str = "", n: int =
         loc = mo_workspace.locale(project_dir)
         country, lang, purpose = country or loc["country"], lang or loc["language"], loc["purpose"]
     available = [e for e in (engines or SEARCH_ENGINES) if e in _SEARCH and mo_config.key(e)]
+    if not available:
+        return {"query": query, "results": [], "routes": {},
+                "error": "no search engine has a usable key: search with your host's own web search, "
+                         "then read what you find with fetch(project, url, org_id=...)"}
     if engines or weights is None:
         wanted, held = available, []
     else:
@@ -431,11 +435,75 @@ def download(url: str, max_bytes: int = 60_000_000) -> dict:
                 "bytes": b"".join(chunks)}
 
 
-_READ = {"crawl4ai": _read_crawl4ai, "tinyfish": _read_tinyfish, "deepseek": _read_deepseek}
+def _read_http(url):
+    """The last resort: a plain GET, no JavaScript. Static pages read fine; script-built ones
+    come back thin."""
+    with httpx.Client(headers={"User-Agent": UA, "Accept-Language": "fr,en;q=0.8,de;q=0.6"}, timeout=20,
+                      follow_redirects=True) as c:
+        r = c.get(url)
+    if r.status_code >= 400:
+        raise ProviderError(f"HTTP {r.status_code}")
+    body = r.text or ""
+    if len(body.strip()) < 200:
+        raise ProviderError("no text")
+    return {"final_url": str(r.url), "html": body, "text": ""}
+
+
+_READ = {"crawl4ai": _read_crawl4ai, "tinyfish": _read_tinyfish, "deepseek": _read_deepseek, "http": _read_http}
+
+
+def capabilities() -> dict:
+    """What the plugin can do right now, and how far it has stepped down. Every tool is optional;
+    losing one costs speed or depth, never the whole job:
+      full     - a Google engine (Serper or SerpApi) plus another engine, two or more readers, Jev
+      reduced  - something missing (slower search, fewer readers, or rules + agents grading)
+      minimal  - no search engine (agents use the host's web search) or only plain HTTP reading
+    """
+    import mo_budget
+    search = [e for e in SEARCH_ENGINES if mo_config.key(e) and mo_budget.allowed(e, "search")[0]]
+    readers = available_readers()
+    jev = bool(mo_config.key("jev")) and mo_budget.allowed("jev")[0]
+    missing, effects = [], []
+    if not any(e in search for e in ("serper", "serpapi")):
+        missing.append("serper/serpapi")
+        effects.append("search runs on the slower engines (DeepSeek, TinyFish): digging takes longer")
+    if not search:
+        effects.append("no search engine: agents search with the host's own web search, then fetch()")
+    if not crawl4ai_installed():
+        missing.append("crawl4ai")
+        effects.append("pages are read by TinyFish / DeepSeek / plain HTTP only (run install.sh to add Crawl4AI)")
+    if readers == ["http"]:
+        effects.append("only plain HTTP reading: pages built by JavaScript come back thin")
+    if not jev:
+        missing.append("jev")
+        effects.append("grading: rules grade what they can, agents grade the rest with grade(set=...) - slower, more agent tokens")
+    if not mo_config.key("tinyfish"):
+        missing.append("tinyfish")
+    if not mo_config.key("deepseek"):
+        missing.append("deepseek")
+    level = "minimal" if (not search or readers == ["http"]) else (
+        "full" if any(e in search for e in ("serper", "serpapi")) and len(search) >= 2 and len(readers) >= 2 and jev
+        else "reduced")
+    return {"level": level, "search": search, "read": readers, "grade": "jev + rules" if jev else "rules + agents",
+            "missing": missing, "effects": effects}
+
+
+_HAS_CRAWL4AI: list = []
+
+
+def crawl4ai_installed() -> bool:
+    if not _HAS_CRAWL4AI:
+        import importlib.util
+        _HAS_CRAWL4AI.append(importlib.util.find_spec("crawl4ai") is not None)
+    return _HAS_CRAWL4AI[0]
 
 
 def available_readers(readers=None) -> list[str]:
-    return [r for r in (readers or READERS) if r in _READ and (r == "crawl4ai" or mo_config.key(r))]
+    """Readers that can run here: Crawl4AI when installed, TinyFish and DeepSeek with a usable
+    key. With none of them, the plain HTTP reader (no JavaScript) - reading degrades, never stops."""
+    out = [r for r in (readers or READERS) if r in _READ and
+           ((r == "crawl4ai" and crawl4ai_installed()) or r == "http" or (r not in ("crawl4ai", "http") and mo_config.key(r)))]
+    return out or ["http"]
 
 
 def read(url: str, readers=None, project_dir=None, force: bool = False) -> dict:

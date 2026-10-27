@@ -27,6 +27,9 @@ Loop:
    - No usable website: find it (`search`, maps), record it with `orgs(set=[{org_id, website}])`
      and `run(orgs=[it], rounds=0, again=True)`.
    - Held for review in your package: open the page and decide; say why in `note`.
+   - The venue is really run by someone else (a council department, a syndicate, a contractor):
+     add them with `orgs(add=[{name, city, website, segment}], agent="<name>")` so they are
+     researched too.
    - Verdict: `tasks(action="verdict", agent="<name>", verdicts=[{org_id, verdict:
      routes|partial|none|user, found, where, why}])`.
 5. When you see how a kind of organisation is found (after a handful of the same segment),

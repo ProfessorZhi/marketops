@@ -27,7 +27,7 @@ counts and slower engines get a few seconds; late answers land in the library fo
 | Serper (Google) | fast (1-2 s), exact phrases, `site:`, `filetype:pdf`, maps places with website and phone | **main engine** - keep it funded; several keys in slots |
 | DeepSeek | broad web search; operators `site:`, `"..."`, `lang:`, `after:`; long summaries | **main engine** (paid per request, cheap) |
 | TinyFish search | broad web search, fast; `include_domains` | always on, 30 a minute per account (paced for the whole machine) |
-| SerpApi (Google / Bing) | the same as Serper, small quota | backup |
+| SerpApi (Google / Bing) | the same as Serper | **main engine**, equal to Serper; each stands in for the other when its quota runs out |
 
 Recipes Bruce used most (`derived/websearch-queries.csv`, 1,000 queries):
 - **Reverse look-up of an address you already found**: `"<address>"` (his most used query) and
@@ -86,6 +86,7 @@ Jev answers multiple-choice questions over rows, in any language, cheaply and in
 | `project(name)` -> `stages` | how much work waits at each stage; staff where it piles up |
 | `orgs(project, stage="no_ab" \| "review" \| "no_website" \| "unread" \| "held", ids=[...])` | one summary per organisation - what the sweep read and found, rows to review, verdicts - plus the playbook by segment and each website's health (reach, last success, readers it blocks), so you decide without re-reading pages |
 | `orgs(project, set=[{org_id, website, segment, scope, note}])` | fix a website, set the segment the playbook keys on, mark scope |
+| `orgs(project, add=[{name, city, website, segment}], agent=...)` | add an organisation you found (the department or contractor that really runs a venue); merged on name + place |
 | `run(project, orgs=[...], again=True)` | sweep a batch again in the background (after fixing websites or writing the playbook); results land as `orgs(ids=...)` shows |
 | `tasks(action="plan" \| "claim" \| "done" \| "add")` | the shared queue; while you hold a package the pipeline leaves its organisations alone; a claim untouched for 40 minutes returns to the queue |
 | `tasks(action="verdict", verdicts=[{org_id, verdict, found, where, why}])` | one line per organisation you finished (workbook sheet "agent 结论") |

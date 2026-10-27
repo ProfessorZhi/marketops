@@ -71,12 +71,14 @@ def _address_words(email: str) -> str:
 
 
 def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: int = 8) -> dict:
-    """Jev grades the email candidates that have no grade yet (or all, with regrade). limit 0 = all."""
-    if not mo_config.key("jev"):
-        return {"graded": 0, "note": "no Jev key: read the quotes and set grades with grade(set=[...])"}
-    import typesafe_sdk as sdk
-    from concurrent.futures import ThreadPoolExecutor
+    """Grade the email candidates that have no grade yet (or all, with regrade). limit 0 = all.
+
+    Rules first, at no cost: the brief's address rules, an organisation's own plain inbox (D) and
+    an address that has nothing to do with the organisation (X: neither its page, its domain nor
+    its name). Jev grades the rest - only the rows that need judgement. Without Jev the rules still
+    run and the rest waits for agents (grade(set=[...]))."""
     rows = ws.read_contacts(pdir)
+    jev = bool(mo_config.key("jev"))
     import mo_pages
     org_site = {str(o.get("id") or o.get("org_id") or ""): mo_pages.site_of(str(o.get("website") or ""))
                 for o in ws.read_csv(pdir / "orgs.csv")}
@@ -100,8 +102,11 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: 
     by_rule, reused, first, copies = [], [], {}, []
     for r in todo:
         g = ws.address_rule(pdir, r.get("value", ""))
+        why = f"address rule: {g}"
+        if not g:
+            g, why = _rule_grade(r, common)
         if g:
-            r.update(grade=g, graded_by="rule", grade_reason=f"address rule: {g}", review="", review_reason="")
+            r.update(grade=g, graded_by="rule", grade_reason=why, review="", review_reason="")
             by_rule.append(r)
         elif _same(r) in known:
             r.update({f: known[_same(r)].get(f, "") for f in fields})
@@ -111,6 +116,12 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: 
         else:
             first[_same(r)] = r
     todo = list(first.values())
+    if not jev:   # no Jev: the rules' grades stand, the rest waits for an agent
+        ws.update_contacts(pdir, by_rule + reused, fields, guard=lambda cur: not cur.get("graded_by", "").startswith("agent"))
+        return {"graded": 0, "by_rule": len(by_rule), "reused": len(reused), "waiting_for_an_agent": len(todo) + len(copies),
+                "note": "no usable Jev key: the rules graded what they can; agents grade the rest with grade(set=[...])"}
+    import typesafe_sdk as sdk
+    from concurrent.futures import ThreadPoolExecutor
     rub = rubric(pdir)
     b = ws.brief(pdir)
     focus = b.get("focus") or ""
@@ -252,6 +263,25 @@ def yes(a):
         return float(v)
     c = getattr(a, "choice", None)   # older yes/no Choice answers
     return None if c is None else (1.0 if c == "yes" else 0.0)
+
+
+FREE_MAIL = {"gmail.com", "yahoo.com", "yahoo.fr", "hotmail.com", "hotmail.fr", "outlook.com", "outlook.fr",
+             "orange.fr", "wanadoo.fr", "free.fr", "sfr.fr", "laposte.net", "gmx.de", "gmx.net", "web.de",
+             "t-online.de", "bluewin.ch", "icloud.com", "live.com", "aol.com", "btinternet.com"}
+
+
+def _rule_grade(r: dict, common: dict) -> tuple[str, str]:
+    """Grades that need no judgement (and no Jev call): the organisation's own plain inbox is D;
+    an address on another site's page, on another domain, with the organisation not named next to
+    it, is X. Kept and labelled - an agent can change either."""
+    own_mail = r.get("email_on_org") in ("yes", "likely") or r.get("same_site") == "yes"
+    if r.get("mailbox") == "generic" and own_mail:
+        return "D", "rule: the organisation's own general inbox"
+    site = str(r.get("email_site") or "").lower()
+    if (r.get("page_on_org_site") == "no" and not own_mail and site not in FREE_MAIL
+            and not mentions(r.get("org", ""), r.get("quote", ""), common)):
+        return "X", "rule: not this organisation's (another site's page, another domain, organisation not named)"
+    return "", ""
 
 
 def _same(r: dict) -> tuple:

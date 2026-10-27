@@ -51,6 +51,21 @@ waits for a stage to be complete.
 
 ## How you run a job
 
+0. **Check the tools, install if needed.** If the marketops tools (`project`, `fetch`, ...) are
+   not in your tool list, the plugin is not installed on this computer: run `install.sh` from the
+   plugin folder (Windows: `Install.ps1`; it asks for the keys it does not have), then restart the
+   session (`HOSTS.md` for Codex and WorkBuddy). `python scripts/server.py --check` tells what is
+   there. Then `project(name)["capabilities"]`: every provider is optional and the plugin steps
+   down instead of stopping -
+
+   | Level | Means | You do |
+   |---|---|---|
+   | full | a Google engine (Serper or SerpApi) plus another, two or more readers, Jev | the normal flow |
+   | reduced | something missing: slower search, fewer readers, or no Jev | the same flow; without Jev grade the rows the rules leave with `grade(set=[...])` (the review and finish workers share it); tell the user once which keys would bring it back to full |
+   | minimal | no search engine, or plain HTTP reading only | search with your host's own web search and `fetch()` what you find; expect script-built pages to read thin; put the missing keys first in the numbered list |
+
+   Several keys per provider can be configured (slots); a used-up key hands over to the next by
+   itself, and new keys work without a restart.
 1. **Brief.** Read `references/projects/` for the market, write the brief with
    `project(name, brief={...})` (marketops-brief). Ask the user once, up front, for what is
    missing; then do not stop to ask again until delivery - everything else goes into the

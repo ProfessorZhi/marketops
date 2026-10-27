@@ -485,6 +485,8 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
                                                      "staff", "people", "board", "committee", "equipe"))
         if held and (not parsed_by or (contactish and not emails)):
             read_with(held)
+        if not parsed_by and readers is None and "http" not in now + held:
+            read_with(["http"])   # every reader failed or none is set up: a plain GET before giving up
     links: list = []
     content_links: list = []
     buttons = 0

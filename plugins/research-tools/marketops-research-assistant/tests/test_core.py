@@ -99,7 +99,7 @@ class Flow(unittest.TestCase):
         self.assertEqual("no_website", crawl["o2"]["status"])
         values = {r["value"] for r in ws.read_contacts(pdir)}
         self.assertIn("sekretariat@fc-beispiel.ch", values)  # found on the linked Vorstand page
-        self.assertIn("no Jev key", server.grade("t2")["note"])
+        self.assertIn("no usable Jev key", server.grade("t2")["note"])
         self.assertEqual(1, server.grade("t2", set=[{"value": "praesident@fc-beispiel.ch", "grade": "A",
                                                      "person": "Hans Muster", "role": "Präsident"}])["updated"])
         self.assertEqual(1, server.grade("t2", set=[{"value": "hello@studio-x.ch", "grade": "X"}])["updated"])
@@ -683,6 +683,9 @@ class AgentParts(unittest.TestCase):
                                                                   "segment": "club", "name": "ignored"}]))
         row = {r["id"]: r for r in ws.read_csv(pdir / "orgs.csv")}["o2"]
         self.assertEqual(("https://b.fr/", "club", "B"), (row["website"], row["segment"], row["name"]))
+        out = server.orgs("t51", add=[{"name": "SIVOM 4", "city": "Lyon", "website": "https://sivom4.fr"},
+                                      {"name": "B", "website": "https://b.fr/"}], agent="r1")
+        self.assertEqual((1, 1), (out["orgs_added"], out["orgs_merged"]))   # B is the same organisation
         self.assertEqual(1, ws.stages(pdir)["dig"]["agent_verdicts"])
 
     def test_spot_checks_give_the_precision(self):
@@ -897,6 +900,41 @@ class Slots(unittest.TestCase):
                 ws.fetch(pdir, "https://paris.fr/reserver", ["crawl4ai"], oid, name, "paris.fr")
         holders = {r["org_id"] for r in ws.read_contacts(pdir) if r["value"] == "reservation@paris.fr"}
         self.assertEqual({"o1", "o2"}, holders)   # the third reader of a page that names none of them adds nothing
+
+
+class StepDown(unittest.TestCase):
+    def test_with_nothing_set_up_the_plugin_steps_down_not_out(self):
+        with mock.patch("mo_config.key", return_value=""), \
+                mock.patch.object(mo_providers, "crawl4ai_installed", return_value=False):
+            cap = mo_providers.capabilities()
+            self.assertEqual("minimal", cap["level"])
+            self.assertEqual(["http"], mo_providers.available_readers())
+            self.assertIn("host's own web search", mo_providers.search("stade lyon")["error"])
+            self.assertEqual("rules + agents", cap["grade"])
+        with mock.patch("mo_config.key", side_effect=lambda p: "k" if p in ("serper", "deepseek", "jev", "tinyfish") else ""), \
+                mock.patch("mo_budget.allowed", return_value=(True, "")), \
+                mock.patch.object(mo_providers, "crawl4ai_installed", return_value=True):
+            self.assertEqual("full", mo_providers.capabilities()["level"])
+
+    def test_rules_grade_without_jev_and_spare_it_the_obvious_rows(self):
+        import mo_grade
+        pdir = ws.project_dir("t58")
+        ws.merge_contacts(pdir, [
+            {"kind": "email", "value": "info@club-a.fr", "quote": "Contact", "page_url": "https://club-a.fr/",
+             "mailbox": "generic", "email_on_org": "yes", "page_on_org_site": "yes", "email_site": "club-a.fr"},
+            {"kind": "email", "value": "jobs@agency.com", "quote": "Offre d'emploi", "page_url": "https://jobs.example/1",
+             "mailbox": "named_or_role", "email_on_org": "no", "page_on_org_site": "no", "email_site": "agency.com"},
+            {"kind": "email", "value": "president@club-a.fr", "quote": "Président Jean Ex", "page_url": "https://club-a.fr/b",
+             "mailbox": "named_or_role", "email_on_org": "yes", "page_on_org_site": "yes", "email_site": "club-a.fr"}],
+            "o1", "Club A", "site")
+        with mock.patch("mo_config.key", return_value=""):
+            out = mo_grade.auto(pdir)
+        rows = {r["value"]: r for r in ws.read_contacts(pdir)}
+        self.assertEqual("D", rows["info@club-a.fr"]["grade"])
+        self.assertTrue(rows["info@club-a.fr"]["graded_by"].startswith("rule"))
+        self.assertEqual("X", rows["jobs@agency.com"]["grade"])
+        self.assertEqual("", rows["president@club-a.fr"].get("grade", ""))   # judgement: waits for Jev or an agent
+        self.assertEqual(1, out["waiting_for_an_agent"])
 
 
 class Reconcile(unittest.TestCase):

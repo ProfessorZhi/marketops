@@ -4,7 +4,9 @@ here=$(CDPATH= cd "${0%/*}" && pwd)
 home="${MARKETOPS_HOME:-$HOME/.marketops}"
 for py in "${MARKETOPS_PYTHON:-}" "$home/venv/bin/python" python3; do
     [ -n "$py" ] || continue
-    if "$py" -c 'import mcp, crawl4ai' >/dev/null 2>&1; then
+    # only the MCP library is required: without Crawl4AI pages are read by TinyFish, DeepSeek or
+    # plain HTTP (the plugin degrades, it does not stop)
+    if "$py" -c 'import mcp, httpx' >/dev/null 2>&1; then
         exec "$py" "$here/server.py"
     fi
 done

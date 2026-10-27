@@ -83,6 +83,7 @@ def project(name: str, brief: dict | None = None, playbook: dict | None = None,
         out["version"] = VERSION
         out["providers"] = mo_config.configured() + ["crawl4ai"]
         out["accounts"] = mo_budget.accounts()
+        out["capabilities"] = mo_providers.capabilities()
         import mo_library
         out["library"] = mo_library.stats()
         out["needs_you"] = needs_you(pdir, out)
@@ -122,6 +123,10 @@ def needs_you(pdir, status: dict) -> list[str]:
                              "keep it at the back of the queue, or drop the rest of it?")
         if st.get("stage") == "failed" or (st.get("restarts") or 0) >= mo_run.MAX_RESTARTS:
             items.append(f"Run shard {st.get('shard')} stopped: {st.get('error') or 'restarted too often'}.")
+    cap = status.get("capabilities") or {}
+    if cap.get("level") in ("reduced", "minimal") and cap.get("effects"):
+        items.append(f"Working at '{cap['level']}' level ({', '.join(cap.get('missing') or []) or 'no keys'} missing): "
+                     + "; ".join(cap["effects"]) + ". Add the missing keys (several per provider allowed) to go back to full.")
     for name, acc in (status.get("accounts") or {}).items():
         if not isinstance(acc, dict):
             continue
@@ -292,7 +297,7 @@ def tasks(project: str, action: str = "status", kind: str = "", size: int = 15, 
 
 
 def orgs(project: str, ids: list[str] | None = None, stage: str = "", limit: int = 30,
-         set: list[dict] | None = None) -> dict:
+         set: list[dict] | None = None, add: list[dict] | None = None, agent: str = "") -> dict:
     """One summary per organisation, for an agent deciding what to do next with it.
 
     ids: these organisations; or stage: "no_ab" (pipeline done, no confirmed A/B, no agent
@@ -303,9 +308,19 @@ def orgs(project: str, ids: list[str] | None = None, stage: str = "", limit: int
     set=[{org_id, website?, segment?, scope?, city?, note?}]: correct organisations - a website
     you found or fixed (the sweep reads it next; re-sweep with run(orgs=[...], again=True)),
     the segment the playbook keys on, scope in/out/unsure.
+    add=[{name, city, website?, segment?, note?}]: organisations you found while researching (the
+    council department or contractor that really runs a venue, a club found on a federation
+    page) - merged into the pool on name + place like any source; plan sweep packages for them.
     """
     try:
         pdir = ws.project_dir(project)
+        if add:
+            import mo_pool
+            rows = [{k: str(v) for k, v in r.items() if k in ("name", "city", "website", "segment", "note", "type")}
+                    for r in add if isinstance(r, dict) and str(r.get("name") or "").strip()]
+            out = mo_pool.add_orgs(pdir, rows, f"agent:{agent or 'agent'}", "agent")
+            if not ids and not stage and not set:
+                return out
         if set:
             changed = ws.update_orgs(pdir, set)
             if not ids and not stage:
@@ -351,7 +366,7 @@ TOOLS = (project, search, pool, fetch, browse, judge, grade, run, tasks, orgs, e
 def check() -> int:
     """Installer self-check: packages import, which keys are present (names only)."""
     problems = []
-    for mod in ("mcp", "crawl4ai", "typesafe_sdk", "httpx"):
+    for mod in ("mcp", "httpx"):
         try:
             __import__(mod)
         except Exception as exc:  # noqa: BLE001
@@ -361,8 +376,15 @@ def check() -> int:
           f"projects in {mo_config.projects_root()}")
     for p in problems:
         print("  missing package -", p)
-    if not any(k in keys for k in ("serper", "serpapi", "deepseek", "tinyfish")):
-        print("  no search key yet: research needs at least one of Serper, SerpApi, DeepSeek, TinyFish")
+    cap = mo_providers.capabilities()
+    print(f"  level: {cap['level']} - search {cap['search'] or 'none'}, read {cap['read']}, grade {cap['grade']}")
+    for e in cap["effects"]:
+        print("  -", e)
+    for mod in ("crawl4ai", "typesafe_sdk"):   # optional: their absence steps the plugin down, not out
+        try:
+            __import__(mod)
+        except Exception:  # noqa: BLE001
+            print(f"  optional package missing - {mod} (run install.sh to add it)")
     return 1 if problems else 0
 
 
