@@ -123,6 +123,10 @@ def needs_you(pdir, status: dict) -> list[str]:
                              "keep it at the back of the queue, or drop the rest of it?")
         if st.get("stage") == "failed" or (st.get("restarts") or 0) >= mo_run.MAX_RESTARTS:
             items.append(f"Run shard {st.get('shard')} stopped: {st.get('error') or 'restarted too often'}.")
+    sat = ws.source_saturation(pdir)
+    if ws.read_csv(pdir / "orgs.csv") and not sat["saturated"]:
+        items.append(f"Data sources are not saturated ({sat['status']}): keep a sources worker running until "
+                     "the last three sources each add under 5% new organisations.")
     cap = status.get("capabilities") or {}
     if cap.get("level") in ("reduced", "minimal") and cap.get("effects"):
         items.append(f"Working at '{cap['level']}' level ({', '.join(cap.get('missing') or []) or 'no keys'} missing): "
@@ -136,7 +140,7 @@ def needs_you(pdir, status: dict) -> list[str]:
         low = isinstance(bal, (int, float)) and (bal <= 0 or (isinstance(line, (int, float)) and bal <= line))
         if acc.get("skipped") or low:
             items.append(f"{name} is out of credit or at its red line (balance {bal}): top it up or leave it off"
-                         + (" - search runs on the slower engines without it." if name in ("serper", "serpapi") else "."))
+                         + (" - without it there is no maps search and digging leans on DeepSeek and TinyFish." if name in ("serper", "serpapi") else "."))
     return [f"{n}. {t}" for n, t in enumerate(dict.fromkeys(items), 1)]
 
 

@@ -627,6 +627,41 @@ def add_verdicts(pdir: Path, items: list[dict], agent: str = "") -> int:
     return n
 
 
+SATURATION_LAST, SATURATION_NEW = 3, 0.05   # the last 3 sources each under 5% new: the pool is saturated
+MIN_SOURCES = 3
+
+
+def source_saturation(pdir: Path) -> dict:
+    """Is the pool still growing? Each pooled source adds new organisations or merges into ones
+    already there; when the last SATURATION_LAST sources each brought under SATURATION_NEW new,
+    more lists of the same kind stop paying. One source is never saturation - it is a pool
+    nobody looked beyond."""
+    rows = [r for r in read_csv(pdir / "sources.csv") if r.get("source")]
+
+    def new_share(r):
+        for a, m in (("orgs_added", "orgs_merged"), ("venues_added", "venues_merged")):
+            try:
+                added, merged = int(r.get(a) or 0), int(r.get(m) or 0)
+            except ValueError:
+                continue
+            if added + merged:
+                return round(added / (added + merged), 3)
+        return None
+    shares = [x for x in (new_share(r) for r in rows) if x is not None]
+    n = len({r["source"] for r in rows})
+    last = shares[-SATURATION_LAST:]
+    saturated = n >= MIN_SOURCES and len(last) == SATURATION_LAST and all(x < SATURATION_NEW for x in last)
+    unlogged = sum(1 for o in read_csv(pdir / "orgs.csv") if not (o.get("sources") or o.get("source")))
+    if saturated:
+        status = "saturated: the last sources mostly repeat what is pooled"
+    elif n < MIN_SOURCES:
+        status = f"keep looking: {n} source(s) pooled, at least {MIN_SOURCES} before saturation can be judged"
+    else:
+        status = "keep looking: recent sources still add new organisations"
+    return {"sources": n, "new_share_last": last, "saturated": saturated, "status": status,
+            "orgs_without_logged_source": unlogged}
+
+
 def stages(pdir: Path) -> dict:
     """How much work waits at each stage of the chain - the lead agent staffs where it piles up."""
     import mo_tasks
@@ -640,8 +675,10 @@ def stages(pdir: Path) -> dict:
     judged = {r["org_id"] for r in read_csv(pdir / "verdicts.csv")}
     sources = read_csv(pdir / "sources.csv")
     checked = [c for c in contacts if c.get("checked") in ("ok", "wrong")]
+    sat = source_saturation(pdir)
     return {
         "sources": {"pooled": len({r.get("source") for r in sources if r.get("source")}),
+                    "saturated": sat["saturated"], "status": sat["status"], "new_share_last": sat["new_share_last"],
                     "waiting_to_pool": sum(1 for t in read_csv(pdir / "tasks.csv") if t.get("kind") == "custom"
                                            and t.get("title", "").lower().startswith("pool") and t.get("status") != "done")},
         "orgs": {"total": len(ids), "no_website": sum(1 for o in orgs if not o.get("website")),

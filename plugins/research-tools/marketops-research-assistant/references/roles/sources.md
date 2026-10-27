@@ -21,5 +21,14 @@ Loop:
 5. After a source has 30 organisations through the sweep, read its yield (数据源 sheet,
    `project()` source yields): under 5% A/B -> stop adding from it; note why.
 
-Done when: no new source would add organisations of the brief's kind, or the brief's coverage
-is reached. Report: sources pooled, sources queued, sources dropped and why.
+Never done after one list. Every project starts its pool from several sources: one list -
+even a good one, even a pool inherited from an earlier project - covers only the part of the
+market that list happened to know about. A list you already have counts as one source; log it
+too (`pool(...)` logs it in sources.csv, an inherited orgs.csv does not).
+
+Done when the pool is saturated: `project(name)["stages"]["sources"]["saturated"]` - at least
+three sources pooled and the last three each added under 5% new organisations (the rest merged
+into ones already there) - or the brief's coverage is reached. Until then keep looking: new kinds
+of list (federation finders, the national facility census, city portals, chambers of commerce,
+the client's CRM), new districts, new segments. Report: sources pooled, sources queued, sources
+dropped and why, the last new-share numbers.

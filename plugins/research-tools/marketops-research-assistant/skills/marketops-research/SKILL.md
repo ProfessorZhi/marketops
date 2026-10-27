@@ -92,7 +92,11 @@ waits for a stage to be complete.
    references/roles/<role>.md of the marketops plugin and work until your queue is empty.`
 
    Default team (change it in the brief as `team`): research 6-10, sources 1-2, finish 1-2
-   (pool and websites workers when sources need mapping or many sites are missing).
+   (pool and websites workers when sources need mapping or many sites are missing). **Start the
+   sources workers first and keep them until the pool is saturated** (`stages.sources.saturated`:
+   three or more sources, the last three each under 5% new organisations). A pool from a single
+   list - or one inherited from an earlier project - is never complete; that is how a run ends
+   with no venues and half a market missing.
    Throughput grows with the number of researchers - there is no background process to wait
    for.
 4. **Feed the queues.** Sweep packages for new organisations; `kind="review"` for rows still to

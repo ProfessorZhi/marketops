@@ -235,6 +235,9 @@ def export(pdir) -> dict:
     summary = [
         {"项目": "机构数", "值": total},
         {"项目": "场地数", "值": len(venues)},
+        {"项目": "数据源饱和", "值": (lambda st: f"{st['sources']} 个数据源；最近新增占比 "
+                                     f"{', '.join(f'{x:.0%}' for x in st['new_share_last']) or '-'}；"
+                                     + ("已饱和" if st["saturated"] else "未饱和，池子可能不全"))(ws.source_saturation(pdir))},
         {"项目": "广度：有确认 A+B 的机构占比（有确认 A/B 的机构 ÷ 机构数；不含待复核）", "值": f"{m['ab_org_share']}%（{m['ab_orgs']} 家）"},
         {"项目": "每百机构 A+B 路线数（A+B 条数 ÷ 机构数 × 100，Bruce 口径；同一人两地址计一条）", "值": m["ab_routes_per_100_orgs"]},
         {"项目": "每百机构 A+B 路线数，每机构最多计 3 条", "值": m["ab_routes_per_100_orgs_max3"]},

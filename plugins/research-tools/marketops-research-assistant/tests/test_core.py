@@ -1096,5 +1096,26 @@ class Package(unittest.TestCase):
                 mo_providers.public_url(url)
 
 
+class SourceSaturation(unittest.TestCase):
+    def test_one_source_is_never_saturated_and_three_repeating_sources_are(self):
+        import mo_pool
+        pdir = Path(TMP) / "projects" / "sat"
+        pdir.mkdir(parents=True, exist_ok=True)
+        ws.write_csv(pdir / "orgs.csv", ["id", "name"], [{"id": "o1", "name": "A"}])
+        mo_pool.log_source(pdir, "list-1", "file", {"orgs_added": 900, "orgs_merged": 0})
+        st = ws.source_saturation(pdir)
+        self.assertFalse(st["saturated"])
+        self.assertEqual(st["orgs_without_logged_source"], 1)      # an inherited list counts as unlogged
+        self.assertTrue(any("not saturated" in x for x in server.needs_you(pdir, {})))
+        for n, (added, merged) in enumerate(((3, 300), (1, 200), (40, 60)), 2):
+            mo_pool.log_source(pdir, f"list-{n}", "file", {"orgs_added": added, "orgs_merged": merged})
+        self.assertFalse(ws.source_saturation(pdir)["saturated"])   # the last one still brought 40% new
+        for n in (5, 6, 7):
+            mo_pool.log_source(pdir, f"list-{n}", "file", {"orgs_added": 2, "orgs_merged": 98})
+        st = ws.stages(pdir)["sources"]
+        self.assertTrue(st["saturated"], st)
+        self.assertFalse(any("not saturated" in x for x in server.needs_you(pdir, {})))
+
+
 if __name__ == "__main__":
     unittest.main()
