@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
-"""MarketOps research MCP: ten tools, one project folder, no gates, many agents at once.
+"""MarketOps research MCP: thirteen tools, one project folder, many agents at once.
 
-project  open/create a project folder, write the brief, see progress and costs
+The research is a super-pipeline of pools - sources -> pages -> venues -> organisations ->
+contacts - every stage running at once and several agents inside each stage.
+
+project  open/create a project folder, write the brief, see progress, the flow between pools, costs
+sources  the source pool: register lists as they are found, see each one's state and yield
+harvest  mine one source: page through its listing, read its entries' pages in bulk, one row each
 search   Serper + SerpApi + DeepSeek + TinyFish at once (web or maps)
 pool     build venues.csv / orgs.csv from a saved open-data file (filter, map, group by operator)
 fetch    read one page with Crawl4AI + TinyFish + DeepSeek at once; data files download
@@ -80,6 +85,8 @@ def project(name: str, brief: dict | None = None, playbook: dict | None = None,
             import mo_journal
             mo_journal.add(pdir, journal, agent)
         out = ws.status(pdir)
+        import mo_flow
+        out["flow"] = mo_flow.flow(pdir)
         out["version"] = VERSION
         out["providers"] = mo_config.configured() + ["crawl4ai"]
         out["accounts"] = mo_budget.accounts()
@@ -127,6 +134,24 @@ def needs_you(pdir, status: dict) -> list[str]:
     if ws.read_csv(pdir / "orgs.csv") and not sat["saturated"]:
         items.append(f"Data sources are not saturated ({sat['status']}): keep a sources worker running until "
                      "the last three sources each add under 5% new organisations.")
+    fl = status.get("flow") or {}
+    pools, lanes = fl.get("pools") or {}, fl.get("lanes") or {}
+    found = (pools.get("sources") or {}).get("found", 0)
+    if found and not (lanes.get("source") or {}).get("claimed"):
+        items.append(f"{found} sources are found but nobody mines them: start a miner (pool role, "
+                     "tasks(action='claim', kind='source')) next to the finders.")
+    for f in (pools.get("pages") or {}).get("harvest_files_not_pooled") or []:
+        items.append(f"{f} was harvested but never pooled: check 20 rows and pool it (rows that never reach the "
+                     "pools are work thrown away).")
+    loose = (pools.get("venues") or {}).get("without_organisation", 0)
+    if loose:
+        items.append(f"{loose} venues have no organisation behind them: decide who runs them (pool role) - contacts "
+                     "hang on organisations, not venues.")
+    rec = fl.get("reconcile") or {}
+    if rec and not rec.get("adds_up"):
+        items.append(f"The organisation pool does not add up: {rec.get('organisations')} organisations, "
+                     f"{rec.get('added_by_logged_sources')} added by logged sources, {rec.get('without_logged_source')} "
+                     "without a source - pool every list through pool(..., source=...) so each one is counted.")
     cap = status.get("capabilities") or {}
     if cap.get("level") in ("reduced", "minimal") and cap.get("effects"):
         items.append(f"Working at '{cap['level']}' level ({', '.join(cap.get('missing') or []) or 'no keys'} missing): "
@@ -334,8 +359,73 @@ def orgs(project: str, ids: list[str] | None = None, stage: str = "", limit: int
         return _err(exc)
 
 
+def sources(project: str, add: list[dict] | None = None, set: list[dict] | None = None, agent: str = "") -> dict:
+    """The source pool: every list found for the project and where it stands.
+
+    Finding and mining are separate jobs that run at the same time: finders register lists here
+    as they find them, miners claim them (tasks(action="claim", kind="source")) and harvest and
+    pool them, while the finders keep looking.
+    add=[{source: short name, url, kind: register|federation|open_data|maps|directory|client|other,
+    row_is: what one row really is (venue, club, operator...), expect: rows / yield you expect,
+    note}]: register lists you found (the same url or name twice is one source).
+    set=[{source, status: found|mining|harvested|pooled|dropped, note}]: move or drop a source
+    (say why in note). Returns the pool with each source's state, what the pooled ones brought,
+    saturation and the flow between all pools.
+    """
+    try:
+        import mo_flow
+        pdir = ws.project_dir(project)
+        out: dict = {}
+        if add:
+            out.update(mo_flow.add_sources(pdir, add, agent))
+        if set:
+            out["updated"] = mo_flow.set_sources(pdir, set)
+        brought = {}
+        for r in ws.read_csv(pdir / "sources.csv"):
+            if r.get("source"):
+                b = brought.setdefault(r["source"], {"orgs_added": 0, "orgs_merged": 0, "venues_added": 0})
+                for k in b:
+                    try:
+                        b[k] += int(r.get(k) or 0)
+                    except ValueError:
+                        pass
+        out["sources"] = [{**{k: r.get(k, "") for k in ("source", "url", "kind", "row_is", "status", "found_by",
+                                                         "miner", "note")}, **brought.get(r["source"], {})}
+                          for r in mo_flow.source_pool(pdir)]
+        out["saturation"] = ws.source_saturation(pdir)
+        out["flow"] = mo_flow.flow(pdir)
+        return out
+    except Exception as exc:  # noqa: BLE001
+        return _err(exc)
+
+
+def harvest(project: str, source: str, start: str = "", follow: str = "", next: str = "",
+            sitemap: bool = False, urls: list[str] | None = None, limit: int = 40, agent: str = "") -> dict:
+    """Mine one source into the page pool and out of it, in bulk - the miner's power tool.
+
+    start: the source's listing (or first results page); follow: a regex for the links that are
+    entries (each entry's detail page, e.g. "/club/\\d+"); next: a regex for the listing's next
+    pages ("page=\\d+"); sitemap=True: take the entries from the site's sitemap instead of paging
+    (with follow as the filter); urls: detail pages you already have. Without follow, a listing's
+    own links off the site are the entries. Reads up to `limit` pages per call, several at once
+    with every reader, and writes one candidate row per detail page to
+    pages/harvest-<source>.csv: name, kind, website (picked by Jev from the links the page shows,
+    or left with its candidates for you), emails, phones, address, postcode, city. Call again
+    until still_queued is 0 - several miners can harvest different sources at once. Then check
+    20 rows and pool(project, file, into=..., map=..., source=...): the pages are already saved,
+    so their addresses join the new organisations without a new call.
+    """
+    try:
+        import mo_flow
+        return mo_flow.harvest(ws.project_dir(project), source, start, follow, next, sitemap, urls,
+                               max(1, min(int(limit), 300)), agent)
+    except Exception as exc:  # noqa: BLE001
+        return _err(exc)
+
+
 def pool(project: str, file: str, into: str = "venues", filters: dict | None = None,
-         map: dict | None = None, group_by: str = "", org_fields: dict | None = None) -> dict:
+         map: dict | None = None, group_by: str = "", org_fields: dict | None = None,
+         source: str = "") -> dict:
     """Build the pools from a data file fetch saved (JSON, GeoJSON, CSV; e.g. an open-data export).
 
     filters: {column: value or [values]} kept rows (exact, case-insensitive). map: {new column:
@@ -346,10 +436,13 @@ def pool(project: str, file: str, into: str = "venues", filters: dict | None = N
     to carry e.g. city or website. Call it once per source (open data, federation lists, maps
     results saved as CSV, your own lists): the pools are the union of all of them - the same
     venue or organisation from two sources becomes one row with both sources and the fields
-    of both. Returns the file's columns so you can map them.
+    of both. Returns the file's columns so you can map them. source: the list's name in the
+    source pool (logged under it, moved to pooled). A page_url column (harvest files have one):
+    addresses on those saved pages join the organisations at once.
     """
     try:
-        return mo_pool.pool(ws.project_dir(project), file, into, filters, map, group_by, org_fields)
+        return mo_pool.pool(ws.project_dir(project), file, into, filters, map, group_by, org_fields,
+                            source=source)
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
 
@@ -364,7 +457,7 @@ def export(project: str) -> dict:
         return _err(exc)
 
 
-TOOLS = (project, search, pool, fetch, browse, judge, grade, run, tasks, orgs, export)
+TOOLS = (project, sources, harvest, search, pool, fetch, browse, judge, grade, run, tasks, orgs, export)
 
 
 def check() -> int:

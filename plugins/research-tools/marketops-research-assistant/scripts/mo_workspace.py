@@ -512,7 +512,8 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
         import mo_health
         if mo_health.enabled():
             mo_health.HEALTH.record_yield(url, emails_seen)
-    return {"url": url, "readers": report, "contacts": contacts, "contacts_added": added,
+    title = next((p.get("title") for p in parsed_by.values() if p.get("title")), "")
+    return {"url": url, "title": title, "readers": report, "contacts": contacts, "contacts_added": added,
             "links": mo_pages.contact_links(links, url, limit=25),
             "scored_links": mo_pages.contact_links(links, url, limit=25, scores=True),
             "links_total": len(links), "content_links": content_links[:800],

@@ -123,7 +123,7 @@ def allowed(provider: str, action: str = "") -> tuple[bool, str]:
         _exhausted.pop(provider, None)   # a new or topped-up key brings the provider back
     if provider in _exhausted:
         return False, _exhausted[provider]
-    if provider in ("crawl4ai", "jev") or PRICES.get((provider, action), 1) == 0:
+    if provider in ("crawl4ai", "http", "download", "jev") or PRICES.get((provider, action), 1) == 0:
         return True, ""  # free calls never wait on a balance
     for _ in range(len(mo_config.slots(provider)) or 1):
         reading = balance(provider)

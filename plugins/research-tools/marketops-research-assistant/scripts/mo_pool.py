@@ -212,13 +212,33 @@ def log_source(pdir: Path, source: str, kind: str, out: dict, query: str = "") -
 
 def pool(pdir: Path, file: str, into: str = "venues", filters: dict | None = None,
          map: dict | None = None, group_by: str = "", org_fields: dict | None = None,
-         kind: str = "file") -> dict:
+         kind: str = "file", source: str = "") -> dict:
+    """source: the name of the list in the source pool (sources(...) / harvest(...)); the
+    pooling is logged under it and the source moves to `pooled`."""
     # several agents may build pools at once: one writer per project for the pool files
     with ws._lock(pdir / "pools"):
         out = _pool(pdir, file, into, filters, map, group_by, org_fields)
     if "error" not in out:
-        log_source(pdir, file, kind, out)
+        log_source(pdir, source or file, kind, out, query=file if source else "")
+        import mo_flow
+        mo_flow.mark_source(pdir, source or file, "pooled")
+        out["contacts_from_saved_pages"] = _bind_saved_pages(pdir, out.pop("_bind", []))
     return out
+
+
+def _bind_saved_pages(pdir: Path, pairs: list[tuple[str, str, str]]) -> int:
+    """Rows that came with the page they were found on (a harvested detail page): that page is
+    already saved, so its addresses join the organisation now, read from the copy - no new call.
+    Pages not saved in this project are left for the researchers."""
+    saved = ws._pages(pdir)
+    n = 0
+    for oid, name, url in pairs:
+        if url in saved:
+            try:
+                n += ws.fetch(pdir, url, org_id=oid, org=name, via="source").get("contacts_added", 0)
+            except Exception:  # noqa: BLE001
+                continue
+    return n
 
 
 def add_orgs(pdir: Path, rows: list[dict], source: str, kind: str, query: str = "") -> dict:
@@ -250,13 +270,18 @@ def _pool(pdir: Path, file: str, into: str, filters: dict | None, map: dict | No
     if into == "orgs":
         for r in rows:
             r.setdefault("id", "")
-        o_added, o_merged, _ = _merge_into(orgs, rows, org_key, file, by_name=True, signal=site_signal)
+        o_added, o_merged, index = _merge_into(orgs, rows, org_key, file, by_name=True, signal=site_signal)
         for o in orgs:
             if not o.get("id"):
                 o["id"] = new_oid(o)
         _write(pdir / "orgs.csv", orgs, ["id", "name", "website", "city"])
+        bind = []
+        for r in rows:
+            hit = index.get(org_key(r)) or index.get(org_key(r) + "|" + site_signal(r))
+            if r.get("page_url") and hit is not None:
+                bind.append((hit["id"], hit.get("name", ""), r["page_url"]))
         return {"read": len(raw), "kept": len(kept), "orgs_added": o_added, "orgs_merged": o_merged,
-                "columns_in_file": list(raw[0].keys())[:60] if raw else []}
+                "columns_in_file": list(raw[0].keys())[:60] if raw else [], "_bind": bind}
     # venues, and with group_by the organisations behind them
     if group_by:
         groups = []

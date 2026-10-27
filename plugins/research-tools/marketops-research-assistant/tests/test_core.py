@@ -1081,7 +1081,7 @@ class Providers(unittest.TestCase):
 
 class Package(unittest.TestCase):
     def test_tools_and_manifest(self):
-        self.assertEqual(["project", "search", "pool", "fetch", "browse", "judge", "grade", "run", "tasks", "orgs", "export"],
+        self.assertEqual(["project", "sources", "harvest", "search", "pool", "fetch", "browse", "judge", "grade", "run", "tasks", "orgs", "export"],
                          [f.__name__ for f in server.TOOLS])
         manifest = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["version"], server.VERSION)
@@ -1115,6 +1115,109 @@ class SourceSaturation(unittest.TestCase):
         st = ws.stages(pdir)["sources"]
         self.assertTrue(st["saturated"], st)
         self.assertFalse(any("not saturated" in x for x in server.needs_you(pdir, {})))
+
+
+LISTING = """<html><head><title>Clubs - Ligue</title></head><body>
+<a href="/club/1">FC Alpha</a> <a href="/club/2">AS Beta</a> <a href="/clubs?page=2">2</a>
+<a href="https://www.facebook.com/ligue">fb</a></body></html>"""
+LISTING2 = """<html><body><a href="/club/3">US Gamma</a></body></html>"""
+
+
+def club_page(n, name, site):
+    return (f"<html><head><title>{name} | Ligue</title></head><body><h1>{name}</h1>"
+            f"<p>Stade municipal, 1 rue du Stade</p><p>7500{n} Paris</p>"
+            f"<p>Président Jean Test{n}</p><p>president{n}@{site}</p>"
+            f"<a href='https://{site}/'>Site du club</a> <a href='https://sponsor-shop.test/'>Sponsor</a>"
+            f"<a href='https://www.instagram.com/x'>insta</a></body></html>")
+
+
+def fake_ligue(url, readers=None, project_dir=None, **kw):
+    pages = {"https://ligue.test/clubs": LISTING, "https://ligue.test/clubs?page=2": LISTING2,
+             "https://ligue.test/club/1": club_page(1, "FC Alpha", "fcalpha.test"),
+             "https://ligue.test/club/2": club_page(2, "AS Beta", "asbeta-paris.test"),
+             "https://ligue.test/club/3": club_page(3, "US Gamma", "usgamma.test")}
+    return {"crawl4ai": {"final_url": url, "html": pages.get(url, "<p>nothing</p>"), "text": ""}}
+
+
+class SuperPipeline(unittest.TestCase):
+    def test_harvest_mines_a_source_into_rows_and_pooling_binds_their_addresses(self):
+        import mo_flow
+        import mo_tasks
+        pdir = ws.project_dir("flow")
+        with mock.patch.object(mo_providers, "read_race", side_effect=fake_ligue), \
+                mock.patch.object(mo_providers, "read", side_effect=fake_ligue):
+            # a finder registers the list; a miner claims it from its own lane
+            server.sources("flow", add=[{"source": "ligue", "url": "https://ligue.test/clubs", "kind": "federation",
+                                          "row_is": "club"}], agent="finder-1")
+            got = mo_tasks.claim(pdir, "miner-1", "source")
+            self.assertEqual("ligue", got["items"][0]["source"])
+            self.assertEqual("mining", mo_flow.source_pool(pdir)[0]["status"])
+            out = server.harvest("flow", "ligue", start="https://ligue.test/clubs", follow=r"/club/\d+",
+                                 next=r"page=\d+", agent="miner-1")
+            self.assertEqual(0, out["still_queued"], out)
+            self.assertEqual(3, out["rows_total"])
+            rows = {r["name"]: r for r in ws.read_csv(pdir / out["file"])}
+            self.assertEqual("https://asbeta-paris.test", rows["AS Beta"]["website"])   # no Jev: the candidate with the name
+            self.assertIn("sponsor-shop.test", rows["AS Beta"]["website_candidates"])
+            self.assertNotIn("instagram", rows["AS Beta"]["website_candidates"])
+            self.assertEqual("75002", rows["AS Beta"]["postcode"])
+            self.assertIn("president2@asbeta-paris.test", rows["AS Beta"]["emails"])
+            self.assertTrue(any("never pooled" in x for x in server.needs_you(pdir, server.project("flow"))))
+            res = server.pool("flow", out["file"], into="orgs", source="ligue",
+                              map={"name": "name", "website": "website", "city": "city", "page_url": "page_url"})
+            self.assertEqual(3, res["orgs_added"])
+            self.assertGreaterEqual(res["contacts_from_saved_pages"], 3)   # read from the saved copies
+        self.assertEqual("pooled", mo_flow.source_pool(pdir)[0]["status"])
+        values = {c["value"] for c in ws.read_contacts(pdir)}
+        self.assertIn("president1@fcalpha.test", values)
+        fl = mo_flow.flow(pdir)
+        self.assertTrue(fl["reconcile"]["adds_up"], fl["reconcile"])
+        self.assertEqual([], fl["pools"]["pages"]["harvest_files_not_pooled"])
+        self.assertEqual(1, fl["pools"]["sources"]["pooled"])
+        # the research lane refills itself from the new organisations: nobody waits for a plan
+        sweep = mo_tasks.claim(pdir, "researcher-1", "sweep")
+        self.assertEqual(3, len(sweep["items"]))
+
+    def test_harvest_lets_jev_pick_the_site_among_the_links_and_steps_down_without_it(self):
+        import types
+        import mo_flow
+        import mo_grade
+        pdir = ws.project_dir("flow3")
+
+        def fake_jev(state, qs):
+            ans = {}
+            for k, page in state["pages"].items():
+                ans[f"{k}_kind"] = types.SimpleNamespace(choice="club_or_association")
+                ans[f"{k}_own"] = types.SimpleNamespace(noul=0.9)
+                ans[f"{k}_site"] = types.SimpleNamespace(choice=[c for c in page["links_off_the_site"]
+                                                                 if "sponsor" not in c][0])
+            return types.SimpleNamespace(answers=ans)
+        with mock.patch.object(mo_providers, "read_race", side_effect=fake_ligue), \
+                mock.patch.object(mo_providers, "read", side_effect=fake_ligue), \
+                mock.patch.dict(os.environ, {"TYPESAFE_API_KEY": "test-key"}), \
+                mock.patch.object(mo_grade, "_jev", side_effect=fake_jev):
+            out = mo_flow.harvest(pdir, "ligue", urls=["https://ligue.test/club/1", "https://ligue.test/club/3"])
+        self.assertEqual(2, out["judged_by_jev"], out)
+        rows = {r["name"]: r for r in ws.read_csv(pdir / out["file"])}
+        self.assertEqual("https://usgamma.test", rows["US Gamma"]["website"])
+        self.assertEqual("club_or_association", rows["US Gamma"]["kind"])
+
+    def test_keyless_readers_are_always_allowed(self):
+        # the minimal level: no keys, no browser - plain HTTP must still read (0.7.1 crashed here)
+        import mo_budget
+        import mo_config
+        self.assertEqual([], mo_config.slots("http"))
+        self.assertEqual((True, ""), mo_budget.allowed("http", "fetch"))
+        self.assertEqual((True, ""), mo_budget.allowed("download", "fetch"))
+
+    def test_found_sources_without_a_miner_are_flagged(self):
+        pdir = ws.project_dir("flow2")
+        server.sources("flow2", add=[{"source": "census", "url": "https://data.test/x.csv"}], agent="f")
+        server.sources("flow2", add=[{"url": "https://data.test/x.csv"}], agent="g")   # same list, second finder
+        st = server.sources("flow2")
+        self.assertEqual(1, len(st["sources"]))
+        self.assertIn("g", st["sources"][0]["found_by"])
+        self.assertTrue(any("nobody mines them" in x for x in server.needs_you(pdir, server.project("flow2"))))
 
 
 if __name__ == "__main__":

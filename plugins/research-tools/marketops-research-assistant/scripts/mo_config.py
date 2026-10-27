@@ -79,7 +79,9 @@ def _file_keys() -> dict[str, str]:
 def slots(provider: str) -> list[str]:
     """Every key configured for a provider, in order: the key files first (they can be changed
     while running), then the environment."""
-    name = KEYS[provider]
+    name = KEYS.get(provider)
+    if not name:   # crawl4ai, plain http, downloads: nothing to configure
+        return []
     names = [name] + [f"{name}_{n}" for n in range(2, 10)]
     out: list[str] = []
     for source in (_file_keys(), os.environ):

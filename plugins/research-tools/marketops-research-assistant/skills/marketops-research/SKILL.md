@@ -1,6 +1,6 @@
 ---
 name: marketops-research
-description: Lead a MarketOps sales-research job with a team of agents - sources, pool, websites, digging for people, review and delivery all running at once - using your host's own multi-agent mode (Claude Code subagents, Codex agents, WorkBuddy multi-agent) and the marketops MCP tools, delivered as Excel. Use for any lead, venue, account or contact research request (e.g. "every indoor sports venue in Paris, the people who run them").
+description: Lead a MarketOps sales-research job as a super-pipeline of pools (sources -> pages -> venues -> organisations -> contacts) worked by a team of agents - finding lists, mining them, finding websites, researching people, review and delivery all running at once, several agents per stage - using your host's own multi-agent mode (Claude Code subagents, Codex agents, WorkBuddy multi-agent) and the marketops MCP tools, delivered as Excel. Use for any lead, venue, account or contact research request (e.g. "every indoor sports venue in Paris, the people who run them").
 ---
 
 # MarketOps research: leading the work
@@ -26,28 +26,47 @@ Knowledge to read when you need it:
   market; `references/roles/*.md` - the job of each stage's workers;
   `references/bruce-prompts.md`, `references/outreach.md`.
 
-## The chain: five stages, all running at once
+## The work is a super-pipeline of pools
 
 ```
- 1 sources      2 pool             3 websites        4 research people       5 finish
- find lists ─▶  lists to venues ─▶ each org's site ─▶ contacts, graded,  ─▶  review, spot
-                and organisations  confirmed          agent-judged            check, deliver
-   ▼               ▼                  ▼                   ▼                       ▼
- pool: tasks    venues.csv          orgs.csv            contacts/ verdicts.csv  workbook
- sources.csv    orgs.csv                                playbook.json
+ SOURCES ──mine──▶ PAGES ──pool──▶ VENUES ──who runs it──▶ ORGANISATIONS ──read, judge──▶ CONTACTS ──▶ workbook
+ finders           miners          miners                  websites, researchers          researchers, finish
+    ▲                 │                                         ▲      │
+    └─ a page links to another list                            └──────┴─ a venue's real operator, a contractor
 ```
 
-Each stage takes from the one before as soon as something is there: while the source workers
-look for the tenth list, researchers are already on organisations from the first one. Nothing
-waits for a stage to be complete.
+Each arrow is a stage with its own queue (a lane in `tasks`), and **every stage runs at the
+same time as every other**: while miners turn the first list into pages, venues and
+organisations, finders are already looking for the next list, and researchers are reading the
+organisations that arrived a minute ago. **Inside a stage several agents work at once**, each on
+its own claim - one source per miner, one package of about ten organisations per researcher -
+so throughput grows with the agents you put on a lane, and no two writers ever touch the same
+thing. The workers are agents; the plugin gives them the power tools, the queues and the
+one-writer guarantee. Arrows also run backwards: a page that links to another directory is a
+new source (`sources(add=...)`), a venue's real operator is a new organisation (`orgs(add=...)`).
 
-| Stage | Agents decide | Scripts do (tools) | Knowledge |
-|---|---|---|---|
-| 1 sources | which lists exist and are worth it; check 20 rows of each | `search`, `fetch` downloads exports | marketops-sources, `references/projects/` |
-| 2 pool | field mapping, what to filter out, which organisation runs a venue, unclear merges | `pool(...)` merges on name + place | marketops-sources, marketops-brief |
-| 3 websites | is this site really theirs; their own page on a city portal; a federation or social page when there is no site | `run(orgs=[...], rounds=0)` looks sites up by name + city, checks DNS, scopes portals | marketops-tools |
-| 4 research | why an organisation has no route yet, where else to look, whether a contact belongs to it, what works for this kind of organisation | `run(orgs=[...], rounds=0)` reads a package's high-value pages at once (more while they bring new addresses), extracts, Jev grades; `fetch`, `search` for the digging the agent decides | marketops-brief (grades, titles), marketops-sources (page types), `references/projects/` |
-| 5 finish | rows to review, cross-organisation addresses, the 100-row spot check, what to put to the user | rules, dedupe, reconciliation, `export` | marketops-brief, marketops-benchmarks |
+| Pool | File | Fed by (lane) | Agents decide | Power tools |
+|---|---|---|---|---|
+| sources | `source_pool.csv` (state), `sources.csv` (what each brought) | finders (`find` lanes you add) | which lists exist, what one row really is (20 rows), worth mining or not | `search`, `fetch`, `sources(add / set)` |
+| pages | `frontier.csv`, `pages/harvest-*.csv` | miners (`source` lane, one source per claim) | the entry and paging pattern, whether 20 harvested rows are right, the field mapping | `harvest` (paging, sitemap, bulk reading, one row per entry page, Jev picks the site) |
+| venues | `venues.csv` | miners | who runs each venue (owner, operator, contractor) | `pool(group_by=...)`, `judge` |
+| organisations | `orgs.csv` | miners, researchers' `orgs(add)` | the same organisation or not, its own website | `pool`, `orgs(set / add)`, `run(orgs, rounds=0)` finds sites (`site` lane for the rest) |
+| contacts | `contacts/`, `verdicts.csv` | researchers (`sweep` lane), finish (`review`) | right person, right organisation, right grade; where else to look | `run(orgs, rounds=0)`, `fetch`, `grade` (Jev), `grade(set)` |
+
+`project(name)["flow"]` shows every pool's size, **what waits between pools**
+(`waiting_between_pools`), every lane's open and claimed packages and the agents on them, and
+whether the organisation pool adds up (`reconcile`: every organisation came from a logged
+source). Staff the lane where work waits. Lanes refill themselves: a worker that claims an
+empty `sweep`, `source` or `site` lane gets a package cut on the spot from what has arrived.
+
+Why pools, from Bruce's sessions (`marketops-session/docs/FINAL-REPORT.md`): the only shape that
+carried throughput was "upstream materialises, the middle consumes, downstream verifies" - one
+refactor consumed 33 channels in one go where the "everyone fetches" version stalled every
+batch. His worst losses were a middle layer never used up: 18,954 rows built and 2 written
+back; 2,733 pairs and 582 delivered (953 real council addresses dropped); 343 new German rows
+never merged - so every pool here shows what waits in it, and `needs_you` names a harvested
+file that never reached the pools. His one fully trusted pool grew by exactly the sum of its
+packages' new rows - the `reconcile` line is that check.
 
 ## How you run a job
 
@@ -70,45 +89,45 @@ waits for a stage to be complete.
    `project(name, brief={...})` (marketops-brief). Ask the user once, up front, for what is
    missing; then do not stop to ask again until delivery - everything else goes into the
    numbered list (step 6).
-2. **Hand the organisations to researchers.** `tasks(action="plan", kind="sweep", size=10)` cuts
-   every organisation not yet worked into packages of about ten. Each researcher owns its
-   package from start to finish (`references/roles/research.md`): it has the tools read the
-   pages of all ten at once (`run(project, orgs=[...], rounds=0)` - reading, extracting and
-   grading in the background, no digging), reads the summaries (`orgs(ids=[...])`), digs where
-   a route is missing, judges every contact, writes a verdict per organisation. Nothing runs
-   on its own: every organisation is worked by an agent, and the tools only act when an agent
-   calls them. Plan again whenever new organisations are pooled.
-3. **Start the team with your host's multi-agent mode.** One worker per slot, each told its
-   project and role; they read `references/roles/<role>.md` and work until their queue is empty.
+2. **Open the lanes.** Ask the user for the lists they already have (a client register or CRM
+   export is one source - one hand-given snapshot outweighed every automatic path in Bruce's UK
+   runs) and register them with `sources(add=[...])`. Add one `find` lane per kind of list or
+   region the brief needs (`tasks(action="add", kind="find", title="find: federation club
+   finders, Île-de-France")`). The `source`, `site` and `sweep` lanes cut themselves from the
+   pools when a worker claims them; `tasks(action="plan", kind=...)` does it by hand.
+3. **Start the whole team at once with your host's multi-agent mode** - every stage from the
+   first minute, not one after another. One worker per slot, each told its project and role;
+   they read `references/roles/<role>.md` and work until their lane is empty.
 
    | Host | How to start workers |
    |---|---|
    | Claude Code | start `marketops-worker` subagents in parallel (one per slot), in the background, each with `project` and `role` in its prompt; use agent teams or workflows if your setup has them |
    | Codex | its own sub-agent / multi-agent feature when available; otherwise give the user one start line per worker for extra sessions (`codex exec "<start line>"`) |
    | WorkBuddy | its multi-agent mode; otherwise one thread per worker with the start line |
-   | none of these | work the packages yourself, one after the other |
+   | none of these | work the lanes yourself in turn: find one list, mine it, research its organisations, then the next |
 
    Start line: `You are the <role> worker on MarketOps project "<project>". Read
    references/roles/<role>.md of the marketops plugin and work until your queue is empty.`
 
-   Default team (change it in the brief as `team`): research 6-10, sources 1-2, finish 1-2
-   (pool and websites workers when sources need mapping or many sites are missing). **Start the
-   sources workers first and keep them until the pool is saturated** (`stages.sources.saturated`:
+   Default team (change it in the brief as `team`): **sources (finders) 1-2, pool (miners) 1-3,
+   research 6-10, websites 0-1, finish 1-2.** Finders and miners start first and run beside the
+   researchers for as long as the source pool is not saturated (`flow.pools.sources.saturated`:
    three or more sources, the last three each under 5% new organisations). A pool from a single
    list - or one inherited from an earlier project - is never complete; that is how a run ends
-   with no venues and half a market missing.
-   Throughput grows with the number of researchers - there is no background process to wait
-   for.
-4. **Feed the queues.** Sweep packages for new organisations; `kind="review"` for rows still to
-   review; `kind="dig"` for organisations a researcher left with a reason to look again (a
-   playbook entry written later, a website fixed); sources go in as
-   `tasks(action="add", title="pool: <source> <url>")`.
-5. **Steer every 10-15 minutes, not more often.** `project(name)` -> `stages`: where work piles
-   up, move workers there (sources exhausted -> those workers research). Read the playbook
-   (`orgs(...)["playbook"]`): when researchers have written how a kind of organisation is
-   found, the packages still open for that segment use it automatically; for organisations
-   already done, plan `kind="dig"` packages for that segment. Check source yields (a source
-   under 5% A/B after 30 organisations goes to the back).
+   with no venues and half a market missing. Throughput grows with the agents on each lane -
+   there is no background process to wait for.
+4. **Keep every lane fed.** Lanes refill from the pools; you add what only you see: `find` lanes
+   for gaps (a segment, a district, a kind of list nobody tried), `kind="review"` for rows still
+   to review, `kind="dig"` for organisations worth a second look (a playbook entry written later,
+   a website fixed).
+5. **Steer every 10-15 minutes, not more often.** `project(name)["flow"]`: where work waits
+   between pools, move agents there - sources found and nobody mining them: another miner;
+   organisations arriving faster than they are read: more researchers; the source pool saturated:
+   finders become miners or researchers. Read the playbook (`orgs(...)["playbook"]`): when
+   researchers have written how a kind of organisation is found, the packages still open for
+   that segment use it automatically; for organisations already done, plan `kind="dig"`
+   packages for that segment. Check source yields (a source under 5% A/B after 30 organisations
+   goes to the back: `sources(set=[{source, status: "dropped", note}])` when it is not worth more).
 6. **One numbered list for the user.** Collect what only the user can decide in
    `project()["needs_you"]` plus anything your workers raised; put it to the user once, in one
    message, and act on the reply.

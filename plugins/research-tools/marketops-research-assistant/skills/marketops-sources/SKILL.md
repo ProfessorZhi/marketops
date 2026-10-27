@@ -24,6 +24,14 @@ Try discovery channels in this order - the yields differ by an order of magnitud
 3. **Real links from the home page** (anchor text + URL): emails found on 62-88% of sites.
 4. **Guessed paths**: 6.5%. Last resort.
 
+In the plugin: (1) an export or endpoint -> `fetch` (downloads it) then `pool`; (2) a content
+sitemap -> `harvest(sitemap=True, follow=...)`; a listing with a page per entry ->
+`harvest(start, follow, next)`; (3) a page of links -> `harvest(start)` without `follow`.
+Finders register each list with `sources(add=...)` the moment it looks worth it, so a miner
+starts on it while they keep looking - finding and mining never wait for each other. Bruce's
+pools that worked were built this way: "upstream materialises, the middle consumes, downstream
+verifies"; the ones that stalled had everyone fetching everything.
+
 Then:
 - **Ask the client for the lists they already have** before crawling - one hand-given
   register snapshot brought 31,262 records in the UK runs.

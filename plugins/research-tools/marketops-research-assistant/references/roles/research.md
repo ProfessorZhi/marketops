@@ -8,7 +8,9 @@ Read first: the brief (`project(name)`), marketops-brief (grades, titles, scenar
 marketops-sources (page types that pay), `references/projects/<market>.md`.
 
 Loop:
-1. `tasks(project, action="claim", agent="<name>", kind="sweep")` - your package.
+1. `tasks(project, action="claim", agent="<name>", kind="sweep")` - your package. The lane
+   refills itself from the organisation pool while miners keep adding to it: never wait for the
+   lead to plan; other researchers work other packages at the same time.
 2. Read them all at once: `run(project, orgs=[the ids], rounds=0)`. The tools find each
    organisation's site, read its high-value pages and PDFs (more while they bring new
    addresses), extract and grade - in the background, in a few minutes, no template digging.
@@ -30,6 +32,9 @@ Loop:
    - The venue is really run by someone else (a council department, a syndicate, a contractor):
      add them with `orgs(add=[{name, city, website, segment}], agent="<name>")` so they are
      researched too.
+   - A page lists many organisations of the brief's kind (a league table with clubs, a district
+     list of facilities): that is a source, not your work - `sources(add=[{source, url, row_is,
+     note}], agent="<name>")` and the miners take it.
    - Verdict: `tasks(action="verdict", agent="<name>", verdicts=[{org_id, verdict:
      routes|partial|none|user, found, where, why}])`.
 5. When you see how a kind of organisation is found (after a handful of the same segment),
