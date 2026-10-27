@@ -743,10 +743,14 @@ def _shard_cmd(name: str, k: int, shards: int, opts: dict) -> list[str]:
 MAX_RESTARTS = 5
 
 
-def supervise(pdir, shards: int, opts: dict, poll: float = 15.0) -> dict:
+def supervise(pdir, shards: int, opts: dict, poll: float = 15.0, clear_stop: bool = True) -> dict:
     """Keep every shard running until it is done or a stop is asked: a shard that dies (crash,
     kill, lost machine) is started again and resumes where it was - finished organisations
     are skipped. Bruce's most frequent complaint was work that stopped by itself."""
+    if clear_stop:
+        # a STOP left by an earlier run (shards ending together each saw the others alive and none
+        # removed it) must not end this one before it starts
+        (pdir / "STOP").unlink(missing_ok=True)
     import os
     import subprocess
     env = dict(os.environ, MARKETOPS_PROJECTS=str(pdir.parent))

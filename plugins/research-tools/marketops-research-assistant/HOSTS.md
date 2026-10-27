@@ -13,6 +13,15 @@ skills in its own way; the lead agent then starts workers with the host's own mu
 | Workers | `marketops-worker` subagents (`agents/`) | Codex sub-agents if your version has them, else extra sessions: `codex exec "<start line>"` | its multi-agent mode, else one thread per worker |
 | Status | verified (`claude plugin validate`) | to be verified on a real install | to be verified on a real install |
 
+## Keys (all hosts)
+
+Every provider is optional; the plugin steps down when one is missing (`project()["capabilities"]`).
+Several keys per provider are allowed: `SERPER_API_KEY`, `SERPER_API_KEY_2` ... `_9`, or several
+in one value separated by commas. A key that runs out or is refused hands over to the next by
+itself. Keys are read from `~/.marketops/keys.env` and, if set, from the file
+`MARKETOPS_KEYS_FILE` points to (a vault file works) - both are read again when they change, so
+adding or replacing a key needs no restart.
+
 ## Claude Code
 
 ```

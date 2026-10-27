@@ -23,7 +23,9 @@ import threading
 import time
 
 DIG_KINDS = ("terms", "site_pdf", "directories", "email")
-EXPLORE = 10        # tries each kind / entry gets before its rate counts
+EXPLORE = 10        # uses a playbook entry gets before its rate counts
+DIG_EXPLORE = 30    # tries every dig kind needs before the order may change
+DIG_MARGIN = 0.10   # and the leader must beat the default first kind by this much
 DROP_BELOW = 0.05   # an entry with this hit rate after EXPLORE uses is no longer loaded
 
 
@@ -105,10 +107,14 @@ class _Knowledge:
             self._catch_up()
             key = (country.upper(), segment.lower())
             stats = {k: self.dig.get(key + (k,), {"tries": 0, "hits": 0}) for k in DIG_KINDS}
-        young = [k for k in DIG_KINDS if stats[k]["tries"] < EXPLORE]
-        proven = sorted((k for k in DIG_KINDS if k not in young),
-                        key=lambda k: -stats[k]["hits"] / max(stats[k]["tries"], 1))
-        return young + proven
+        # change the order only on clear evidence: every kind tried enough, and the best one
+        # clearly ahead of the default first - a noisy reorder costs searches (seen in simulation)
+        if any(stats[k]["tries"] < DIG_EXPLORE for k in DIG_KINDS):
+            return list(DIG_KINDS)
+        rate = {k: stats[k]["hits"] / stats[k]["tries"] for k in DIG_KINDS}
+        if max(rate.values()) - rate[DIG_KINDS[0]] < DIG_MARGIN:
+            return list(DIG_KINDS)
+        return sorted(DIG_KINDS, key=lambda k: -rate[k])
 
     def learn_playbook(self, country: str, segment: str, entry: dict) -> None:
         if segment and any(isinstance(v, list) and v for v in entry.values()):

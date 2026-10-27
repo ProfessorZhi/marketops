@@ -570,9 +570,9 @@ class Supervision(unittest.TestCase):
 
     def test_no_restart_after_a_stop(self):
         pdir = ws.project_dir("t41")
-        (pdir / "STOP").write_text("now")
+        (pdir / "STOP").write_text("now")   # a stop asked while the run goes (a stale one is cleared at start)
         with mock.patch.object(mo_run, "_shard_cmd", side_effect=lambda *a: [sys.executable, "-c", "import sys; sys.exit(1)"]):
-            out = mo_run.supervise(pdir, 1, {}, poll=0.2)
+            out = mo_run.supervise(pdir, 1, {}, poll=0.2, clear_stop=False)
         self.assertEqual(0, out["restarts"][0])
 
     def test_open_decisions_come_as_one_numbered_list(self):
@@ -829,9 +829,12 @@ class Knowledge(unittest.TestCase):
     def test_untested_kinds_first_then_the_one_that_finds_people(self):
         K = self.k.KNOWLEDGE
         self.assertEqual(list(self.k.DIG_KINDS), K.dig_order("FR", "communes"))
-        for kind, hits in (("terms", 1), ("site_pdf", 6), ("directories", 0), ("email", 3)):
-            for n in range(10):
+        for kind, hits in (("terms", 3), ("site_pdf", 18), ("directories", 0), ("email", 9)):
+            for n in range(29):
                 K.record_dig("FR", "communes", kind, n < hits)
+        self.assertEqual(list(self.k.DIG_KINDS), K.dig_order("FR", "communes"))   # 29 tries: not enough evidence
+        for kind, hits in (("terms", 0), ("site_pdf", 1), ("directories", 0), ("email", 0)):
+            K.record_dig("FR", "communes", kind, bool(hits))
         self.assertEqual(["site_pdf", "email", "terms", "directories"], K.dig_order("FR", "communes"))
         self.assertEqual(list(self.k.DIG_KINDS), K.dig_order("DE", "communes"))   # another market starts fresh
         q = mo_run._queries({"name": "Stade X", "website": "https://x.fr"}, 1, ["chef"], ["annuaire"],
