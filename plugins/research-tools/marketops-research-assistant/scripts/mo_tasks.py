@@ -4,7 +4,7 @@ The coordinator plans packages; each worker agent claims one, does it with the n
 (search, fetch, browse, grade(set=...), pool) and hands it back, until the queue is empty.
 A claim older than CLAIM_MINUTES is offered again, so a worker that dies never blocks the job.
 
-    dig     organisations still without a confirmed A/B after the run's rounds: find their
+    dig     organisations the tools read without finding a confirmed A/B: find their
             people (staff/board pages, PDFs, directories, other spellings, maps) and fetch
             what you find with org_id
     review  A/B rows marked review: open the quote and confirm or correct with grade(set=...)
@@ -75,6 +75,15 @@ def held_orgs(pdir) -> set[str]:
             for i in r.get("items", "").split("|") if i}
 
 
+def taken_orgs(pdir) -> set[str]:
+    """Organisations an agent owns or has worked: in a research package (sweep or dig, in any
+    state) or with a verdict. The tools leave them to their agent; the dig lane never hands them
+    out again."""
+    taken = {i.split("::", 1)[0] for r in ws.read_csv(_path(pdir)) if r.get("kind") in ("sweep", "dig")
+             for i in r.get("items", "").split("|") if i}
+    return taken | {r["org_id"] for r in ws.read_csv(pdir / "verdicts.csv")}
+
+
 def plan(pdir, kind: str, size: int = 15) -> dict:
     """Cut the current work of one kind into packages of `size` and add them to tasks.csv."""
     with ws._lock(_path(pdir)):
@@ -87,7 +96,10 @@ def plan(pdir, kind: str, size: int = 15) -> dict:
             # and handing it out would put two writers on it
             finished = {r["org_id"] for r in ws.read_csv(pdir / "crawl.csv") if r.get("pass") == "final"}
             items = [str(o.get("id") or o.get("org_id") or "") for o in ws.read_csv(pdir / "orgs.csv")]
-            items = [i for i in items if i and i not in have and i in finished]
+            # an organisation an agent owns or already worked (a package of any state, a verdict)
+            # is not handed out again
+            taken = taken_orgs(pdir) | held_orgs(pdir)
+            items = [i for i in items if i and i not in have and i in finished and i not in taken]
         elif kind == "review":
             items = [f"{c['org_id']}::{c['value']}" for c in ws.read_contacts(pdir)
                      if c.get("review") == "yes" and not c.get("graded_by", "").startswith("agent")]
@@ -160,7 +172,9 @@ def _payload(pdir, task: dict) -> list[dict]:
     return []
 
 
-AUTO_PLAN = {"sweep": 10, "source": 1, "site": 15}   # lanes that refill themselves from the pools
+# lanes that refill themselves from the pools: a researcher claiming `dig` takes the organisations
+# the tools have read and left without a confirmed A/B - the run waits for exactly this
+AUTO_PLAN = {"sweep": 10, "source": 1, "site": 15, "dig": 10}
 
 
 def claim(pdir, agent: str, kind: str = "") -> dict:

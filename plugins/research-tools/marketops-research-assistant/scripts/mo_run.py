@@ -1,9 +1,17 @@
-"""Long research without a person in the loop, as a pipeline: organisations flow through
-the stages one by one, many at a time, and new ones join while the pool is still growing.
+"""The tools' side of the pipeline: reading organisations' sites in bulk while agents lead.
+
+Agents do the research (finders, miners, researchers, finish - marketops-research); this
+module is the power tool they call. A whole-project run reads the organisations' own sites
+ahead of the researchers and grades what it finds - no more: digging, judging whose an
+address is, building the pools and dropping a source are agent work. It never runs far ahead
+of them: once AHEAD organisations are read and wait for a researcher it pauses, and when no
+agent has taken any for AGENT_IDLE_MIN minutes it ends (Paris 071: a script digging six
+rounds alone for six hours brought 15 organisations with A/B for 105 organisation-hours).
+Dig rounds are only what an agent asks for, for its own package (orgs=[...], rounds<=2).
 
     site      read the organisation's own site (home + best contact/people pages, PDFs)
     grade     a background grader batches every new address to Jev, names and roles included
-    dig       no confirmed A/B yet: dig round 1..n, a different way each round (below)
+    dig       only when an agent asks (batch, rounds<=MAX_ROUNDS): a different way each round
     evidence  A/B addresses not yet strong: search the address itself, read pages printing it
     done      the organisation is finished; the workbook is refreshed every half hour
 
@@ -32,6 +40,10 @@ import mo_tasks
 import mo_workspace as ws
 from mo_pool import mentions as _mentions, name_words as _name_words
 
+MAX_ROUNDS = 2       # code dig rounds an agent may ask for; later rounds found almost nothing (071)
+AHEAD = 30           # organisations read and waiting for researchers before a whole-project run pauses
+AGENT_IDLE_MIN = 60  # paused this long with no agent taking work: the run ends (agents lead, tools follow)
+PACE_CHECK_S = 30    # how often a whole-project run looks at the agents' backlog
 AGENT_PAGES_PER_ROUND = 20  # the paid TinyFish Agent: only with agent=True, and sparingly
 DEFAULT_TERMS = ["contact email", "staff team board committee", "facilities grounds manager"]
 DEFAULT_DIRECTORY_TERMS = ["association member list", "federation clubs", "directory contact"]
@@ -360,15 +372,47 @@ def _turns(done_ab) -> int:
     return 2 if rate >= SOURCE_SCALE else 0 if rate < SOURCE_STOP else 1
 
 
-def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, goal_ab_org_share: float | None = None,
-             agent: bool = False, workers: int = 24, job: dict | None = None, shard: str = "0/1",
-             follow: bool = False) -> dict:
-    """The pipeline. Every organisation flows on its own: own site -> graded -> (no confirmed
-    A/B) dig round 1..n, each graded -> evidence corroborated -> done. Many organisations are
-    in flight at once; with follow=True new rows appended to orgs.csv (by agents still building
-    the pool) join while it runs, until run(pool_done=True), stop, or 30 idle minutes."""
+def agent_backlog(pdir, mine: set[str]) -> int:
+    """Organisations of `mine` the tools have read, still without a confirmed A/B, that no
+    agent has taken yet (in no package, no verdict): the work waiting for researchers."""
+    final = {r["org_id"] for r in ws.read_csv(pdir / "crawl.csv") if r.get("pass") == "final"} & mine
+    if not final:
+        return 0
+    left = final - mo_tasks.taken_orgs(pdir) - mo_tasks.held_orgs(pdir)
+    if not left:
+        return 0
+    have = {c["org_id"] for c in ws.read_contacts(pdir)
+            if c.get("org_id") in left and c.get("grade") in ("A", "B") and c.get("review") != "yes"}
+    return len(left - have)
+
+
+def last_agent_activity(pdir) -> float:
+    """When an agent last claimed or finished a package or wrote a verdict (epoch seconds, 0: never)."""
+    from datetime import datetime
+    stamps = [t.get(k, "") for t in ws.read_csv(pdir / "tasks.csv") for k in ("claimed", "finished")]
+    stamps += [v.get("time", "") for v in ws.read_csv(pdir / "verdicts.csv")]
+    best = 0.0
+    for s in stamps:
+        try:
+            best = max(best, datetime.fromisoformat(s.replace("Z", "+00:00")).timestamp())
+        except ValueError:
+            continue
+    return best
+
+
+def run_sync(pdir, rounds: int = 0, max_pages: int = 15, deep_pages: int = 10, goal_ab_org_share: float | None = None,
+             agent: bool = False, workers: int = 8, job: dict | None = None, shard: str = "0/1",
+             follow: bool = False, discover: bool = False) -> dict:
+    """Every organisation flows on its own: own site -> graded -> (rounds an agent asked for,
+    at most MAX_ROUNDS, stopping at the first round that adds nothing) -> evidence -> done.
+    Many organisations are in flight at once; with follow=True new rows appended to orgs.csv
+    (by agents still building the pool) join while it runs, until run(pool_done=True), stop,
+    or 30 idle minutes. A whole-project run paces itself on the agents (AHEAD, AGENT_IDLE_MIN)."""
     import os
     from concurrent.futures import ThreadPoolExecutor
+    # digging is agent work: only an agent's own package (a batch job) may ask the tools for rounds
+    rounds = max(0, min(int(rounds or 0), MAX_ROUNDS)) if job else 0
+    workers = max(1, min(int(workers), mo_providers.MAX_ORGS_IN_FLIGHT))
     k, n = (int(x) for x in shard.split("/"))
     sh = (k, n)
     fname = "run.json" if n == 1 else f"run.{k}.json"
@@ -385,7 +429,8 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
     state["file"], state["shard"] = fname, shard
     state.update(started=state.get("started") or ws._now(), done=False, stopped_because="", pid=os.getpid(),
                  stage="pipeline", settings={"rounds": rounds, "max_pages": max_pages, "workers": workers,
-                                             "goal_ab_org_share": goal_ab_org_share, "agent": agent, "follow": follow})
+                                             "goal_ab_org_share": goal_ab_org_share, "agent": agent, "follow": follow,
+                                             "discover": discover})
     history = state.setdefault("history", [])
     b = ws.brief(pdir)
     focus = b.get("focus") if isinstance(b.get("focus"), dict) else {}
@@ -403,22 +448,41 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
     # shard's size after a restart
     finished = set() if again else \
         {r["org_id"] for r in ws.read_csv(pdir / "crawl.csv") if r.get("pass") == "final" and r["org_id"] in mine}
-    flow = {"queued": 0, "site": 0, "grading": 0, "digging": 0, "evidence": 0, "done": len(finished)}
+    flow = {"queued": 0, "site": 0, "grading": 0, "digging": 0, "evidence": 0, "done": len(finished), "failed": 0}
     agent_budget = [AGENT_PAGES_PER_ROUND * max(1, rounds // 2)]
     t0, spent0 = time.time(), sum(v["usd"] for v in mo_budget.summary(pdir).values())
     ab0 = measure(pdir, sh).get("ab_routes", 0)
     grader = _Grader(pdir, batch or None)
     grader.thread.start()
     goal_hit = [False]
+    agents_idle = [False]   # this process ends; agents' own batches keep going (no project STOP)
 
     def stopping() -> bool:
-        return ws.stop_requested(pdir) or goal_hit[0]
+        return ws.stop_requested(pdir) or goal_hit[0] or agents_idle[0]
 
     def move(a: str, b_: str) -> None:
         flow[a] -= 1
         flow[b_] += 1
 
     def org_flow(org: dict) -> None:
+        # the flow counts are what is in flight: an organisation that fails leaves its stage
+        # (071: a leak showed 84 "reading sites" with 6 workers)
+        at = ["queued"]
+
+        def step(b_: str) -> None:
+            move(at[0], b_)
+            at[0] = b_
+        try:
+            _org_flow(org, step)
+        except RuntimeError as exc:
+            if "thread" in str(exc):   # the machine is out of threads: start fewer at once
+                limit[0] = max(1, limit[0] // 2)
+            raise
+        finally:
+            if at[0] != "done":
+                move(at[0], "failed")
+
+    def _org_flow(org: dict, move) -> None:
         oid = _oid(org)
         # The trace: one line per organisation in trace.jsonl - how long each stage took and
         # what it brought - to see where the time goes and which stage pays off.
@@ -433,7 +497,7 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
             tr["ab"][stage] = _has_ab(pdir, oid)
             clock[0] = now
 
-        move("queued", "site")
+        move("site")
         if not str(org.get("website") or "").strip() and "findsite" not in off:
             found_site = _find_site(pdir, org)
             if found_site:
@@ -451,10 +515,10 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
                     ws.append_csv(pdir / "crawl.csv", ws.CRAWL_COLS,
                                   ws._crawl_one(pdir, org, max_pages, None, None, "site", hint_paths=hints["paths"]))
         mark("site")
-        move("site", "grading")
+        move("grading")
         grader.wait_for(oid)
         mark("grade_wait")
-        move("grading", "digging")
+        move("digging")
         dry = 0
         seg = ws.segment_of(org)
         learn = mo_knowledge.enabled()
@@ -478,7 +542,8 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
             now = _ab_count(pdir, oid)
             if learn:   # which kind of search found an A/B here, for the next organisations and projects
                 mo_knowledge.KNOWLEDGE.record_dig(country, seg, order[(rnd - 1) % len(order)], now > have)
-            if dry >= 2 or (have >= 1 and now == have):
+            # a round that adds no address ends the dig: later rounds found almost nothing (071)
+            if dry >= 1 or (have >= 1 and now == have):
                 break
         if learn and (hints["paths"] or hints["queries"]):   # did the playbook lead somewhere
             mo_knowledge.KNOWLEDGE.record_use(country, seg, _has_ab(pdir, oid))
@@ -492,7 +557,7 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
                 except Exception:  # noqa: BLE001
                     pass
             mark("agent")
-        move("digging", "evidence")
+        move("evidence")
         if not stopping():
             if "reverify" not in off:
                 _reverify(pdir, org)
@@ -505,7 +570,7 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
         d, a = yields.get(tr["source"], (0, 0))
         yields[tr["source"]] = (d + 1, a + _has_ab(pdir, oid))
         ws.append_jsonl(pdir / "trace.jsonl", tr)
-        move("evidence", "done")
+        move("done")
 
     def snapshot() -> dict:
         m = measure(pdir, sh)
@@ -533,7 +598,8 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
     import threading
     import mo_discover
     discovering = threading.Event()
-    if k == 0 and "discover" not in off and mo_discover.combos(pdir):
+    # building pools is agent work (finders and miners); the tools discover only when asked
+    if discover and k == 0 and "discover" not in off and mo_discover.combos(pdir):
         discovering.set()
 
         def discovery_line():
@@ -553,8 +619,29 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
     waiting: dict[str, list] = {}   # source -> organisations not yet started
     last_new, last_snap, last_export = time.time(), 0.0, time.time()
     last_watch = [time.time()]
+    limit = [workers * 2]   # organisations started and not finished; halved when threads run out
+    paced = not job          # an agent's own batch is never paced: the agent is right there
+    pause = {"backlog": 0, "since": 0.0, "checked": 0.0}
     with ThreadPoolExecutor(max_workers=workers) as pool:
         while True:
+            if paced and time.time() - pause["checked"] > PACE_CHECK_S:
+                pause["checked"] = time.time()
+                pause["backlog"] = agent_backlog(pdir, mine | submitted)
+                if pause["backlog"] >= AHEAD:
+                    pause["since"] = pause["since"] or time.time()
+                    state["waiting_for_agents"] = {
+                        "organisations": pause["backlog"], "since": ws._now(),
+                        "note": f"{pause['backlog']} organisations are read and wait for researchers; the tools "
+                                "start no more until agents take them - start researchers on the dig lane "
+                                "(tasks(action='claim', kind='dig'))"}
+                    idle = time.time() - max(last_agent_activity(pdir), pause["since"])
+                    if idle > AGENT_IDLE_MIN * 60:
+                        state["stopped_because"] = (f"no agent took work for {AGENT_IDLE_MIN} minutes: the tools do "
+                                                    "not research alone; start researchers and run again")
+                        agents_idle[0] = True
+                else:
+                    pause["since"] = 0.0
+                    state.pop("waiting_for_agents", None)
             if not stopping():
                 for org in ([o for o in ws.read_csv(pdir / "orgs.csv") if _oid(o) in batch] if job
                             else _mine(ws.read_csv(pdir / "orgs.csv"), sh)):
@@ -571,7 +658,9 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
                 # weak one waits until the others are empty - its organisations are never dropped.
                 futures = prune(futures)
                 held, deferred = mo_tasks.held_orgs(pdir) - batch, []   # an agent has these (its own batch excepted)
-                while waiting and len(futures) < workers * 2:
+                # a researcher's package is the researcher's: the whole-project run leaves it alone
+                taken = set() if job else mo_tasks.taken_orgs(pdir)
+                while waiting and len(futures) < limit[0] and not (paced and pause["backlog"] >= AHEAD):
                     turns = {src: _turns(yields.get(src)) for src in waiting}
                     if not any(turns.values()):
                         turns = dict.fromkeys(waiting, 1)
@@ -579,6 +668,9 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
                         for _ in range(k):
                             if waiting.get(src):
                                 org = waiting[src].pop(0)
+                                if _oid(org) in taken:
+                                    flow["queued"] -= 1
+                                    continue
                                 if _oid(org) in held:
                                     deferred.append(org)
                                 else:
@@ -624,7 +716,7 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
     grader.grade_now()
     m = snapshot()
     history.append({"at": ws._now(), **m})
-    if ws.stop_requested(pdir):
+    if ws.stop_requested(pdir) and not state.get("stopped_because"):
         state["stopped_because"] = "stopped on request"
     state["stopped_because"] = state.get("stopped_because") or "every organisation went through the pipeline"
     out = {} if job else mo_export.export(pdir)   # a batch leaves the workbook to the main run / export()
@@ -669,9 +761,10 @@ def _pids(pdir) -> list[str]:
     return [x for x in f.read_text().split()] if f.exists() else []
 
 
-def run(pdir, rounds: int = 6, max_pages: int = 15, goal_ab_org_share: float | None = None,
-        agent: bool = False, stop: bool = False, workers: int = 24, shards: int = 1,
-        follow: bool = False, pool_done: bool = False, orgs: list | None = None, again: bool = False) -> dict:
+def run(pdir, rounds: int = 0, max_pages: int = 15, goal_ab_org_share: float | None = None,
+        agent: bool = False, stop: bool = False, workers: int = 8, shards: int = 1,
+        follow: bool = False, pool_done: bool = False, orgs: list | None = None, again: bool = False,
+        discover: bool = False) -> dict:
     """Start the long run as its own process(es) - shards splits orgs.csv between them - or stop it.
     orgs=[ids]: a batch job for just these organisations, beside any main run (again=True sweeps
     them anew, with the playbook as it is now)."""
@@ -712,8 +805,12 @@ def run(pdir, rounds: int = 6, max_pages: int = 15, goal_ab_org_share: float | N
     if follow:
         (pdir / "POOL_DONE").unlink(missing_ok=True)
     shards = max(1, min(int(shards), 16))
-    opts = {"rounds": rounds, "max_pages": max_pages, "workers": workers, "goal": goal_ab_org_share,
-            "agent": agent, "follow": follow}
+    # organisations in flight on the whole machine stay under its thread and memory budget
+    # (071: 4 shards x 6 x 4 pages + browser threads hit pids.max, then memory.high stalled it)
+    shards = min(shards, max(1, mo_providers.MAX_ORGS_IN_FLIGHT // 8))   # each process runs its own browser
+    workers = max(1, min(int(workers), mo_providers.MAX_ORGS_IN_FLIGHT // shards or 1))
+    opts = {"rounds": 0, "max_pages": max_pages, "workers": workers,   # whole-project runs never dig
+            "goal": goal_ab_org_share, "agent": agent, "follow": follow, "discover": discover}
     for k in range(shards):
         fname = "run.json" if shards == 1 else f"run.{k}.json"
         _save_state(pdir, {"file": fname, "shard": f"{k}/{shards}", "stage": "starting", "done": False})
@@ -736,14 +833,16 @@ def _shard_cmd(name: str, k: int, shards: int, opts: dict) -> list[str]:
     import sys
     from pathlib import Path
     server = Path(__file__).resolve().parent / "server.py"
-    cmd = [sys.executable, str(server), "run", name, "--rounds", str(opts.get("rounds", 6)), "--max-pages",
-           str(opts.get("max_pages", 15)), "--workers", str(opts.get("workers", 24)), "--shard", f"{k}/{shards}"]
+    cmd = [sys.executable, str(server), "run", name, "--rounds", str(opts.get("rounds", 0)), "--max-pages",
+           str(opts.get("max_pages", 15)), "--workers", str(opts.get("workers", 8)), "--shard", f"{k}/{shards}"]
     if opts.get("goal"):
         cmd += ["--goal", str(opts["goal"])]
     if opts.get("agent"):
         cmd.append("--agent")
     if opts.get("follow"):
         cmd.append("--follow")
+    if opts.get("discover"):
+        cmd.append("--discover")
     return cmd
 
 
@@ -831,5 +930,6 @@ def run_states(pdir) -> list[dict]:
         except (OSError, ValueError):
             continue
         out.append({k: st.get(k) for k in ("shard", "stage", "progress", "stopped_because", "result", "done",
-                                           "error", "errors", "restarts", "source_yield")})
+                                           "error", "errors", "restarts", "source_yield",
+                                           "waiting_for_agents")})
     return out

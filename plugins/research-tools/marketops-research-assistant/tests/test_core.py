@@ -187,13 +187,16 @@ class Reach(unittest.TestCase):
                 mock.patch.object(mo_providers, "search", return_value=hits), \
                 mock.patch("mo_grade.auto", side_effect=fake_grade):
             state = mo_run.run_sync(pdir, rounds=2, workers=2)
+            self.assertNotIn("platz@sc-leer.ch", {r["value"] for r in ws.read_contacts(pdir)})   # the run never digs
+            state = mo_run.run_sync(pdir, rounds=2, workers=2, job={"id": "dig", "orgs": ["o1", "o2"], "again": True})
+            state["export"] = mo_export.export(pdir)
         values = {r["value"] for r in ws.read_contacts(pdir)}
-        self.assertIn("platz@sc-leer.ch", values)  # found only by digging
+        self.assertIn("platz@sc-leer.ch", values)  # found only by digging, for the agent's package
         self.assertTrue(state["done"])
         self.assertEqual(100.0, state["result"]["ab_org_share"])
         self.assertEqual(2, state["progress"]["flow"]["done"])
         self.assertTrue(Path(state["export"]["file"]).exists())
-        self.assertEqual(2, sum(r.get("pass") == "final" for r in ws.read_csv(pdir / "crawl.csv")))
+        self.assertEqual({"o1", "o2"}, {r["org_id"] for r in ws.read_csv(pdir / "crawl.csv") if r.get("pass") == "final"})
         with mock.patch("mo_run._Grader.grade_now"):  # resume: finished organisations are skipped
             again = mo_run.run_sync(pdir, rounds=2, workers=2)
         self.assertEqual(2, again["progress"]["flow"]["done"])
@@ -354,7 +357,9 @@ class Reach(unittest.TestCase):
                 mock.patch("mo_grade.auto", side_effect=lambda p, **k: ws.update_contacts(
                     p, [{**r, "grade": "A"} for r in ws.read_contacts(p) if r["value"].startswith("praesident")],
                     ["grade"])):
-            state = mo_run.run_sync(pdir, rounds=2, workers=2)
+            quiet = mo_run.run_sync(pdir, rounds=2, workers=2)   # building pools is agent work: no discovery
+            self.assertEqual(0, quiet["progress"]["flow"]["done"])
+            state = mo_run.run_sync(pdir, rounds=2, workers=2, discover=True)   # a finder asked for it
         self.assertEqual(1, state["progress"]["flow"]["done"])          # found by discovery, then worked
         self.assertIn("praesident@fc-beispiel.ch", {r["value"] for r in ws.read_contacts(pdir)})
         self.assertFalse(any(r.get("pass", "").startswith("deep") for r in ws.read_csv(pdir / "crawl.csv")))

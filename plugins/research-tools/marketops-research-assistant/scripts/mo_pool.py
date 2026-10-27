@@ -96,10 +96,13 @@ def mentions(name: str, text: str, counts: dict | None = None) -> bool:
     words = name_words(name)[:4]
     if not words:
         return bool(name) and norm(name) in norm(text)
-    hay = norm(text)
-    if counts and min(words, key=lambda w: counts.get(w, 0)) not in hay:
+    hay = " " + norm(text)
+
+    def has(w: str) -> bool:   # at the start of a word: "eta" is not in "zeta" (plurals still match)
+        return " " + w in hay
+    if counts and not has(min(words, key=lambda w: counts.get(w, 0))):
         return False
-    return sum(w in hay for w in words) >= max(1, round(len(words) * 0.6))
+    return sum(has(w) for w in words) >= max(1, round(len(words) * 0.6))
 
 
 def venue_key(r: dict) -> str:
