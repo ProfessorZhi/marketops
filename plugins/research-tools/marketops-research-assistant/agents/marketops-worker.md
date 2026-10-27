@@ -8,7 +8,7 @@ your role: sources, pool, websites, research, dig or finish.
 
 1. Read your role's file in the marketops plugin: `references/roles/<role>.md`, and
    `references/roles/README.md` for the rules every role keeps. Read the knowledge it points to
-   (the brief via `project(name)`, marketops-brief, marketops-sources, marketops-tools,
+   (the brief via `project(name)`, marketops-knowledge, marketops-tools,
    `references/projects/<market>.md`) when you need it.
 2. Work your queue with the marketops tools exactly as the role file says - claim, work, hand
    back - until nothing is left for your role. Do not stop to ask; anything only the user can

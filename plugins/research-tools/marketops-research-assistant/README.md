@@ -25,11 +25,13 @@
 
 直接说任务，或者用 `/marketops-research-assistant:research 瑞士户外天然草足球场，找场地负责人`。
 
-插件 = MCP 工具 + skill。主 agent 照 `marketops-research` skill 带一支 agent 团队干活：用宿主自己的多智能体模式（Claude Code 子代理、Codex agent、WorkBuddy 多智能体）开来源、建池、官网、挖掘、整理五组 worker，五段同时推进；脚本是团队手里的批量工具（读页、抽取、搜索、定级）。Codex 和 WorkBuddy 的接法见 [HOSTS.md](HOSTS.md)。
+插件 = MCP 工具 + 三个 skill：`marketops-research`（工作流：五个池子 数据源 → 页面 → 场地 → 机构 → 联系人，多 agent 流水线）、`marketops-tools`（六个工具怎么用、缺了怎么降级）、`marketops-knowledge`（Bruce 业务经验和常见卡点）。主 agent 用宿主自己的多智能体模式（Claude Code 子代理、Codex agent、WorkBuddy 多智能体）把找源、挖源、官网、调研、收尾几组 worker 同时开起来，各段并行，同一段里多个 agent 各自认领；脚本是团队手里的批量工具。Codex 和 WorkBuddy 的接法见 [HOSTS.md](HOSTS.md)。
 
 | 工具 | 做什么 |
 |---|---|
-| `project` | 建立或打开项目文件夹，保存简报，查看进度、成本和余额 |
+| `project` | 建立或打开项目文件夹，保存简报，查看进度（`flow`：各池大小、池子之间积压、各队列的 agent、对账）、成本和余额 |
+| `sources` | 数据源池：找到名录就登记，看每个源的状态（找到 / 在挖 / 已读完 / 已入池 / 放弃）、带来了多少、是否饱和 |
+| `harvest` | 挖一个数据源：翻名录分页或读 sitemap，批量并发读条目页，每页一行候选（名称、类型、官网、邮箱、电话、地址），Jev 从页面外链里挑官网 |
 | `search` | Serper、SerpApi、DeepSeek、TinyFish 四路同时搜，按网址合并；`maps=True` 查地图地点 |
 | `pool` | 从下载的开放数据文件建场地池和机构池：过滤、改列名、按运营方归并成机构 |
 | `fetch` | Crawl4AI、TinyFish、DeepSeek 三路同时读同一页，每份都保存，联系人取并集；数据文件直接下载 |
@@ -46,6 +48,8 @@
 
 ## 0.7.1 更新：agent 做调研，工具可选，阶梯降级，会自我改进
 
+- **超流水线建池子**：数据源 → 页面 → 场地 → 机构 → 联系人，每段一条认领队列，各段同时跑，同一段多个 agent 并发；找源和挖源分开，旧源在挖的同时新源一直在找。数据源池至少 3 个源、最近 3 个每个新增不到 5% 才算饱和，单一来源会一直报警。
+- **skill 收成三个**：工作流、工具、Bruce 经验与卡点；角色说明每份一页；市场细节和基准题按需读。
 - **agent 做调研**：主 agent 把机构按约 10 家一包分给调研 worker；每个 worker 从头做到尾：用工具一次读完这一包（`run(orgs=…, rounds=0)`，只读页、抽取、定级，不深挖），看摘要，自己深挖，逐家写结论。没有自己跑的后台进程；吞吐取决于开了几个调研 worker。原来的自动管线降为可选的"快速模式"。
 - **每个工具都可选，按级降级**：`project()` 报告当前级别（full / reduced / minimal）、缺了什么、影响什么。
   - 没装 Crawl4AI 服务也能启动，读页由 TinyFish、DeepSeek，最后由纯 HTTP 兜底；
@@ -119,7 +123,7 @@
 **模拟结果**（法国场景 120 家，与本版第一个提交对比）：同样 12 路并发，每分钟 30.7 → 36.9 家，找到的 A/B 机构 47 → 62（共 62 家，零误报），其中俱乐部 5 → 20；默认改 24 路后约每分钟 77 家（240 家规模，127 家全部找到）。巴黎场景同样全部找到。消融：关掉深挖快一倍，但俱乐部的 A/B 少一半以上，保留。
 
 **业务知识**（来自 Bruce 会话分析 `marketops-session`，每个数字有出处，删掉了没有出处的产出率表）：
-- 五个 skill：`marketops-research`（流程，含 Bruce 踩过的坑）、`marketops-brief`（客户/竞品、评级、各国岗位词、交付规则）、`marketops-sources`（建池通道顺序、页面类型产出、来源止损规则、各国起点）、`marketops-tools`（各家搜索/读页/Jev/Agent 怎么用、Bruce 最常用的查询写法）、`marketops-benchmarks`（两道常设题、投入按轮次和人工消息计）。
+- 当时五个 skill（0.7.1 起合并为三个：`marketops-research` 工作流、`marketops-tools` 工具、`marketops-knowledge` Bruce 经验与卡点；基准题移到 `references/benchmarks.md`）。
 - `references/projects/`：每条业务线一个文件（法国天然草、英国球场与学校、美国运动场、德国、瑞士、全球高尔夫、其他线），统一模板；新项目结束后用 `/marketops-research-assistant:learn <项目>` 把来源产出、有效页面、岗位词、纠正和基准追加进去，以后的项目自动从这里起步。
 - 由此改的代码：人员页（staff/team/board/bureau/Vorstand）优先于联系页、首页（Bruce 实测每百页 A/B 1.73 : 0.18 : 0.08）；跟进俱乐部托管平台上的页面；429/5xx/断连自动重试一次（失败一次不等于死站）；来源跑满 30 家后按 A/B 产出分配名额（≥10% 加倍，<5% 排最后，不丢）。
 
@@ -132,7 +136,7 @@
 - 一张编号决策清单：`project()` 返回 `needs_you`，所有要用户拍板的事编好号，一次问完。
 - 每家机构按 `routes_per_org`（默认 3，他的口径 3–5、最低 1、小机构 1 个就交）挖 A/B 路线；职位按"实际管草坪/场地/设备/外包的人"排，不按职位高低；结果叫"研究有效邮箱"，不叫"可发"。
 - 代价实测（模拟，法国 120 家，12 路）：`routes_per_org=3` 比 `=1` 多一轮找第二条路线，每分钟 26.3 → 19.5 家，A/B 机构仍是 73/73、零误报（模拟里每家只放了一条 A/B，所以多出的那轮在模拟里必然空手）；只要一条就交的项目设 `routes_per_org: 1`。三道题（巴黎 80、法国 120、混合 240）全部找到，零误报；与上一个提交相比无退化。
-- skill 补上了他实测过的来源（法国公共服务名录 API、NAF 93.12Z、BOAMP/DECP；德国 NRW 与 TED；英国 Pitchfinder、GIAS、Contracts Finder；荷兰 DUO/TenderNed；美国 NCES/IPEDS/ParkServe/CISA；澳洲 ABN；意大利 RES；波兰 RSPO；高尔夫协会名录）、页面类型产出、更多止损线；`references/bruce-prompts.md`（开场、任务书、验收、停线模板对应到简报和报告）、`references/outreach.md`（发信侧规则，只记录交付行要带什么，本插件不发信）。
+- skill 补上了他实测过的来源（法国公共服务名录 API、NAF 93.12Z、BOAMP/DECP；德国 NRW 与 TED；英国 Pitchfinder、GIAS、Contracts Finder；荷兰 DUO/TenderNed；美国 NCES/IPEDS/ParkServe/CISA；澳洲 ABN；意大利 RES；波兰 RSPO；高尔夫协会名录）、页面类型产出、更多止损线。
 
 更早版本（0.6.0–0.6.3）见 git 历史和 Release 说明。
 

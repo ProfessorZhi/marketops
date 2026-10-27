@@ -47,7 +47,7 @@
 ## Benchmarks
 | Run | Organisations | With A/B | Named A/B | Time | Note |
 |---|---|---|---|---|---|
-| Bruce, graded accounts | 249 | 71 (28.5%) | - | 333 turns, 4.13 h of agent turns, 740.9 h span, 422 user messages | the reference for `marketops-benchmarks` |
+| Bruce, graded accounts | 249 | 71 (28.5%) | - | 333 turns, 4.13 h of agent turns, 740.9 h span, 422 user messages | the reference in `references/benchmarks.md` |
 
 ## From his own instructions (supplement)
 

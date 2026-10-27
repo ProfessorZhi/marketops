@@ -1,8 +1,8 @@
 # Project knowledge
 
 One file per business line - what was researched, where the organisations and people were
-found, the titles that counted, what went wrong and the numbers behind it. The brief and
-sources skills read the matching file before a project starts; the `learn` command adds to
+found, the titles that counted, what went wrong and the numbers behind it. Agents read the
+matching file when they write the brief and choose sources; the `learn` command adds to
 it when a project ends. New markets and new lines get a new file in the same shape.
 
 | File | Line | From |
