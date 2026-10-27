@@ -54,7 +54,7 @@ class ProviderError(Exception):
     pass
 
 
-TRANSIENT = re.compile(r"HTTP (429|5\d\d)|timed? ?out|Timeout|ConnectError|ConnectionReset|RemoteProtocolError", re.I)
+TRANSIENT = re.compile(r"HTTP (408|429|5\d\d)|timed? ?out|Timeout|ConnectError|ConnectionReset|RemoteProtocolError", re.I)
 TRANSIENT_FAST = re.compile(r"HTTP (429|5\d\d)|ConnectError|ConnectionReset|RemoteProtocolError", re.I)
 
 
@@ -413,6 +413,8 @@ def _read_tinyfish(url):
 def _read_deepseek(url):
     r = httpx.post("https://api.deepseek.com/v1/tools/fetch", json={"url": url},
                    headers={"Authorization": "Bearer " + mo_config.key("deepseek")}, timeout=40)
+    if r.status_code == 404:   # DeepSeek got no usable Markdown (blocked, unsupported type...), not a dead page
+        raise ProviderError("no text (DeepSeek fetch 404)")
     _check_money("deepseek", r, "fetch")
     content = (r.json() or {}).get("content") or ""
     if not content.strip():
@@ -466,7 +468,7 @@ def capabilities() -> dict:
     missing, effects = [], []
     if not any(e in search for e in ("serper", "serpapi")):
         missing.append("serper/serpapi")
-        effects.append("search runs on the slower engines (DeepSeek, TinyFish): digging takes longer")
+        effects.append("no Google engine (Serper / SerpApi): no maps search, and site: / exact-phrase digging leans on DeepSeek and TinyFish")
     if not search:
         effects.append("no search engine: agents search with the host's own web search, then fetch()")
     if not crawl4ai_installed():
