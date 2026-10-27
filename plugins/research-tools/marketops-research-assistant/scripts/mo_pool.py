@@ -78,13 +78,27 @@ def name_words(name: str) -> list[str]:
     return [w for w in norm(name).split() if len(w) > 2 and w not in NAME_FILLER]
 
 
-def mentions(name: str, text: str) -> bool:
+def common_words(names: list[str]) -> dict[str, int]:
+    """How many organisation names of one pool carry each word: "paris", "centre", "sportif"
+    say which city or kind of place, a rare word says which organisation."""
+    seen: dict[str, int] = {}
+    for n in names:
+        for w in set(name_words(n)):
+            seen[w] = seen.get(w, 0) + 1
+    return seen
+
+
+def mentions(name: str, text: str, counts: dict | None = None) -> bool:
     """Does this result talk about the organisation? Most of its distinctive name words are
-    there - accents, hyphens and word order do not matter."""
+    there - accents, hyphens and word order do not matter. With the pool's word counts, the
+    name's rarest word must be among them: "Paris Saint Germain" on a page is not
+    "HealthCity Paris Saint Germain"."""
     words = name_words(name)[:4]
     if not words:
         return bool(name) and norm(name) in norm(text)
     hay = norm(text)
+    if counts and min(words, key=lambda w: counts.get(w, 0)) not in hay:
+        return False
     return sum(w in hay for w in words) >= max(1, round(len(words) * 0.6))
 
 

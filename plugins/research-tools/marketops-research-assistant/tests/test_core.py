@@ -598,9 +598,80 @@ class DeadSites(unittest.TestCase):
 
 class Reconcile(unittest.TestCase):
     def test_every_org_counted_once_under_its_best_grade(self):
-        rows = [{"最佳等级": "A 关键岗位"}, {"最佳等级": "D 通用入口"}, {"最佳等级": "未找到", "抓取状态": "未抓取"}]
-        self.assertEqual("1 + 0 + 0 + 1 + 1（1） = 3 / 3，对得上", mo_export._reconcile(rows, 3))
-        self.assertTrue(mo_export._reconcile(rows, 4).endswith("对不上，请检查"))
+        rows = [{"最佳等级": "A 关键岗位"}, {"最佳等级": "B 相关操作人（待复核）"}, {"最佳等级": "D 通用入口"},
+                {"最佳等级": "未找到", "抓取状态": "未抓取"}]
+        self.assertEqual("1 + 0 + 1 + 0 + 1 + 1（1） = 4 / 4，对得上", mo_export._reconcile(rows, 4))
+        self.assertTrue(mo_export._reconcile(rows, 5).endswith("对不上，请检查"))
+
+    def test_parallel_writers_never_take_each_others_temp_file(self):
+        import threading
+        path = Path(TMP) / "race.csv"
+        errors = []
+
+        def write(k):
+            try:
+                for _ in range(30):
+                    ws.write_csv(path, ["a"], [{"a": str(k)}])
+            except OSError as exc:
+                errors.append(exc)
+        threads = [threading.Thread(target=write, args=(k,)) for k in range(6)]
+        [t.start() for t in threads]
+        [t.join() for t in threads]
+        self.assertEqual([], errors)
+        self.assertEqual(1, len(ws.read_csv(path)))
+
+
+class Ownership(unittest.TestCase):
+    def test_another_venues_page_on_a_city_portal_is_not_this_venues_own(self):
+        pdir = ws.project_dir("t45")
+        ws.write_csv(pdir / "orgs.csv", ["id", "name", "website"],
+                     [{"id": f"o{k}", "name": f"Gymnase {n}", "website": f"https://www.paris.fr/lieux/g{k}"}
+                      for k, n in enumerate(["Alpha", "Beta", "Gamma"])])
+        html = "<p>Chef de circonscription</p><p>Jean Ex</p><p>jean.ex@paris.fr</p>" + " " * 300
+        with mock.patch.object(mo_providers, "read", return_value={"crawl4ai": {"final_url": "u", "html": html, "text": ""}}):
+            own = ws.fetch(pdir, "https://www.paris.fr/lieux/g0/contact", readers=["crawl4ai"], org_id="o0",
+                           org="Gymnase Alpha", org_site="paris.fr")
+            other = ws.fetch(pdir, "https://www.paris.fr/lieux/g1", readers=["crawl4ai"], org_id="o0",
+                             org="Gymnase Alpha", org_site="paris.fr")
+        self.assertEqual("yes", own["contacts"][0]["page_on_org_site"])
+        self.assertEqual("no", other["contacts"][0]["page_on_org_site"])
+        self.assertEqual("unknown", other["contacts"][0]["email_on_org"])   # the portal's domain is nobody's
+
+    def test_venues_on_one_portal_sharing_an_address_are_three_holders_not_one(self):
+        import mo_grade
+        pdir = ws.project_dir("t46")
+        names = ["Gymnase Alpha", "Gymnase Beta", "Gymnase Gamma"]
+        ws.write_csv(pdir / "orgs.csv", ["id", "name", "website"],
+                     [{"id": f"o{k}", "name": n, "website": f"https://www.paris.fr/lieux/g{k}"} for k, n in enumerate(names)])
+        for k, n in enumerate(names):
+            ws.merge_contacts(pdir, [{"kind": "email", "value": "chef@paris.fr", "quote": "Chef de circonscription, Jean Ex",
+                                      "page_url": "https://www.paris.fr/c"}], f"o{k}", n, "site")
+
+        class Pick:
+            choice, probabilities, noul = "decision_maker", {"decision_maker": 0.9}, 0.9
+
+        sdk = type(sys)("typesafe_sdk")
+        sdk.Choice = lambda **kw: kw
+        sdk.Noul = lambda **kw: kw
+        with mock.patch.dict(sys.modules, {"typesafe_sdk": sdk}), \
+                mock.patch("mo_config.key", return_value="k"), mock.patch("mo_budget.allowed", return_value=(True, "")), \
+                mock.patch.object(mo_grade, "_jev", side_effect=lambda st, q: type("R", (), {"answers": {k: Pick() for k in q}})()), \
+                mock.patch.object(mo_grade, "fill_people", return_value=0), mock.patch("mo_evidence.rescore", return_value={}):
+            mo_grade.auto(pdir)
+        rows = ws.read_contacts(pdir)
+        self.assertEqual({"yes"}, {r["review"] for r in rows})
+        self.assertTrue(all("2 other" in r["grade_reason"] for r in rows))
+        self.assertEqual({"B"}, {r["grade"] for r in rows})   # no name read for the A after the look-up -> B
+
+    def test_a_name_counts_only_with_its_rare_word(self):
+        from mo_pool import common_words, mentions
+        counts = common_words(["HealthCity Paris Saint Germain"] + [f"Centre sportif Paris {k}" for k in range(9)]
+                              + [f"Gymnase Saint Germain {k}" for k in range(9)])
+        self.assertFalse(mentions("HealthCity Paris Saint Germain", "club Paris Saint-Germain, contact", counts))
+        self.assertTrue(mentions("HealthCity Paris Saint Germain", "HealthCity Saint-Germain, manager", counts))
+
+
+
 
 
 class Providers(unittest.TestCase):

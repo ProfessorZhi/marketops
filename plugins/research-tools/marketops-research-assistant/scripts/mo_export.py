@@ -63,7 +63,10 @@ def _sheet(name, rows, cols, widths=()):
 def _reconcile(org_rows: list, total: int) -> str:
     """Bruce could never tell which of three numbers to trust: every organisation is counted once,
     under its best grade, and the parts must add up to the total."""
-    parts = [sum(1 for r in org_rows if str(r.get("最佳等级", "")).startswith(g)) for g in "ABCD"]
+    held = lambda r: str(r.get("最佳等级", "")).endswith("（待复核）")  # noqa: E731
+    parts = [sum(1 for r in org_rows if str(r.get("最佳等级", "")).startswith(g) and not held(r)) for g in "AB"] + \
+        [sum(1 for r in org_rows if held(r))] + \
+        [sum(1 for r in org_rows if str(r.get("最佳等级", "")).startswith(g)) for g in "CD"]
     none = sum(1 for r in org_rows if r.get("最佳等级") == "未找到")
     unread = sum(1 for r in org_rows if r.get("最佳等级") == "未找到" and str(r.get("抓取状态", "")).startswith("未抓取"))
     ok = "对得上" if sum(parts) + none == total else "对不上，请检查"
@@ -153,8 +156,11 @@ def export(pdir) -> dict:
     org_cols = list(orgs[0].keys()) if orgs else ["id", "name", "website"]
     b = ws.brief(pdir)
     brief_country, brief_scenario = str(b.get("country") or ""), str(b.get("scenario") or "")
-    order_key = lambda c: (ORDER.get(c.get("grade", ""), 4), c.get("review") == "yes",  # noqa: E731
-                           -int(c.get("evidence_score") or 0))
+    # confirmed A/B first, then A/B still to review, then C/D: the org's first contact is a confirmed
+    # route whenever it has one
+    order_key = lambda c: (0 if c.get("grade") in ("A", "B") and c.get("review") != "yes" else  # noqa: E731
+                           1 if c.get("grade") in ("A", "B") else 2,
+                           ORDER.get(c.get("grade", ""), 4), -int(c.get("evidence_score") or 0))
     by_org: dict[str, list[dict]] = {}
     for c in emails:
         by_org.setdefault(c.get("org_id"), []).append(c)
@@ -181,7 +187,9 @@ def export(pdir) -> dict:
                  "地区": o.get("region") or o.get("state") or o.get("county") or o.get("city") or "",
                  "场景": o.get("scenario") or brief_scenario or o.get("category") or ""}
         n_ab = sum(c.get("grade") in ("A", "B") and c.get("review") != "yes" for c in mine)
-        org_rows.append({**where, **o, "最佳等级": LABEL.get(top.get("grade", ""), "") if top else "未找到",
+        best = (LABEL.get(top.get("grade", ""), "") + ("（待复核）" if top.get("grade") in ("A", "B")
+                                                      and top.get("review") == "yes" else "")) if top else "未找到"
+        org_rows.append({**where, **o, "最佳等级": best,
                          "A/B 路线数": n_ab,
                          "首选联系人": (top or {}).get("person", ""), "首选岗位": (top or {}).get("role", ""),
                          "首选邮箱": (top or {}).get("value", ""),
@@ -203,14 +211,15 @@ def export(pdir) -> dict:
     summary = [
         {"项目": "机构数", "值": total},
         {"项目": "场地数", "值": len(venues)},
-        {"项目": "广度：有 A+B 的机构占比（有 A/B 的机构 ÷ 机构数）", "值": f"{m['ab_org_share']}%"},
+        {"项目": "广度：有确认 A+B 的机构占比（有确认 A/B 的机构 ÷ 机构数；不含待复核）", "值": f"{m['ab_org_share']}%（{m['ab_orgs']} 家）"},
         {"项目": "每百机构 A+B 路线数（A+B 条数 ÷ 机构数 × 100，Bruce 口径；同一人两地址计一条）", "值": m["ab_routes_per_100_orgs"]},
         {"项目": "每百机构 A+B 路线数，每机构最多计 3 条", "值": m["ab_routes_per_100_orgs_max3"]},
         {"项目": "A+B 路线数 / 有 A+B 的机构数", "值": f"{m['ab_routes']} / {m['ab_orgs']}"},
         {"项目": "覆盖率（有任一 A–D 路线的机构 ÷ 机构数）", "值": f"{m['coverage_abcd']}%"},
         {"项目": "待复核的 A/B（低置信度、共用地址或来自他站；不计入上面的数）", "值": m["ab_to_review"]},
         {"项目": "若待复核全部成立：每百机构 A+B 路线数", "值": m["ab_routes_per_100_orgs_if_review_holds"]},
-        {"项目": "对账：机构按最佳等级 A / B / C / D / 未找到（其中未抓取） = 机构数", "值": _reconcile(org_rows, total)},
+        {"项目": "对账：机构按最佳等级 确认A / 确认B / 只有待复核的A或B / C / D / 未找到（其中未抓取） = 机构数；确认A + 确认B = 上面的有 A+B 机构数",
+         "值": _reconcile(org_rows, total)},
         {"项目": "国家未识别的机构（应补齐，不得交付为未识别）", "值": sum(1 for r in org_rows if not r.get("国家"))},
         {"项目": "邮箱总数（A/B/C/D/未评级/X）", "值": " / ".join(str(sum(c.get("grade", "") == g for c in emails)) for g in ("A", "B", "C", "D", "", "X"))},
         {"项目": "证据强/中/弱（邮箱数；弱的也保留，由人判断）", "值": " / ".join(str(sum(c.get("evidence") == lv for c in emails)) for lv in ("strong", "medium", "weak"))},

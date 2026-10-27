@@ -13,7 +13,7 @@ import re
 import mo_budget
 import mo_config
 import mo_workspace as ws
-from mo_pool import mentions
+from mo_pool import common_words, mentions
 
 # Bruce's grading contract (fjd-email-role-qualification), used when the brief has none.
 DEFAULT_GRADES = {
@@ -61,7 +61,7 @@ GUIDE = ("Read any language. Judge job titles and abbreviations by this kind of 
          "addresses are not the venue's decision or operations side; a coach only when the research "
          "brief names coaches.")
 REVIEW_BELOW = 0.6
-SHARED_REVIEW = 2   # one council office running two or three venues is normal; more looks like a federation
+SHARED_REVIEW = 5   # named next to each venue, one district office running up to five is normal; more is a federation
 REVIEW_BELOW_OWN_SITE = 0.35  # on its own site, bound in its card: only very unsure grades wait
 
 
@@ -80,10 +80,14 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: 
     import mo_pages
     org_site = {str(o.get("id") or o.get("org_id") or ""): mo_pages.site_of(str(o.get("website") or ""))
                 for o in ws.read_csv(pdir / "orgs.csv")}
-    holders: dict[str, set] = {}   # address -> the distinct organisations (by website) listing it
+    portals = ws.shared_sites(pdir)
+    holders: dict[str, set] = {}   # address -> the distinct organisations listing it
     for r in rows:
         if r.get("kind") == "email":
-            holders.setdefault(r["value"].lower(), set()).add(org_site.get(r.get("org_id")) or r.get("org_id"))
+            # one organisation pooled twice shares its own website; venues on a city portal do not
+            site = org_site.get(r.get("org_id"))
+            holders.setdefault(r["value"].lower(), set()).add(site if site and site not in portals else r.get("org_id"))
+    common = common_words([str(o.get("name") or "") for o in ws.read_csv(pdir / "orgs.csv")])
     todo = [r for r in rows if r.get("kind") == "email" and not r.get("graded_by", "").startswith("agent")
             and (regrade or not r.get("grade"))]
     if limit:
@@ -169,16 +173,17 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: 
                 own = r.get("page_on_org_site") in ("yes", "likely") or r.get("email_on_org") in ("yes", "likely")
                 if isinstance(prob, float) and prob < (REVIEW_BELOW_OWN_SITE if own else REVIEW_BELOW):
                     why.append(f"unsure grade (p={prob:.2f})")
+                named_here = mentions(r.get("org", ""), r.get("quote", ""), common)
                 if shared >= SHARED_REVIEW:
                     why.append(f"address also listed for {shared} other organisations")
-                elif shared and not mentions(r.get("org", ""), r.get("quote", "")):
+                elif shared and not named_here:
                     # the same address under two organisations and neither named next to it:
                     # whose route it is was not read from the page, so a person decides
                     why.append("address also listed for another organisation, this one not named next to it")
-                if r.get("page_on_org_site") == "no" and not mentions(r.get("org", ""), r.get("quote", "")):
+                if r.get("page_on_org_site") == "no" and not named_here:
                     why.append("page on another site, organisation not named next to it")
                 elif (r.get("page_on_org_site") == "unknown" and r.get("email_on_org") not in ("yes", "likely")
-                      and not mentions(r.get("org", ""), r.get("quote", ""))):
+                      and not named_here):
                     why.append("neither the page nor the address is on the organisation's own site")
             r["grade"], r["graded_by"], r["review"] = grade, "jev", "yes" if why else ""
             r["review_reason"] = "; ".join(why)
@@ -197,8 +202,16 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: 
     counts.update(by_rule=len(by_rule), reused=len(reused) + sum(r.get("graded_by") == "jev" for r in copies))
     ws.update_contacts(pdir, by_rule + reused + [r for r in todo + copies if r.get("graded_by") == "jev"], fields,
                        guard=lambda cur: not cur.get("graded_by", "").startswith("agent"))
-    named = fill_people(pdir, only={(r.get("org_id"), r.get("value", "").lower())
-                                    for r in by_rule + reused + todo + copies if r.get("grade") in ("A", "B")})
+    just = {(r.get("org_id"), r.get("value", "").lower()) for r in by_rule + reused + todo + copies
+            if r.get("grade") in ("A", "B")}
+    named = fill_people(pdir, only=just)
+    # A means a named person (Bruce's contract): an A whose page gives no name after the name
+    # look-up is a role address, so B
+    no_name = [{**r, "grade": "B", "grade_reason": (r.get("grade_reason", "") + "; A but no name on the page -> B").lstrip("; ")}
+               for r in ws.read_contacts(pdir) if r.get("grade") == "A" and r.get("graded_by") == "jev"
+               and not str(r.get("person") or "").strip() and (r.get("org_id"), r.get("value", "").lower()) in just]
+    if no_name:
+        ws.update_contacts(pdir, no_name, ["grade", "grade_reason"])
     import mo_evidence
     evidence = mo_evidence.rescore(pdir)
     after = ws.read_contacts(pdir)
