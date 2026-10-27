@@ -6,10 +6,11 @@ its queue with the marketops tools until the queue is empty, then reports in thr
 
 | Role | File | Takes work from | Hands work to |
 |---|---|---|---|
+| research | [research.md](research.md) | `tasks(kind="sweep")` packages | contacts, verdicts, the playbook |
 | sources | [sources.md](sources.md) | the brief, coverage gaps | `pool: ...` tasks, or pools simple exports itself |
 | pool | [pool.md](pool.md) | `pool: ...` tasks | venues.csv, orgs.csv |
 | websites | [websites.md](websites.md) | `orgs(stage="no_website")` | orgs.csv websites |
-| dig | [dig.md](dig.md) | `tasks(kind="dig")` | contacts, verdicts, the playbook |
+| dig | [dig.md](dig.md) | `tasks(kind="dig")` - a second look | contacts, verdicts, the playbook |
 | finish | [finish.md](finish.md) | `tasks(kind="review")`, the 抽检 sheet | grades, checks, the user's list |
 
 Rules for every role:

@@ -9,8 +9,8 @@ A claim older than CLAIM_MINUTES is offered again, so a worker that dies never b
             what you find with org_id
     review  A/B rows marked review: open the quote and confirm or correct with grade(set=...)
     browse  pages whose email buttons hide the address: browse them
-    sweep   organisations the pipeline has not started: sweep them yourself with run(orgs=...)
-            and dig them - more agents, more throughput, instead of waiting on the pipeline
+    sweep   a research package: organisations nobody has worked yet - the researcher reads them
+            all at once with run(orgs=..., rounds=0), judges, digs and writes a verdict for each
     custom  anything the coordinator adds: a source family, a district, a federation list
 """
 from __future__ import annotations
@@ -33,9 +33,9 @@ GUIDE = {
     "evidence": "For each row: find more proof the person and role belong to this organisation - search the "
                 "address and the name, fetch the pages that print them with org_id (each page raises the "
                 "evidence score); fix person/role with grade(set=...) if the pages say otherwise.",
-    "sweep": "These organisations are yours, the pipeline leaves them alone: run(project, orgs=[their ids]) "
-             "sweeps them in the background; read orgs(project, ids=[...]) until their state is 'pipeline done' "
-             "(a few minutes), then dig the ones without a confirmed A/B as for dig packages; verdict each.",
+    "sweep": "These organisations are yours from start to finish: run(project, orgs=[their ids], rounds=0) reads "
+             "their sites at once (no digging); read orgs(project, ids=[...]) until each shows 'pipeline done'; "
+             "then for each: judge what was found, dig where a route is missing, verdict. See references/roles/research.md.",
     "custom": "Do what the title says with the tools; add organisations to orgs.csv or rows via pool.",
 }
 

@@ -242,9 +242,10 @@ def run(project: str, rounds: int = 6, max_pages: int = 15, goal_ab_org_share: f
     progress (organisations per minute, minutes left, cost per organisation) and results.
     workers: organisations worked at the same time per process (each read by several providers
     at once); shards: split orgs.csv between that many processes running in parallel.
-    orgs=[ids]: a batch for an agent - sweep just these organisations in the background, beside
-    any main run (again=True: sweep them anew with the playbook as it is now); then read each
-    one's result with orgs(project, ids=[...]). max_pages is a floor: a site keeps being read
+    orgs=[ids]: a batch for an agent - read just these organisations in the background (with
+    rounds=0: their sites only - finding the site, high-value pages, PDFs, extraction, grading -
+    and no template digging, which the agent does itself); again=True reads them anew with the
+    playbook as it is now; then read each one's result with orgs(project, ids=[...]). max_pages is a floor: a site keeps being read
     while its pages bring new addresses (up to 40).
     """
     try:

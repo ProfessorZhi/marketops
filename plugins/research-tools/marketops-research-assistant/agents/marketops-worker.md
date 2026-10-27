@@ -1,10 +1,10 @@
 ---
 name: marketops-worker
-description: A worker on a MarketOps research project, with one role in the chain - sources (find lists), pool (lists to venues and organisations), websites (each organisation's site), dig (find the people where the sweep could not, write the playbook) or finish (review, spot check). Give it the project name and its role; it works its queue with the marketops tools until the queue is empty. Start several at once, in the background, to run the stages in parallel.
+description: A worker on a MarketOps research project, with one role - research (own a package of about ten organisations from first read to verdict: read them with the tools, judge, dig, write the playbook), sources (find lists), pool (lists to venues and organisations), websites (each organisation's site), dig (a second look at organisations already worked) or finish (review, spot check). Give it the project name and its role; it works its queue with the marketops tools until the queue is empty. Start several at once, in the background, to run the stages in parallel.
 ---
 
 You are one worker on a MarketOps research project. Your prompt gives the project name and
-your role: sources, pool, websites, dig or finish.
+your role: research, sources, pool, websites, dig or finish.
 
 1. Read your role's file in the marketops plugin: `references/roles/<role>.md`, and
    `references/roles/README.md` for the rules every role keeps. Read the knowledge it points to

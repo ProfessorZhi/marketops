@@ -9,9 +9,10 @@ You lead the job. The plugin gives you tools (the marketops MCP server and the p
 behind it), shared state on disk (pools, contacts, the task queue, the playbook) and safety
 (evidence rules, one writer per organisation, a shared pace per provider). **The work is done
 by agents - you and the workers you start with your host's own multi-agent mode.** The
-plugin's scripts are your team's power tools: they read, extract, search and grade in bulk,
-fast and the same way every time; agents decide where to look, whether a contact is right, and
-what to try next.
+plugin's scripts are your team's power tools, and they only act when an agent calls them: they
+read, extract, search and grade in bulk, fast and the same way every time; agents decide where
+to look, whether a contact is right, and what to try next. Crawl4AI, TinyFish, DeepSeek, Serper,
+SerpApi and Jev are tools in the agents' hands, not a process that runs by itself.
 
 Quality comes first: every delivered row must survive someone opening its page. Agent time is
 well spent wherever it raises quality.
@@ -28,24 +29,24 @@ Knowledge to read when you need it:
 ## The chain: five stages, all running at once
 
 ```
- 1 sources      2 pool             3 websites        4 dig for people        5 finish
+ 1 sources      2 pool             3 websites        4 research people       5 finish
  find lists ─▶  lists to venues ─▶ each org's site ─▶ contacts, graded,  ─▶  review, spot
                 and organisations  confirmed          agent-judged            check, deliver
    ▼               ▼                  ▼                   ▼                       ▼
  pool: tasks    venues.csv          orgs.csv            contacts/ verdicts.csv  workbook
- sources.csv    orgs.csv            (+ script sweep)    playbook.json
+ sources.csv    orgs.csv                                playbook.json
 ```
 
 Each stage takes from the one before as soon as something is there: while the source workers
-look for the tenth list, dig workers are already on organisations from the first one. Nothing
+look for the tenth list, researchers are already on organisations from the first one. Nothing
 waits for a stage to be complete.
 
 | Stage | Agents decide | Scripts do (tools) | Knowledge |
 |---|---|---|---|
 | 1 sources | which lists exist and are worth it; check 20 rows of each | `search`, `fetch` downloads exports | marketops-sources, `references/projects/` |
 | 2 pool | field mapping, what to filter out, which organisation runs a venue, unclear merges | `pool(...)` merges on name + place | marketops-sources, marketops-brief |
-| 3 websites | is this site really theirs; their own page on a city portal; a federation or social page when there is no site | the sweep finds sites by name + city, checks DNS, scopes portals | marketops-tools |
-| 4 dig | why an organisation has no route yet, where else to look, whether a contact belongs to it, what works for this kind of organisation | the sweep reads high-value pages (more while they bring new addresses), extracts, Jev grades; `run(orgs=[...], again=True)` re-sweeps a batch with the playbook | marketops-brief (grades, titles), marketops-sources (page types), `references/projects/` |
+| 3 websites | is this site really theirs; their own page on a city portal; a federation or social page when there is no site | `run(orgs=[...], rounds=0)` looks sites up by name + city, checks DNS, scopes portals | marketops-tools |
+| 4 research | why an organisation has no route yet, where else to look, whether a contact belongs to it, what works for this kind of organisation | `run(orgs=[...], rounds=0)` reads a package's high-value pages at once (more while they bring new addresses), extracts, Jev grades; `fetch`, `search` for the digging the agent decides | marketops-brief (grades, titles), marketops-sources (page types), `references/projects/` |
 | 5 finish | rows to review, cross-organisation addresses, the 100-row spot check, what to put to the user | rules, dedupe, reconciliation, `export` | marketops-brief, marketops-benchmarks |
 
 ## How you run a job
@@ -54,44 +55,53 @@ waits for a stage to be complete.
    `project(name, brief={...})` (marketops-brief). Ask the user once, up front, for what is
    missing; then do not stop to ask again until delivery - everything else goes into the
    numbered list (step 6).
-2. **Start the sweep.** `run(project, follow=True, shards=4)`. It sweeps every organisation as
-   soon as it is pooled - its site, high-value pages, PDFs, grading, a few dig rounds - in the
-   background. It is the team's first pass, not the end of the work.
-3. **Start the team with your host's multi-agent mode.** One worker per role, each told its
+2. **Hand the organisations to researchers.** `tasks(action="plan", kind="sweep", size=10)` cuts
+   every organisation not yet worked into packages of about ten. Each researcher owns its
+   package from start to finish (`references/roles/research.md`): it has the tools read the
+   pages of all ten at once (`run(project, orgs=[...], rounds=0)` - reading, extracting and
+   grading in the background, no digging), reads the summaries (`orgs(ids=[...])`), digs where
+   a route is missing, judges every contact, writes a verdict per organisation. Nothing runs
+   on its own: every organisation is worked by an agent, and the tools only act when an agent
+   calls them. Plan again whenever new organisations are pooled.
+3. **Start the team with your host's multi-agent mode.** One worker per slot, each told its
    project and role; they read `references/roles/<role>.md` and work until their queue is empty.
 
    | Host | How to start workers |
    |---|---|
-   | Claude Code | start `marketops-worker` subagents in parallel (one per role/slot), in the background, each with `project` and `role` in its prompt; use agent teams or workflows if your setup has them |
+   | Claude Code | start `marketops-worker` subagents in parallel (one per slot), in the background, each with `project` and `role` in its prompt; use agent teams or workflows if your setup has them |
    | Codex | its own sub-agent / multi-agent feature when available; otherwise give the user one start line per worker for extra sessions (`codex exec "<start line>"`) |
    | WorkBuddy | its multi-agent mode; otherwise one thread per worker with the start line |
-   | none of these | work the stages yourself in turns, most valuable queue first |
+   | none of these | work the packages yourself, one after the other |
 
    Start line: `You are the <role> worker on MarketOps project "<project>". Read
    references/roles/<role>.md of the marketops plugin and work until your queue is empty.`
 
-   Default team (change it in the brief as `team`): sources 2, pool 1, websites 1, dig 4-8,
-   finish 1-2. More dig workers raise quality fastest once the sweep is ahead of them.
-4. **Feed the queues.** `tasks(action="plan", kind="dig")` hands out organisations the sweep
-   has finished without a confirmed A/B; `kind="review"` the rows to review; sources go in as
-   `tasks(action="add", title="pool: <source> <url>")`. When the sweep is behind and dig workers
-   would wait, `kind="sweep"` hands out organisations the pipeline has not started: each worker
-   sweeps its batch with `run(orgs=[...])` and digs it - throughput grows with the number of
-   workers instead of waiting on the pipeline. Plan again whenever `stages` shows new work.
+   Default team (change it in the brief as `team`): research 6-10, sources 1-2, finish 1-2
+   (pool and websites workers when sources need mapping or many sites are missing).
+   Throughput grows with the number of researchers - there is no background process to wait
+   for.
+4. **Feed the queues.** Sweep packages for new organisations; `kind="review"` for rows still to
+   review; `kind="dig"` for organisations a researcher left with a reason to look again (a
+   playbook entry written later, a website fixed); sources go in as
+   `tasks(action="add", title="pool: <source> <url>")`.
 5. **Steer every 10-15 minutes, not more often.** `project(name)` -> `stages`: where work piles
-   up, move workers there (sources exhausted -> those workers dig). Read the playbook
-   (`playbook_segments`, `orgs(...).playbook`): when dig workers have written how a kind of
-   organisation is found, re-sweep the rest of that segment -
-   `run(project, orgs=[ids of that segment not yet done], again=True)`. Check source yields
-   (a source under 5% A/B after 30 organisations goes to the back).
+   up, move workers there (sources exhausted -> those workers research). Read the playbook
+   (`orgs(...)["playbook"]`): when researchers have written how a kind of organisation is
+   found, the packages still open for that segment use it automatically; for organisations
+   already done, plan `kind="dig"` packages for that segment. Check source yields (a source
+   under 5% A/B after 30 organisations goes to the back).
 6. **One numbered list for the user.** Collect what only the user can decide in
    `project()["needs_you"]` plus anything your workers raised; put it to the user once, in one
    message, and act on the reply.
-7. **Finish.** `run(project, pool_done=True)` when the sources are exhausted; when the queues
-   are empty, the finish workers do the spot check (100 confirmed A/B rows on the 抽检 sheet,
-   each page opened, `grade(set=[{value, org_id, checked}])`). Deliver when precision is 90% or
-   better and the 对账 line adds up: `export(project)`. Then run the `learn` command so the
-   next project starts from what this one taught.
+7. **Finish.** When the queues are empty, the finish workers do the spot check (100 confirmed
+   A/B rows on the 抽检 sheet, each page opened, `grade(set=[{value, org_id, checked}])`).
+   Deliver when precision is 90% or better and the 对账 line adds up: `export(project)`. Then
+   run the `learn` command so the next project starts from what this one taught.
+
+**Fast mode (optional).** For a very large pool with few agents available,
+`run(project, follow=True, shards=4)` sweeps every organisation in the background on its own,
+with template digging; researchers then take `kind="dig"` packages of what it left. Quality is
+lower - the scripts do not judge - so use it only when the pool is too big for the team.
 
 ## Deciding what agents do and what scripts do
 
@@ -128,7 +138,7 @@ waits for a stage to be complete.
 
 ## Rules that stay
 
-- Never guess an email; every contact comes from a page read with `fetch` (or the sweep) and
+- Never guess an email; every contact comes from a page read with `fetch` or `run(orgs=...)` and
   keeps its quote and page. A host's own web fetch is for looking, not for adding rows.
 - Research only: nothing is sent to anyone. The output is called 研究有效邮箱.
 - Nothing useful is dropped: weak evidence, review and X are labels; a person or agent decides.
