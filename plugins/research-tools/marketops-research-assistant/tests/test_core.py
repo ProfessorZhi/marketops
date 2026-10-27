@@ -11,7 +11,8 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 TMP = tempfile.mkdtemp()
-os.environ.update(MARKETOPS_HOME=TMP + "/home", MARKETOPS_PROJECTS=TMP + "/projects")
+os.environ.update(MARKETOPS_HOME=TMP + "/home", MARKETOPS_PROJECTS=TMP + "/projects",
+                  MARKETOPS_HEALTH="0")   # site health is shared state: only its own tests turn it on
 for k in ("SERPER_API_KEY", "SERPAPI_API_KEY", "DEEPSEEK_API_KEY", "TINYFISH_API_KEY", "TYPESAFE_API_KEY"):
     os.environ.pop(k, None)
 
@@ -719,6 +720,65 @@ class SharedPages(unittest.TestCase):
             with self.assertRaises(mo_providers.ProviderError) as e:
                 mo_providers.tinyfish_mcp("wallet", {}, timeout=1)
         self.assertIn("refused the key", str(e.exception))
+
+
+class SiteHealth(unittest.TestCase):
+    def setUp(self):
+        import mo_health
+        self.h = mo_health
+        os.environ["MARKETOPS_HEALTH"] = "1"
+        os.environ["MARKETOPS_LIBRARY"] = tempfile.mkdtemp()
+        mo_health.reset_for_tests()
+
+    def tearDown(self):
+        os.environ["MARKETOPS_HEALTH"] = "0"
+        os.environ.pop("MARKETOPS_LIBRARY", None)
+        self.h.reset_for_tests()
+
+    def test_one_failure_sets_nothing_aside_two_readers_do(self):
+        H = self.h.HEALTH
+        H.record("https://dead.fr/a", "crawl4ai", False, "target_unreachable")
+        self.assertEqual("", H.skip("https://dead.fr/b", "tinyfish"))       # one failure is a hint
+        H.record("https://dead.fr/a", "tinyfish", False, "ConnectError: Name or service not known")
+        self.assertIn("site set aside", H.skip("https://dead.fr/b", "crawl4ai"))
+        self.assertLessEqual(self.h.HEALTH.status("https://dead.fr")["reach"], 50)
+
+    def test_a_404_marks_the_page_not_the_site(self):
+        H = self.h.HEALTH
+        for r in ("crawl4ai", "deepseek"):
+            H.record("https://club.fr/old", r, False, "HTTP 404")
+        self.assertIn("page set aside", H.skip("https://club.fr/old", "tinyfish"))
+        self.assertEqual("", H.skip("https://club.fr/bureau", "tinyfish"))
+
+    def test_a_block_is_for_one_reader_and_our_own_errors_do_not_count(self):
+        H = self.h.HEALTH
+        H.record("https://cf.fr/", "crawl4ai", False, "Cloudflare JS challenge")
+        H.record("https://cf.fr/x", "crawl4ai", False, "Cloudflare JS challenge")
+        self.assertIn("blocks crawl4ai", H.skip("https://cf.fr/y", "crawl4ai"))
+        self.assertEqual("", H.skip("https://cf.fr/y", "tinyfish"))
+        for r in ("crawl4ai", "tinyfish", "deepseek"):
+            self.assertEqual("ignored", H.record("https://ok.fr/", r, False, "ProxyError: proxy_error"))
+        self.assertEqual("", H.skip("https://ok.fr/", "crawl4ai"))
+
+    def test_a_success_restores_and_many_sites_failing_at_once_is_our_network(self):
+        H = self.h.HEALTH
+        for r in ("crawl4ai", "tinyfish"):
+            H.record("https://back.fr/", r, False, "target_unreachable")
+        H.record("https://back.fr/", "deepseek", True)
+        self.assertEqual("", H.skip("https://back.fr/", "crawl4ai"))
+        self.assertEqual(100, H.status("https://back.fr")["reach"])
+        for i in range(25):   # 25 different sites fail within a minute: not their fault
+            H.record(f"https://s{i}.fr/", "crawl4ai", False, "ConnectError")
+        H.record("https://victim.fr/", "crawl4ai", False, "target_unreachable")
+        self.assertEqual("ignored", H.record("https://victim.fr/", "tinyfish", False, "target_unreachable"))
+        self.assertEqual("", H.skip("https://victim.fr/", "crawl4ai"))
+
+    def test_other_processes_see_the_same_health(self):
+        self.h.HEALTH.record("https://gone.fr/p", "crawl4ai", False, "HTTP 404")
+        self.h.HEALTH.record("https://gone.fr/p", "tinyfish", False, "page_not_found")
+        other = self.h._Health()          # a second process reading the same file
+        other._catch_up(force=True)
+        self.assertIn("page set aside", other.skip("https://gone.fr/p", "deepseek"))
 
 
 class Reconcile(unittest.TestCase):

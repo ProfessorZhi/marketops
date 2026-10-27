@@ -434,8 +434,11 @@ def available_readers(readers=None) -> list[str]:
     return [r for r in (readers or READERS) if r in _READ and (r == "crawl4ai" or mo_config.key(r))]
 
 
-def read(url: str, readers=None, project_dir=None) -> dict:
-    """Read one page with several readers at once. {reader: result or {"error": ...}}."""
+def read(url: str, readers=None, project_dir=None, force: bool = False) -> dict:
+    """Read one page with several readers at once. {reader: result or {"error": ...}}.
+    Site health (mo_health) sets aside pages and sites that failed repeatedly and readers a
+    site blocks; force=True reads anyway (fetch(refresh=True))."""
+    import mo_health
     wanted = available_readers(readers)
     out = {}
 
@@ -443,15 +446,22 @@ def read(url: str, readers=None, project_dir=None) -> dict:
         ok, why = mo_budget.allowed(reader, "fetch")
         if not ok:
             return reader, {"error": "skipped: " + why}
+        aside = "" if force or not mo_health.enabled() else mo_health.HEALTH.skip(url, reader)
+        if aside:
+            return reader, {"error": "skipped: " + aside}
         try:
             # a page that timed out in the browser is not read again (it already took 30 s)
             res = _again(lambda: _READ[reader](url), transient=TRANSIENT_FAST if reader == "crawl4ai" else TRANSIENT)
             mo_budget.record(project_dir, reader, "fetch", True, url[:120])
+            if mo_health.enabled():
+                mo_health.HEALTH.record(url, reader, True)
             return reader, res
         except Exception as exc:  # noqa: BLE001 - each reader fails on its own
             # keep the reason ("no text", "HTTP 403", a timeout) so failures can be told apart later
             mo_budget.record(project_dir, reader, "fetch", False,
                              mo_config.scrub(f"{type(exc).__name__}: {exc}")[:80] + " | " + url[:80])
+            if mo_health.enabled():
+                mo_health.HEALTH.record(url, reader, False, f"{type(exc).__name__}: {exc}")
             return reader, {"error": mo_config.scrub(f"{type(exc).__name__}: {exc}")[:160]}
 
     with ThreadPoolExecutor(max_workers=3) as pool:
@@ -472,13 +482,14 @@ def _pool(name: str) -> ThreadPoolExecutor:
         return _POOLS[name]
 
 
-def read_race(url: str, readers=None, project_dir=None, grace: float = 3.0, on_late=None) -> dict:
+def read_race(url: str, readers=None, project_dir=None, grace: float = 3.0, on_late=None, force: bool = False) -> dict:
     """Every reader at once; return when the first one has the page (plus `grace` seconds for
     the rest), so a page is as fast as its fastest reader. Readers still running finish in
     the background and hand their result to on_late(reader, result): nothing is lost."""
     import time
     from concurrent.futures import FIRST_COMPLETED, wait
-    futs = {_pool(r).submit(read, url, [r], project_dir): r for r in available_readers(readers)}
+    extra = {"force": True} if force else {}
+    futs = {_pool(r).submit(read, url, [r], project_dir, **extra): r for r in available_readers(readers)}
 
     def result(f, reader):
         try:

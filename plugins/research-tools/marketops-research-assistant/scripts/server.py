@@ -148,7 +148,7 @@ def search(query: str, project: str = "", engines: list[str] | None = None, coun
 
 
 def fetch(project: str, url: str, readers: list[str] | str | None = None, org_id: str = "",
-          org: str = "", max_chars: int = 3000) -> dict:
+          org: str = "", max_chars: int = 3000, refresh: bool = False) -> dict:
     """Read one page with Crawl4AI, TinyFish and DeepSeek at the same time and save every version.
 
     Returns each reader's outcome, the emails/phones found (with the lines around them),
@@ -156,11 +156,14 @@ def fetch(project: str, url: str, readers: list[str] | str | None = None, org_id
     0 for none). With org_id/org the contacts are added to that organisation's contacts.
     readers: a subset of crawl4ai, tinyfish, deepseek, or "download" for a
     data file (CSV/JSON/XLSX/PDF exports are downloaded automatically).
+    A page or site that failed repeatedly is set aside for a while (site health); refresh=True
+    reads it anyway, now, and a success restores it.
     """
     try:
-        out = ws.fetch(ws.project_dir(project), url, readers, org_id, org)
+        out = ws.fetch(ws.project_dir(project), url, readers, org_id, org, refresh=refresh)
         out["text"] = out["text"][:max_chars]
         out.pop("content_links", None)
+        out.pop("scored_links", None)   # the same links as `links`, with scores: half the size for the agent
         out["contacts"] = [{k: c[k] for k in ("kind", "value", "mailbox", "same_site", "found_by", "quote")}
                            for c in out["contacts"]]
         return out

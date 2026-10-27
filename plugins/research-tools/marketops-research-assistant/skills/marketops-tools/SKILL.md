@@ -84,7 +84,7 @@ Jev answers multiple-choice questions over rows, in any language, cheaply and in
 | Tool | Use it for |
 |---|---|
 | `project(name)` -> `stages` | how much work waits at each stage; staff where it piles up |
-| `orgs(project, stage="no_ab" \| "review" \| "no_website" \| "unread" \| "held", ids=[...])` | one summary per organisation - what the sweep read and found, rows to review, playbook, verdicts - so you decide without re-reading pages |
+| `orgs(project, stage="no_ab" \| "review" \| "no_website" \| "unread" \| "held", ids=[...])` | one summary per organisation - what the sweep read and found, rows to review, verdicts - plus the playbook by segment and each website's health (reach, last success, readers it blocks), so you decide without re-reading pages |
 | `orgs(project, set=[{org_id, website, segment, scope, note}])` | fix a website, set the segment the playbook keys on, mark scope |
 | `run(project, orgs=[...], again=True)` | sweep a batch again in the background (after fixing websites or writing the playbook); results land as `orgs(ids=...)` shows |
 | `tasks(action="plan" \| "claim" \| "done" \| "add")` | the shared queue; while you hold a package the pipeline leaves its organisations alone; a claim untouched for 40 minutes returns to the queue |

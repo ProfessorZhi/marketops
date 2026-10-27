@@ -464,8 +464,9 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
             pass
 
     def read_with(chosen, race: bool = False):
-        got = mo_providers.read_race(url, chosen, project_dir=pdir, on_late=late) if race \
-            else mo_providers.read(url, chosen, project_dir=pdir)
+        forced = {"force": True} if refresh else {}   # only a forced re-read passes it on
+        got = mo_providers.read_race(url, chosen, project_dir=pdir, on_late=late, **forced) if race \
+            else mo_providers.read(url, chosen, project_dir=pdir, **forced)
         for reader, res in got.items():
             parsed = take(reader, res)
             if parsed:
@@ -496,6 +497,10 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
     added = merge_contacts(pdir, contacts, org_id, org, via) if (org_id or org) else 0
     best = max((p["lines"] for p in parsed_by.values()), key=lambda ls: sum(map(len, ls)), default=[])
     emails_seen = sum(c["kind"] == "email" for c in contacts)
+    if parsed_by and not saved:   # a fresh read: how much this site's pages bring (site health)
+        import mo_health
+        if mo_health.enabled():
+            mo_health.HEALTH.record_yield(url, emails_seen)
     return {"url": url, "readers": report, "contacts": contacts, "contacts_added": added,
             "links": mo_pages.contact_links(links, url, limit=25),
             "scored_links": mo_pages.contact_links(links, url, limit=25, scores=True),
@@ -711,11 +716,22 @@ def org_summaries(pdir: Path, ids: list[str] | None = None, stage: str = "", lim
                              for c in confirmed(oid)][:8],
             "to_review": [{k: c.get(k, "") for k in ("value", "grade", "review_reason", "page_url", "quote")}
                           for c in rows if c.get("review") == "yes" and c.get("grade") in ("A", "B")][:8],
-            "playbook": playbook_for(pdir, o),
             "verdicts": [{k: v.get(k, "") for k in ("agent", "verdict", "found", "where", "why")}
                          for v in verdicts.get(oid, [])][-3:],
         })
-    return {"total": total, "shown": len(out), "orgs": out}
+    # the playbook once per answer, by segment - not repeated on every organisation
+    pb = {seg: playbook_for(pdir, {"segment": seg}) for seg in sorted({o["segment"] for o in out})}
+    return {"total": total, "shown": len(out), "orgs": out,
+            "playbook": {seg: e for seg, e in pb.items() if any(e.values())},
+            "site_health": {o["org_id"]: site_health(o["website"]) for o in out if o.get("website")}}
+
+
+def site_health(url: str) -> dict:
+    import mo_health
+    if not url or not mo_health.enabled():
+        return {}
+    st = mo_health.HEALTH.status(url if "://" in url else "https://" + url)
+    return st if st.get("reach") is not None else {}
 
 
 _web_cache: dict[str, tuple] = {}

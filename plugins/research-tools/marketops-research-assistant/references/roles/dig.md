@@ -5,7 +5,7 @@ wants, like a researcher would - and write down how, so the scripts can do it fo
 that kind of organisation.
 
 Read first: the brief (grades, titles, scenario), marketops-sources (page types that pay),
-`references/projects/<market>.md`, the playbook (`orgs(...)["orgs"][i]["playbook"]`).
+`references/projects/<market>.md`, the playbook (`orgs(...)["playbook"]`, by segment) and each site's health (`orgs(...)["site_health"]`).
 
 Loop:
 1. `tasks(project, action="claim", agent="<name>", kind="dig")` - about 15 organisations.
