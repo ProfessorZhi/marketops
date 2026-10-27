@@ -33,5 +33,10 @@ Loop:
    `run(project, orgs=[...], again=True)`.
 7. `tasks(action="done", task_id=..., note="<n with routes / partial / none>")`; take the next.
 
+When the dig queue is empty but organisations are still waiting for the pipeline, do not wait:
+claim a sweep package (`tasks(action="claim", kind="sweep")`), start it with
+`run(project, orgs=[its ids])`, watch `orgs(project, ids=[...])` until they show "pipeline done",
+then dig them as above. The pipeline leaves your organisations alone while you hold them.
+
 Quality over count: a missing route is better than a wrong one. Report: organisations with new
 routes, playbook entries written, what you could not resolve.

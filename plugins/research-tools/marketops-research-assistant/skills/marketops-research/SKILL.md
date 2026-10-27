@@ -74,8 +74,10 @@ waits for a stage to be complete.
    finish 1-2. More dig workers raise quality fastest once the sweep is ahead of them.
 4. **Feed the queues.** `tasks(action="plan", kind="dig")` hands out organisations the sweep
    has finished without a confirmed A/B; `kind="review"` the rows to review; sources go in as
-   `tasks(action="add", title="pool: <source> <url>")`. Plan again whenever `stages` shows
-   new work.
+   `tasks(action="add", title="pool: <source> <url>")`. When the sweep is behind and dig workers
+   would wait, `kind="sweep"` hands out organisations the pipeline has not started: each worker
+   sweeps its batch with `run(orgs=[...])` and digs it - throughput grows with the number of
+   workers instead of waiting on the pipeline. Plan again whenever `stages` shows new work.
 5. **Steer every 10-15 minutes, not more often.** `project(name)` -> `stages`: where work piles
    up, move workers there (sources exhausted -> those workers dig). Read the playbook
    (`playbook_segments`, `orgs(...).playbook`): when dig workers have written how a kind of

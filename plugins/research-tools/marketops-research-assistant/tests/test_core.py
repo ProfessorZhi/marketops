@@ -618,6 +618,11 @@ class Locks(unittest.TestCase):
         self.assertEqual({"o1"}, mo_tasks.held_orgs(pdir))
         mo_tasks.done(pdir, task["task_id"], "found one")
         self.assertEqual(set(), mo_tasks.held_orgs(pdir))
+        out = mo_tasks.plan(pdir, "sweep")   # o2 has no site pass yet: an agent can sweep it itself
+        self.assertEqual(1, out["items"])
+        claimed = mo_tasks.claim(pdir, "w2", "sweep")
+        self.assertEqual(["o2"], [i["org_id"] for i in claimed["items"]])
+        self.assertEqual({"o2"}, mo_tasks.held_orgs(pdir))
 
 
 class AgentParts(unittest.TestCase):

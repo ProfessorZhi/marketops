@@ -9,6 +9,8 @@ A claim older than CLAIM_MINUTES is offered again, so a worker that dies never b
             what you find with org_id
     review  A/B rows marked review: open the quote and confirm or correct with grade(set=...)
     browse  pages whose email buttons hide the address: browse them
+    sweep   organisations the pipeline has not started: sweep them yourself with run(orgs=...)
+            and dig them - more agents, more throughput, instead of waiting on the pipeline
     custom  anything the coordinator adds: a source family, a district, a federation list
 """
 from __future__ import annotations
@@ -31,6 +33,9 @@ GUIDE = {
     "evidence": "For each row: find more proof the person and role belong to this organisation - search the "
                 "address and the name, fetch the pages that print them with org_id (each page raises the "
                 "evidence score); fix person/role with grade(set=...) if the pages say otherwise.",
+    "sweep": "These organisations are yours, the pipeline leaves them alone: run(project, orgs=[their ids]) "
+             "sweeps them in the background; read orgs(project, ids=[...]) until their state is 'pipeline done' "
+             "(a few minutes), then dig the ones without a confirmed A/B as for dig packages; verdict each.",
     "custom": "Do what the title says with the tools; add organisations to orgs.csv or rows via pool.",
 }
 
@@ -76,11 +81,18 @@ def plan(pdir, kind: str, size: int = 15) -> dict:
         elif kind == "evidence":
             items = [f"{c['org_id']}::{c['value']}" for c in ws.read_contacts(pdir)
                      if c.get("grade") in ("A", "B") and c.get("evidence") in ("weak", "medium")]
+        elif kind == "sweep":
+            # not started by the pipeline (no site pass yet) and not held by anyone
+            started = {r["org_id"] for r in ws.read_csv(pdir / "crawl.csv")}
+            held = held_orgs(pdir)
+            items = [str(o.get("id") or o.get("org_id") or "") for o in ws.read_csv(pdir / "orgs.csv")
+                     if o.get("scope") != "out"]
+            items = [i for i in items if i and i not in started and i not in held]
         elif kind == "browse":
             items = [f"{r['org_id']}::{u}" for r in ws.read_csv(pdir / "crawl.csv")
                      for u in re.findall(r"email buttons without address on (\S+): try browse", r.get("note", ""))]
         else:
-            return {"error": "kind: dig, review, evidence or browse (custom tasks: action='add')"}
+            return {"error": "kind: dig, review, evidence, browse or sweep (custom tasks: action='add')"}
         items = [i for i in dict.fromkeys(items) if i not in busy]
         new = []
         for k in range(0, len(items), max(1, size)):
@@ -103,7 +115,7 @@ def add(pdir, title: str, note: str = "", kind: str = "custom") -> dict:
 
 def _payload(pdir, task: dict) -> list[dict]:
     items = [i for i in task["items"].split("|") if i]
-    if task["kind"] == "dig":
+    if task["kind"] in ("dig", "sweep"):
         orgs = {str(o.get("id") or o.get("org_id") or ""): o for o in ws.read_csv(pdir / "orgs.csv")}
         crawl = {r["org_id"]: r for r in ws.read_csv(pdir / "crawl.csv")}
         out = []
