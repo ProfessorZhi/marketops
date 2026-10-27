@@ -1231,5 +1231,19 @@ class SuperPipeline(unittest.TestCase):
         self.assertTrue(any("nobody mines them" in x for x in server.needs_you(pdir, server.project("flow2"))))
 
 
+class Ledgers(unittest.TestCase):
+    def test_two_ledgers_are_counted_apart(self):
+        rows = [{"org_id": "o1", "grade": "A", "person": "P One"}, {"org_id": "o1", "grade": "B"},
+                {"org_id": "o2", "grade": "A"}, {"org_id": "o2", "grade": "D"},
+                {"org_id": "o3", "grade": "C"}, {"org_id": "o3", "grade": "B", "review": "yes"},
+                {"org_id": "o4", "grade": "X"}]
+        ab = mo_export.ledgers(rows)
+        self.assertEqual((5, 3, "2 / 1 / 1 / 1"), (ab["valid_routes"], ab["valid_orgs"], ab["valid_by_grade"]))
+        self.assertEqual((3, 2), (ab["strict_routes"], ab["strict_orgs"]))
+        named = mo_export.ledgers(rows, "named_A")
+        self.assertEqual((1, 1), (named["strict_routes"], named["strict_orgs"]))
+        self.assertIn("admissions", __import__("mo_grade").DEFAULT_GRADES["X"])
+
+
 if __name__ == "__main__":
     unittest.main()

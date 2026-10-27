@@ -27,6 +27,23 @@ def _tier(c: dict) -> str:
     return {"C": "observed_business_route", "D": "official_general_research_route"}.get(g, "inferred_candidate")
 
 
+STRICT = {"A": ("A",), "AB": ("A", "B"), "named_A": ("A",)}   # brief.strict_ledger; default AB
+
+
+def ledgers(emails: list, strict: str = "AB") -> dict:
+    """Bruce's two ledgers, never one number: research-valid routes (confirmed A-D, each labelled)
+    and the strict ledger the brief names (named A only, A, or A+B)."""
+    ok = [c for c in emails if c.get("review") != "yes"]
+    valid = [c for c in ok if c.get("grade") in ("A", "B", "C", "D")]
+    grades = STRICT.get(strict, STRICT["AB"])
+    strict_rows = [c for c in ok if c.get("grade") in grades
+                   and (strict != "named_A" or str(c.get("person") or "").strip())]
+    return {"valid_routes": len(valid), "valid_orgs": len({c.get("org_id") for c in valid}),
+            "valid_by_grade": " / ".join(str(sum(c.get("grade") == g for c in valid)) for g in "ABCD"),
+            "strict": strict if strict in STRICT else "AB", "strict_routes": len(strict_rows),
+            "strict_orgs": len({c.get("org_id") for c in strict_rows})}
+
+
 def metrics(orgs: list, emails: list) -> dict:
     """Headline numbers count confirmed A/B only; rows still marked review=yes are reported apart."""
     ids = [str(o.get("id") or o.get("org_id") or "") for o in orgs] or list({c.get("org_id") for c in emails})
@@ -238,6 +255,13 @@ def export(pdir) -> dict:
         {"项目": "数据源饱和", "值": (lambda st: f"{st['sources']} 个数据源；最近新增占比 "
                                      f"{', '.join(f'{x:.0%}' for x in st['new_share_last']) or '-'}；"
                                      + ("已饱和" if st["saturated"] else "未饱和，池子可能不全"))(ws.source_saturation(pdir))},
+        *(lambda lg: [
+            {"项目": "研究有效账：确认的 A–D 研究有效邮箱（A / B / C / D，各级标注；不含待复核）",
+             "值": f"{lg['valid_routes']} 条（{lg['valid_by_grade']}），{lg['valid_orgs']} 家机构"},
+            {"项目": f"严格账（简报 strict_ledger = {lg['strict']}：named_A 只算具名 A，A 只算 A，AB 算 A+B）",
+             "值": f"{lg['strict_routes']} 条，{lg['strict_orgs']} 家机构"},
+        ])(ledgers([c for c in emails if not orgs or c.get("org_id") in {str(o.get("id") or o.get("org_id") or "") for o in orgs}],
+                   str(ws.brief(pdir).get("strict_ledger") or "AB"))),
         {"项目": "广度：有确认 A+B 的机构占比（有确认 A/B 的机构 ÷ 机构数；不含待复核）", "值": f"{m['ab_org_share']}%（{m['ab_orgs']} 家）"},
         {"项目": "每百机构 A+B 路线数（A+B 条数 ÷ 机构数 × 100，Bruce 口径；同一人两地址计一条）", "值": m["ab_routes_per_100_orgs"]},
         {"项目": "每百机构 A+B 路线数，每机构最多计 3 条", "值": m["ab_routes_per_100_orgs_max3"]},

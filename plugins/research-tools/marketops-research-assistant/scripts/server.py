@@ -57,7 +57,9 @@ def project(name: str, brief: dict | None = None, playbook: dict | None = None,
 
     brief (optional, saved as brief.json): {"goal": "...", "region": "...", "country": "FR",
     "language": "fr", "scenario": "...", "grades": {"A": "...", ...}, "exclude": "...",
-    "address_rules": {"info": "X"}, "routes_per_org": 3, "focus": {...}}.
+    "address_rules": {"info": "X"}, "routes_per_org": 3, "strict_ledger": "AB" | "A" | "named_A",
+    "focus": {...}}. strict_ledger: which grades the strict ledger counts (the workbook reports it
+    next to the research-valid ledger, A-D).
     Grades describe, in plain words and the market's own job titles, what counts as each
     grade; leave any out to use Bruce's default. Returns pools, contacts by grade, run and
     agent progress, costs, account balances with their red lines, and `needs_you`: the numbered

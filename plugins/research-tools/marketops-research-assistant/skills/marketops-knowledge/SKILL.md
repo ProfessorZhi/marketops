@@ -36,8 +36,8 @@ on the page. The brief puts the product's own functions and titles into them.
 A name is the condition for A, not for B: a role with a real work address is a route.
 
 **Two ledgers, never one number**: research-valid routes (A-D, each labelled) and the strict
-ledger (named A, or A+B - the brief says which for this job). They answer different questions;
-passing one off as the other overstates a run. Report both.
+ledger (named A, A, or A+B - `brief.strict_ledger`, default A+B). The workbook reports both. They answer different questions;
+passing one off as the other overstates a run.
 
 **Never guess an address** - no pattern, no concatenation, no probing. A named person with no
 address on any page: one or two targeted searches, then record that none was found; never put a

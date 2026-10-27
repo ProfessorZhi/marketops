@@ -15,22 +15,26 @@ import mo_config
 import mo_workspace as ws
 from mo_pool import common_words, mentions
 
-# Bruce's grading contract (fjd-email-role-qualification), used when the brief has none.
+# Bruce's grading table (written by him on 2026-09-05; A_key_role ... D_official_general_research_entry),
+# used when the brief has none. Worded for the grounds / facilities lines it came from; a brief
+# for another product puts that product's function in its place.
 DEFAULT_GRADES = {
-    "A": "A named person who decides on or owns the venue, grounds or pitch maintenance, or the "
-         "purchase: head of grounds/facilities/estates, sports department head, club president or "
-         "the board member responsible for the ground. Their own email.",
-    "B": "Anyone in the organisation's leadership or operations who can act on or forward a "
-         "grounds/pitch enquiry: groundsman, pitch/site/venue/operations manager, caretaker "
-         "(Platzwart, Hauswart), infrastructure lead, other board or committee members, club "
-         "secretary or manager; or a role mailbox for that function (grounds@, facilities@, "
-         "platz@, vorstand@, infrastruktur@).",
-    "C": "An official entry of the organisation that reaches a team rather than a person: "
-         "bookings/hire, sports office, department inbox, administration of the facility.",
-    "D": "A generic official inbox (info@, office@, contact@, secretariat) - still a usable "
-         "first contact.",
-    "X": "Clearly not a route for this organisation: another company's address (sponsor, web "
-         "designer, partner), no-reply, press only, or a private person with no role here.",
+    "A": "A named key person who decides, evaluates technically, buys, or runs the operation the "
+         "product serves (head of grounds / facilities / estates, sports department head, club "
+         "president, the board member for the ground). Name, role, organisation and this address "
+         "are tied together on an official page.",
+    "B": "An operator role for that function - grounds, facilities, estates, maintenance, sport "
+         "facilities, site, operations, projects (groundsman, site / venue manager, caretaker, "
+         "Platzwart, club secretary) - whose real work address stands in the same official record "
+         "as the role. A name is not required.",
+    "C": "That function's department inbox, official for this organisation: grounds@, facilities@, "
+         "estates@, sport@, booking@, maintenance@ - a usable entry, not a named contact.",
+    "D": "A general official inbox: office@, info@, enquiries@, reception@, admin@, contact@. The "
+         "page need not say it handles the venue; it is labelled D, never presented as a person.",
+    "X": "Excluded: functions unrelated to the product's use or purchase - admissions, attendance, "
+         "courses, safeguarding, student or parent services, HR, finance, marketing, PR, press, "
+         "no-reply; another company's address (sponsor, web designer, partner); a private person "
+         "with no role here; anything inferred, guessed or malformed.",
 }
 
 
