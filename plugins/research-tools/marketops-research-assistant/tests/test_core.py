@@ -1245,5 +1245,76 @@ class Ledgers(unittest.TestCase):
         self.assertIn("admissions", __import__("mo_grade").DEFAULT_GRADES["X"])
 
 
+class OfficialUsage(unittest.TestCase):
+    """The six providers used the way their official skills and docs ask."""
+
+    class Resp:
+        def __init__(self, data, status=200):
+            self._d, self.status_code, self.text, self.headers = data, status, json.dumps(data), {}
+
+        def json(self):
+            return self._d
+
+    def test_serpapi_maps_pages_and_centres(self):
+        seen = []
+
+        def get(url, params=None, **kw):
+            seen.append(dict(params))
+            return self.Resp({"local_results": [{"title": f"P{params.get('start', 0)}", "website": ""}]})
+        with mock.patch.dict(os.environ, {"SERPAPI_API_KEY": "k" * 12}), mock.patch("httpx.get", side_effect=get):
+            mo_providers._serpapi("stade", "fr", "fr", 10, True, page=3, near="48.85,2.35,14z")
+        self.assertEqual(40, seen[0]["start"])
+        self.assertEqual("@48.85,2.35,14z", seen[0]["ll"])
+        self.assertEqual("google_maps", seen[0]["engine"])
+
+    def test_tinyfish_reads_ten_pages_in_one_request_and_harvest_reuses_them(self):
+        import mo_flow
+        posts = []
+
+        def post(url, json=None, **kw):
+            posts.append(json)
+            return self.Resp({"results": [{"url": u, "final_url": u, "text": fake_ligue(u)["crawl4ai"]["html"]}
+                                          for u in json["urls"]]})
+        pdir = ws.project_dir("prefetch")
+        urls = [f"https://ligue.test/club/{n}" for n in (1, 2, 3)]
+        with mock.patch.dict(os.environ, {"TINYFISH_API_KEY": "k" * 12}), mock.patch("httpx.post", side_effect=post), \
+                mock.patch.object(mo_providers, "read_race", side_effect=AssertionError("no per-page read")), \
+                mock.patch.object(mo_providers, "read", side_effect=AssertionError("no per-page read")), \
+                mock.patch("mo_budget.allowed", return_value=(True, "")):
+            out = mo_flow.harvest(pdir, "ligue-batch", urls=urls)
+        self.assertEqual(1, len(posts))
+        self.assertEqual(3, len(posts[0]["urls"]))
+        self.assertEqual(3, out["rows_new"], out)
+
+    def test_facebook_page_read_through_serpapi(self):
+        def get(url, params=None, **kw):
+            self.assertEqual(("facebook_profile", "fcexample"), (params["engine"], params["profile_id"]))
+            return self.Resp({"profile_results": {"name": "FC Example", "email": "contact@fcexample.test",
+                                                  "phone": "+33 1 00 00 00 00", "website": "fcexample.test"}})
+        with mock.patch.dict(os.environ, {"SERPAPI_API_KEY": "k" * 12}), mock.patch("httpx.get", side_effect=get):
+            res = mo_providers._read_facebook("https://www.facebook.com/fcexample/")
+        self.assertIn("email: contact@fcexample.test", res["text"])
+        with self.assertRaises(mo_providers.ProviderError):
+            mo_providers._read_facebook("https://www.facebook.com/groups/123")
+
+    def test_agent_runs_capped_with_schema_and_local_exit(self):
+        sent = []
+
+        def post(url, json=None, **kw):
+            sent.append((url, json))
+            return self.Resp({"run_id": "run-1", "error": None})
+        with mock.patch.dict(os.environ, {"TINYFISH_API_KEY": "k" * 12}), mock.patch("httpx.post", side_effect=post), \
+                mock.patch("mo_budget.allowed", return_value=(True, "")):
+            self.assertEqual("run-1", mo_providers.agent_submit("https://club.test/team", "goal", country="fr"))
+            mo_providers.agent_submit("https://club.test/team", "goal", country="ch", stealth=True)
+        url, body = sent[0]
+        self.assertTrue(url.endswith("/v1/automation/run-async"))
+        self.assertEqual({"enabled": True, "country_code": "FR"}, body["proxy_config"])
+        self.assertEqual(40, body["agent_config"]["max_steps"])
+        self.assertIn("contacts", body["output_schema"]["properties"])
+        self.assertNotIn("proxy_config", sent[1][1])          # Switzerland is not a TinyFish exit country
+        self.assertEqual("stealth", sent[1][1]["browser_profile"])
+
+
 if __name__ == "__main__":
     unittest.main()

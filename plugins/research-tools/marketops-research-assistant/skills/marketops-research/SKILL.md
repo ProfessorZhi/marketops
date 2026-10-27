@@ -24,6 +24,31 @@ Other knowledge, read when needed: **marketops-tools** (the six providers and th
 | 4 organisations | `orgs.csv` | miners, websites (`site` lane), researchers' `orgs(add)` | every organisation has its site, or a verdict why not |
 | 5 contacts | `contacts/`, `verdicts.csv` | researchers - `sweep` lane, ~10 organisations per claim; finish - `review` | every organisation has graded routes or an agent verdict; spot check >= 90% |
 
+## What makes the work good
+
+Five things decide a run; each has a reason and a place where the plugin holds it for you.
+
+- **Pipeline - stages hand over through pools, never through messages.** A stage takes what is
+  on disk in the pool before it and writes to the pool after it, so no stage waits for another to
+  finish and nothing is lost between them. Handovers in chat were Bruce's costliest failure (a
+  middle layer built and never written back). `project()["flow"]` shows what waits between pools.
+- **Concurrency - every stage at once, several agents per stage, one writer per claim.** Finding
+  lists, mining them, finding sites and researching people overlap from the first minute; inside
+  a lane each agent owns its claim (one source, ten organisations) end to end. Splitting one
+  package across many hands made Bruce's runs slower (coordination, not crawling, became the
+  cost); more claims in parallel made them faster.
+- **Many sources - coverage comes from the union of lists, not from one good list.** Each source
+  knows a part of the market and one kind of entity; saturation (the last sources mostly repeat
+  what is pooled) is the only honest sign the pool is complete.
+- **Speed - more organisations in flight, cheap tools before expensive ones.** Throughput is
+  agents x claims, not pages per site; the tools race providers, batch requests, cache every page
+  and search for every project, and the lightest tool goes first (search -> fetch -> Agent). Never
+  poll a status; work, and look at `flow` every 10-15 minutes.
+- **Quality - evidence on every row, judged at the source, checked before delivery.** Every
+  address keeps its page and quote; grades follow one table; weak sources are dropped after 30
+  organisations, not after the run; a 100-row spot check gates delivery. A missing route is better
+  than a wrong one - and a status line is never evidence.
+
 ## Pool 1 is never one list
 
 The source pool is a pool. A job built on one list - even a good one, even a pool inherited

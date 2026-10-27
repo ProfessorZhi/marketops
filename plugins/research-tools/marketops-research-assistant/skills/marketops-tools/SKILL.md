@@ -17,9 +17,9 @@ Every provider is optional. Official details per provider, read when needed:
 | Provider | Does | Good at | Without it |
 |---|---|---|---|
 | Serper (Google) | search, maps | fast, exact phrases, `site:`, `filetype:pdf`; maps places with website and phone | SerpApi takes over; with neither, no maps and digging leans on DeepSeek / TinyFish |
-| SerpApi (Google / Bing) | search, maps | the same; each stands in for the other | as above |
+| SerpApi (Google / Bing) | search, maps, Facebook pages | the same; maps by page and by map centre; the public fields of a Facebook page | as above; Facebook-only organisations need the host's browsing |
 | DeepSeek | search, read | broad search with `site:`, `"..."`, `lang:`; reads PDFs and awkward pages as Markdown | other engines and readers |
-| TinyFish | search, read, Agent | free search (30/min) and real-browser reading, PDFs; the paid Agent clicks through hidden contacts (`browse`) | other engines and readers; no clicking |
+| TinyFish | search, read, Agent | free search (30/min); real-browser reading, PDFs, ten pages per request; the paid Agent clicks through hidden contacts (`browse`), exiting from the site's country | other engines and readers; no clicking |
 | Crawl4AI | read (local browser) | JavaScript pages, keeps `mailto:` and encoded addresses; slowest | TinyFish, DeepSeek, plain HTTP; script-built pages read thin |
 | Jev | judge, grade | cheap typed judgments on many rows: what a row is, which link is the own site, what kind of route an address is | rules take the obvious rows, agents judge the rest (`grade(set=...)`) |
 
@@ -42,6 +42,11 @@ Several keys per provider (`NAME`, `NAME_2`..`_9`): a used-up key hands over by 
   word>`, `site:<domain> filetype:pdf` (committee lists, minutes), `"<person>" "<organisation>"
   email`, `<federation> club finder`, `annuaire <type> <région>`; `maps=True` for venues. Never
   guess a domain or an address and search for it.
+- **Lightest tool first, heavier only when it failed** (TinyFish's own ladder): search -> fetch
+  -> `browse` -> `browse(stealth=True)`. The race already tries every reader; `browse` is for
+  contacts behind clicks on a page with several people, never a single inbox.
+- **Cover an area, not its top 20**: maps return 20 places a page - `search(q, maps=True,
+  pages=3, near=[map centres])` walks a city; a venue pool built from one maps search is a sample.
 - **Lists before pages**: an export or API that returns the roster > a content sitemap
   (`harvest(sitemap=True)`) > paging a listing (`harvest(start, follow, next)`) > searching.
 - **Jev pattern**: code finds candidates, Jev makes one at-a-glance judgment, code decides, what
@@ -49,7 +54,7 @@ Several keys per provider (`NAME`, `NAME_2`..`_9`): a used-up key hands over by 
   the probability of the chosen option is the review signal.
 - **A page will not read**: zero links on a big site is a parsing problem, not a block; a
   Cloudflare page with a Ray ID is an IP block (another reader may pass, retries will not);
-  contacts behind clicks -> `browse`; no DNS -> search the name, it may have moved; a missing
+  contacts behind clicks -> `browse`; blocked from abroad -> `browse` exits from the site's country (stealth for bot walls); a Facebook-only organisation -> `fetch` its facebook.com page; no DNS -> search the name, it may have moved; a missing
   page is a finding - record it and move on.
 - **Speed**: more organisations in flight, not more pages per site. Never poll; check
   `project()` every 10-15 minutes.

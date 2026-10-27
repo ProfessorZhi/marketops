@@ -377,6 +377,8 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
     readers = readers if isinstance(readers, list) else (None if readers in (None, "auto", "all") else [readers])
     if readers == ["download"]:
         return _download(pdir, url, org_id)
+    if readers is None and mo_providers.FACEBOOK.match(url) and mo_config.key("serpapi"):
+        readers = ["facebook"]   # Facebook shows a logged-out reader nothing; SerpApi reads the public profile
     if readers is None and PDF.search(url):
         readers = [r for r in ("tinyfish", "deepseek") if mo_config.key(r)] or ["crawl4ai"]
     report, parsed_by = {}, {}
@@ -964,23 +966,26 @@ def stop_requested(pdir: Path) -> bool:
 # Written to TinyFish's goal guide (docs.tinyfish.ai/prompting-guide): objective, target, steps,
 # fields, output shape, guardrails, edge case - specific goals ran 4.9x faster in their tests.
 # One line per entry so the contact parser keeps each role, name and address together.
-DEFAULT_GOAL = """Extract every person and every role mailbox shown on this page (staff, board, committee, contact or venue sections).
+# Written the way TinyFish's goal guide asks: objective, target, fields, steps, guardrails, edge
+# cases; the output shape is the run's output_schema (mo_providers.CONTACTS_SCHEMA).
+DEFAULT_GOAL = """Objective: collect every email address shown or revealed on this page, with the person and role next to it.
+Target: staff, team, board, committee, contact and venue sections of this page only.
 Steps:
 1. If a cookie or consent banner appears, close it.
-2. On this page only, click tabs, accordions, "show more", "show email" or "contact" buttons that reveal contact details.
-For each entry return: role or job title as displayed; person name as displayed; email address as displayed or revealed; phone number.
-Return one entry per line, exactly: ROLE | NAME | EMAIL | PHONE - use - for anything missing.
-Do not log in, submit forms, send messages, or accept terms. Do not leave the site. Never guess or construct an email address: only addresses shown on the page.
-If no person and no address is shown, return NONE.
+2. Click tabs, accordions, "show more", "show email", "reveal" or "contact" buttons on this page that uncover contact details. At most 15 clicks.
+Fields for each address: role (job title as displayed, else null), name (person as displayed, else null), email (exactly as shown), phone (as shown, else null).
+Guardrails: do not log in, submit forms, send messages, accept terms or leave the site; do not paginate beyond this page. Never guess or construct an address.
+Edge cases: an address shown as an image or behind a form only - skip it. No address at all - return an empty contacts list.
 """
 
 
-def browse(pdir: Path, url: str, goal: str = "", org_id: str = "", org: str = "") -> dict:
+def browse(pdir: Path, url: str, goal: str = "", org_id: str = "", org: str = "", stealth: bool = False) -> dict:
     url = mo_providers.public_url(url)
     for r in read_csv(pdir / "agent.csv"):
         if r["url"] == url and r["status"] not in ("FAILED", "CANCELLED", "error"):
             return {"run_id": r["run_id"], "status": r["status"], "note": "already submitted for this URL"}
-    run_id = mo_providers.agent_submit(url, goal or DEFAULT_GOAL)
+    run_id = mo_providers.agent_submit(url, goal or DEFAULT_GOAL, country=locale(pdir).get("country", ""),
+                                       stealth=stealth)
     append_csv(pdir / "agent.csv", AGENT_COLS, {"run_id": run_id, "url": url, "goal": goal or "default",
                                                 "org_id": org_id, "status": "RUNNING", "time": _now()})
     _agent_orgs[run_id] = org
@@ -1000,8 +1005,12 @@ def refresh_agent_runs(pdir: Path) -> list[dict]:
         status = str(st.get("status") or "").upper() or r["status"]
         if status == "COMPLETED":
             result = st.get("result") or st.get("output") or st
-            if isinstance(result, dict) and isinstance(result.get("result"), str):
+            if isinstance(result, dict) and isinstance(result.get("result"), (str, dict)):
                 result = result["result"]
+            if isinstance(result, dict) and isinstance(result.get("contacts"), list):
+                # the schema's rows as card lines, so each address keeps its own role and name as its quote
+                result = "\n".join(" | ".join(str(c.get(k) or "-") for k in ("role", "name", "email", "phone"))
+                                   for c in result["contacts"] if isinstance(c, dict)) or "NONE"
             text = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False, indent=1)
             r["file"] = _save(pdir, r["url"], "tinyfish-agent", text.encode("utf-8"), "md", r["url"], r["org_id"])
             steps = st.get("num_of_steps") or len(st.get("steps") or []) or 20

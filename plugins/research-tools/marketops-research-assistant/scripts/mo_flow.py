@@ -315,6 +315,22 @@ def _jev_rows(pdir: Path, rows: list[dict]) -> int:
     return judged
 
 
+def _prefetch(pdir: Path, urls: list[str]) -> int:
+    """Pages not read before go to TinyFish Fetch ten at a time (one request, read in parallel on
+    its side) and into the shared library; the reads that follow take them from there."""
+    import mo_library
+    import mo_providers
+    fresh = [u for u in urls if u not in ws._pages(pdir) and not mo_library.get_pages(u)]
+    if len(fresh) < 2:
+        return 0
+    got = mo_providers.prefetch_tinyfish(fresh, pdir)
+    for u, res in got.items():
+        body, ext = (res["html"], "html") if res.get("html") else (res.get("text") or "", "md")
+        if u in fresh and body:
+            mo_library.put_page(u, "tinyfish", body.encode("utf-8"), ext, res.get("final_url") or u)
+    return len(got)
+
+
 def harvest(pdir: Path, source: str, start: str = "", follow: str = "", next: str = "", sitemap: bool = False,
             urls: list[str] | None = None, limit: int = 40, agent: str = "") -> dict:
     """Mine one source into the page pool and out of it: list pages are paged through, their
@@ -347,6 +363,7 @@ def harvest(pdir: Path, source: str, start: str = "", follow: str = "", next: st
         if not batch:
             break
         done: dict[str, tuple[str, str]] = {}
+        _prefetch(pdir, [b["url"] for b in batch])
 
         def one(item):
             try:

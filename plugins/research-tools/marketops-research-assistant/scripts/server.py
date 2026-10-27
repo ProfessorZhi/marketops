@@ -172,19 +172,36 @@ def needs_you(pdir, status: dict) -> list[str]:
 
 
 def search(query: str, project: str = "", engines: list[str] | None = None, country: str = "",
-           lang: str = "", n: int = 10, maps: bool = False) -> dict:
+           lang: str = "", n: int = 10, maps: bool = False, pages: int = 1, near: list[str] | None = None) -> dict:
     """Search the web with every engine at once and merge by URL (found_by says who found it).
 
     engines: any of serper, serpapi, deepseek, tinyfish (default: by the project's provider
     weights, brief.providers.search; the held-back engines join when results are thin).
-    maps=True: Google Maps places (name, address, phone, website) via Serper and SerpApi.
+    maps=True: Google Maps places (name, address, phone, website) via Serper and SerpApi, about
+    20 a page. To cover a town rather than its top 20: pages (up to 6; Google Maps repeats itself
+    beyond) and near - map centres "@lat,lon,14z" (SerpApi), one search per centre; a grid of
+    centres over a city finds what one search never shows.
     country/lang: two-letter codes, e.g. "ch", "de".
     """
     try:
         pdir = ws.project_dir(project) if project else None
-        out = mo_providers.search(query, engines, country, lang, n, maps, pdir,
-                                  weights=ws.weights(pdir, "search") if pdir else None)
-        out["results"] = out["results"][: max(5, n * 2)]
+        pages = max(1, min(int(pages or 1), 6 if maps else 3))
+        centres = (near or [""])[:25]
+        merged: dict = {}
+        out: dict = {}
+        for centre in centres:
+            for page in range(1, pages + 1):
+                got = mo_providers.search(query, engines, country, lang, n, maps, pdir,
+                                          weights=ws.weights(pdir, "search") if pdir else None,
+                                          page=page, near=centre)
+                if not out:
+                    out = {k: v for k, v in got.items() if k != "results"}
+                for r in got.get("results", []):
+                    k = (r.get("url") or "") + "|" + (r.get("title") or "") if maps else r.get("url") or r.get("title")
+                    merged.setdefault(k, r)
+                if len(got.get("results", [])) < (15 if maps else n // 2):
+                    break   # the last page came back short: nothing more behind it
+        out["results"] = list(merged.values())[: (len(merged) if maps and (pages > 1 or near) else max(5, n * 2))]
         return out
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
@@ -215,15 +232,19 @@ def fetch(project: str, url: str, readers: list[str] | str | None = None, org_id
         return _err(exc)
 
 
-def browse(project: str, url: str, goal: str = "", org_id: str = "", org: str = "") -> dict:
+def browse(project: str, url: str, goal: str = "", org_id: str = "", org: str = "", stealth: bool = False) -> dict:
     """TinyFish Agent opens the page in a real browser (clicks tabs, 'show more') in the background.
 
-    Paid per step (about $0.016). Use it when readers return no text or the contacts sit
-    behind clicks. Each URL is submitted once per project. The result is saved as a page and
-    its contacts added; project(name) shows when it is done.
+    Paid per step (about $0.016), capped at 40 steps and 5 minutes a run. Use it when readers
+    return no text or the contacts sit behind clicks - on pages that carry several people, not a
+    single inbox. One site per run; it exits from the brief's country when TinyFish supports it
+    (US, GB, CA, DE, FR, JP, AU - regional blocks); stealth=True for bot-protected pages. Each URL
+    is submitted once per project. The result is saved as a page and its contacts added;
+    project(name) shows when it is done. A custom goal names the objective, the fields, the steps,
+    what not to do and the edge cases.
     """
     try:
-        return ws.browse(ws.project_dir(project), url, goal, org_id, org)
+        return ws.browse(ws.project_dir(project), url, goal, org_id, org, stealth)
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
 

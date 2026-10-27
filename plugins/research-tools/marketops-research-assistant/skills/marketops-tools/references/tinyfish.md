@@ -14,21 +14,28 @@ Official: https://docs.tinyfish.ai (index: `/llms.txt`; append `.md` to any page
   `window_seconds` - the plugin paces Search to 30/min and adopts whatever limit a 429 reports.
 
 ## Fetch - `POST https://api.fetch.tinyfish.ai`
-- `urls` (up to 10 per request), `format` html / markdown / json (the plugin asks for `html`
+- `urls` (up to 10 per request, read in parallel on TinyFish's side - `harvest` sends a miner's
+  batch of entry pages this way), `format` html / markdown / json (the plugin asks for `html`
   so cards and `mailto:` links survive for the contact parser), `links`, `iframe_links` (for
   booking widgets and embedded directories), `per_url_timeout_ms` (<=110,000; the plugin sends
   35,000), `ttl` (0 = live), `include_selectors` / `exclude_selectors`, `purpose`.
 - Rendered in a real browser. Its rate limit counts URLs, not requests.
 
-## Agent - `https://agent.tinyfish.ai/v1/automation/run-async` (paid)
-- For pages where contact details appear only after clicks. The plugin submits through MCP with
-  a fresh session id and polls the run.
-- Goal quality decides success: TinyFish measured specific goals 4.9x faster with 16x less
-  unwanted data. A good goal has objective, target, steps, fields, output shape, guardrails and
-  edge cases - the plugin's default goal follows that and asks for one line per entry:
-  `ROLE | NAME | EMAIL | PHONE`.
-- Use it on pages that hold several people (a board, a staff list) behind buttons, not on a
-  single inbox.
+## Agent - `POST https://agent.tinyfish.ai/v1/automation/run-async` (paid, $0.016 a step)
+- For pages where contact details appear only after clicks, on pages that hold several people -
+  not a single inbox. Polled with `GET /v1/runs/{id}`.
+- The plugin follows TinyFish's own skill (`tinyfish-io/tinyfish-cookbook`, `use-tinyfish`) and
+  goal guide: one site per run (never several sites in one goal); a goal with objective, target,
+  fields, steps, guardrails and edge cases (specific goals ran 4.9x faster with 16x less unwanted
+  data); the output shape as `output_schema` (the schema is the contract - a list goes in an array
+  field); `agent_config.max_steps` 40 and 300 s so a lost run cannot drain the wallet.
+- `proxy_config` exits from the brief's country when supported (US, GB, CA, DE, FR, JP, AU) - for
+  sites that block foreign IPs; `browser_profile: "stealth"` (`browse(..., stealth=True)`) for
+  bot-protected pages.
+
+## The ladder (official): search -> fetch -> agent -> browser
+Lightest first, heavier only when the lighter one failed: Fetch empty or thin on a JS page ->
+Agent; Agent not enough -> a raw browser session (not used by the plugin).
 
 ## Errors to recognise
 - `RATE_LIMIT_EXCEEDED` (429): with `details` it is your account's limit; without it the
