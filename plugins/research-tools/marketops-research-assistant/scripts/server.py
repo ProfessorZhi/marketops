@@ -30,6 +30,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 os.environ.setdefault("CRAWL4AI_NO_CLOUD_NOTICE", "1")  # its banner would corrupt the stdio channel
 
+import mo_logsafe  # noqa: E402,F401 - no provider key may reach a log line (issue #86)
+
 import mo_budget  # noqa: E402
 import mo_config  # noqa: E402
 import mo_export  # noqa: E402
