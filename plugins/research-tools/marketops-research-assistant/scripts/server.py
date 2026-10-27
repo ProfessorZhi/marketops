@@ -85,8 +85,15 @@ def needs_you(pdir, status: dict) -> list[str]:
     rows = ws.read_contacts(pdir)
     review = [r for r in rows if r.get("grade") in ("A", "B") and r.get("review") == "yes"]
     if review:
-        items.append(f"{len(review)} A/B rows are marked review (reasons in the workbook's contacts sheet): "
-                     "confirm or correct them with grade(set=[...]).")
+        kinds: dict[str, int] = {}
+        for r in review:
+            why = str(r.get("review_reason") or "")
+            k = ("unsure grade" if "unsure" in why else "also listed for other organisations" if "also listed" in why
+                 else "page on another site" if "site" in why else "other")
+            kinds[k] = kinds.get(k, 0) + 1
+        split = ", ".join(f"{k} {n}" for k, n in sorted(kinds.items(), key=lambda kv: -kv[1]))
+        items.append(f"{len(review)} A/B rows are marked review ({split}): accept or correct them with "
+                     "grade(set=[...]); unanswered, they are delivered marked as review.")
     unsure = sum(o.get("scope") == "unsure" for o in ws.read_csv(pdir / "orgs.csv"))
     if unsure:
         items.append(f"{unsure} organisations could not be placed in or out of scope (orgs.csv scope=unsure).")
@@ -98,8 +105,15 @@ def needs_you(pdir, status: dict) -> list[str]:
         if st.get("stage") == "failed" or (st.get("restarts") or 0) >= mo_run.MAX_RESTARTS:
             items.append(f"Run shard {st.get('shard')} stopped: {st.get('error') or 'restarted too often'}.")
     for name, acc in (status.get("accounts") or {}).items():
-        if isinstance(acc, dict) and acc.get("skipped"):
-            items.append(f"{name} is out of credit or at its red line: top it up or leave it off.")
+        if not isinstance(acc, dict):
+            continue
+        # the skip mark lives in the run's processes, so read the balance here as well
+        bal, line = (acc.get("balance") or {}).get("left") if isinstance(acc.get("balance"), dict) else acc.get("balance"), \
+            acc.get("red_line")
+        low = isinstance(bal, (int, float)) and (bal <= 0 or (isinstance(line, (int, float)) and bal <= line))
+        if acc.get("skipped") or low:
+            items.append(f"{name} is out of credit or at its red line (balance {bal}): top it up or leave it off"
+                         + (" - search runs on the slower engines without it." if name in ("serper", "serpapi") else "."))
     return [f"{n}. {t}" for n, t in enumerate(dict.fromkeys(items), 1)]
 
 
