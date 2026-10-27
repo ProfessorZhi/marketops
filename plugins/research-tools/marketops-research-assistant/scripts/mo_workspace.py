@@ -364,6 +364,66 @@ def _parse_saved(pdir: Path, row: dict) -> dict:
     return mo_pages.from_markdown(body, row["final_url"] or row["url"])
 
 
+UNATTRIBUTED_COLS = ["org_id", "org", "kind", "value", "page_url", "quote", "found_by", "why", "added"]
+
+
+def attributable(contact: dict, org: str, org_site: str, on_org: str) -> bool:
+    """Does this page tie this address to this organisation?
+
+    True when the page is the organisation's own (on_org yes/likely), when the address is on
+    the organisation's own domain, or when the address's own quote names the organisation
+    (the same-block test: a federation or district page that lists the club with its people).
+    A page that merely mentions the organisation somewhere - a directory, a city portal - does
+    not hand it every other organisation's addresses; those stay unattributed.
+    """
+    if on_org in ("yes", "likely"):
+        return True
+    if org_site and (contact.get("email_site") or "") == org_site:
+        return True
+    if contact.get("email_on_org") in ("yes", "likely"):
+        return True
+    if org and (contact.get("quote") or ""):
+        import mo_pool
+        return mo_pool.mentions(org, contact.get("quote") or "")
+    return False
+
+
+def split_attribution(contacts: list[dict], org: str, org_site: str,
+                      on_org: str) -> tuple[list[dict], list[dict]]:
+    """(addresses this organisation may own, addresses to hold for attribution)."""
+    keep, held = [], []
+    for c in contacts:
+        (keep if attributable(c, org, org_site, on_org) else held).append(c)
+    return keep, held
+
+
+def save_unattributed(pdir: Path, contacts: list[dict], org_id: str, org: str, via: str) -> int:
+    """Keep addresses seen on someone else's page for this organisation, without claiming them.
+
+    They stay evidence for a later same-block binding; one row per organisation and address.
+    """
+    if not contacts or not org_id:
+        return 0
+    path = pdir / "unattributed.csv"
+    with _lock(path):
+        existing = read_csv(path) if path.exists() else []
+        seen = {(r.get("org_id"), (r.get("value") or "").lower()) for r in existing}
+        new = []
+        for c in contacts:
+            key = (org_id, (c.get("value") or "").lower())
+            if key in seen:
+                continue
+            seen.add(key)
+            new.append({"org_id": org_id, "org": org, "kind": c.get("kind", ""),
+                        "value": c.get("value", ""), "page_url": c.get("page_url", ""),
+                        "quote": (c.get("quote") or "")[:500], "found_by": c.get("found_by", ""),
+                        "why": f"page not this organisation's and its quote does not name it ({via})",
+                        "added": _now()})
+        if new:
+            write_csv(path, UNATTRIBUTED_COLS, existing + new)
+    return len(new)
+
+
 def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
           org_site: str = "", refresh: bool = False, via: str = "fetch") -> dict:
     """Read a page with every chosen reader at once; save each version; collect contacts.
@@ -507,7 +567,12 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
         import mo_pool
         page_text = " ".join(" ".join(p["lines"]) for p in parsed_by.values())
         generic = not mo_pool.mentions(org, page_text)
-    added = merge_contacts(pdir, contacts, org_id, org, via) if (org_id or org) and not generic else 0
+    held: list[dict] = []
+    added = 0
+    if (org_id or org) and not generic:
+        keep, held = split_attribution(contacts, org, org_site, on_org)
+        added = merge_contacts(pdir, keep, org_id, org, via)
+        save_unattributed(pdir, held, org_id, org, via)
     best = max((p["lines"] for p in parsed_by.values()), key=lambda ls: sum(map(len, ls)), default=[])
     emails_seen = sum(c["kind"] == "email" for c in contacts)
     if parsed_by and not saved:   # a fresh read: how much this site's pages bring (site health)
@@ -516,6 +581,7 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
             mo_health.HEALTH.record_yield(url, emails_seen)
     title = next((p.get("title") for p in parsed_by.values() if p.get("title")), "")
     return {"url": url, "title": title, "readers": report, "contacts": contacts, "contacts_added": added,
+            "contacts_unattributed": len(held),
             "links": mo_pages.contact_links(links, url, limit=25),
             "scored_links": mo_pages.contact_links(links, url, limit=25, scores=True),
             "links_total": len(links), "content_links": content_links[:800], "page_links": links[:3000],
