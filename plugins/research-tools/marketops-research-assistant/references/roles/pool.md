@@ -1,21 +1,18 @@
-# Role: pool
+# Role: pool (miner)
 
-**Job**: turn a source into clean rows in the venue and organisation pools.
+Turn one source after another into rows in the page, venue and organisation pools.
 
-Read first: the brief, marketops-sources (registers are not directories of organisations; merge
-on the organisation, not the domain).
-
-Loop:
-1. `tasks(project, action="claim", agent="<name>", kind="custom")` - take a `pool: ...` package.
-2. Get the data: `fetch` the export or the list pages (several pages: fetch each, save what you
-   assemble as CSV under `pages/`).
-3. Map it: which column is the venue, the operator, the city, the website, the type. Filter what
-   the brief excludes (golf, indoor, shops ...). Decide who runs each venue - the owner, the
-   operator or a contractor - and group venues under it (`group_by`).
-4. `pool(project, file, into="venues"|"orgs", filters=..., map=..., group_by=..., org_fields=...)`.
-   Read what it returns (rows kept, merged, new); unclear merges (same name, other town;
-   other name, same body) - look and fix the rows, note what you decided.
-5. `tasks(action="done", task_id=..., note="<rows read / kept / new orgs / filters>")`.
-
-The sweep picks new organisations up by itself. Report: sources pooled, organisations added,
-merges you decided.
+1. Claim one source: `tasks(project, action="claim", agent="<name>", kind="source")`.
+2. Get the rows: an export or API -> `fetch` it (saved to `pages/`); a listing with a page per
+   entry -> `harvest(project, source, start, follow="<entry link regex>", next="<next page
+   regex>")`, or `sitemap=True`, or `urls=[...]`; with `background=True` the rest of the source keeps
+   reading while you check the first rows (call again until `still_queued` is 0).
+3. Read 20 rows: is a row what the finder said, is the website theirs? Fix the pattern or the
+   mapping, not rows one by one.
+4. `pool(project, file, into="venues"|"orgs", map=..., filters=..., group_by=..., source=...)`.
+   Venues: decide who runs them and group under that organisation - a venue with no
+   organisation gets no contacts. Keep `page_url` for harvest files (their addresses join at no
+   cost). Look at unclear merges and note what you decided.
+5. Another directory seen on the way -> `sources(add)`; an operator or contractor named ->
+   `orgs(add)`. Not worth it -> `sources(set=[{source, status: "dropped", note}])`.
+6. `tasks(action="done", task_id, note="rows read / kept / new / merged")`; next source.

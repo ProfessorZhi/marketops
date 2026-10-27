@@ -377,6 +377,8 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
     readers = readers if isinstance(readers, list) else (None if readers in (None, "auto", "all") else [readers])
     if readers == ["download"]:
         return _download(pdir, url, org_id)
+    if readers is None and mo_providers.FACEBOOK.match(url) and mo_config.key("serpapi"):
+        readers = ["facebook"]   # Facebook shows a logged-out reader nothing; SerpApi reads the public profile
     if readers is None and PDF.search(url):
         readers = [r for r in ("tinyfish", "deepseek") if mo_config.key(r)] or ["crawl4ai"]
     report, parsed_by = {}, {}
@@ -464,8 +466,9 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
             pass
 
     def read_with(chosen, race: bool = False):
-        got = mo_providers.read_race(url, chosen, project_dir=pdir, on_late=late) if race \
-            else mo_providers.read(url, chosen, project_dir=pdir)
+        forced = {"force": True} if refresh else {}   # only a forced re-read passes it on
+        got = mo_providers.read_race(url, chosen, project_dir=pdir, on_late=late, **forced) if race \
+            else mo_providers.read(url, chosen, project_dir=pdir, **forced)
         for reader, res in got.items():
             parsed = take(reader, res)
             if parsed:
@@ -484,6 +487,8 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
                                                      "staff", "people", "board", "committee", "equipe"))
         if held and (not parsed_by or (contactish and not emails)):
             read_with(held)
+        if not parsed_by and readers is None and "http" not in now + held:
+            read_with(["http"])   # every reader failed or none is set up: a plain GET before giving up
     links: list = []
     content_links: list = []
     buttons = 0
@@ -493,13 +498,27 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
         buttons = max(buttons, parsed.get("hidden_email_buttons", 0))
     found = {c["value"].lower(): c for c in extract(parsed_by)}
     contacts = list(found.values())
-    added = merge_contacts(pdir, contacts, org_id, org, via) if (org_id or org) else 0
+    # A page already read for two or more other organisations that does not name this one is a
+    # generic page (a portal's booking or legal page): reading it for this organisation adds
+    # nothing to it. A district or federation page that lists this organisation still does.
+    others = {str(r.get("org_id") or "") for r in saved} - {str(org_id), ""}
+    generic = False
+    if org_id and len(others) >= 2:
+        import mo_pool
+        page_text = " ".join(" ".join(p["lines"]) for p in parsed_by.values())
+        generic = not mo_pool.mentions(org, page_text)
+    added = merge_contacts(pdir, contacts, org_id, org, via) if (org_id or org) and not generic else 0
     best = max((p["lines"] for p in parsed_by.values()), key=lambda ls: sum(map(len, ls)), default=[])
     emails_seen = sum(c["kind"] == "email" for c in contacts)
-    return {"url": url, "readers": report, "contacts": contacts, "contacts_added": added,
+    if parsed_by and not saved:   # a fresh read: how much this site's pages bring (site health)
+        import mo_health
+        if mo_health.enabled():
+            mo_health.HEALTH.record_yield(url, emails_seen)
+    title = next((p.get("title") for p in parsed_by.values() if p.get("title")), "")
+    return {"url": url, "title": title, "readers": report, "contacts": contacts, "contacts_added": added,
             "links": mo_pages.contact_links(links, url, limit=25),
             "scored_links": mo_pages.contact_links(links, url, limit=25, scores=True),
-            "links_total": len(links), "content_links": content_links[:800],
+            "links_total": len(links), "content_links": content_links[:800], "page_links": links[:3000],
             "email_buttons_without_address": max(0, buttons - emails_seen),
             "text": "\n".join(best)}
 
@@ -549,14 +568,19 @@ def playbook(pdir: Path) -> dict:
 
 
 def playbook_for(pdir: Path, org: dict) -> dict:
-    """The playbook entries for this organisation: "*" (all) plus its own segment."""
+    """The playbook entries for this organisation: "*" (all) plus its own segment, plus what
+    earlier projects learned for this market and kind of organisation (mo_knowledge)."""
+    import mo_knowledge
     pb, seg = playbook(pdir), segment_of(org)
+    learned = mo_knowledge.KNOWLEDGE.playbook(str(brief(pdir).get("country") or ""), seg) \
+        if seg and mo_knowledge.enabled() else {}
     out: dict = {"paths": [], "queries": [], "roles": []}
-    for key in ("*", seg):
-        e = pb.get(key) if key else None
+    for e in (pb.get("*"), pb.get(seg) if seg else None, learned):
         if isinstance(e, dict):
-            for f in out:
+            for f in ("paths", "queries", "roles"):
                 out[f] += [x for x in e.get(f) or [] if isinstance(x, str) and x not in out[f]]
+    if learned:
+        out["learned"] = learned.get("learned", "")
     return out
 
 
@@ -576,6 +600,10 @@ def update_playbook(pdir: Path, changes: dict) -> dict:
                 else:
                     cur[f] = str(v)
             cur["updated"] = _now()
+            if seg != "*":   # what works for this kind of organisation, kept for the next projects
+                import mo_knowledge
+                if mo_knowledge.enabled():
+                    mo_knowledge.KNOWLEDGE.learn_playbook(str(brief(pdir).get("country") or ""), str(seg).lower(), e)
         tmp = path.with_name(f"playbook.{os.getpid()}.{threading.get_ident()}.tmp")
         tmp.write_text(json.dumps(pb, ensure_ascii=False, indent=1), encoding="utf-8")
         tmp.replace(path)
@@ -602,6 +630,41 @@ def add_verdicts(pdir: Path, items: list[dict], agent: str = "") -> int:
     return n
 
 
+SATURATION_LAST, SATURATION_NEW = 3, 0.05   # the last 3 sources each under 5% new: the pool is saturated
+MIN_SOURCES = 3
+
+
+def source_saturation(pdir: Path) -> dict:
+    """Is the pool still growing? Each pooled source adds new organisations or merges into ones
+    already there; when the last SATURATION_LAST sources each brought under SATURATION_NEW new,
+    more lists of the same kind stop paying. One source is never saturation - it is a pool
+    nobody looked beyond."""
+    rows = [r for r in read_csv(pdir / "sources.csv") if r.get("source")]
+
+    def new_share(r):
+        for a, m in (("orgs_added", "orgs_merged"), ("venues_added", "venues_merged")):
+            try:
+                added, merged = int(r.get(a) or 0), int(r.get(m) or 0)
+            except ValueError:
+                continue
+            if added + merged:
+                return round(added / (added + merged), 3)
+        return None
+    shares = [x for x in (new_share(r) for r in rows) if x is not None]
+    n = len({r["source"] for r in rows})
+    last = shares[-SATURATION_LAST:]
+    saturated = n >= MIN_SOURCES and len(last) == SATURATION_LAST and all(x < SATURATION_NEW for x in last)
+    unlogged = sum(1 for o in read_csv(pdir / "orgs.csv") if not (o.get("sources") or o.get("source")))
+    if saturated:
+        status = "saturated: the last sources mostly repeat what is pooled"
+    elif n < MIN_SOURCES:
+        status = f"keep looking: {n} source(s) pooled, at least {MIN_SOURCES} before saturation can be judged"
+    else:
+        status = "keep looking: recent sources still add new organisations"
+    return {"sources": n, "new_share_last": last, "saturated": saturated, "status": status,
+            "orgs_without_logged_source": unlogged}
+
+
 def stages(pdir: Path) -> dict:
     """How much work waits at each stage of the chain - the lead agent staffs where it piles up."""
     import mo_tasks
@@ -615,8 +678,10 @@ def stages(pdir: Path) -> dict:
     judged = {r["org_id"] for r in read_csv(pdir / "verdicts.csv")}
     sources = read_csv(pdir / "sources.csv")
     checked = [c for c in contacts if c.get("checked") in ("ok", "wrong")]
+    sat = source_saturation(pdir)
     return {
         "sources": {"pooled": len({r.get("source") for r in sources if r.get("source")}),
+                    "saturated": sat["saturated"], "status": sat["status"], "new_share_last": sat["new_share_last"],
                     "waiting_to_pool": sum(1 for t in read_csv(pdir / "tasks.csv") if t.get("kind") == "custom"
                                            and t.get("title", "").lower().startswith("pool") and t.get("status") != "done")},
         "orgs": {"total": len(ids), "no_website": sum(1 for o in orgs if not o.get("website")),
@@ -711,11 +776,22 @@ def org_summaries(pdir: Path, ids: list[str] | None = None, stage: str = "", lim
                              for c in confirmed(oid)][:8],
             "to_review": [{k: c.get(k, "") for k in ("value", "grade", "review_reason", "page_url", "quote")}
                           for c in rows if c.get("review") == "yes" and c.get("grade") in ("A", "B")][:8],
-            "playbook": playbook_for(pdir, o),
             "verdicts": [{k: v.get(k, "") for k in ("agent", "verdict", "found", "where", "why")}
                          for v in verdicts.get(oid, [])][-3:],
         })
-    return {"total": total, "shown": len(out), "orgs": out}
+    # the playbook once per answer, by segment - not repeated on every organisation
+    pb = {seg: playbook_for(pdir, {"segment": seg}) for seg in sorted({o["segment"] for o in out})}
+    return {"total": total, "shown": len(out), "orgs": out,
+            "playbook": {seg: e for seg, e in pb.items() if any(e.values())},
+            "site_health": {o["org_id"]: site_health(o["website"]) for o in out if o.get("website")}}
+
+
+def site_health(url: str) -> dict:
+    import mo_health
+    if not url or not mo_health.enabled():
+        return {}
+    st = mo_health.HEALTH.status(url if "://" in url else "https://" + url)
+    return st if st.get("reach") is not None else {}
 
 
 _web_cache: dict[str, tuple] = {}
@@ -890,23 +966,26 @@ def stop_requested(pdir: Path) -> bool:
 # Written to TinyFish's goal guide (docs.tinyfish.ai/prompting-guide): objective, target, steps,
 # fields, output shape, guardrails, edge case - specific goals ran 4.9x faster in their tests.
 # One line per entry so the contact parser keeps each role, name and address together.
-DEFAULT_GOAL = """Extract every person and every role mailbox shown on this page (staff, board, committee, contact or venue sections).
+# Written the way TinyFish's goal guide asks: objective, target, fields, steps, guardrails, edge
+# cases; the output shape is the run's output_schema (mo_providers.CONTACTS_SCHEMA).
+DEFAULT_GOAL = """Objective: collect every email address shown or revealed on this page, with the person and role next to it.
+Target: staff, team, board, committee, contact and venue sections of this page only.
 Steps:
 1. If a cookie or consent banner appears, close it.
-2. On this page only, click tabs, accordions, "show more", "show email" or "contact" buttons that reveal contact details.
-For each entry return: role or job title as displayed; person name as displayed; email address as displayed or revealed; phone number.
-Return one entry per line, exactly: ROLE | NAME | EMAIL | PHONE - use - for anything missing.
-Do not log in, submit forms, send messages, or accept terms. Do not leave the site. Never guess or construct an email address: only addresses shown on the page.
-If no person and no address is shown, return NONE.
+2. Click tabs, accordions, "show more", "show email", "reveal" or "contact" buttons on this page that uncover contact details. At most 15 clicks.
+Fields for each address: role (job title as displayed, else null), name (person as displayed, else null), email (exactly as shown), phone (as shown, else null).
+Guardrails: do not log in, submit forms, send messages, accept terms or leave the site; do not paginate beyond this page. Never guess or construct an address.
+Edge cases: an address shown as an image or behind a form only - skip it. No address at all - return an empty contacts list.
 """
 
 
-def browse(pdir: Path, url: str, goal: str = "", org_id: str = "", org: str = "") -> dict:
+def browse(pdir: Path, url: str, goal: str = "", org_id: str = "", org: str = "", stealth: bool = False) -> dict:
     url = mo_providers.public_url(url)
     for r in read_csv(pdir / "agent.csv"):
         if r["url"] == url and r["status"] not in ("FAILED", "CANCELLED", "error"):
             return {"run_id": r["run_id"], "status": r["status"], "note": "already submitted for this URL"}
-    run_id = mo_providers.agent_submit(url, goal or DEFAULT_GOAL)
+    run_id = mo_providers.agent_submit(url, goal or DEFAULT_GOAL, country=locale(pdir).get("country", ""),
+                                       stealth=stealth)
     append_csv(pdir / "agent.csv", AGENT_COLS, {"run_id": run_id, "url": url, "goal": goal or "default",
                                                 "org_id": org_id, "status": "RUNNING", "time": _now()})
     _agent_orgs[run_id] = org
@@ -926,8 +1005,12 @@ def refresh_agent_runs(pdir: Path) -> list[dict]:
         status = str(st.get("status") or "").upper() or r["status"]
         if status == "COMPLETED":
             result = st.get("result") or st.get("output") or st
-            if isinstance(result, dict) and isinstance(result.get("result"), str):
+            if isinstance(result, dict) and isinstance(result.get("result"), (str, dict)):
                 result = result["result"]
+            if isinstance(result, dict) and isinstance(result.get("contacts"), list):
+                # the schema's rows as card lines, so each address keeps its own role and name as its quote
+                result = "\n".join(" | ".join(str(c.get(k) or "-") for k in ("role", "name", "email", "phone"))
+                                   for c in result["contacts"] if isinstance(c, dict)) or "NONE"
             text = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False, indent=1)
             r["file"] = _save(pdir, r["url"], "tinyfish-agent", text.encode("utf-8"), "md", r["url"], r["org_id"])
             steps = st.get("num_of_steps") or len(st.get("steps") or []) or 20

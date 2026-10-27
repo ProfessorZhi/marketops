@@ -17,11 +17,20 @@ Official: https://api-docs.deepseek.com/guides/search (checked 2026-10-26; launc
 ## Fetch - `POST https://api.deepseek.com/v1/tools/fetch`
 - Body: `url`. Returns `title` and `content` as Markdown. Reads PDFs.
 
-## Limits and cost
-- Concurrency is per account (the model table shows 2,500 / 500 for the chat models; the tools
-  are not listed separately). Over the limit: HTTP 429 - the plugin retries once after a pause.
-- Paid per successful request (third-party reports: about $0.75 per 1,000 for each endpoint);
-  failed fetches are reported as not billed. The plugin logs every call in `costs.jsonl`.
+## Limits and cost (official page, re-checked 2026-10-27)
+- Rate limit per **account**, not per key: Search 100 requests/s, Fetch 25 requests/s, apart
+  from the chat models' limit. Several keys of one account in slots do not add speed or money -
+  only keys of different accounts do. Fetch also has a per-target-site limit (HTTP 429 too).
+- Price: 5 yuan per 1,000 successful requests for each endpoint (about $0.0007 a call).
+  Only HTTP 200 with results is billed: empty searches, failed fetches and timeouts are free.
+  Calls DeepSeek makes for its own models inside Claude Code / Codex are free until 2026-11-01
+  00:00 Beijing time, billed after; the plugin's calls are direct and billed already.
+- Errors: 402 no balance (the next slot takes over); 401 bad key (next slot); 403 fetch refused
+  by DeepSeek's safety policy; 404 fetch got no usable Markdown - the page may well be fine
+  (the plugin records it as "no text" for this reader, never as a dead page); 408 / 429 / 5xx
+  are retried once after a pause.
+- Speed: at 100 searches and 25 fetches a second the account limit is
+  never what slows a run. A slow run is waiting somewhere else (`project()["stages"]`).
 
 ## Use it for
 - Broad web search in any language (the plugin's default share 1.0).

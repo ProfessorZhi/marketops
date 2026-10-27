@@ -11,10 +11,12 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 TMP = tempfile.mkdtemp()
-os.environ.update(MARKETOPS_HOME=TMP + "/home", MARKETOPS_PROJECTS=TMP + "/projects")
+os.environ.update(MARKETOPS_HOME=TMP + "/home", MARKETOPS_PROJECTS=TMP + "/projects",
+                  MARKETOPS_HEALTH="0", MARKETOPS_KNOWLEDGE="0")   # shared state: only their own tests turn them on
 for k in ("SERPER_API_KEY", "SERPAPI_API_KEY", "DEEPSEEK_API_KEY", "TINYFISH_API_KEY", "TYPESAFE_API_KEY"):
     os.environ.pop(k, None)
 
+import mo_budget  # noqa: E402
 import mo_export  # noqa: E402
 import mo_pages  # noqa: E402
 from mo_pool import norm as norm_name  # noqa: E402
@@ -97,7 +99,7 @@ class Flow(unittest.TestCase):
         self.assertEqual("no_website", crawl["o2"]["status"])
         values = {r["value"] for r in ws.read_contacts(pdir)}
         self.assertIn("sekretariat@fc-beispiel.ch", values)  # found on the linked Vorstand page
-        self.assertIn("no Jev key", server.grade("t2")["note"])
+        self.assertIn("no usable Jev key", server.grade("t2")["note"])
         self.assertEqual(1, server.grade("t2", set=[{"value": "praesident@fc-beispiel.ch", "grade": "A",
                                                      "person": "Hans Muster", "role": "Präsident"}])["updated"])
         self.assertEqual(1, server.grade("t2", set=[{"value": "hello@studio-x.ch", "grade": "X"}])["updated"])
@@ -568,9 +570,9 @@ class Supervision(unittest.TestCase):
 
     def test_no_restart_after_a_stop(self):
         pdir = ws.project_dir("t41")
-        (pdir / "STOP").write_text("now")
+        (pdir / "STOP").write_text("now")   # a stop asked while the run goes (a stale one is cleared at start)
         with mock.patch.object(mo_run, "_shard_cmd", side_effect=lambda *a: [sys.executable, "-c", "import sys; sys.exit(1)"]):
-            out = mo_run.supervise(pdir, 1, {}, poll=0.2)
+            out = mo_run.supervise(pdir, 1, {}, poll=0.2, clear_stop=False)
         self.assertEqual(0, out["restarts"][0])
 
     def test_open_decisions_come_as_one_numbered_list(self):
@@ -616,6 +618,11 @@ class Locks(unittest.TestCase):
         self.assertEqual({"o1"}, mo_tasks.held_orgs(pdir))
         mo_tasks.done(pdir, task["task_id"], "found one")
         self.assertEqual(set(), mo_tasks.held_orgs(pdir))
+        out = mo_tasks.plan(pdir, "sweep")   # o2 has no site pass yet: an agent can sweep it itself
+        self.assertEqual(1, out["items"])
+        claimed = mo_tasks.claim(pdir, "w2", "sweep")
+        self.assertEqual(["o2"], [i["org_id"] for i in claimed["items"]])
+        self.assertEqual({"o2"}, mo_tasks.held_orgs(pdir))
 
 
 class AgentParts(unittest.TestCase):
@@ -676,6 +683,9 @@ class AgentParts(unittest.TestCase):
                                                                   "segment": "club", "name": "ignored"}]))
         row = {r["id"]: r for r in ws.read_csv(pdir / "orgs.csv")}["o2"]
         self.assertEqual(("https://b.fr/", "club", "B"), (row["website"], row["segment"], row["name"]))
+        out = server.orgs("t51", add=[{"name": "SIVOM 4", "city": "Lyon", "website": "https://sivom4.fr"},
+                                      {"name": "B", "website": "https://b.fr/"}], agent="r1")
+        self.assertEqual((1, 1), (out["orgs_added"], out["orgs_merged"]))   # B is the same organisation
         self.assertEqual(1, ws.stages(pdir)["dig"]["agent_verdicts"])
 
     def test_spot_checks_give_the_precision(self):
@@ -719,6 +729,215 @@ class SharedPages(unittest.TestCase):
             with self.assertRaises(mo_providers.ProviderError) as e:
                 mo_providers.tinyfish_mcp("wallet", {}, timeout=1)
         self.assertIn("refused the key", str(e.exception))
+
+
+class SiteHealth(unittest.TestCase):
+    def setUp(self):
+        import mo_health
+        self.h = mo_health
+        os.environ["MARKETOPS_HEALTH"] = "1"
+        os.environ["MARKETOPS_LIBRARY"] = tempfile.mkdtemp()
+        mo_health.reset_for_tests()
+
+    def tearDown(self):
+        os.environ["MARKETOPS_HEALTH"] = "0"
+        os.environ.pop("MARKETOPS_LIBRARY", None)
+        self.h.reset_for_tests()
+
+    def test_one_failure_sets_nothing_aside_two_readers_do(self):
+        H = self.h.HEALTH
+        H.record("https://dead.fr/a", "crawl4ai", False, "target_unreachable")
+        self.assertEqual("", H.skip("https://dead.fr/b", "tinyfish"))       # one failure is a hint
+        H.record("https://dead.fr/a", "tinyfish", False, "ConnectError: Name or service not known")
+        self.assertIn("site set aside", H.skip("https://dead.fr/b", "crawl4ai"))
+        self.assertLessEqual(self.h.HEALTH.status("https://dead.fr")["reach"], 50)
+
+    def test_a_404_marks_the_page_not_the_site(self):
+        H = self.h.HEALTH
+        for r in ("crawl4ai", "deepseek"):
+            H.record("https://club.fr/old", r, False, "HTTP 404")
+        self.assertIn("page set aside", H.skip("https://club.fr/old", "tinyfish"))
+        self.assertEqual("", H.skip("https://club.fr/bureau", "tinyfish"))
+
+    def test_a_block_is_for_one_reader_and_our_own_errors_do_not_count(self):
+        H = self.h.HEALTH
+        H.record("https://cf.fr/", "crawl4ai", False, "Cloudflare JS challenge")
+        H.record("https://cf.fr/x", "crawl4ai", False, "Cloudflare JS challenge")
+        self.assertIn("blocks crawl4ai", H.skip("https://cf.fr/y", "crawl4ai"))
+        self.assertEqual("", H.skip("https://cf.fr/y", "tinyfish"))
+        for r in ("crawl4ai", "tinyfish", "deepseek"):
+            self.assertEqual("ignored", H.record("https://ok.fr/", r, False, "ProxyError: proxy_error"))
+        self.assertEqual("", H.skip("https://ok.fr/", "crawl4ai"))
+
+    def test_a_success_restores_and_many_sites_failing_at_once_is_our_network(self):
+        H = self.h.HEALTH
+        for r in ("crawl4ai", "tinyfish"):
+            H.record("https://back.fr/", r, False, "target_unreachable")
+        H.record("https://back.fr/", "deepseek", True)
+        self.assertEqual("", H.skip("https://back.fr/", "crawl4ai"))
+        self.assertEqual(100, H.status("https://back.fr")["reach"])
+        for i in range(25):   # 25 different sites fail within a minute: not their fault
+            H.record(f"https://s{i}.fr/", "crawl4ai", False, "ConnectError")
+        H.record("https://victim.fr/", "crawl4ai", False, "target_unreachable")
+        self.assertEqual("ignored", H.record("https://victim.fr/", "tinyfish", False, "target_unreachable"))
+        self.assertEqual("", H.skip("https://victim.fr/", "crawl4ai"))
+
+    def test_other_processes_see_the_same_health(self):
+        self.h.HEALTH.record("https://gone.fr/p", "crawl4ai", False, "HTTP 404")
+        self.h.HEALTH.record("https://gone.fr/p", "tinyfish", False, "page_not_found")
+        other = self.h._Health()          # a second process reading the same file
+        other._catch_up(force=True)
+        self.assertIn("page set aside", other.skip("https://gone.fr/p", "deepseek"))
+
+
+class Journal(unittest.TestCase):
+    def test_agents_and_the_plugin_write_the_journal_and_export_writes_a_masked_retro(self):
+        import mo_journal
+        pdir = ws.project_dir("t54")
+        ws.write_csv(pdir / "orgs.csv", ["id", "name", "website"], [{"id": "o1", "name": "A", "website": "a.fr"}])
+        server.project("t54", journal=[{"type": "blocker", "text": "mairie04.paris.fr is dead; asked jean.ex@paris.fr",
+                                        "evidence": "+33 1 23 45 67 89"},
+                                       {"type": "smooth", "text": "review caught 9 misattached addresses"}], agent="dig-1")
+        self.assertTrue(mo_journal.auto(pdir, "fail:tinyfish", "tinyfish failing"))
+        self.assertFalse(mo_journal.auto(pdir, "fail:tinyfish", "tinyfish failing"))   # once an hour
+        for k in range(40):
+            mo_budget.record(pdir, "tinyfish", "fetch", k < 5, "TinyFishError: bot_blocked | https://x.fr")
+        f = mo_journal.failures(pdir)["tinyfish"]
+        self.assertEqual((40, 35, {"blocked": 35}), (f["calls"], f["failed"], f["by_kind"]))
+        out = mo_export.export(pdir)
+        text = Path(out["retro"]).read_text(encoding="utf-8")
+        self.assertIn("## Blockers", text)
+        self.assertIn("j***@paris.fr", text)
+        self.assertNotIn("jean.ex@paris.fr", text)
+        self.assertNotIn("45 67 89", text)
+        self.assertIn("| tinyfish | 40 | 35 | blocked 35 |", text)
+
+
+class Knowledge(unittest.TestCase):
+    def setUp(self):
+        import mo_knowledge
+        self.k = mo_knowledge
+        os.environ["MARKETOPS_KNOWLEDGE"] = "1"
+        os.environ["MARKETOPS_LIBRARY"] = tempfile.mkdtemp()
+        mo_knowledge.reset_for_tests()
+
+    def tearDown(self):
+        os.environ["MARKETOPS_KNOWLEDGE"] = "0"
+        os.environ.pop("MARKETOPS_LIBRARY", None)
+        self.k.reset_for_tests()
+
+    def test_untested_kinds_first_then_the_one_that_finds_people(self):
+        K = self.k.KNOWLEDGE
+        self.assertEqual(list(self.k.DIG_KINDS), K.dig_order("FR", "communes"))
+        for kind, hits in (("terms", 3), ("site_pdf", 18), ("directories", 0), ("email", 9)):
+            for n in range(29):
+                K.record_dig("FR", "communes", kind, n < hits)
+        self.assertEqual(list(self.k.DIG_KINDS), K.dig_order("FR", "communes"))   # 29 tries: not enough evidence
+        for kind, hits in (("terms", 0), ("site_pdf", 1), ("directories", 0), ("email", 0)):
+            K.record_dig("FR", "communes", kind, bool(hits))
+        self.assertEqual(["site_pdf", "email", "terms", "directories"], K.dig_order("FR", "communes"))
+        self.assertEqual(list(self.k.DIG_KINDS), K.dig_order("DE", "communes"))   # another market starts fresh
+        q = mo_run._queries({"name": "Stade X", "website": "https://x.fr"}, 1, ["chef"], ["annuaire"],
+                            K.dig_order("FR", "communes"))
+        self.assertTrue(q[0][0].startswith("site:x.fr"))
+
+    def test_a_playbook_carries_to_the_next_project_until_it_stops_working(self):
+        p1, p2 = ws.project_dir("t55"), ws.project_dir("t56")
+        for p in (p1, p2):
+            (p / "brief.json").write_text(json.dumps({"country": "FR"}), encoding="utf-8")
+        ws.update_playbook(p1, {"communes": {"paths": ["/services/sports"], "queries": ['"{name}" syndicat']}})
+        pb = ws.playbook_for(p2, {"segment": "communes"})
+        self.assertEqual(["/services/sports"], pb["paths"])
+        self.assertIn("earlier projects", pb["learned"])
+        for _ in range(12):
+            self.k.KNOWLEDGE.record_use("FR", "communes", False)
+        self.assertEqual([], ws.playbook_for(p2, {"segment": "communes"})["paths"])
+        other = self.k._Knowledge()   # another process reads the same file
+        self.assertEqual({}, other.playbook("FR", "communes"))
+
+
+class Slots(unittest.TestCase):
+    def setUp(self):
+        self.home = tempfile.mkdtemp()
+        self.env = mock.patch.dict(os.environ, {"MARKETOPS_HOME": self.home}, clear=False)
+        self.env.start()
+        for n in ("TYPESAFE_API_KEY", "TYPESAFE_API_KEY_2", "MARKETOPS_KEYS_FILE"):
+            os.environ.pop(n, None)
+
+    def tearDown(self):
+        self.env.stop()
+
+    def test_a_used_up_key_hands_over_to_the_next_and_a_new_key_needs_no_restart(self):
+        import mo_budget
+        import mo_config
+        (Path(self.home) / "keys.env").write_text("TYPESAFE_API_KEY=key-one-aaaa\nTYPESAFE_API_KEY_2=key-two-bbbb\n")
+        self.assertEqual("key-one-aaaa", mo_config.key("jev"))
+        mo_budget.mark_exhausted("jev", "Jev refused for money")
+        self.assertEqual("key-two-bbbb", mo_config.key("jev"))
+        self.assertTrue(mo_budget.allowed("jev")[0])
+        mo_budget.mark_exhausted("jev", "Jev refused for money")
+        self.assertEqual("", mo_config.key("jev"))
+        self.assertFalse(mo_budget.allowed("jev")[0])
+        states = {s["state"] for s in mo_config.slot_status("jev")}
+        self.assertEqual({"set aside"}, states)
+        import time as _t
+        _t.sleep(0.01)
+        vault = Path(self.home) / "vault.env"     # a new key in a vault file, while running
+        vault.write_text("export TYPESAFE_API_KEY_3=key-three-cccc\n")
+        os.environ["MARKETOPS_KEYS_FILE"] = str(vault)
+        self.assertEqual("key-three-cccc", mo_config.key("jev"))
+        self.assertTrue(mo_budget.allowed("jev")[0])
+        self.assertNotIn("key-three", json.dumps(mo_config.slot_status("jev")))   # fingerprints only
+
+    def test_several_keys_in_one_value(self):
+        import mo_config
+        os.environ["TYPESAFE_API_KEY"] = "k-aaaaaaaa, k-bbbbbbbb"
+        self.assertEqual(["k-aaaaaaaa", "k-bbbbbbbb"], mo_config.slots("jev"))
+
+    def test_a_generic_page_read_for_many_is_not_credited_to_one_it_does_not_name(self):
+        pdir = ws.project_dir("t57")
+        html = "<p>Réserver un créneau</p><p>reservation@paris.fr</p>" + " " * 300
+        with mock.patch.object(mo_providers, "read", return_value={"crawl4ai": {"final_url": "u", "html": html, "text": ""}}), \
+                mock.patch.object(mo_providers, "public_url", side_effect=lambda u: u):
+            for oid, name in (("o1", "Gymnase Alpha"), ("o2", "Gymnase Beta"), ("o3", "Gymnase Gamma")):
+                ws.fetch(pdir, "https://paris.fr/reserver", ["crawl4ai"], oid, name, "paris.fr")
+        holders = {r["org_id"] for r in ws.read_contacts(pdir) if r["value"] == "reservation@paris.fr"}
+        self.assertEqual({"o1", "o2"}, holders)   # the third reader of a page that names none of them adds nothing
+
+
+class StepDown(unittest.TestCase):
+    def test_with_nothing_set_up_the_plugin_steps_down_not_out(self):
+        with mock.patch("mo_config.key", return_value=""), \
+                mock.patch.object(mo_providers, "crawl4ai_installed", return_value=False):
+            cap = mo_providers.capabilities()
+            self.assertEqual("minimal", cap["level"])
+            self.assertEqual(["http"], mo_providers.available_readers())
+            self.assertIn("host's own web search", mo_providers.search("stade lyon")["error"])
+            self.assertEqual("rules + agents", cap["grade"])
+        with mock.patch("mo_config.key", side_effect=lambda p: "k" if p in ("serper", "deepseek", "jev", "tinyfish") else ""), \
+                mock.patch("mo_budget.allowed", return_value=(True, "")), \
+                mock.patch.object(mo_providers, "crawl4ai_installed", return_value=True):
+            self.assertEqual("full", mo_providers.capabilities()["level"])
+
+    def test_rules_grade_without_jev_and_spare_it_the_obvious_rows(self):
+        import mo_grade
+        pdir = ws.project_dir("t58")
+        ws.merge_contacts(pdir, [
+            {"kind": "email", "value": "info@club-a.fr", "quote": "Contact", "page_url": "https://club-a.fr/",
+             "mailbox": "generic", "email_on_org": "yes", "page_on_org_site": "yes", "email_site": "club-a.fr"},
+            {"kind": "email", "value": "jobs@agency.com", "quote": "Offre d'emploi", "page_url": "https://jobs.example/1",
+             "mailbox": "named_or_role", "email_on_org": "no", "page_on_org_site": "no", "email_site": "agency.com"},
+            {"kind": "email", "value": "president@club-a.fr", "quote": "Président Jean Ex", "page_url": "https://club-a.fr/b",
+             "mailbox": "named_or_role", "email_on_org": "yes", "page_on_org_site": "yes", "email_site": "club-a.fr"}],
+            "o1", "Club A", "site")
+        with mock.patch("mo_config.key", return_value=""):
+            out = mo_grade.auto(pdir)
+        rows = {r["value"]: r for r in ws.read_contacts(pdir)}
+        self.assertEqual("D", rows["info@club-a.fr"]["grade"])
+        self.assertTrue(rows["info@club-a.fr"]["graded_by"].startswith("rule"))
+        self.assertEqual("X", rows["jobs@agency.com"]["grade"])
+        self.assertEqual("", rows["president@club-a.fr"].get("grade", ""))   # judgement: waits for Jev or an agent
+        self.assertEqual(1, out["waiting_for_an_agent"])
 
 
 class Reconcile(unittest.TestCase):
@@ -862,7 +1081,7 @@ class Providers(unittest.TestCase):
 
 class Package(unittest.TestCase):
     def test_tools_and_manifest(self):
-        self.assertEqual(["project", "search", "pool", "fetch", "browse", "judge", "grade", "run", "tasks", "orgs", "export"],
+        self.assertEqual(["project", "sources", "harvest", "search", "pool", "fetch", "browse", "judge", "grade", "run", "tasks", "orgs", "export"],
                          [f.__name__ for f in server.TOOLS])
         manifest = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["version"], server.VERSION)
@@ -875,6 +1094,261 @@ class Package(unittest.TestCase):
         for url in ("http://localhost/x", "http://127.0.0.1/", "file:///etc/passwd", "https://a b.ch/"):
             with self.assertRaises(mo_providers.ProviderError):
                 mo_providers.public_url(url)
+
+
+class SourceSaturation(unittest.TestCase):
+    def test_one_source_is_never_saturated_and_three_repeating_sources_are(self):
+        import mo_pool
+        pdir = Path(TMP) / "projects" / "sat"
+        pdir.mkdir(parents=True, exist_ok=True)
+        ws.write_csv(pdir / "orgs.csv", ["id", "name"], [{"id": "o1", "name": "A"}])
+        mo_pool.log_source(pdir, "list-1", "file", {"orgs_added": 900, "orgs_merged": 0})
+        st = ws.source_saturation(pdir)
+        self.assertFalse(st["saturated"])
+        self.assertEqual(st["orgs_without_logged_source"], 1)      # an inherited list counts as unlogged
+        self.assertTrue(any("not saturated" in x for x in server.needs_you(pdir, {})))
+        for n, (added, merged) in enumerate(((3, 300), (1, 200), (40, 60)), 2):
+            mo_pool.log_source(pdir, f"list-{n}", "file", {"orgs_added": added, "orgs_merged": merged})
+        self.assertFalse(ws.source_saturation(pdir)["saturated"])   # the last one still brought 40% new
+        for n in (5, 6, 7):
+            mo_pool.log_source(pdir, f"list-{n}", "file", {"orgs_added": 2, "orgs_merged": 98})
+        st = ws.stages(pdir)["sources"]
+        self.assertTrue(st["saturated"], st)
+        self.assertFalse(any("not saturated" in x for x in server.needs_you(pdir, {})))
+
+
+LISTING = """<html><head><title>Clubs - Ligue</title></head><body>
+<a href="/club/1">FC Alpha</a> <a href="/club/2">AS Beta</a> <a href="/clubs?page=2">2</a>
+<a href="https://www.facebook.com/ligue">fb</a></body></html>"""
+LISTING2 = """<html><body><a href="/club/3">US Gamma</a></body></html>"""
+
+
+def club_page(n, name, site):
+    return (f"<html><head><title>{name} | Ligue</title></head><body><h1>{name}</h1>"
+            f"<p>Stade municipal, 1 rue du Stade</p><p>7500{n} Paris</p>"
+            f"<p>Président Jean Test{n}</p><p>president{n}@{site}</p>"
+            f"<a href='https://{site}/'>Site du club</a> <a href='https://sponsor-shop.test/'>Sponsor</a>"
+            f"<a href='https://www.instagram.com/x'>insta</a></body></html>")
+
+
+def fake_ligue(url, readers=None, project_dir=None, **kw):
+    pages = {"https://ligue.test/clubs": LISTING, "https://ligue.test/clubs?page=2": LISTING2,
+             "https://ligue.test/club/1": club_page(1, "FC Alpha", "fcalpha.test"),
+             "https://ligue.test/club/2": club_page(2, "AS Beta", "asbeta-paris.test"),
+             "https://ligue.test/club/3": club_page(3, "US Gamma", "usgamma.test")}
+    return {"crawl4ai": {"final_url": url, "html": pages.get(url, "<p>nothing</p>"), "text": ""}}
+
+
+class SuperPipeline(unittest.TestCase):
+    def test_harvest_mines_a_source_into_rows_and_pooling_binds_their_addresses(self):
+        import mo_flow
+        import mo_tasks
+        pdir = ws.project_dir("flow")
+        with mock.patch.object(mo_providers, "read_race", side_effect=fake_ligue), \
+                mock.patch.object(mo_providers, "read", side_effect=fake_ligue):
+            # a finder registers the list; a miner claims it from its own lane
+            server.sources("flow", add=[{"source": "ligue", "url": "https://ligue.test/clubs", "kind": "federation",
+                                          "row_is": "club"}], agent="finder-1")
+            got = mo_tasks.claim(pdir, "miner-1", "source")
+            self.assertEqual("ligue", got["items"][0]["source"])
+            self.assertEqual("mining", mo_flow.source_pool(pdir)[0]["status"])
+            out = server.harvest("flow", "ligue", start="https://ligue.test/clubs", follow=r"/club/\d+",
+                                 next=r"page=\d+", agent="miner-1")
+            self.assertEqual(0, out["still_queued"], out)
+            self.assertEqual(3, out["rows_total"])
+            rows = {r["name"]: r for r in ws.read_csv(pdir / out["file"])}
+            self.assertEqual("https://asbeta-paris.test", rows["AS Beta"]["website"])   # no Jev: the candidate with the name
+            self.assertIn("sponsor-shop.test", rows["AS Beta"]["website_candidates"])
+            self.assertNotIn("instagram", rows["AS Beta"]["website_candidates"])
+            self.assertEqual("75002", rows["AS Beta"]["postcode"])
+            self.assertIn("president2@asbeta-paris.test", rows["AS Beta"]["emails"])
+            self.assertTrue(any("never pooled" in x for x in server.needs_you(pdir, server.project("flow"))))
+            res = server.pool("flow", out["file"], into="orgs", source="ligue",
+                              map={"name": "name", "website": "website", "city": "city", "page_url": "page_url"})
+            self.assertEqual(3, res["orgs_added"])
+            self.assertGreaterEqual(res["contacts_from_saved_pages"], 3)   # read from the saved copies
+        self.assertEqual("pooled", mo_flow.source_pool(pdir)[0]["status"])
+        values = {c["value"] for c in ws.read_contacts(pdir)}
+        self.assertIn("president1@fcalpha.test", values)
+        fl = mo_flow.flow(pdir)
+        self.assertTrue(fl["reconcile"]["adds_up"], fl["reconcile"])
+        self.assertEqual([], fl["pools"]["pages"]["harvest_files_not_pooled"])
+        self.assertEqual(1, fl["pools"]["sources"]["pooled"])
+        # the research lane refills itself from the new organisations: nobody waits for a plan
+        sweep = mo_tasks.claim(pdir, "researcher-1", "sweep")
+        self.assertEqual(3, len(sweep["items"]))
+
+    def test_harvest_lets_jev_pick_the_site_among_the_links_and_steps_down_without_it(self):
+        import types
+        import mo_flow
+        import mo_grade
+        pdir = ws.project_dir("flow3")
+
+        def fake_jev(state, qs):
+            ans = {}
+            for k, page in state["pages"].items():
+                ans[f"{k}_kind"] = types.SimpleNamespace(choice="club_or_association")
+                ans[f"{k}_own"] = types.SimpleNamespace(noul=0.9)
+                ans[f"{k}_site"] = types.SimpleNamespace(choice=[c for c in page["links_off_the_site"]
+                                                                 if "sponsor" not in c][0])
+            return types.SimpleNamespace(answers=ans)
+        with mock.patch.object(mo_providers, "read_race", side_effect=fake_ligue), \
+                mock.patch.object(mo_providers, "read", side_effect=fake_ligue), \
+                mock.patch.dict(os.environ, {"TYPESAFE_API_KEY": "test-key"}), \
+                mock.patch.object(mo_grade, "_jev", side_effect=fake_jev):
+            out = mo_flow.harvest(pdir, "ligue", urls=["https://ligue.test/club/1", "https://ligue.test/club/3"])
+        self.assertEqual(2, out["judged_by_jev"], out)
+        rows = {r["name"]: r for r in ws.read_csv(pdir / out["file"])}
+        self.assertEqual("https://usgamma.test", rows["US Gamma"]["website"])
+        self.assertEqual("club_or_association", rows["US Gamma"]["kind"])
+        # a page Jev reads as a list of several entries gets no website, whatever it picked
+        listing = [{"title": "Clubs", "lines": "FC A, AS B", "_cands": ["https://a.test", "https://b.test"], "name": "x"}]
+
+        def list_jev(state, qs):
+            return types.SimpleNamespace(answers={"p1_kind": types.SimpleNamespace(choice="list_or_other"),
+                                                  "p1_own": types.SimpleNamespace(noul=0.8),
+                                                  "p1_site": types.SimpleNamespace(choice="https://a.test")})
+        with mock.patch.dict(os.environ, {"TYPESAFE_API_KEY": "test-key"}), \
+                mock.patch.object(mo_grade, "_jev", side_effect=list_jev):
+            mo_flow._jev_rows(pdir, listing)
+        self.assertFalse(listing[0].get("website"))
+
+    def test_keyless_readers_are_always_allowed(self):
+        # the minimal level: no keys, no browser - plain HTTP must still read (0.7.1 crashed here)
+        import mo_budget
+        import mo_config
+        self.assertEqual([], mo_config.slots("http"))
+        self.assertEqual((True, ""), mo_budget.allowed("http", "fetch"))
+        self.assertEqual((True, ""), mo_budget.allowed("download", "fetch"))
+
+    def test_a_jev_key_without_the_sdk_steps_down_instead_of_failing(self):
+        import mo_budget
+        import mo_flow
+        rows = [{"title": "Club", "lines": "x", "_cands": ["https://a.test"], "name": "Club"}]
+        with mock.patch.dict(os.environ, {"TYPESAFE_API_KEY": "test-key"}), mock.patch.object(mo_budget, "_SDK", [False]):
+            self.assertFalse(mo_budget.jev_ready())
+            self.assertEqual(0, mo_flow._jev_rows(ws.project_dir("nosdk"), rows))
+            self.assertEqual("rules + agents", mo_providers.capabilities()["grade"])
+
+    def test_jev_orders_dig_leads_when_ready(self):
+        import types
+        import mo_budget
+        import mo_grade
+        hits = [{"title": "News", "url": "https://c.test/news"}, {"title": "Comité", "url": "https://c.test/comite"}]
+
+        def fake_jev(state, qs):
+            return types.SimpleNamespace(answers={"r1": types.SimpleNamespace(choice="unlikely", confidence=0.9),
+                                                  "r2": types.SimpleNamespace(choice="likely", confidence=0.9)})
+        with mock.patch.object(mo_budget, "jev_ready", return_value=True), \
+                mock.patch.object(mo_grade, "_jev", side_effect=fake_jev):
+            ranked = mo_run._rank(ws.project_dir("rank"), {"name": "Club"}, hits)
+        self.assertEqual("https://c.test/comite", ranked[0]["url"])
+
+    def test_pages_a_dead_harvest_left_reading_come_back(self):
+        import mo_flow
+        pdir = ws.project_dir("lease")
+        mo_flow.queue_pages(pdir, [{"url": "https://l.test/1", "source": "s"}, {"url": "https://l.test/2", "source": "s"}])
+        self.assertEqual(2, len(mo_flow._take(pdir, "s", 5)))      # claimed, then the process dies
+        self.assertEqual([], mo_flow._take(pdir, "s", 5))           # still leased
+        rows = ws.read_csv(pdir / "frontier.csv")
+        for r in rows:
+            r["time"] = "2000-01-01T00:00:00+00:00"
+        ws.write_csv(pdir / "frontier.csv", mo_flow.FRONTIER_COLS, rows)
+        self.assertEqual(2, len(mo_flow._take(pdir, "s", 5)))      # the lease ran out: back in the queue
+
+    def test_found_sources_without_a_miner_are_flagged(self):
+        pdir = ws.project_dir("flow2")
+        server.sources("flow2", add=[{"source": "census", "url": "https://data.test/x.csv"}], agent="f")
+        server.sources("flow2", add=[{"url": "https://data.test/x.csv"}], agent="g")   # same list, second finder
+        st = server.sources("flow2")
+        self.assertEqual(1, len(st["sources"]))
+        self.assertIn("g", st["sources"][0]["found_by"])
+        self.assertTrue(any("nobody mines them" in x for x in server.needs_you(pdir, server.project("flow2"))))
+
+
+class Ledgers(unittest.TestCase):
+    def test_two_ledgers_are_counted_apart(self):
+        rows = [{"org_id": "o1", "grade": "A", "person": "P One"}, {"org_id": "o1", "grade": "B"},
+                {"org_id": "o2", "grade": "A"}, {"org_id": "o2", "grade": "D"},
+                {"org_id": "o3", "grade": "C"}, {"org_id": "o3", "grade": "B", "review": "yes"},
+                {"org_id": "o4", "grade": "X"}]
+        ab = mo_export.ledgers(rows)
+        self.assertEqual((5, 3, "2 / 1 / 1 / 1"), (ab["valid_routes"], ab["valid_orgs"], ab["valid_by_grade"]))
+        self.assertEqual((3, 2), (ab["strict_routes"], ab["strict_orgs"]))
+        named = mo_export.ledgers(rows, "named_A")
+        self.assertEqual((1, 1), (named["strict_routes"], named["strict_orgs"]))
+        self.assertIn("admissions", __import__("mo_grade").DEFAULT_GRADES["X"])
+
+
+class OfficialUsage(unittest.TestCase):
+    """The six providers used the way their official skills and docs ask."""
+
+    class Resp:
+        def __init__(self, data, status=200):
+            self._d, self.status_code, self.text, self.headers = data, status, json.dumps(data), {}
+
+        def json(self):
+            return self._d
+
+    def test_serpapi_maps_pages_and_centres(self):
+        seen = []
+
+        def get(url, params=None, **kw):
+            seen.append(dict(params))
+            return self.Resp({"local_results": [{"title": f"P{params.get('start', 0)}", "website": ""}]})
+        with mock.patch.dict(os.environ, {"SERPAPI_API_KEY": "k" * 12}), mock.patch("httpx.get", side_effect=get):
+            mo_providers._serpapi("stade", "fr", "fr", 10, True, page=3, near="48.85,2.35,14z")
+        self.assertEqual(40, seen[0]["start"])
+        self.assertEqual("@48.85,2.35,14z", seen[0]["ll"])
+        self.assertEqual("google_maps", seen[0]["engine"])
+
+    def test_tinyfish_reads_ten_pages_in_one_request_and_harvest_reuses_them(self):
+        import mo_flow
+        posts = []
+
+        def post(url, json=None, **kw):
+            posts.append(json)
+            return self.Resp({"results": [{"url": u, "final_url": u, "text": fake_ligue(u)["crawl4ai"]["html"]}
+                                          for u in json["urls"]]})
+        pdir = ws.project_dir("prefetch")
+        urls = [f"https://ligue.test/club/{n}" for n in (1, 2, 3)]
+        with mock.patch.dict(os.environ, {"TINYFISH_API_KEY": "k" * 12}), mock.patch("httpx.post", side_effect=post), \
+                mock.patch.object(mo_providers, "read_race", side_effect=AssertionError("no per-page read")), \
+                mock.patch.object(mo_providers, "read", side_effect=AssertionError("no per-page read")), \
+                mock.patch("mo_budget.allowed", return_value=(True, "")):
+            out = mo_flow.harvest(pdir, "ligue-batch", urls=urls)
+        self.assertEqual(1, len(posts))
+        self.assertEqual(3, len(posts[0]["urls"]))
+        self.assertEqual(3, out["rows_new"], out)
+
+    def test_facebook_page_read_through_serpapi(self):
+        def get(url, params=None, **kw):
+            self.assertEqual(("facebook_profile", "fcexample"), (params["engine"], params["profile_id"]))
+            return self.Resp({"profile_results": {"name": "FC Example", "email": "contact@fcexample.test",
+                                                  "phone": "+33 1 00 00 00 00", "website": "fcexample.test"}})
+        with mock.patch.dict(os.environ, {"SERPAPI_API_KEY": "k" * 12}), mock.patch("httpx.get", side_effect=get):
+            res = mo_providers._read_facebook("https://www.facebook.com/fcexample/")
+        self.assertIn("email: contact@fcexample.test", res["text"])
+        with self.assertRaises(mo_providers.ProviderError):
+            mo_providers._read_facebook("https://www.facebook.com/groups/123")
+
+    def test_agent_runs_capped_with_schema_and_local_exit(self):
+        sent = []
+
+        def post(url, json=None, **kw):
+            sent.append((url, json))
+            return self.Resp({"run_id": "run-1", "error": None})
+        with mock.patch.dict(os.environ, {"TINYFISH_API_KEY": "k" * 12}), mock.patch("httpx.post", side_effect=post), \
+                mock.patch("mo_budget.allowed", return_value=(True, "")):
+            self.assertEqual("run-1", mo_providers.agent_submit("https://club.test/team", "goal", country="fr"))
+            mo_providers.agent_submit("https://club.test/team", "goal", country="ch", stealth=True)
+        url, body = sent[0]
+        self.assertTrue(url.endswith("/v1/automation/run-async"))
+        self.assertEqual({"enabled": True, "country_code": "FR"}, body["proxy_config"])
+        self.assertEqual(40, body["agent_config"]["max_steps"])
+        self.assertIn("contacts", body["output_schema"]["properties"])
+        self.assertNotIn("proxy_config", sent[1][1])          # Switzerland is not a TinyFish exit country
+        self.assertEqual("stealth", sent[1][1]["browser_profile"])
 
 
 if __name__ == "__main__":

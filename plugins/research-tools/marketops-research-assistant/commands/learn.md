@@ -19,7 +19,7 @@ the next project in the same market or line starts from it.
    - one benchmark row: organisations, share with A/B, named A/B, minutes, cost, plugin version.
    Keep numbers that the workbook shows; mark anything else as an observation.
 4. If a lesson changes how every project should run, propose the edit to the
-   `marketops-brief`, `marketops-sources` or `marketops-tools` skill in the same change.
+   `marketops-knowledge`, `marketops-research` or `marketops-tools` skill in the same change.
 5. Never write the researched organisations' names, people's names, addresses, phone numbers
    or account ids: counts, titles, source names, page types and rules only. Scan the change
    for `@` and long digit runs before saving.

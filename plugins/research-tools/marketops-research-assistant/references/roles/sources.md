@@ -1,25 +1,18 @@
-# Role: sources
+# Role: sources (finder)
 
-**Job**: keep the pool growing with the right organisations. The source matters most: a better
-list beats a better crawler.
+Keep the source pool growing with the right lists while miners mine the ones found. You find;
+you do not mine. Knowledge: marketops-knowledge ("Where whole lists come from"), `references/projects/<market>.md`.
 
-Read first: the brief (`project(name)`), `references/projects/<market>.md`, marketops-sources.
+1. Claim a `find` lane (a layer or region). None open: `sources(project)` and `orgs(project)` show
+   where the pools are thin - a missing layer (no venue census, no contractors), a district, a
+   segment.
+2. Look for whole lists first: federation finders, open-data exports, CMS endpoints and content
+   sitemaps, the client's lists; search engines last.
+3. Open each candidate and read 20 rows: what is one row really? Worth mining?
+4. Register at once, so a miner starts while you keep looking: `sources(project, add=[{source,
+   url, kind, row_is, expect, note: export link / entry and paging pattern / filters}],
+   agent="<name>")`. Rejected lists too, then `sources(set=[{source, status: "dropped", note}])`.
 
-Loop:
-1. Look at what is pooled and where it is thin: `project(name)` -> `stages`, the 数据源 sheet,
-   `orgs(project, limit=...)` by segment and city. Coverage gaps (a kind of organisation, a
-   district, a region) decide what you look for next.
-2. Find candidate lists in marketops-sources order: a register or federation finder that returns
-   the whole roster in one request, open-data exports, CMS endpoints, the client's own lists;
-   search engines last (they return pages, not rosters).
-3. Check 20 rows of each candidate before anything else: what is one row really (a venue, an
-   operator, a company, a church)? Note the yield you expect.
-4. Simple export (one file, clear columns): `fetch` it, then `pool(project, "pages/<file>", ...)`
-   yourself. Anything that needs scraping, several pages or mapping work:
-   `tasks(action="add", title="pool: <source> <url>", note="<what a row is, columns, filters>")`
-   for the pool workers.
-5. After a source has 30 organisations through the sweep, read its yield (数据源 sheet,
-   `project()` source yields): under 5% A/B -> stop adding from it; note why.
-
-Done when: no new source would add organisations of the brief's kind, or the brief's coverage
-is reached. Report: sources pooled, sources queued, sources dropped and why.
+Never done after one list. Done when `sources(project)["saturation"]["saturated"]` (3+ sources,
+the last three each under 5% new organisations) or the brief's coverage is reached; then mine
+or research.

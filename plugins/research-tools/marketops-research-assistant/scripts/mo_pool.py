@@ -212,13 +212,33 @@ def log_source(pdir: Path, source: str, kind: str, out: dict, query: str = "") -
 
 def pool(pdir: Path, file: str, into: str = "venues", filters: dict | None = None,
          map: dict | None = None, group_by: str = "", org_fields: dict | None = None,
-         kind: str = "file") -> dict:
+         kind: str = "file", source: str = "") -> dict:
+    """source: the name of the list in the source pool (sources(...) / harvest(...)); the
+    pooling is logged under it and the source moves to `pooled`."""
     # several agents may build pools at once: one writer per project for the pool files
     with ws._lock(pdir / "pools"):
         out = _pool(pdir, file, into, filters, map, group_by, org_fields)
     if "error" not in out:
-        log_source(pdir, file, kind, out)
+        log_source(pdir, source or file, kind, out, query=file if source else "")
+        import mo_flow
+        mo_flow.mark_source(pdir, source or file, "pooled")
+        out["contacts_from_saved_pages"] = _bind_saved_pages(pdir, out.pop("_bind", []))
     return out
+
+
+def _bind_saved_pages(pdir: Path, pairs: list[tuple[str, str, str]]) -> int:
+    """Rows that came with the page they were found on (a harvested detail page): that page is
+    already saved, so its addresses join the organisation now, read from the copy - no new call.
+    Pages not saved in this project are left for the researchers."""
+    saved = ws._pages(pdir)
+    n = 0
+    for oid, name, url in pairs:
+        if url in saved:
+            try:
+                n += ws.fetch(pdir, url, org_id=oid, org=name, via="source").get("contacts_added", 0)
+            except Exception:  # noqa: BLE001
+                continue
+    return n
 
 
 def add_orgs(pdir: Path, rows: list[dict], source: str, kind: str, query: str = "") -> dict:
@@ -245,18 +265,28 @@ def _pool(pdir: Path, file: str, into: str, filters: dict | None, map: dict | No
     raw = _rows(src)
     kept = [r for r in raw if _match(r, filters or {})]
     rows = [{t: r.get(s, "") for t, s in map.items()} if map else dict(r) for r in kept]
+    # a row with no name is not a venue or an organisation (a listing page, a blank line): it
+    # stays in the file, it does not enter the pool
+    named = [(r, o) for r, o in zip(rows, kept) if str(r.get("name") or "").strip()]
+    no_name = len(rows) - len(named)
+    rows, kept = [r for r, _ in named], [o for _, o in named]
     orgs = ws.read_csv(pdir / "orgs.csv")
     o_added = o_merged = 0
     if into == "orgs":
         for r in rows:
             r.setdefault("id", "")
-        o_added, o_merged, _ = _merge_into(orgs, rows, org_key, file, by_name=True, signal=site_signal)
+        o_added, o_merged, index = _merge_into(orgs, rows, org_key, file, by_name=True, signal=site_signal)
         for o in orgs:
             if not o.get("id"):
                 o["id"] = new_oid(o)
         _write(pdir / "orgs.csv", orgs, ["id", "name", "website", "city"])
-        return {"read": len(raw), "kept": len(kept), "orgs_added": o_added, "orgs_merged": o_merged,
-                "columns_in_file": list(raw[0].keys())[:60] if raw else []}
+        bind = []
+        for r in rows:
+            hit = index.get(org_key(r)) or index.get(org_key(r) + "|" + site_signal(r))
+            if r.get("page_url") and hit is not None:
+                bind.append((hit["id"], hit.get("name", ""), r["page_url"]))
+        return {"read": len(raw), "kept": len(kept), "skipped_no_name": no_name, "orgs_added": o_added,
+                "orgs_merged": o_merged, "columns_in_file": list(raw[0].keys())[:60] if raw else [], "_bind": bind}
     # venues, and with group_by the organisations behind them
     if group_by:
         groups = []
@@ -289,7 +319,8 @@ def _pool(pdir: Path, file: str, into: str, filters: dict | None, map: dict | No
     _write(pdir / "venues.csv", venues, ["id", "name"])
     if group_by:
         _write(pdir / "orgs.csv", orgs, ["id", "name", "website", "city", "venues"])
-    return {"read": len(raw), "kept": len(kept), "added": v_added, "merged_with_existing": v_merged,
+    return {"read": len(raw), "kept": len(kept), "skipped_no_name": no_name, "added": v_added,
+            "merged_with_existing": v_merged,
             "orgs_added": o_added, "orgs_merged": o_merged,
             "columns_in_file": list(raw[0].keys())[:60] if raw else [],
             "next": "every source goes into the same pools (union); duplicates across sources are merged "

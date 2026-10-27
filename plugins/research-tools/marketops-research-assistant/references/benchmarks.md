@@ -1,7 +1,3 @@
----
-name: marketops-benchmarks
-description: The two standing tests for every MarketOps plugin version - Bruce's France natural-grass pitches (scored against his own graded accounts) and Paris indoor sports venues (a client delivery requirement) - with the metrics to report and how to find what slows a run or loses results. Use when testing a plugin version or comparing runs.
----
 
 # Two standing tests
 

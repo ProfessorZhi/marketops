@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
-"""MarketOps research MCP: ten tools, one project folder, no gates, many agents at once.
+"""MarketOps research MCP: thirteen tools, one project folder, many agents at once.
 
-project  open/create a project folder, write the brief, see progress and costs
+The research is a super-pipeline of pools - sources -> pages -> venues -> organisations ->
+contacts - every stage running at once and several agents inside each stage.
+
+project  open/create a project folder, write the brief, see progress, the flow between pools, costs
+sources  the source pool: register lists as they are found, see each one's state and yield
+harvest  mine one source: page through its listing, read its entries' pages in bulk, one row each
 search   Serper + SerpApi + DeepSeek + TinyFish at once (web or maps)
 pool     build venues.csv / orgs.csv from a saved open-data file (filter, map, group by operator)
 fetch    read one page with Crawl4AI + TinyFish + DeepSeek at once; data files download
@@ -46,12 +51,15 @@ def _err(exc: Exception) -> dict:
     return {"error": mo_config.scrub(f"{type(exc).__name__}: {exc}")[:300]}
 
 
-def project(name: str, brief: dict | None = None, playbook: dict | None = None) -> dict:
+def project(name: str, brief: dict | None = None, playbook: dict | None = None,
+            journal: dict | list | None = None, agent: str = "") -> dict:
     """Open (or create) a project folder and report where it stands.
 
     brief (optional, saved as brief.json): {"goal": "...", "region": "...", "country": "FR",
     "language": "fr", "scenario": "...", "grades": {"A": "...", ...}, "exclude": "...",
-    "address_rules": {"info": "X"}, "routes_per_org": 3, "focus": {...}}.
+    "address_rules": {"info": "X"}, "routes_per_org": 3, "strict_ledger": "AB" | "A" | "named_A",
+    "focus": {...}}. strict_ledger: which grades the strict ledger counts (the workbook reports it
+    next to the research-valid ledger, A-D).
     Grades describe, in plain words and the market's own job titles, what counts as each
     grade; leave any out to use Bruce's default. Returns pools, contacts by grade, run and
     agent progress, costs, account balances with their red lines, and `needs_you`: the numbered
@@ -65,6 +73,9 @@ def project(name: str, brief: dict | None = None, playbook: dict | None = None) 
     segment is an organisation's segment/type/category/source ("*" for all). The pipeline reads
     the paths first and runs the queries first for every organisation of that kind; sweep the
     rest of the segment again with run(project, orgs=[...], again=True).
+    journal (optional): what you ran into, for the run's retrospective (RETRO.md at export) and
+    the plugin's next changes - {"type": "blocker"|"smooth"|"decision"|"idea"|"retro", "text":
+    "...", "evidence": "file / sheet / count"} or a list; agent: your name.
     """
     try:
         pdir = ws.project_dir(name)
@@ -72,10 +83,16 @@ def project(name: str, brief: dict | None = None, playbook: dict | None = None) 
             (pdir / "brief.json").write_text(json.dumps(brief, ensure_ascii=False, indent=1), encoding="utf-8")
         if playbook:
             ws.update_playbook(pdir, playbook)
+        if journal:
+            import mo_journal
+            mo_journal.add(pdir, journal, agent)
         out = ws.status(pdir)
+        import mo_flow
+        out["flow"] = mo_flow.flow(pdir)
         out["version"] = VERSION
         out["providers"] = mo_config.configured() + ["crawl4ai"]
         out["accounts"] = mo_budget.accounts()
+        out["capabilities"] = mo_providers.capabilities()
         import mo_library
         out["library"] = mo_library.stats()
         out["needs_you"] = needs_you(pdir, out)
@@ -115,6 +132,32 @@ def needs_you(pdir, status: dict) -> list[str]:
                              "keep it at the back of the queue, or drop the rest of it?")
         if st.get("stage") == "failed" or (st.get("restarts") or 0) >= mo_run.MAX_RESTARTS:
             items.append(f"Run shard {st.get('shard')} stopped: {st.get('error') or 'restarted too often'}.")
+    sat = ws.source_saturation(pdir)
+    if ws.read_csv(pdir / "orgs.csv") and not sat["saturated"]:
+        items.append(f"Data sources are not saturated ({sat['status']}): keep a sources worker running until "
+                     "the last three sources each add under 5% new organisations.")
+    fl = status.get("flow") or {}
+    pools, lanes = fl.get("pools") or {}, fl.get("lanes") or {}
+    found = (pools.get("sources") or {}).get("found", 0)
+    if found and not (lanes.get("source") or {}).get("claimed"):
+        items.append(f"{found} sources are found but nobody mines them: start a miner (pool role, "
+                     "tasks(action='claim', kind='source')) next to the finders.")
+    for f in (pools.get("pages") or {}).get("harvest_files_not_pooled") or []:
+        items.append(f"{f} was harvested but never pooled: check 20 rows and pool it (rows that never reach the "
+                     "pools are work thrown away).")
+    loose = (pools.get("venues") or {}).get("without_organisation", 0)
+    if loose:
+        items.append(f"{loose} venues have no organisation behind them: decide who runs them (pool role) - contacts "
+                     "hang on organisations, not venues.")
+    rec = fl.get("reconcile") or {}
+    if rec and not rec.get("adds_up"):
+        items.append(f"The organisation pool does not add up: {rec.get('organisations')} organisations, "
+                     f"{rec.get('added_by_logged_sources')} added by logged sources, {rec.get('without_logged_source')} "
+                     "without a source - pool every list through pool(..., source=...) so each one is counted.")
+    cap = status.get("capabilities") or {}
+    if cap.get("level") in ("reduced", "minimal") and cap.get("effects"):
+        items.append(f"Working at '{cap['level']}' level ({', '.join(cap.get('missing') or []) or 'no keys'} missing): "
+                     + "; ".join(cap["effects"]) + ". Add the missing keys (several per provider allowed) to go back to full.")
     for name, acc in (status.get("accounts") or {}).items():
         if not isinstance(acc, dict):
             continue
@@ -124,31 +167,48 @@ def needs_you(pdir, status: dict) -> list[str]:
         low = isinstance(bal, (int, float)) and (bal <= 0 or (isinstance(line, (int, float)) and bal <= line))
         if acc.get("skipped") or low:
             items.append(f"{name} is out of credit or at its red line (balance {bal}): top it up or leave it off"
-                         + (" - search runs on the slower engines without it." if name in ("serper", "serpapi") else "."))
+                         + (" - without it there is no maps search and digging leans on DeepSeek and TinyFish." if name in ("serper", "serpapi") else "."))
     return [f"{n}. {t}" for n, t in enumerate(dict.fromkeys(items), 1)]
 
 
 def search(query: str, project: str = "", engines: list[str] | None = None, country: str = "",
-           lang: str = "", n: int = 10, maps: bool = False) -> dict:
+           lang: str = "", n: int = 10, maps: bool = False, pages: int = 1, near: list[str] | None = None) -> dict:
     """Search the web with every engine at once and merge by URL (found_by says who found it).
 
     engines: any of serper, serpapi, deepseek, tinyfish (default: by the project's provider
     weights, brief.providers.search; the held-back engines join when results are thin).
-    maps=True: Google Maps places (name, address, phone, website) via Serper and SerpApi.
+    maps=True: Google Maps places (name, address, phone, website) via Serper and SerpApi, about
+    20 a page. To cover a town rather than its top 20: pages (up to 6; Google Maps repeats itself
+    beyond) and near - map centres "@lat,lon,14z" (SerpApi), one search per centre; a grid of
+    centres over a city finds what one search never shows.
     country/lang: two-letter codes, e.g. "ch", "de".
     """
     try:
         pdir = ws.project_dir(project) if project else None
-        out = mo_providers.search(query, engines, country, lang, n, maps, pdir,
-                                  weights=ws.weights(pdir, "search") if pdir else None)
-        out["results"] = out["results"][: max(5, n * 2)]
+        pages = max(1, min(int(pages or 1), 6 if maps else 3))
+        centres = (near or [""])[:25]
+        merged: dict = {}
+        out: dict = {}
+        for centre in centres:
+            for page in range(1, pages + 1):
+                got = mo_providers.search(query, engines, country, lang, n, maps, pdir,
+                                          weights=ws.weights(pdir, "search") if pdir else None,
+                                          page=page, near=centre)
+                if not out:
+                    out = {k: v for k, v in got.items() if k != "results"}
+                for r in got.get("results", []):
+                    k = (r.get("url") or "") + "|" + (r.get("title") or "") if maps else r.get("url") or r.get("title")
+                    merged.setdefault(k, r)
+                if len(got.get("results", [])) < (15 if maps else n // 2):
+                    break   # the last page came back short: nothing more behind it
+        out["results"] = list(merged.values())[: (len(merged) if maps and (pages > 1 or near) else max(5, n * 2))]
         return out
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
 
 
 def fetch(project: str, url: str, readers: list[str] | str | None = None, org_id: str = "",
-          org: str = "", max_chars: int = 3000) -> dict:
+          org: str = "", max_chars: int = 3000, refresh: bool = False) -> dict:
     """Read one page with Crawl4AI, TinyFish and DeepSeek at the same time and save every version.
 
     Returns each reader's outcome, the emails/phones found (with the lines around them),
@@ -156,11 +216,15 @@ def fetch(project: str, url: str, readers: list[str] | str | None = None, org_id
     0 for none). With org_id/org the contacts are added to that organisation's contacts.
     readers: a subset of crawl4ai, tinyfish, deepseek, or "download" for a
     data file (CSV/JSON/XLSX/PDF exports are downloaded automatically).
+    A page or site that failed repeatedly is set aside for a while (site health); refresh=True
+    reads it anyway, now, and a success restores it.
     """
     try:
-        out = ws.fetch(ws.project_dir(project), url, readers, org_id, org)
+        out = ws.fetch(ws.project_dir(project), url, readers, org_id, org, refresh=refresh)
         out["text"] = out["text"][:max_chars]
         out.pop("content_links", None)
+        out.pop("page_links", None)
+        out.pop("scored_links", None)   # the same links as `links`, with scores: half the size for the agent
         out["contacts"] = [{k: c[k] for k in ("kind", "value", "mailbox", "same_site", "found_by", "quote")}
                            for c in out["contacts"]]
         return out
@@ -168,20 +232,25 @@ def fetch(project: str, url: str, readers: list[str] | str | None = None, org_id
         return _err(exc)
 
 
-def browse(project: str, url: str, goal: str = "", org_id: str = "", org: str = "") -> dict:
+def browse(project: str, url: str, goal: str = "", org_id: str = "", org: str = "", stealth: bool = False) -> dict:
     """TinyFish Agent opens the page in a real browser (clicks tabs, 'show more') in the background.
 
-    Paid per step (about $0.016). Use it when readers return no text or the contacts sit
-    behind clicks. Each URL is submitted once per project. The result is saved as a page and
-    its contacts added; project(name) shows when it is done.
+    Paid per step (about $0.016), capped at 40 steps and 5 minutes a run. Use it when readers
+    return no text or the contacts sit behind clicks - on pages that carry several people, not a
+    single inbox. One site per run; it exits from the brief's country when TinyFish supports it
+    (US, GB, CA, DE, FR, JP, AU - regional blocks); stealth=True for bot-protected pages. Each URL
+    is submitted once per project. The result is saved as a page and its contacts added;
+    project(name) shows when it is done. A custom goal names the objective, the fields, the steps,
+    what not to do and the edge cases.
     """
     try:
-        return ws.browse(ws.project_dir(project), url, goal, org_id, org)
+        return ws.browse(ws.project_dir(project), url, goal, org_id, org, stealth)
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
 
 
-def grade(project: str, set: list[dict] | None = None, regrade: bool = False, limit: int = 0) -> dict:
+def grade(project: str, set: list[dict] | None = None, regrade: bool = False, limit: int = 0,
+          orgs: list[str] | None = None) -> dict:
     """Grade the project's email candidates.
 
     Without set: Jev grades ungraded rows from each row's quote against the brief's grades
@@ -190,11 +259,12 @@ def grade(project: str, set: list[dict] | None = None, regrade: bool = False, li
     set: your own judgement, a list of {"value": email, "org_id"?, "grade"?, "person"?,
     "role"?, "note"?}; rows you set are never regraded by Jev. Spot check: {"value", "org_id",
     "checked": "ok"|"wrong", "note"?} records that you opened the page and the row holds (or
-    not) - the workbook's 抽检 sheet lists the sample and the precision.
+    not) - the workbook's 抽检 sheet lists the sample and the precision. orgs=[ids]: grade only
+    these organisations' rows - pass your package, so you never wait on other agents' rows.
     """
     try:
         pdir = ws.project_dir(project)
-        return mo_grade.manual(pdir, set) if set else mo_grade.auto(pdir, limit, regrade)
+        return mo_grade.manual(pdir, set) if set else mo_grade.auto(pdir, limit, regrade, orgs=orgs)
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
 
@@ -232,9 +302,10 @@ def run(project: str, rounds: int = 6, max_pages: int = 15, goal_ab_org_share: f
     progress (organisations per minute, minutes left, cost per organisation) and results.
     workers: organisations worked at the same time per process (each read by several providers
     at once); shards: split orgs.csv between that many processes running in parallel.
-    orgs=[ids]: a batch for an agent - sweep just these organisations in the background, beside
-    any main run (again=True: sweep them anew with the playbook as it is now); then read each
-    one's result with orgs(project, ids=[...]). max_pages is a floor: a site keeps being read
+    orgs=[ids]: a batch for an agent - read just these organisations in the background (with
+    rounds=0: their sites only - finding the site, high-value pages, PDFs, extraction, grading -
+    and no template digging, which the agent does itself); again=True reads them anew with the
+    playbook as it is now; then read each one's result with orgs(project, ids=[...]). max_pages is a floor: a site keeps being read
     while its pages bring new addresses (up to 40).
     """
     try:
@@ -281,7 +352,8 @@ def tasks(project: str, action: str = "status", kind: str = "", size: int = 15, 
 
 
 def orgs(project: str, ids: list[str] | None = None, stage: str = "", limit: int = 30,
-         set: list[dict] | None = None) -> dict:
+         set: list[dict] | None = None, add: list[dict] | None = None, agent: str = "",
+         wait: int = 0) -> dict:
     """One summary per organisation, for an agent deciding what to do next with it.
 
     ids: these organisations; or stage: "no_ab" (pipeline done, no confirmed A/B, no agent
@@ -292,20 +364,122 @@ def orgs(project: str, ids: list[str] | None = None, stage: str = "", limit: int
     set=[{org_id, website?, segment?, scope?, city?, note?}]: correct organisations - a website
     you found or fixed (the sweep reads it next; re-sweep with run(orgs=[...], again=True)),
     the segment the playbook keys on, scope in/out/unsure.
+    add=[{name, city, website?, segment?, note?}]: organisations you found while researching (the
+    council department or contractor that really runs a venue, a club found on a federation
+    page) - merged into the pool on name + place like any source; plan sweep packages for them.
+    wait=seconds (with ids): return once every one of them is through the tools' read (after
+    run(orgs=...)), or after that many seconds (at most 900) - one call instead of asking again
+    and again.
     """
     try:
         pdir = ws.project_dir(project)
+        if add:
+            import mo_pool
+            rows = [{k: str(v) for k, v in r.items() if k in ("name", "city", "website", "segment", "note", "type")}
+                    for r in add if isinstance(r, dict) and str(r.get("name") or "").strip()]
+            out = mo_pool.add_orgs(pdir, rows, f"agent:{agent or 'agent'}", "agent")
+            if not ids and not stage and not set:
+                return out
         if set:
             changed = ws.update_orgs(pdir, set)
             if not ids and not stage:
                 return {"updated": changed}
+        if ids and wait:
+            import time
+            want, end = {str(i) for i in ids}, time.time() + max(1, min(int(wait), 900))
+            while time.time() < end:
+                done = {r["org_id"] for r in ws.read_csv(pdir / "crawl.csv") if r.get("pass") == "final"}
+                if want <= done:
+                    break
+                time.sleep(3)
         return ws.org_summaries(pdir, ids, stage, limit)
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
 
 
+def sources(project: str, add: list[dict] | None = None, set: list[dict] | None = None, agent: str = "") -> dict:
+    """The source pool: every list found for the project and where it stands.
+
+    Finding and mining are separate jobs that run at the same time: finders register lists here
+    as they find them, miners claim them (tasks(action="claim", kind="source")) and harvest and
+    pool them, while the finders keep looking.
+    add=[{source: short name, url, kind: register|federation|open_data|maps|directory|client|other,
+    row_is: what one row really is (venue, club, operator...), expect: rows / yield you expect,
+    note}]: register lists you found (the same url or name twice is one source).
+    set=[{source, status: found|mining|harvested|pooled|dropped, note}]: move or drop a source
+    (say why in note). Returns the pool with each source's state, what the pooled ones brought,
+    saturation and the flow between all pools.
+    """
+    try:
+        import mo_flow
+        pdir = ws.project_dir(project)
+        out: dict = {}
+        if add:
+            out.update(mo_flow.add_sources(pdir, add, agent))
+        if set:
+            out["updated"] = mo_flow.set_sources(pdir, set)
+        brought = {}
+        for r in ws.read_csv(pdir / "sources.csv"):
+            if r.get("source"):
+                b = brought.setdefault(r["source"], {"orgs_added": 0, "orgs_merged": 0, "venues_added": 0})
+                for k in b:
+                    try:
+                        b[k] += int(r.get(k) or 0)
+                    except ValueError:
+                        pass
+        out["sources"] = [{**{k: r.get(k, "") for k in ("source", "url", "kind", "row_is", "status", "found_by",
+                                                         "miner", "note")}, **brought.get(r["source"], {})}
+                          for r in mo_flow.source_pool(pdir)]
+        out["saturation"] = ws.source_saturation(pdir)
+        out["flow"] = mo_flow.flow(pdir)
+        return out
+    except Exception as exc:  # noqa: BLE001
+        return _err(exc)
+
+
+def harvest(project: str, source: str, start: str = "", follow: str = "", next: str = "",
+            sitemap: bool = False, urls: list[str] | None = None, limit: int = 40, agent: str = "",
+            background: bool = False) -> dict:
+    """Mine one source into the page pool and out of it, in bulk - the miner's power tool.
+
+    start: the source's listing (or first results page); follow: a regex for the links that are
+    entries (each entry's detail page, e.g. "/club/\\d+"); next: a regex for the listing's next
+    pages ("page=\\d+"); sitemap=True: take the entries from the site's sitemap instead of paging
+    (with follow as the filter); urls: detail pages you already have. Without follow, a listing's
+    own links off the site are the entries. Reads up to `limit` pages per call, several at once
+    with every reader, and writes one candidate row per detail page to
+    pages/harvest-<source>.csv: name, kind, website (picked by Jev from the links the page shows,
+    or left with its candidates for you), emails, phones, address, postcode, city. Call again
+    until still_queued is 0 - several miners can harvest different sources at once. Then check
+    20 rows and pool(project, file, into=..., map=..., source=...): the pages are already saved,
+    so their addresses join the new organisations without a new call.
+    background=True: read the first `limit` pages now, then keep reading the rest of the source
+    in the background (this server) while you check the first rows; sources(project) shows
+    where it stands, and harvest(project, source) again picks up whatever is left.
+    """
+    try:
+        import mo_flow
+        pdir = ws.project_dir(project)
+        out = mo_flow.harvest(pdir, source, start, follow, next, sitemap, urls, max(1, min(int(limit), 300)), agent)
+        if background and out.get("still_queued"):
+            import threading
+
+            def rest():
+                try:
+                    while mo_flow.harvest(pdir, source, limit=100, agent=agent).get("still_queued"):
+                        pass
+                except Exception:  # noqa: BLE001 - leased pages return to the queue for the next call
+                    pass
+            threading.Thread(target=rest, daemon=True, name=f"harvest-{source}").start()
+            out["background"] = "reading the rest of this source now; check the first rows meanwhile"
+        return out
+    except Exception as exc:  # noqa: BLE001
+        return _err(exc)
+
+
 def pool(project: str, file: str, into: str = "venues", filters: dict | None = None,
-         map: dict | None = None, group_by: str = "", org_fields: dict | None = None) -> dict:
+         map: dict | None = None, group_by: str = "", org_fields: dict | None = None,
+         source: str = "") -> dict:
     """Build the pools from a data file fetch saved (JSON, GeoJSON, CSV; e.g. an open-data export).
 
     filters: {column: value or [values]} kept rows (exact, case-insensitive). map: {new column:
@@ -316,10 +490,13 @@ def pool(project: str, file: str, into: str = "venues", filters: dict | None = N
     to carry e.g. city or website. Call it once per source (open data, federation lists, maps
     results saved as CSV, your own lists): the pools are the union of all of them - the same
     venue or organisation from two sources becomes one row with both sources and the fields
-    of both. Returns the file's columns so you can map them.
+    of both. Returns the file's columns so you can map them. source: the list's name in the
+    source pool (logged under it, moved to pooled). A page_url column (harvest files have one):
+    addresses on those saved pages join the organisations at once.
     """
     try:
-        return mo_pool.pool(ws.project_dir(project), file, into, filters, map, group_by, org_fields)
+        return mo_pool.pool(ws.project_dir(project), file, into, filters, map, group_by, org_fields,
+                            source=source)
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
 
@@ -334,13 +511,13 @@ def export(project: str) -> dict:
         return _err(exc)
 
 
-TOOLS = (project, search, pool, fetch, browse, judge, grade, run, tasks, orgs, export)
+TOOLS = (project, sources, harvest, search, pool, fetch, browse, judge, grade, run, tasks, orgs, export)
 
 
 def check() -> int:
     """Installer self-check: packages import, which keys are present (names only)."""
     problems = []
-    for mod in ("mcp", "crawl4ai", "typesafe_sdk", "httpx"):
+    for mod in ("mcp", "httpx"):
         try:
             __import__(mod)
         except Exception as exc:  # noqa: BLE001
@@ -350,8 +527,15 @@ def check() -> int:
           f"projects in {mo_config.projects_root()}")
     for p in problems:
         print("  missing package -", p)
-    if not any(k in keys for k in ("serper", "serpapi", "deepseek", "tinyfish")):
-        print("  no search key yet: research needs at least one of Serper, SerpApi, DeepSeek, TinyFish")
+    cap = mo_providers.capabilities()
+    print(f"  level: {cap['level']} - search {cap['search'] or 'none'}, read {cap['read']}, grade {cap['grade']}")
+    for e in cap["effects"]:
+        print("  -", e)
+    for mod in ("crawl4ai", "typesafe_sdk"):   # optional: their absence steps the plugin down, not out
+        try:
+            __import__(mod)
+        except Exception:  # noqa: BLE001
+            print(f"  optional package missing - {mod} (run install.sh to add it)")
     return 1 if problems else 0
 
 

@@ -8,7 +8,8 @@ Use the `marketops-research` skill to lead this research task from start to fini
 $ARGUMENTS
 
 Ask at most once, up front, for what is missing (what the user sells, region, kind of
-organisation, roles). Then start the sweep and your team of workers with your host's
-multi-agent mode (sources, pool, websites, dig, finish), steer them by `project()` stages,
+organisation, roles). Then start the whole team at once with your host's multi-agent mode -
+finders, miners, researchers, websites, finish, several per stage - steer them by
+`project()["flow"]` (what waits between the pools),
 put anything only the user can decide in one numbered list, and deliver the Excel when the
 spot check passes.

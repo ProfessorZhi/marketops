@@ -26,9 +26,11 @@ SEARCH_ENGINES = ("serper", "serpapi", "deepseek", "tinyfish")
 READERS = ("crawl4ai", "tinyfish", "deepseek")
 # Share of calls each provider takes part in (brief.providers overrides). The rest is held
 # back and called only when the chosen ones come back weak - never at the cost of results.
-# DeepSeek, TinyFish search/fetch, Crawl4AI and Jev are cheap and plentiful: always on.
-# Serper and SerpApi cost per search: a share. The paid TinyFish Agent is opt-in only.
-DEFAULT_WEIGHTS = {"search": {"deepseek": 1.0, "tinyfish": 1.0, "serper": 0.5, "serpapi": 0.3},
+# Search: Serper and SerpApi (Google results, ~1-2 s, site:/filetype: precise, each standing in
+# for the other when its quota runs out) and DeepSeek carry it; TinyFish searches too (30 a
+# minute per account, paced for the whole machine). Reading: DeepSeek, Crawl4AI and TinyFish race on every page. The paid
+# TinyFish Agent is opt-in only.
+DEFAULT_WEIGHTS = {"search": {"serper": 1.0, "serpapi": 1.0, "deepseek": 1.0, "tinyfish": 1.0},
                    "fetch": {"crawl4ai": 1.0, "tinyfish": 1.0, "deepseek": 1.0}}
 
 
@@ -52,7 +54,7 @@ class ProviderError(Exception):
     pass
 
 
-TRANSIENT = re.compile(r"HTTP (429|5\d\d)|timed? ?out|Timeout|ConnectError|ConnectionReset|RemoteProtocolError", re.I)
+TRANSIENT = re.compile(r"HTTP (408|429|5\d\d)|timed? ?out|Timeout|ConnectError|ConnectionReset|RemoteProtocolError", re.I)
 TRANSIENT_FAST = re.compile(r"HTTP (429|5\d\d)|ConnectError|ConnectionReset|RemoteProtocolError", re.I)
 
 
@@ -148,15 +150,98 @@ class _Rate:
 RATE = _Rate()
 
 
+class _Gate(_Rate):
+    """Machine-wide slots for one key, shared by every process on this machine (the same file
+    lock as _Rate): at most `cap` requests in flight at once, `interval` seconds apart, and a
+    pause after the other side said "too many" (429 / 503, with its Retry-After). Used per web
+    host - many organisations live on one city portal, and every agent's batch reads at once -
+    and for the browser's tabs across processes. A slot left by a dead process expires."""
+
+    STALE_S = 180
+
+    def hold(self, key: str, cap: int, interval: float = 0.0, max_wait: float = 120.0):
+        import contextlib
+        import time
+        token = f"{os.getpid()}.{threading.get_ident()}.{time.time()}"
+
+        def try_take(st: dict):
+            now = time.time()
+            st["in"] = [e for e in st.get("in", []) if now - e[1] < self.STALE_S]
+            limit = max(1, min(cap, int(st.get("cap") or cap)))
+            if now < float(st.get("until") or 0) or len(st["in"]) >= limit \
+                    or now - float(st.get("last") or 0) < interval:
+                return False
+            st["in"].append([token, now])
+            st["last"] = now
+            return True
+
+        def give_back(st: dict):
+            st["in"] = [e for e in st.get("in", []) if e[0] != token]
+
+        @contextlib.contextmanager
+        def slot():
+            end = time.time() + max_wait
+            while not self._update(key, try_take):
+                if time.time() > end:
+                    break   # never block an agent for good: go ahead after max_wait
+                time.sleep(0.15)
+            try:
+                yield
+            finally:
+                self._update(key, give_back)
+        return slot()
+
+    def back_off(self, key: str, seconds: float = 30.0) -> None:
+        """The host said too many: pause it and take one slot off its cap (never below 1)."""
+        import time
+
+        def pause(st: dict):
+            st["until"] = time.time() + min(max(seconds, 5.0), 600.0)
+            st["cap"] = max(1, int(st.get("cap") or HOST_CAP) - 1)
+        self._update(key, pause)
+
+
+GATE = _Gate()
+HOST_CAP = int(os.environ.get("MARKETOPS_PER_HOST", "4"))           # requests in flight per web host
+HOST_INTERVAL = float(os.environ.get("MARKETOPS_HOST_INTERVAL", "0.25"))
+BROWSER_TABS = int(os.environ.get("MARKETOPS_BROWSER_TABS", "12"))  # browser tabs on the whole machine
+BUSY = re.compile(r"HTTP (429|503)\b(?:.*?retry-after=(\d+))?", re.I)
+
+
 def _check_money(provider: str, response: httpx.Response, kind: str = "") -> None:
     if response.status_code == 429:
         RATE.learn(f"{provider}:{kind}", response)
-    if response.status_code in (402,) or (response.status_code == 429 and provider != "crawl4ai"):
+    if response.status_code in (401, 402) or (response.status_code == 429 and provider != "crawl4ai"):
         if response.status_code == 402:
             mo_budget.mark_exhausted(provider, "provider refused for money (HTTP 402)")
+        if response.status_code == 401:   # an invalid or revoked key: the next slot takes over
+            mo_budget.mark_exhausted(provider, "provider refused the key (HTTP 401)")
         raise ProviderError(f"HTTP {response.status_code}")
     if response.status_code >= 400:
         raise ProviderError(f"HTTP {response.status_code}")
+
+
+SLOT_REFUSAL = re.compile(r"HTTP 40[12]\b|used up|refused", re.I)
+
+
+def with_slots(provider: str, call):
+    """Run a provider call; when the key in use is refused (401, 402, quota used up) and the
+    refusal set it aside, run the same call again at once with the next key slot - the switch
+    happens inside this call, not on the next one."""
+    tried = set()
+    while True:
+        tried.add(mo_config.key(provider))
+        try:
+            return call()
+        except ProviderError as exc:
+            nxt = mo_config.key(provider)
+            if not (SLOT_REFUSAL.search(str(exc)) and nxt and nxt not in tried):
+                raise
+
+
+def _nullcontext():
+    import contextlib
+    return contextlib.nullcontext()
 
 
 def public_url(url: str) -> str:
@@ -182,8 +267,10 @@ def public_url(url: str) -> str:
 
 
 # ---------------------------------------------------------------- search
-def _serper(q, country, lang, n, maps, purpose=""):
+def _serper(q, country, lang, n, maps, purpose="", page=1, near=""):
     body = {"q": q, "num": n}
+    if page > 1:
+        body["page"] = page
     if country:
         body["gl"] = country.lower()
     if lang:
@@ -198,11 +285,22 @@ def _serper(q, country, lang, n, maps, purpose=""):
     return [{"title": o.get("title"), "url": o.get("link"), "snippet": o.get("snippet")} for o in d.get("organic", [])]
 
 
-def _serpapi(q, country, lang, n, maps, purpose=""):
+def _serpapi(q, country, lang, n, maps, purpose="", page=1, near=""):
+    """serpapi.com google / google_maps. Maps: 20 places a page, `start` = 20 x (page - 1) up to
+    about six pages (beyond that Google Maps repeats itself); `ll` = "@lat,lon,zoom" centres the
+    search - several centres across a city cover what one search cannot."""
     params = {"api_key": mo_config.key("serpapi"), "q": q,
               "engine": "google_maps" if maps else "google"}
     if not maps:
         params["num"] = n
+        if page > 1:
+            params["start"] = n * (page - 1)
+    else:
+        params["type"] = "search"
+        if page > 1:
+            params["start"] = 20 * (page - 1)
+        if near:
+            params["ll"] = near if near.startswith("@") else "@" + near
     if country:
         params["gl"] = country.lower()
     if lang:
@@ -220,7 +318,7 @@ def _serpapi(q, country, lang, n, maps, purpose=""):
             for o in d.get("organic_results", [])]
 
 
-def _deepseek(q, country, lang, n, maps, purpose=""):
+def _deepseek(q, country, lang, n, maps, purpose="", page=1, near=""):
     """api-docs.deepseek.com/guides/search: query <= 128 chars with operators (site:, "...",
     lang:), count 1-50, ori_question = the intent; results carry a long summary, a rerank score
     (>= 1.5 good) and an authority tier."""
@@ -234,13 +332,15 @@ def _deepseek(q, country, lang, n, maps, purpose=""):
     r = httpx.post("https://api.deepseek.com/v1/tools/search", json=body,
                    headers={"Authorization": "Bearer " + mo_config.key("deepseek")}, timeout=40)
     _check_money("deepseek", r, "search")
-    return [{"title": o.get("title"), "url": o.get("url"),
+    rows = [{"title": o.get("title"), "url": o.get("url"),
              "snippet": " ".join(x for x in (o.get("snippet"), o.get("summary")) if x)[:900],
              "score": o.get("rerank_score")}
             for o in r.json().get("results", [])]
+    # best first by DeepSeek's own relevance (rerank_score >= 1.5 is a good match)
+    return sorted(rows, key=lambda x: -(x["score"] if isinstance(x.get("score"), (int, float)) else 0))
 
 
-def _tinyfish(q, country, lang, n, maps, purpose=""):
+def _tinyfish(q, country, lang, n, maps, purpose="", page=1, near=""):
     """docs.tinyfish.ai/search-api: without location / language it searches as US / English;
     `purpose` (the goal) improves ranking; 30 requests a minute by default."""
     if maps:
@@ -252,6 +352,8 @@ def _tinyfish(q, country, lang, n, maps, purpose=""):
         params["language"] = lang.lower()
     if purpose:
         params["purpose"] = purpose[:2000]
+    if page > 1:
+        params["page"] = min(10, page - 1)
     RATE.wait("tinyfish:search")
     r = httpx.get("https://api.search.tinyfish.ai", params=params,
                   headers={"X-API-Key": mo_config.key("tinyfish")}, timeout=40)
@@ -273,13 +375,18 @@ SEARCH_GRACE = 5.0   # seconds the slower engines get after the first answer
 
 
 def search(query: str, engines=None, country: str = "", lang: str = "", n: int = 10,
-           maps: bool = False, project_dir=None, weights: dict | None = None) -> dict:
+           maps: bool = False, project_dir=None, weights: dict | None = None, page: int = 1,
+           near: str = "") -> dict:
     purpose = ""
     if project_dir is not None:
         import mo_workspace
         loc = mo_workspace.locale(project_dir)
         country, lang, purpose = country or loc["country"], lang or loc["language"], loc["purpose"]
     available = [e for e in (engines or SEARCH_ENGINES) if e in _SEARCH and mo_config.key(e)]
+    if not available:
+        return {"query": query, "results": [], "routes": {},
+                "error": "no search engine has a usable key: search with your host's own web search, "
+                         "then read what you find with fetch(project, url, org_id=...)"}
     if engines or weights is None:
         wanted, held = available, []
     else:
@@ -288,7 +395,7 @@ def search(query: str, engines=None, country: str = "", lang: str = "", n: int =
 
     def one(engine):
         import mo_library
-        key = [engine, query, country, lang, n, maps]
+        key = [engine, query, country, lang, n, maps] + ([page, near] if page > 1 or near else [])
         cached = mo_library.get_search(key)
         if cached is not None:   # asked before by any project: free
             return engine, cached, ""
@@ -296,7 +403,7 @@ def search(query: str, engines=None, country: str = "", lang: str = "", n: int =
         if not ok:
             return engine, None, why
         try:
-            rows = _again(lambda: _SEARCH[engine](query, country, lang, n, maps, purpose))
+            rows = with_slots(engine, lambda: _again(lambda: _SEARCH[engine](query, country, lang, n, maps, purpose, page, near)))
             mo_budget.record(project_dir, engine, "search", True, query[:80])
             mo_library.put_search(key, rows)
             return engine, rows, ""
@@ -368,7 +475,7 @@ class _Browser:
         from crawl4ai import CacheMode, CrawlerRunConfig
         cfg = CrawlerRunConfig(cache_mode=CacheMode.BYPASS, page_timeout=timeout * 1000,
                                verbose=False, delay_before_return_html=1.0)
-        with self.slots:
+        with self.slots, GATE.hold("crawl4ai:tabs", BROWSER_TABS):   # tabs of every process together
             result = asyncio.run_coroutine_threadsafe(self.crawler.arun(url, config=cfg),
                                                       self.loop).result(timeout + 30)
         if not result.success:
@@ -402,9 +509,69 @@ def _read_tinyfish(url):
             "text": "" if is_html else str(body), "title": rows[0].get("title")}
 
 
+def prefetch_tinyfish(urls: list[str], project_dir=None) -> dict[str, dict]:
+    """TinyFish Fetch takes up to 10 URLs in one request and reads them in parallel on its side
+    (docs.tinyfish.ai/fetch-api): a miner's batch of entry pages costs one paced request instead
+    of ten. Returns {url: reader result} for the pages that came back with text."""
+    if not mo_config.key("tinyfish") or not mo_budget.allowed("tinyfish", "fetch")[0]:
+        return {}
+    out: dict[str, dict] = {}
+    for i in range(0, len(urls), 10):
+        chunk = [public_url(u) for u in urls[i:i + 10]]
+        RATE.wait("tinyfish:fetch")
+        def batch(chunk=chunk):
+            r = httpx.post("https://api.fetch.tinyfish.ai",
+                           json={"urls": chunk, "format": "html", "per_url_timeout_ms": 35000},
+                           headers={"X-API-Key": mo_config.key("tinyfish")}, timeout=60)
+            _check_money("tinyfish", r, "fetch")
+            return r.json().get("results") or []
+        try:
+            rows = with_slots("tinyfish", batch)
+        except Exception as exc:  # noqa: BLE001 - the normal readers take over
+            mo_budget.record(project_dir, "tinyfish", "fetch", False, f"batch: {type(exc).__name__}: {exc}"[:120])
+            continue
+        mo_budget.record(project_dir, "tinyfish", "fetch", True, f"batch x{len(chunk)}")
+        for row in rows:
+            body = row.get("text") or ""
+            if not str(body).strip():
+                continue
+            is_html = isinstance(body, str) and "<" in body[:2000]
+            url = row.get("url") or row.get("final_url") or ""
+            out[url] = {"final_url": row.get("final_url") or url, "html": body if is_html else "",
+                        "text": "" if is_html else str(body), "title": row.get("title")}
+    return out
+
+
+FACEBOOK = re.compile(r"^https?://(?:[a-z]+\.)?facebook\.com/(?:profile\.php\?id=(\d+)|([^/?#]+))", re.I)
+
+
+def _read_facebook(url):
+    """A club or venue that only has a Facebook page: SerpApi's facebook_profile engine returns
+    the page's public profile fields (email, phone, website, address) - Facebook itself shows
+    nothing to a reader that is not logged in."""
+    m = FACEBOOK.match(url)
+    if not m or (m.group(2) or "").lower() in ("pages", "groups", "events", "sharer", "share", "people"):
+        raise ProviderError("not a Facebook profile URL")
+    r = httpx.get("https://serpapi.com/search.json", timeout=60,
+                  params={"engine": "facebook_profile", "profile_id": m.group(1) or m.group(2),
+                          "api_key": mo_config.key("serpapi")})
+    _check_money("serpapi", r)
+    prof = (r.json() or {}).get("profile_results") or {}
+    if not prof:
+        raise ProviderError("no profile")
+    lines = [f"# {prof.get('name') or ''}"]
+    for k in ("category", "intro", "address", "phone", "email", "website", "profile_type"):
+        v = prof.get(k)
+        if v:
+            lines.append(f"{k}: {v if not isinstance(v, list) else ', '.join(map(str, v))}")
+    return {"final_url": url, "html": "", "text": "\n".join(lines), "title": prof.get("name") or ""}
+
+
 def _read_deepseek(url):
     r = httpx.post("https://api.deepseek.com/v1/tools/fetch", json={"url": url},
                    headers={"Authorization": "Bearer " + mo_config.key("deepseek")}, timeout=40)
+    if r.status_code == 404:   # DeepSeek got no usable Markdown (blocked, unsupported type...), not a dead page
+        raise ProviderError("no text (DeepSeek fetch 404)")
     _check_money("deepseek", r, "fetch")
     content = (r.json() or {}).get("content") or ""
     if not content.strip():
@@ -427,31 +594,122 @@ def download(url: str, max_bytes: int = 60_000_000) -> dict:
                 "bytes": b"".join(chunks)}
 
 
-_READ = {"crawl4ai": _read_crawl4ai, "tinyfish": _read_tinyfish, "deepseek": _read_deepseek}
+def _read_http(url):
+    """The last resort: a plain GET, no JavaScript. Static pages read fine; script-built ones
+    come back thin."""
+    with httpx.Client(headers={"User-Agent": UA, "Accept-Language": "fr,en;q=0.8,de;q=0.6"}, timeout=20,
+                      follow_redirects=True) as c:
+        r = c.get(url)
+    if r.status_code >= 400:
+        wait = r.headers.get("retry-after", "")
+        raise ProviderError(f"HTTP {r.status_code}" + (f" retry-after={wait}" if wait.isdigit() else ""))
+    body = r.text or ""
+    if len(body.strip()) < 200:
+        raise ProviderError("no text")
+    return {"final_url": str(r.url), "html": body, "text": ""}
+
+
+_READ = {"crawl4ai": _read_crawl4ai, "tinyfish": _read_tinyfish, "deepseek": _read_deepseek, "http": _read_http,
+         "facebook": _read_facebook}
+
+
+def capabilities() -> dict:
+    """What the plugin can do right now, and how far it has stepped down. Every tool is optional;
+    losing one costs speed or depth, never the whole job:
+      full     - a Google engine (Serper or SerpApi) plus another engine, two or more readers, Jev
+      reduced  - something missing (slower search, fewer readers, or rules + agents grading)
+      minimal  - no search engine (agents use the host's web search) or only plain HTTP reading
+    """
+    import mo_budget
+    search = [e for e in SEARCH_ENGINES if mo_config.key(e) and mo_budget.allowed(e, "search")[0]]
+    readers = available_readers()
+    jev = mo_budget.jev_ready()
+    missing, effects = [], []
+    if not any(e in search for e in ("serper", "serpapi")):
+        missing.append("serper/serpapi")
+        effects.append("no Google engine (Serper / SerpApi): no maps search, and site: / exact-phrase digging leans on DeepSeek and TinyFish")
+    if not search:
+        effects.append("no search engine: agents search with the host's own web search, then fetch()")
+    if not crawl4ai_installed():
+        missing.append("crawl4ai")
+        effects.append("pages are read by TinyFish / DeepSeek / plain HTTP only (run install.sh to add Crawl4AI)")
+    if readers == ["http"]:
+        effects.append("only plain HTTP reading: pages built by JavaScript come back thin")
+    if not jev:
+        missing.append("jev")
+        effects.append("grading: rules grade what they can, agents grade the rest with grade(set=...) - slower, more agent tokens")
+    if not mo_config.key("tinyfish"):
+        missing.append("tinyfish")
+    if not mo_config.key("deepseek"):
+        missing.append("deepseek")
+    level = "minimal" if (not search or readers == ["http"]) else (
+        "full" if any(e in search for e in ("serper", "serpapi")) and len(search) >= 2 and len(readers) >= 2 and jev
+        else "reduced")
+    return {"level": level, "search": search, "read": readers, "grade": "jev + rules" if jev else "rules + agents",
+            "missing": missing, "effects": effects}
+
+
+_HAS_CRAWL4AI: list = []
+
+
+def crawl4ai_installed() -> bool:
+    if not _HAS_CRAWL4AI:
+        import importlib.util
+        _HAS_CRAWL4AI.append(importlib.util.find_spec("crawl4ai") is not None)
+    return _HAS_CRAWL4AI[0]
 
 
 def available_readers(readers=None) -> list[str]:
-    return [r for r in (readers or READERS) if r in _READ and (r == "crawl4ai" or mo_config.key(r))]
+    """Readers that can run here: Crawl4AI when installed, TinyFish and DeepSeek with a usable
+    key. With none of them, the plain HTTP reader (no JavaScript) - reading degrades, never stops."""
+    out = [r for r in (readers or READERS) if r in _READ and
+           ((r == "crawl4ai" and crawl4ai_installed()) or r == "http"
+            or (r == "facebook" and mo_config.key("serpapi"))
+            or (r not in ("crawl4ai", "http", "facebook") and mo_config.key(r)))]
+    return out or ["http"]
 
 
-def read(url: str, readers=None, project_dir=None) -> dict:
-    """Read one page with several readers at once. {reader: result or {"error": ...}}."""
+def read(url: str, readers=None, project_dir=None, force: bool = False) -> dict:
+    """Read one page with several readers at once. {reader: result or {"error": ...}}.
+    Site health (mo_health) sets aside pages and sites that failed repeatedly and readers a
+    site blocks; force=True reads anyway (fetch(refresh=True))."""
+    import mo_health
     wanted = available_readers(readers)
     out = {}
 
     def one(reader):
-        ok, why = mo_budget.allowed(reader, "fetch")
+        ok, why = mo_budget.allowed("serpapi" if reader == "facebook" else reader, "fetch")
         if not ok:
             return reader, {"error": "skipped: " + why}
+        aside = "" if force or not mo_health.enabled() else mo_health.HEALTH.skip(url, reader)
+        if aside:
+            return reader, {"error": "skipped: " + aside}
         try:
             # a page that timed out in the browser is not read again (it already took 30 s)
-            res = _again(lambda: _READ[reader](url), transient=TRANSIENT_FAST if reader == "crawl4ai" else TRANSIENT)
-            mo_budget.record(project_dir, reader, "fetch", True, url[:120])
+            # every reader puts load on the page's own site (TinyFish and DeepSeek fetch it too):
+            # all of them share the host's slots; Facebook goes through SerpApi, not the site
+            host = "" if reader == "facebook" else (urllib.parse.urlsplit(url).hostname or "").lower()
+            try:
+                with GATE.hold("host:" + host, HOST_CAP, HOST_INTERVAL) if host else _nullcontext():
+                    res = with_slots("serpapi" if reader == "facebook" else reader,
+                                     lambda: _again(lambda: _READ[reader](url),
+                                                    transient=TRANSIENT_FAST if reader == "crawl4ai" else TRANSIENT))
+            except ProviderError as exc:
+                busy = BUSY.search(str(exc))
+                if busy and host:
+                    GATE.back_off("host:" + host, float(busy.group(2) or 30))
+                raise
+            mo_budget.record(project_dir, "serpapi" if reader == "facebook" else reader,
+                             "search" if reader == "facebook" else "fetch", True, url[:120])
+            if mo_health.enabled():
+                mo_health.HEALTH.record(url, reader, True)
             return reader, res
         except Exception as exc:  # noqa: BLE001 - each reader fails on its own
             # keep the reason ("no text", "HTTP 403", a timeout) so failures can be told apart later
             mo_budget.record(project_dir, reader, "fetch", False,
                              mo_config.scrub(f"{type(exc).__name__}: {exc}")[:80] + " | " + url[:80])
+            if mo_health.enabled():
+                mo_health.HEALTH.record(url, reader, False, f"{type(exc).__name__}: {exc}")
             return reader, {"error": mo_config.scrub(f"{type(exc).__name__}: {exc}")[:160]}
 
     with ThreadPoolExecutor(max_workers=3) as pool:
@@ -472,13 +730,14 @@ def _pool(name: str) -> ThreadPoolExecutor:
         return _POOLS[name]
 
 
-def read_race(url: str, readers=None, project_dir=None, grace: float = 3.0, on_late=None) -> dict:
+def read_race(url: str, readers=None, project_dir=None, grace: float = 3.0, on_late=None, force: bool = False) -> dict:
     """Every reader at once; return when the first one has the page (plus `grace` seconds for
     the rest), so a page is as fast as its fastest reader. Readers still running finish in
     the background and hand their result to on_late(reader, result): nothing is lost."""
     import time
     from concurrent.futures import FIRST_COMPLETED, wait
-    futs = {_pool(r).submit(read, url, [r], project_dir): r for r in available_readers(readers)}
+    extra = {"force": True} if force else {}
+    futs = {_pool(r).submit(read, url, [r], project_dir, **extra): r for r in available_readers(readers)}
 
     def result(f, reader):
         try:
@@ -558,18 +817,45 @@ def tinyfish_mcp(tool: str, args: dict, timeout: float = 60):
     return box["v"]
 
 
-def agent_submit(url: str, goal: str) -> str:
+AGENT_PROXY_COUNTRIES = {"US", "GB", "CA", "DE", "FR", "JP", "AU"}   # docs.tinyfish.ai/key-concepts/proxies
+AGENT_MAX_STEPS = 40          # a contact page needs a handful of clicks; the default (150) is a budget leak
+AGENT_MAX_SECONDS = 300
+CONTACTS_SCHEMA = {   # docs.tinyfish.ai/key-concepts/structured-output: the schema is the contract
+    "type": "object",
+    "properties": {"contacts": {"type": "array", "maxItems": 60, "items": {
+        "type": "object",
+        "properties": {"role": {"type": "string", "nullable": True}, "name": {"type": "string", "nullable": True},
+                       "email": {"type": "string", "nullable": True}, "phone": {"type": "string", "nullable": True}},
+        "required": ["email"]}}},
+    "required": ["contacts"]}
+
+
+def agent_submit(url: str, goal: str, country: str = "", stealth: bool = False) -> str:
+    """TinyFish Agent (REST /v1/automation/run-async): one site per run, a step and time cap, the
+    output shape as a schema, the site's own country as the exit when it is supported (regional
+    blocks), the stealth browser for bot-protected pages."""
     ok, why = mo_budget.allowed("tinyfish", "agent")
     if not ok:
         raise ProviderError("TinyFish skipped: " + why)
-    import uuid
-    # TinyFish requires a fresh session id per run (a reused one could replay a run).
-    res = tinyfish_mcp("run_web_automation_async", {"url": url, "goal": goal, "session_id": str(uuid.uuid4())})
-    run_id = res.get("run_id") or res.get("id") or (res.get("run") or {}).get("id")
-    if not run_id:
-        raise ProviderError("TinyFish gave no run id: " + str(res)[:160])
-    return str(run_id)
+    body = {"url": url, "goal": goal, "browser_profile": "stealth" if stealth else "lite",
+            "agent_config": {"max_steps": AGENT_MAX_STEPS, "max_duration_seconds": AGENT_MAX_SECONDS},
+            "output_schema": CONTACTS_SCHEMA, "api_integration": "marketops"}
+    if country.upper() in AGENT_PROXY_COUNTRIES:
+        body["proxy_config"] = {"enabled": True, "country_code": country.upper()}
+    def submit():
+        r = httpx.post("https://agent.tinyfish.ai/v1/automation/run-async", json=body,
+                       headers={"X-API-Key": mo_config.key("tinyfish")}, timeout=60)
+        _check_money("tinyfish", r, "agent")
+        return r.json() or {}
+    res = with_slots("tinyfish", submit)
+    if not res.get("run_id"):
+        raise ProviderError("TinyFish gave no run id: " + str(res.get("error") or res)[:160])
+    return str(res["run_id"])
 
 
 def agent_status(run_id: str) -> dict:
-    return tinyfish_mcp("get_run", {"id": run_id})
+    r = httpx.get(f"https://agent.tinyfish.ai/v1/runs/{run_id}", headers={"X-API-Key": mo_config.key("tinyfish")},
+                  timeout=60)
+    if r.status_code >= 400:
+        raise ProviderError(f"HTTP {r.status_code}")
+    return r.json() or {}

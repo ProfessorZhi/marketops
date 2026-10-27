@@ -21,11 +21,13 @@ import re
 import time
 import urllib.parse
 
+import mo_budget
 import mo_config
 import mo_export
 import mo_grade
 import mo_pages
 import mo_providers
+import mo_knowledge
 import mo_tasks
 import mo_workspace as ws
 from mo_pool import mentions as _mentions, name_words as _name_words
@@ -51,14 +53,17 @@ def measure(pdir, shard: tuple[int, int] = (0, 1)) -> dict:
     return mo_export.metrics(_mine(ws.read_csv(pdir / "orgs.csv"), shard), emails)
 
 
-def _queries(org: dict, rnd: int, terms: list[str], dir_terms: list[str]) -> list[tuple[str, bool]]:
-    """The searches for one organisation in round rnd: each round digs a different way.
+def _queries(org: dict, rnd: int, terms: list[str], dir_terms: list[str],
+             order: list[str] | None = None) -> list[tuple[str, bool]]:
+    """The searches for one organisation in round rnd: each round digs a different way, in the
+    order that has worked best for this market and kind of organisation (mo_knowledge).
     Returns (query, maps)."""
     name = str(org.get("name") or "").strip()
     site = mo_pages.site_of(str(org.get("website") or ""))
     city = str(org.get("city") or "").strip()
     q = f'"{name}"' if name else ""
-    kind = (rnd - 1) % 4
+    kinds = list(order or mo_knowledge.DIG_KINDS)
+    kind = mo_knowledge.DIG_KINDS.index(kinds[(rnd - 1) % len(kinds)])
     if kind == 0:   # the organisation with the market's own words for the people wanted
         return [(" ".join(x for x in (q, city, t) if x), False) for t in terms[:4]]
     if kind == 1:   # inside its own site, PDFs included (address lists, staff lists, minutes)
@@ -77,7 +82,7 @@ def _queries(org: dict, rnd: int, terms: list[str], dir_terms: list[str]) -> lis
 def _rank(pdir, org: dict, hits: list[dict]) -> list[dict]:
     """Jev puts the leads most likely to name this organisation's people first. Order only:
     nothing is dropped here."""
-    if len(hits) < 2 or not mo_config.key("jev"):
+    if len(hits) < 2 or not mo_budget.jev_ready():
         return hits
     try:
         import typesafe_sdk as sdk
@@ -90,7 +95,6 @@ def _rank(pdir, org: dict, hits: list[dict]) -> list[dict]:
                       "unlikely": "no, news, other organisations or general content"})
             for k in range(len(hits))}
         resp = mo_grade._jev({"organisation": str(org.get("name")), "pages": listing}, qs)
-        import mo_budget
         mo_budget.record(pdir, "jev", "grade", True, f"rank leads x{len(hits)}")
         choices = mo_grade.answers(resp)
 
@@ -122,7 +126,8 @@ def _playbook_queries(org: dict, templates: list[str]) -> list[tuple[str, bool]]
 
 
 def _leads(pdir, org: dict, rnd: int, terms: list[str], dir_terms: list[str], engines: list[str] | None,
-           per_org: int = 8, rank: bool = True, playbook_queries: list[str] | None = None) -> list[str]:
+           per_org: int = 8, rank: bool = True, playbook_queries: list[str] | None = None,
+           order: list[str] | None = None) -> list[str]:
     """Pages worth reading for one organisation: its own pages and PDFs, and other sites
     whose result mentions it (directories, federation and council pages)."""
     name = str(org.get("name") or "").strip()
@@ -131,7 +136,8 @@ def _leads(pdir, org: dict, rnd: int, terms: list[str], dir_terms: list[str], en
     found: dict[str, dict] = {}
     weights = ws.weights(pdir, "search")
     # round 1 starts with what agents learned works for this kind of organisation
-    planned = (_playbook_queries(org, playbook_queries or []) if rnd == 1 else []) + _queries(org, rnd, terms, dir_terms)
+    planned = (_playbook_queries(org, playbook_queries or []) if rnd == 1 else []) + \
+        _queries(org, rnd, terms, dir_terms, order)
     for query, maps in planned:
         try:
             res = mo_providers.search(query, None, n=8, maps=maps, project_dir=pdir, weights=weights)
@@ -270,25 +276,38 @@ def _corroborate(pdir, org: dict, weights: dict, most: int = 3) -> int:
         return sum(pool.map(one, todo))
 
 
+def mo_budget_allowed(provider: str) -> bool:
+    return mo_budget.allowed(provider)[0]
+
+
 class _Grader:
     """One background grader per run: whatever new addresses the organisations produce are
     graded together in batches (Jev stays efficient while the pipeline keeps moving)."""
 
-    def __init__(self, pdir):
+    def __init__(self, pdir, only: set | None = None):
         import threading
         self.pdir, self.stop, self.busy = pdir, threading.Event(), threading.Lock()
+        # a batch grades its own organisations only: batches of different agents never grade
+        # the same rows, and one never waits on another's
+        self.only = {str(i) for i in only} if only else None
         self.kick = threading.Event()
-        self.enabled = bool(mo_config.key("jev"))   # no Jev: nothing to wait for, the agent grades later
+        self.enabled = bool(mo_config.slots("jev"))   # no Jev: nothing to wait for, the agent grades later
         self.thread = threading.Thread(target=self._loop, daemon=True, name="grader")
 
     def _pending(self) -> bool:
+        if self.only is not None:
+            return any(c.get("kind") == "email" and not c.get("grade")
+                       for oid in self.only for c in ws.contacts_of(self.pdir, oid))
         return any(c.get("kind") == "email" and not c.get("grade") for c in ws.read_contacts(self.pdir))
 
     def grade_now(self) -> None:
         with self.busy:
             try:
                 import fcntl
-                fh = open(self.pdir / "grade.lock", "a")
+                import hashlib
+                name = "grade.lock" if self.only is None else \
+                    "grade." + hashlib.sha256("|".join(sorted(self.only)).encode()).hexdigest()[:10] + ".lock"
+                fh = open(self.pdir / name, "a")
                 try:
                     fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 except OSError:
@@ -298,7 +317,7 @@ class _Grader:
                 fh = None
             try:
                 if self._pending():
-                    mo_grade.auto(self.pdir)
+                    mo_grade.auto(self.pdir, orgs=self.only)
             finally:
                 if fh is not None:
                     fh.close()
@@ -313,7 +332,9 @@ class _Grader:
             self.kick.clear()
 
     def wait_for(self, oid: str, timeout: int = 90) -> None:
-        if not self.enabled:
+        # no usable Jev key (none, or every slot used up): nothing will be graded, do not wait -
+        # the rows stay ungraded for later and the organisation moves on
+        if not self.enabled or not mo_budget.jev_ready():
             return
         deadline = time.time() + timeout
         while time.time() < deadline:
@@ -372,6 +393,7 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
     dir_terms = focus.get("directory_terms") or DEFAULT_DIRECTORY_TERMS
     weights = ws.weights(pdir, "search")
     target = max(1, int(b.get("routes_per_org") or ROUTES_PER_ORG))
+    country = str(b.get("country") or "")
     # Ablation: switch stages off to measure what each one brings (brief.ablate).
     off = set(b.get("ablate") or [])
     mine = {str(o.get("id") or o.get("org_id") or "") for o in _mine(ws.read_csv(pdir / "orgs.csv"), sh)}
@@ -383,10 +405,9 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
         {r["org_id"] for r in ws.read_csv(pdir / "crawl.csv") if r.get("pass") == "final" and r["org_id"] in mine}
     flow = {"queued": 0, "site": 0, "grading": 0, "digging": 0, "evidence": 0, "done": len(finished)}
     agent_budget = [AGENT_PAGES_PER_ROUND * max(1, rounds // 2)]
-    import mo_budget
     t0, spent0 = time.time(), sum(v["usd"] for v in mo_budget.summary(pdir).values())
     ab0 = measure(pdir, sh).get("ab_routes", 0)
-    grader = _Grader(pdir)
+    grader = _Grader(pdir, batch or None)
     grader.thread.start()
     goal_hit = [False]
 
@@ -435,13 +456,16 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
         mark("grade_wait")
         move("grading", "digging")
         dry = 0
+        seg = ws.segment_of(org)
+        learn = mo_knowledge.enabled()
+        order = mo_knowledge.KNOWLEDGE.dig_order(country, seg) if learn else list(mo_knowledge.DIG_KINDS)
         for rnd in range(1, 0 if "dig" in off else rounds + 1):
             have = _ab_count(pdir, oid)
             if stopping() or have >= target:
                 break
             before = len(_emails_of(pdir, oid))
             leads = _leads(pdir, org, rnd, hints["roles"] + terms, dir_terms, None, rank="rank" not in off,
-                           playbook_queries=hints["queries"])
+                           playbook_queries=hints["queries"], order=order)
             if leads:
                 ws.append_csv(pdir / "crawl.csv", ws.CRAWL_COLS,
                               ws._crawl_one(pdir, org, deep_pages, None, leads, f"deep{rnd}"))
@@ -452,8 +476,12 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
             # Bruce: 3-5 key-role addresses per organisation, at least one, "不能硬3-5个降低效率" -
             # with one A/B already, a round that adds no further A/B ends the dig.
             now = _ab_count(pdir, oid)
+            if learn:   # which kind of search found an A/B here, for the next organisations and projects
+                mo_knowledge.KNOWLEDGE.record_dig(country, seg, order[(rnd - 1) % len(order)], now > have)
             if dry >= 2 or (have >= 1 and now == have):
                 break
+        if learn and (hints["paths"] or hints["queries"]):   # did the playbook lead somewhere
+            mo_knowledge.KNOWLEDGE.record_use(country, seg, _has_ab(pdir, oid))
         if agent and not _has_ab(pdir, oid) and mo_config.key("tinyfish"):
             for _oid_, url in _button_pages(pdir, {oid}):
                 if agent_budget[0] <= 0:
@@ -524,6 +552,7 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
     submitted, futures = set(finished), []
     waiting: dict[str, list] = {}   # source -> organisations not yet started
     last_new, last_snap, last_export = time.time(), 0.0, time.time()
+    last_watch = [time.time()]
     with ThreadPoolExecutor(max_workers=workers) as pool:
         while True:
             if not stopping():
@@ -560,6 +589,12 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
                     waiting.setdefault(_source(org), []).append(org)
                 state["source_yield"] = {src: {"done": d, "with_ab": a, "turns": _turns((d, a))}
                                          for src, (d, a) in yields.items()}
+                for src, (d, a) in yields.items():
+                    if _turns((d, a)) == 0:
+                        import mo_journal
+                        mo_journal.auto(pdir, f"source:{src}", f"source '{src}': A/B for {a} of {d} organisations "
+                                        f"(under 5%) - moved to the back; a better source is worth looking for",
+                                        "source_yield", every_s=10 ** 9)
             else:
                 futures = prune(futures)
             # organisations waiting for an agent to hand them back keep the run alive (a stale claim
@@ -571,6 +606,10 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
                 last_snap = time.time()
                 m = snapshot()
                 ws.snapshot_contacts(pdir)
+                if time.time() - last_watch[0] > 300:   # a provider failing far more than usual
+                    last_watch[0] = time.time()
+                    import mo_journal
+                    mo_journal.watch(pdir)
                 if time.time() - last_export > 1800:   # long runs: a fresh workbook every half hour
                     last_export = time.time()
                     mo_export.export(pdir)
@@ -711,10 +750,14 @@ def _shard_cmd(name: str, k: int, shards: int, opts: dict) -> list[str]:
 MAX_RESTARTS = 5
 
 
-def supervise(pdir, shards: int, opts: dict, poll: float = 15.0) -> dict:
+def supervise(pdir, shards: int, opts: dict, poll: float = 15.0, clear_stop: bool = True) -> dict:
     """Keep every shard running until it is done or a stop is asked: a shard that dies (crash,
     kill, lost machine) is started again and resumes where it was - finished organisations
     are skipped. Bruce's most frequent complaint was work that stopped by itself."""
+    if clear_stop:
+        # a STOP left by an earlier run (shards ending together each saw the others alive and none
+        # removed it) must not end this one before it starts
+        (pdir / "STOP").unlink(missing_ok=True)
     import os
     import subprocess
     env = dict(os.environ, MARKETOPS_PROJECTS=str(pdir.parent))
@@ -754,6 +797,10 @@ def supervise(pdir, shards: int, opts: dict, poll: float = 15.0) -> dict:
             log.write(f"\n[supervisor {ws._now()}] shard {k} ended without finishing "
                       f"({st.get('stage') or 'no state'}); restart {restarts[k]}\n")
             log.flush()
+            import mo_journal
+            mo_journal.auto(pdir, f"restart:{k}:{restarts[k]}", f"shard {k} ended without finishing "
+                            f"({st.get('stage') or 'no state'}: {str(st.get('error') or '')[:160]}); restarted",
+                            "supervisor.log")
             st.update(restarts=restarts[k], done=False)
             _save_state(pdir, st if st.get("file") else {**st, "file": "run.json" if shards == 1 else f"run.{k}.json"})
             start(k)

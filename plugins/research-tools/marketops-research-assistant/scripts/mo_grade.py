@@ -15,22 +15,26 @@ import mo_config
 import mo_workspace as ws
 from mo_pool import common_words, mentions
 
-# Bruce's grading contract (fjd-email-role-qualification), used when the brief has none.
+# Bruce's grading table (written by him on 2026-09-05; A_key_role ... D_official_general_research_entry),
+# used when the brief has none. Worded for the grounds / facilities lines it came from; a brief
+# for another product puts that product's function in its place.
 DEFAULT_GRADES = {
-    "A": "A named person who decides on or owns the venue, grounds or pitch maintenance, or the "
-         "purchase: head of grounds/facilities/estates, sports department head, club president or "
-         "the board member responsible for the ground. Their own email.",
-    "B": "Anyone in the organisation's leadership or operations who can act on or forward a "
-         "grounds/pitch enquiry: groundsman, pitch/site/venue/operations manager, caretaker "
-         "(Platzwart, Hauswart), infrastructure lead, other board or committee members, club "
-         "secretary or manager; or a role mailbox for that function (grounds@, facilities@, "
-         "platz@, vorstand@, infrastruktur@).",
-    "C": "An official entry of the organisation that reaches a team rather than a person: "
-         "bookings/hire, sports office, department inbox, administration of the facility.",
-    "D": "A generic official inbox (info@, office@, contact@, secretariat) - still a usable "
-         "first contact.",
-    "X": "Clearly not a route for this organisation: another company's address (sponsor, web "
-         "designer, partner), no-reply, press only, or a private person with no role here.",
+    "A": "A named key person who decides, evaluates technically, buys, or runs the operation the "
+         "product serves (head of grounds / facilities / estates, sports department head, club "
+         "president, the board member for the ground). Name, role, organisation and this address "
+         "are tied together on an official page.",
+    "B": "An operator role for that function - grounds, facilities, estates, maintenance, sport "
+         "facilities, site, operations, projects (groundsman, site / venue manager, caretaker, "
+         "Platzwart, club secretary) - whose real work address stands in the same official record "
+         "as the role. A name is not required.",
+    "C": "That function's department inbox, official for this organisation: grounds@, facilities@, "
+         "estates@, sport@, booking@, maintenance@ - a usable entry, not a named contact.",
+    "D": "A general official inbox: office@, info@, enquiries@, reception@, admin@, contact@. The "
+         "page need not say it handles the venue; it is labelled D, never presented as a person.",
+    "X": "Excluded: functions unrelated to the product's use or purchase - admissions, attendance, "
+         "courses, safeguarding, student or parent services, HR, finance, marketing, PR, press, "
+         "no-reply; another company's address (sponsor, web designer, partner); a private person "
+         "with no role here; anything inferred, guessed or malformed.",
 }
 
 
@@ -40,9 +44,30 @@ def rubric(pdir) -> dict:
 
 
 def _jev(state: dict, questions: dict):
+    """One Jev request; a key refused for money or as invalid is set aside and the same request
+    goes out again at once with the next key slot."""
+    tried = set()
+    while True:
+        key = mo_config.key("jev")
+        tried.add(key)
+        try:
+            return _jev_once(state, questions, key)
+        except Exception as exc:  # noqa: BLE001
+            text = f"{type(exc).__name__} {exc}".lower()
+            if "402" in text or "quota" in text or "credit" in text or "payment" in text:
+                mo_budget.mark_exhausted("jev", "Jev refused for money")
+            elif "401" in text or "unauthorized" in text or "invalid api key" in text:
+                mo_budget.mark_exhausted("jev", "Jev refused the key")
+            else:
+                raise
+            if not mo_config.key("jev") or mo_config.key("jev") in tried:
+                raise
+
+
+def _jev_once(state: dict, questions: dict, key: str):
     import typesafe_sdk as sdk
     with sdk.TypeSafeClient(
-            api_key=mo_config.key("jev"), timeout=120,
+            api_key=key, timeout=120,
             model=os.environ.get("MARKETOPS_JEV_MODEL") or None,
             ) as client:   # the SDK's default retry backs off on 429 / 529 (docs.typesafe.ai)
         return client.system_one(state, questions)
@@ -70,13 +95,18 @@ def _address_words(email: str) -> str:
     return " ".join(w for w in re.split(r"[._\-+0-9]+", local) if len(w) > 1)
 
 
-def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: int = 8) -> dict:
-    """Jev grades the email candidates that have no grade yet (or all, with regrade). limit 0 = all."""
-    if not mo_config.key("jev"):
-        return {"graded": 0, "note": "no Jev key: read the quotes and set grades with grade(set=[...])"}
-    import typesafe_sdk as sdk
-    from concurrent.futures import ThreadPoolExecutor
+def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: int = 8,
+         orgs: set | list | None = None) -> dict:
+    """Grade the email candidates that have no grade yet (or all, with regrade). limit 0 = all.
+    orgs: only these organisations' rows - an agent grades its own package and never waits on, or
+    pays twice for, rows another agent's package is grading.
+
+    Rules first, at no cost: the brief's address rules, an organisation's own plain inbox (D) and
+    an address that has nothing to do with the organisation (X: neither its page, its domain nor
+    its name). Jev grades the rest - only the rows that need judgement. Without Jev the rules still
+    run and the rest waits for agents (grade(set=[...]))."""
     rows = ws.read_contacts(pdir)
+    jev = mo_budget.jev_ready()
     import mo_pages
     org_site = {str(o.get("id") or o.get("org_id") or ""): mo_pages.site_of(str(o.get("website") or ""))
                 for o in ws.read_csv(pdir / "orgs.csv")}
@@ -88,8 +118,9 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: 
             site = org_site.get(r.get("org_id"))
             holders.setdefault(r["value"].lower(), set()).add(site if site and site not in portals else r.get("org_id"))
     common = common_words([str(o.get("name") or "") for o in ws.read_csv(pdir / "orgs.csv")])
+    only = {str(o) for o in orgs} if orgs else None
     todo = [r for r in rows if r.get("kind") == "email" and not r.get("graded_by", "").startswith("agent")
-            and (regrade or not r.get("grade"))]
+            and (regrade or not r.get("grade")) and (only is None or str(r.get("org_id")) in only)]
     if limit:
         todo = todo[:limit]
     fields = ["grade", "graded_by", "grade_reason", "review", "review_reason"]
@@ -100,8 +131,11 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: 
     by_rule, reused, first, copies = [], [], {}, []
     for r in todo:
         g = ws.address_rule(pdir, r.get("value", ""))
+        why = f"address rule: {g}"
+        if not g:
+            g, why = _rule_grade(r, common)
         if g:
-            r.update(grade=g, graded_by="rule", grade_reason=f"address rule: {g}", review="", review_reason="")
+            r.update(grade=g, graded_by="rule", grade_reason=why, review="", review_reason="")
             by_rule.append(r)
         elif _same(r) in known:
             r.update({f: known[_same(r)].get(f, "") for f in fields})
@@ -111,6 +145,12 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: 
         else:
             first[_same(r)] = r
     todo = list(first.values())
+    if not jev:   # no Jev: the rules' grades stand, the rest waits for an agent
+        ws.update_contacts(pdir, by_rule + reused, fields, guard=lambda cur: not cur.get("graded_by", "").startswith("agent"))
+        return {"graded": 0, "by_rule": len(by_rule), "reused": len(reused), "waiting_for_an_agent": len(todo) + len(copies),
+                "note": "no usable Jev key: the rules graded what they can; agents grade the rest with grade(set=[...])"}
+    import typesafe_sdk as sdk
+    from concurrent.futures import ThreadPoolExecutor
     rub = rubric(pdir)
     b = ws.brief(pdir)
     focus = b.get("focus") or ""
@@ -151,7 +191,9 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: 
         except Exception as exc:  # noqa: BLE001
             text = f"{type(exc).__name__} {exc}".lower()
             if "402" in text or "quota" in text or "credit" in text or "payment" in text:
-                mo_budget.mark_exhausted("jev", "Jev refused for money")
+                mo_budget.mark_exhausted("jev", "Jev refused for money")   # the next key slot takes over
+            elif "401" in text or "unauthorized" in text or "invalid api key" in text:
+                mo_budget.mark_exhausted("jev", "Jev refused the key")
             mo_budget.record(pdir, "jev", "grade", False, f"{type(exc).__name__}: {exc}")
             counts["failed"] += len(chunk)
             return
@@ -252,6 +294,25 @@ def yes(a):
     return None if c is None else (1.0 if c == "yes" else 0.0)
 
 
+FREE_MAIL = {"gmail.com", "yahoo.com", "yahoo.fr", "hotmail.com", "hotmail.fr", "outlook.com", "outlook.fr",
+             "orange.fr", "wanadoo.fr", "free.fr", "sfr.fr", "laposte.net", "gmx.de", "gmx.net", "web.de",
+             "t-online.de", "bluewin.ch", "icloud.com", "live.com", "aol.com", "btinternet.com"}
+
+
+def _rule_grade(r: dict, common: dict) -> tuple[str, str]:
+    """Grades that need no judgement (and no Jev call): the organisation's own plain inbox is D;
+    an address on another site's page, on another domain, with the organisation not named next to
+    it, is X. Kept and labelled - an agent can change either."""
+    own_mail = r.get("email_on_org") in ("yes", "likely") or r.get("same_site") == "yes"
+    if r.get("mailbox") == "generic" and own_mail:
+        return "D", "rule: the organisation's own general inbox"
+    site = str(r.get("email_site") or "").lower()
+    if (r.get("page_on_org_site") == "no" and not own_mail and site not in FREE_MAIL
+            and not mentions(r.get("org", ""), r.get("quote", ""), common)):
+        return "X", "rule: not this organisation's (another site's page, another domain, organisation not named)"
+    return "", ""
+
+
 def _same(r: dict) -> tuple:
     """One address seen in the same text for the same organisation gets the same grade. The
     organisation is part of the key: the question names it and asks whether the page is its own,
@@ -275,7 +336,7 @@ def fill_people(pdir, only: set | None = None, batch: int = 6, workers: int = 8)
     """For A/B rows without a person: Jev picks, from the quote's own segments, the one that
     is the person's name and the one that is the job title (any language, any layout).
     only: the (org_id, address) rows to look at - the ones just graded; each address+text once."""
-    if not mo_config.key("jev"):
+    if not mo_budget.jev_ready():
         return 0
     import typesafe_sdk as sdk
     from concurrent.futures import ThreadPoolExecutor
@@ -369,7 +430,7 @@ def judge(pdir, file: str, question: str, options: dict, column: str, fields: li
     an answer are skipped unless redo. Use it wherever a decision repeats over many rows:
     is this venue in scope, is this the organisation's own site, is this a duplicate.
     """
-    if not mo_config.key("jev"):
+    if not mo_budget.jev_ready():
         return {"judged": 0, "note": "no Jev key: decide yourself and edit the CSV"}
     if not isinstance(options, dict) or len(options) < 2:
         return {"error": "options: at least two {answer: what it means}"}
