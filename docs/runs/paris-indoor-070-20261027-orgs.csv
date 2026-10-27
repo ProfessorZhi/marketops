@@ -1,0 +1,919 @@
+org_id,name,city,website,segment,contacts_rows,A,B,C,X,unrated,has_route
+I751160059,COLLEGE - LYCEE LA TOUR,Paris,https://www.latourparis.com/,,44,2,8,0,33,1,yes
+I751170043,INSPE,Paris,https://lettres.sorbonne-universite.fr/faculte-des-lettres/sites-campus-et-acces/inspe-batignolles,,80,0,8,2,68,2,yes
+I751160035,TENNIS CLUB DE PARIS,Paris,http://www.tennisclubdeparis.fr/,,11,1,7,0,2,1,yes
+I751050019,INSTITUT NATIONAL DE JEUNES SOURDS,Paris,https://www.injs-paris.fr,,24,1,6,2,13,2,yes
+I751160069,GROUPE SCOLAIRE SAINT JEAN DE PASSY,Paris,https://www.saintjeandepassy.fr/,,25,0,6,3,15,1,yes
+I751150068,Université Paris Cité - UFR STAPS,Paris,https://staps.u-paris.fr/,,83,1,4,5,73,0,yes
+I751160058,UNIVERSITE PARIS DAUPHINE,Paris,https://dauphine.psl.eu/,,17,1,4,1,9,2,yes
+I751030001,CARREAU DU TEMPLE,Paris,https://www.lecarreaudutemple.eu/,,21,0,4,3,11,3,yes
+I751160070,ETABLISSEMENT GERSON,Paris,http://www.gerson-paris.com/,,30,0,3,4,23,0,yes
+I751130014,CENTRE SPORTIF CHÂTEAU DES RENTIERS,Paris,https://www.paris.fr/lieux/gymnase-chateau-des-rentiers-3075,,256,0,2,2,221,31,yes
+I751160062,CITE SCOLAIRE JANSON DE SAILLY,Paris,http://www.janson-de-sailly.fr/,,58,0,2,5,46,5,yes
+I751120061,INSEP,Paris,https://www.insep.fr/fr,,20,1,1,1,16,1,yes
+I751130083,Université Paris Cité - COMPLEXE SPORTIF SOPHIE GERMAIN,Paris,https://u-paris.fr/,,20,1,1,1,17,0,yes
+I751190010,COLLEGE-LYCEE BERGSON,Paris,http://lyc-bergson.scola.ac-paris.fr/,,2,0,2,0,0,0,yes
+I751200012,COMPLEXE SPORTIF ALFRED NAKACHE,Paris,https://www.paris.fr/lieux/centre-sportif-alfred-nakache-19546,,681,1,0,5,652,23,yes
+I751150073,CENTRE MEDICO SOCIAL LECOURBE-FONDATION SAINT JEU DE DIEU,Paris,https://centrelecourbe-fsjd.fr/,,604,0,1,0,587,16,yes
+I751040007,LA HALLE DES BLANCS MANTEAUX,Paris,https://www.mairie04.paris.fr,,562,1,0,2,559,0,yes
+I751120025,CENTRE SPORTIF ALAIN MIMOUN,Paris,https://www.paris.fr/lieux/centre-sportif-alain-mimoun-3191,,448,1,0,2,445,0,yes
+I751130013,CENTRE SPORTIF DUNOIS,Paris,https://www.paris.fr/lieux/piscine-dunois-2929,,387,1,0,5,350,31,yes
+I751130008,LE STADIUM,Paris,https://www.mairie13.paris.fr,,373,1,0,2,370,0,yes
+I751130021,GYMNASE CAILLAUX,Paris,https://www.mairie13.paris.fr,,357,1,0,2,329,25,yes
+I751120065,CENTRE PARIS ANIM'  BERCY,Paris,https://www.claje.asso.fr,,335,1,0,1,332,1,yes
+I751100022,CENTRE SPORTIF PARMENTIER,Paris,https://www.paris.fr/lieux/gymnase-parmentier-3036,,328,1,0,2,263,62,yes
+I751060006,CENTRE SPORTIF SAINT GERMAIN,Paris,http://www.mairie6.paris.fr/,,316,1,0,2,313,0,yes
+I751120049,PISCINE JEAN BOITEUX,Paris,https://www.paris.fr/lieux/piscine-jean-boiteux-2926,,203,1,0,3,199,0,yes
+I751160027,CENTRE SPORTIF SUCHET,Paris,https://www.mairie16.paris.fr,,202,1,0,2,199,0,yes
+I751170014,CENTRE SPORTIF LEON BIANCOTTO,Paris,http://www.mairie17.paris.fr/mairie17/jsp/site/Portal.jsp?page_id=72,,193,1,0,2,190,0,yes
+I751070015,CENTRE SPORTIF CLER,Paris,https://www.paris.fr/lieux/bassin-ecole-cler-2953,,184,1,0,2,160,21,yes
+I751020006,CENTRE SPORTIF JEAN DAME,Paris,https://www.paris.fr/lieux/gymnase-jean-dame-3182,,174,1,0,2,171,0,yes
+I751130028,GYMNASE JEAN PREVOST,Paris,https://www.paris.fr/lieux/gymnase-jean-prevost-3088,,172,1,0,2,169,0,yes
+I751080006,CENTRE SPORTIF JACQUELINE AURIOL,Paris,https://www.mairie8.paris.fr,,150,1,0,1,124,24,yes
+I751050004,PISCINE MUNICIPALE JEAN TARIS,Paris,https://www.paris.fr/lieux/piscine-jean-taris-3325,,147,1,0,2,144,0,yes
+I751140035,GYMNASE HUYGHENS,Paris,https://www.mairie14.paris.fr,,144,1,0,3,115,25,yes
+I751180013,CENTRE SPORTIF BERTRAND DAUVIN,Paris,https://www.paris.fr/lieux/piscine-bertrand-dauvin-2942,,143,1,0,2,140,0,yes
+I751100018,CENTRE SPORTIF DE LA GRANGE AUX BELLES,Paris,https://www.mairie10.paris.fr,,143,1,0,5,137,0,yes
+I751190018,CENTRE SPORTIF MATHIS,Paris,https://www.paris.fr/lieux/piscine-mathis-2946,,141,1,0,6,134,0,yes
+I751130012,CENTRE SPORTIF GEORGES CARPENTIER,Paris,https://www.mairie13.paris.fr,,140,0,1,1,118,20,yes
+I751150024,CENTRE SPORTIF CHARLES RIGOULOT,Paris,https://www.paris.fr/lieux/centre-sportif-charles-rigoulot-3054,,136,1,0,2,133,0,yes
+I751130031,GYMNASE MARCEL CERDAN,Paris,https://www.paris.fr/lieux/gymnase-marcel-cerdan-3092,,136,1,0,3,132,0,yes
+I751190003,CENTRE SPORTIF JULES LADOUMEGUE,Paris,https://www.paris.fr/lieux/centre-sportif-jules-ladoumegue-3080,,135,1,0,2,132,0,yes
+I751170028,PISCINE CHAMPERRET,Paris,https://www.paris.fr/lieux/piscine-marjorie-gestring-ex-piscine-champerret-2941,,134,1,0,2,131,0,yes
+I751120027,CENTRE SPORTIF LEO LAGRANGE,Paris,https://www.paris.fr/lieux/gymnase-leo-lagrange-3059,,133,1,0,3,104,25,yes
+I751160026,STADE PIERRE DE COUBERTIN,Paris,https://www.paris.fr/lieux/stade-pierre-de-coubertin-3024,,132,1,0,2,129,0,yes
+I751150043,CENTRE SPORTIF LA PLAINE,Paris,https://www.mairie15.paris.fr,,131,1,0,2,128,0,yes
+I751040009,CENTRE SPORTIF SAINT MERRI,Paris,https://www.mairie04.paris.fr,,131,1,0,1,129,0,yes
+I751150039,CENTRE SPORTIF EMILE ANTHOINE,Paris,https://www.paris.fr/lieux/piscine-emile-anthoine-19201,,129,1,0,1,125,2,yes
+I751090007,CENTRE SPORTIF VALEYRE,Paris,https://www.paris.fr/lieux/piscine-paul-valeyre-2921,,127,1,0,1,125,0,yes
+I751150022,CENTRE MUNICIPAL ARMAND MASSARD,Paris,http://www.mairie15.paris.fr,,126,1,0,1,101,23,yes
+I751140060,ESPACE SPORTIF ROSA PARKS,Paris,https://www.mairie14.paris.fr,,124,1,0,2,121,0,yes
+I751140033,CENTRE SPORTIF ELISABETH,Paris,https://mairie14.paris.fr/,,109,1,0,2,106,0,yes
+I751130025,CENTRE PARIS ANIM' DUNOIS,Paris,https://parisjetaime.com/,,105,1,0,3,101,0,yes
+I751130020,PISCINE MUNICIPALE DE LA BUTTES AUX CAILLES,Paris,https://www.paris.fr/lieux/piscine-de-la-butte-aux-cailles-2927,,104,1,0,1,84,18,yes
+I751170009,PISCINE MUNICIPALE BERNARD LAFAY,Paris,https://www.paris.fr/lieux/piscine-bernard-lafay-2940,,103,1,0,2,100,0,yes
+I751160001,MOLITOR,Paris,https://www.mltr.fr,,88,0,1,5,67,15,yes
+I751200038,BASSIN ECOLE LOUIS LUMIERE,Paris,https://www.paris.fr/lieux/bassin-ecole-louis-lumiere-2960,,51,1,0,2,48,0,yes
+I751200030,CENTRE SPORTIF LOUIS LUMIERE,Paris,https://www.paris.fr/lieux/centre-sportif-louis-lumiere-3082,,40,1,0,3,31,5,yes
+I751180001,CENTRE SPORTIF MICHELINE OSTERMEYER,Paris,https://www.paris.fr/lieux/centre-sportif-micheline-ostermeyer-ex-pajol-17476,,40,1,0,6,32,1,yes
+I751110007,CENTRE SPORTIF DE LA COUR DES LIONS,Paris,https://www.paris.fr/lieux/gymnase-de-la-cour-des-lions-3039,,39,1,0,2,36,0,yes
+I751080019,GROUPE SCOLAIRE FENELON SAINTE-MARIE,Paris,https://www.fenelonsaintemarie.org/,,38,0,1,16,18,3,yes
+org-47ec4217d9,ROC 14,Paris,https://roc14.org/,,36,0,1,21,13,1,yes
+I751130036,BIBLIOTHEQUE FRANCOIS MITTERAND,Paris,https://www.bnf.fr,,32,0,1,0,31,0,yes
+I751050014,CENTRE SPORTIF UNIVERSITAIRE JEAN SARRAILH (CROUS),Paris,https://www.crous-paris.fr/,,28,0,1,5,22,0,yes
+I751160044,COMPLEXE OMNISPORTS GEO ANDRE - STADE FRANCAIS,Paris,https://www.stadefrancais.com,,28,0,1,15,8,4,yes
+I751150013,SQUASH FRONT DE SEINE,Paris,https://www.frontdeseine.net,,27,0,1,3,16,7,yes
+I751100019,CENTRE SPORTIF JEAN VERDIER,Paris,https://www.mairie10.paris.fr,,25,1,0,2,20,2,yes
+I751030002,GYMNASE MICHEL LE COMTE,Paris,https://aikido-paris-idf.org/,,25,1,0,2,22,0,yes
+I751120001,GYMNASE REUILLY,Paris,https://www.paris.fr/lieux/gymnase-reuilly-19545,,21,1,0,1,19,0,yes
+I751150050,FOREST HILL AQUABOULEVARD,Paris,http://www.aquaboulevard.com,,20,0,1,0,17,2,yes
+I751130007,STADE CHARLETY,Paris,https://www.paris.fr/lieux/stade-sebastien-charlety-3020,,20,1,0,3,16,0,yes
+I751120013,SALLE BERCY,Paris,https://www.mairie12.paris.fr,,18,1,0,1,15,1,yes
+I751200006,CENTRE SPORTIF PAUL MEURICE,Paris,https://www.mairie20.paris.fr,,17,1,0,2,14,0,yes
+I751060015,ECOLE ALSACIENNE,Paris,http://www.ecole-alsacienne.org,,17,0,1,1,10,5,yes
+I751180025,GYMNASE LEPIC - DURANTIN,Paris,http://equipement.paris.fr/gymnase-lepic-durantin-3184,,17,1,0,0,13,3,yes
+I751150030,PAROISSE SAINT LEON CASL,Paris,http://www.casl.fr,,17,0,1,0,15,1,yes
+I751120059,STADE ARNOLD NETTER,Paris,http://www.us-metro.org,,17,1,0,2,9,5,yes
+I751190006,GYMNASE ARCHEREAU,Paris,https://lesnaiades-asso.fr/,,16,1,0,2,13,0,yes
+I751060007,GYMNASE VAUGIRARD LITTRE,Paris,http://www.mairie6.paris.fr/,,15,1,0,2,12,0,yes
+I751180057,Piscine Solita SOLGADO,Paris,https://piscines.org/,,15,1,0,2,12,0,yes
+I751120034,ACCORHOTELS ARENA,Paris,http://www.bercy.fr/,,12,0,1,1,8,2,yes
+I751130027,CENTRE SPORTIF 121 GLACIERE,Paris,https://www.paris.fr,,12,1,0,2,9,0,yes
+I751140019,CITE INTERNATIONALE UNIVERSITAIRE DE PARIS,Paris,https://www.ciup.fr,,12,0,1,5,4,2,yes
+I751100008,GYMNASE JULIE VLASTO,Paris,https://www.mairie10.paris.fr,,12,1,0,1,8,2,yes
+I751140027,PISCINE MUNICIPALE ASPIRANT DUNAND,Paris,https://www.paris.fr/lieux/piscine-aspirant-dunand-2931,,12,1,0,2,9,0,yes
+I751200087,CENTRE MOMBOYE,Paris,http://www.centre-momboye.com/,,11,1,0,2,5,3,yes
+I751170046,GYMNASE SAUSSURE,Paris,https://www.mairie17.paris.fr,,11,1,0,2,8,0,yes
+I751120041,GYMNASE DAUMESNIL,Paris,https://www.mairie12.paris.fr,,10,1,0,2,6,1,yes
+I751010004,GYMNASE SUZANNE BERLIOUX,Paris,https://www.paris.fr/lieux/gymnase-suzanne-berlioux-3183,,10,1,0,2,7,0,yes
+I751180034,ACADEMIE DES ARTS CHOREGRAPHIQUES,Paris,https://www.danse75.fr,,9,0,1,0,7,1,yes
+I751040010,CENTRE DE DANSE DU MARAIS,Paris,https://www.centrededansedumarais.fr/,,9,1,0,0,6,2,yes
+I751170016,CENTRE SPORTIF MAX ROUSIE,Paris,https://www.paris.fr/lieux/centre-sportif-max-rousie-3142,,9,1,0,2,6,0,yes
+I751160047,PARIS JEAN BOUIN,Paris,http://www.parisjeanbouin.fr/index.php,,9,0,1,6,2,0,yes
+I751090004,PISCINE MUNICIPALE GEORGES DRIGNY,Paris,https://www.paris.fr/lieux/piscine-georges-drigny-2920,,9,1,0,2,6,0,yes
+I751110020,CENTRE SPORTIF GEORGES RIGAL,Paris,https://www.paris.fr/lieux/piscine-georges-rigal-2924,,8,1,0,2,4,1,yes
+I751190013,GYMNASE CURIAL,Paris,https://www.mairie19.paris.fr,,8,1,0,2,5,0,yes
+I751120029,MINISTERE DE L'ECONOMIE ET DES FINANCES (CENTRE D'ACTIVITES SPORTIVES ET CULTURELLES ),Paris,http://www.finances.gouv.fr/,,8,0,1,0,5,2,yes
+I751140031,PISCINE MUNICIPALE DIDOT,Paris,https://www.paris.fr/lieux/piscine-didot-2932,,8,1,0,2,5,0,yes
+I751050009,CENTRE SPORTIF POLIVEAU,Paris,https://mairie05.paris.fr,,7,1,0,0,2,4,yes
+I751200061,CITE SCOLAIRE MAURICE RAVEL,Paris,https://www.lycee-maurice-ravel.fr/v5/,,7,0,1,0,5,1,yes
+I751140022,CLUB DAGUERRE,Paris,https://www.clubdaguerre.com/,,7,0,1,0,6,0,yes
+I751170011,GYMNASE FRAGONARD,Paris,https://www.mairie17.paris.fr,,7,1,0,2,4,0,yes
+I751190016,GYMNASE JEAN JAURES,Paris,https://www.paris.fr/lieux/gymnase-jean-jaures-3155,,7,1,0,2,4,0,yes
+I751170012,GYMNASE JEAN LECLAIRE,Paris,http://equipement.paris.fr/gymnase-jean-leclaire-3139,,7,1,0,2,4,0,yes
+I751130018,CENTRE SPORTIF AUGUSTE BLANQUI,Paris,https://www.paris.fr/lieux/gymnase-auguste-blanqui-3071,,6,1,0,2,3,0,yes
+I751090003,CENTRE SPORTIF BUFFAULT,Paris,,,6,1,0,2,3,0,yes
+I751180022,CENTRE SPORTIF DES FILLETTES,Paris,https://www.mairie18.paris.fr,,6,1,0,2,3,0,yes
+I751120022,GYMNASE BERCY A.S.P.T.T,Paris,http://www.aspttparis.com/,,6,1,0,2,3,0,yes
+I751080008,GYMNASE ROQUEPINE,Paris,https://www.mairie08.paris.fr,,6,1,0,2,3,0,yes
+I751150035,PISCINE MUNICIPALE BLOMET,Paris,https://www.paris.fr/lieux/piscine-blomet-2934,,6,1,0,2,3,0,yes
+I751070010,RACING CLUB DE FRANCE,Paris,https://racingclubdefrance.fr/,,6,0,1,1,4,0,yes
+I751190001,TENNIS DES SEPT ARPENTS,Paris,https://tennis.paris.fr/tennis/jsp/site/Portal.jsp?page=recherche&view=recherche_creneau#!,,6,1,0,2,3,0,yes
+I751200040,CENTRE SPORTIF MARYSE HILSZ,Paris,https://www.paris.fr/lieux/centre-sportif-maryse-hilsz-3084,,5,1,0,0,4,0,yes
+I751140056,ENSEMBLE SCOLAIRE SAINTE CATHERINE LABOURE,Paris,https://www.saintecatherinelaboure.com/,,5,0,1,0,2,2,yes
+I751190057,ESPACE SPORTIF EDOUARD PAILLERON,Paris,https://www.pailleron19.com,,5,1,0,1,2,1,yes
+I751070019,GYMNASE DE L'EGLISE AMERICAINE,Paris,http://www.acparis.org,,5,0,1,0,4,0,yes
+I751140037,LYCEE FRANCOIS VILLON,Paris,http://lyc-francois-villon.scola.ac-paris.fr/,,5,0,1,1,3,0,yes
+I751160021,CENTRE SPORTIF HENRY DE MONTHERLANT,Paris,https://www.paris.fr/lieux/gymnase-henry-de-montherlant-3131,,4,1,0,1,1,1,yes
+I751170023,RACING CLUB DE FRANCE 1,Paris,https://www.sportenfrance.fr/,,4,0,1,0,3,0,yes
+I751180014,CENTRE SPORTIF DES POISSONNIERS,Paris,https://www.paris.fr/lieux/centre-sportif-des-poissonniers-3148,,3,1,0,0,1,1,yes
+I751030008,ECOLE SAINT-MARTIN,Paris,,,3,0,1,0,2,0,yes
+I751200001,GYMNASE CHARONNE PLANCHAT,Paris,https://www.paris.fr/lieux/gymnase-charonne-planchat-19557,,3,1,0,0,2,0,yes
+I751130087,PISCINE JOSEPHINE BAKER,Paris,https://www.piscine-baker.fr,,3,1,0,0,0,2,yes
+I751120031,SARL ECOLE DE DANSES LATINES ET TROPICALES,Paris,http://www.salsadanse.com/,,3,1,0,1,1,0,yes
+I751160072,COLLEGE - LYCEE CLAUDE BERNARD,Paris,https://pia.ac-paris.fr/serail/jcms/s2_1659532/fr/cite-scolaire-claude-bernard,,2,0,1,0,1,0,yes
+I751050028,HEALTHCITY PARIS SAINT GERMAIN DES PRES,Paris,https://www.healthcity.fr,,2,0,1,0,0,1,yes
+org-01f1008d27,NICOLAITE DE CHAILLOT,Paris,https://www.nicolaite.com/activites-sportives/basketball,,2,0,1,0,0,1,yes
+I751090022,CITE SCOLAIRE JACQUES DECOUR,Paris,https://pia.ac-paris.fr/serail/jcms/s1_2862507/fr/cite-scolaire-jacques-decour,,1,0,1,0,0,0,yes
+I751160068,CITE SCOLAIRE JEAN-BAPTISTE SAY,Paris,https://pia.ac-paris.fr/serail/jcms/s2_2939914/fr/accueil,,1,0,1,0,0,0,yes
+I751160063,COLLEGE - LYCEE NOTRE-DAME DES OISEAUX,Paris,https://www.ndo.fr/,,1,0,1,0,0,0,yes
+I751150046,GYMNASE RAYMOND BURGARD,Paris,https://www.paris.fr/lieux/gymnase-raymond-burgard-3201,,1,1,0,0,0,0,yes
+I751180026,SALLES DE SPORTS NEY,Paris,http://equipement.paris.fr/salle-de-sport-ney-3349,,1,1,0,0,0,0,yes
+I751190039,ECOLE - COLLEGE SAINT GEORGES,Paris,https://saintgeorgesbeaumont.com/,,2490,0,0,0,2476,14,no
+I751180042,HOPITAL BICHAT LOISIRS BCB,Paris,,,919,0,0,1,915,3,no
+I751200043,GYMNASE PELLEPORT,Paris,,,417,0,0,5,332,80,no
+I751110033,CENTRE PARIS ANIM' MERCOEUR,Paris,http://www.mercoeur.asso.fr/welcome/index.php,,336,0,0,2,331,3,no
+I751190008,CENTRE SPORTIF ECOLE ATLAS,Paris,,,328,0,0,2,326,0,no
+I751170010,SALLES DE SPORT BERNARD LAFAY,Paris,https://sallesdesport.fitness/,,283,0,0,2,281,0,no
+I751200076,FSKAM EL MARHOMY,Paris,http://fskamelmarhomy.free.fr/,,265,0,0,0,265,0,no
+I751010003,CENTRE D'ETUDE D'ACTION SOCIALE ET CULTURELLE,Paris,https://ceasc.free.fr,,239,0,0,2,237,0,no
+I751130039,COMPLEXE SPORTIF DE CHOISY,Paris,https://www.us-metro.org,,192,0,0,2,177,13,no
+org-9945f3604b,7EME ARR ESCALADE,Paris,https://myffme.fr/structure/7eme-arr-escalade,,189,0,0,1,188,0,no
+I751070014,GYMNASE CAMOU,Paris,https://playsport.com/,,175,0,0,2,173,0,no
+I751130040,CENTRE D'ANIMATION RICHET,Paris,https://www.ligueparis.org,,152,0,0,1,151,0,no
+I751180027,GYMNASE RONSARD,Paris,http://equipement.paris.fr/gymnase-ronsard-3150,,150,0,0,2,148,0,no
+I751050024,Université PARIS VI - CENTRE SPORTIF JEAN TALBOT,Paris,https://www.sorbonne-universite.fr/,,136,0,0,2,134,0,no
+I751050020,Anciens locaux de l'École Polytechnique,Paris,https://mairie05.paris.fr/,,131,0,0,0,131,0,no
+I751110002,CENTRE SPORTIF ANDRE CHANCE,Paris,https://www.apsapvp.fr,,76,0,0,5,65,6,no
+I751110003,CENTRE SPORTIF CANDIE,Paris,https://www.mairie11.paris.fr,,76,0,0,2,72,2,no
+I751160003,CENTRE NATIONAL D'ENTRAINEMENT DE LA FFT,Paris,,,74,0,0,0,74,0,no
+I751120008,RE-CORPS,Paris,https://www.re-corps.com,,72,0,0,0,71,1,no
+I751060003,CMG SPORTS CLUB ONE MONTPARNASSE,Paris,https://www.cmgsportsclub.com,,61,0,0,0,61,0,no
+I751040017,ESPACE SPORT ET DANSE,Paris,https://www.allonsdanser.fr/,,60,0,0,4,51,5,no
+I751190017,CENTRE SPORTIF DES LILAS,Paris,https://www.paris.fr/lieux/gymnase-des-lilas-3157,,58,0,0,2,56,0,no
+I751190011,CENTRE SPORTIF CHAUMONT,Paris,https://www.paris.fr/lieux/gymnase-chaumont-17604,,46,0,0,2,44,0,no
+I751180017,GYMNASE DES AMIRAUX,Paris,https://www.paris.fr/lieux/gymnase-les-amiraux-3180,,45,0,0,1,40,4,no
+I751160022,TEP JEAN PIERRE WIMILLE,Paris,https://www.mairie16.paris.fr,,44,0,0,1,35,8,no
+I751160079,Spa The Peninsula Paris,Paris,https://www.peninsula.com/en/paris/wellness/luxury-hotel-spa,,43,0,0,2,41,0,no
+I751060023,LE SPA AKASHA DE L'HOTEL LUTETIA,Paris,https://www.hotellutetia.com/fr/wellness/,,37,0,0,1,36,0,no
+I751200055,CITE SCOLAIRE HELENE BOUCHER,Paris,https://fcpeheleneboucher.wordpress.com/,,33,0,0,1,32,0,no
+I751090009,SNCF,Paris,,,33,0,0,1,28,4,no
+I751160034,TENNIS JEAN DIXIMIER-APSAP- VP,Paris,https://service-tennis.fr/,,30,0,0,2,27,1,no
+I751090006,SALLES DE SPORTS TOUR D'AUVERGNE,Paris,,,29,0,0,2,25,2,no
+I751150053,COLLEGE - LYCEE BUFFON,Paris,https://www.lycee-buffon.fr/,,28,0,0,1,27,0,no
+I751160073,COLLEGE - LYCEE JEAN DE LA FONTAINE,Paris,https://lyc-jean-de-la-fontaine.ac-paris.fr/,,28,0,0,4,24,0,no
+org-b8d806c47b,BAD ACE,Paris,https://www.helloasso.com/associations/bad-ace,,27,0,0,0,27,0,no
+I751170035,COLLEGE - LYCEE HONORE DE BALZAC,Paris,https://apesipbalzacparis.fr/,,27,0,0,1,26,0,no
+I751060011,LYCEE MONTAIGNE,Paris,http://www.montaigne-paris.fr,,27,0,0,1,24,2,no
+I751180033,SQUASH CLUB MONTMARTRE,Paris,http://www.squashmontmartre-paris.com/,,27,0,0,1,26,0,no
+I751140044,CENTRE PARIS ANIM' MARC SANGNIER,Paris,https://marcsangnier.aniapp.fr/,,26,0,0,1,25,0,no
+I751110041,CITE SCOLAIRE VOLTAIRE,Paris,https://pia.ac-paris.fr/serail/jcms/s1_1274654/fr/accueil,,26,0,0,1,23,2,no
+I751200044,GYMNASE DES PYRENEES,Paris,https://www.paris.fr/lieux/gymnase-des-pyrenees-3179,,26,0,0,2,24,0,no
+I751010010,CENTR'HALLES PARK,Paris,https://brickparkour.com/,,25,0,0,1,19,5,no
+I751200057,COLLEGE FLORA TRISTAN,Paris,https://pia.ac-paris.fr/serail/jcms/s1_1605548/fr/college-flora-tristan,,25,0,0,1,24,0,no
+I751050016,LYCEE HENRI IV,Paris,https://lycee-henri4.com/,,25,0,0,1,24,0,no
+I751130073,BASIC FIT PARIS 13,Paris,https://www.basic-fit.com,,23,0,0,0,19,4,no
+I751050025,ECOLE NORMALE SUPERIEURE,Paris,https://www.ens.psl.eu/,,23,0,0,3,20,0,no
+I751200046,CENTRE DE LIGUE - PARIS EST LES LILAS,Paris,https://paris.fft.fr/paris-est-les-lilas,commune:20,22,0,0,2,20,0,no
+I751090015,CENTRE PARIS ANIM' VALEYRE,Paris,http://www.mairie09.paris.fr/mairie09/jsp/site/Portal.jsp?page_id=209,,22,0,0,1,20,1,no
+I751170039,CITE SCOLAIRE CARNOT,Paris,https://pia.ac-paris.fr/serail/jcms/s1_107921/fr/accueil,,19,0,0,3,16,0,no
+I751170001,CMG SPORT CLUB ONE MONCEAU,Paris,http://www.clubmedgym.com,,19,0,0,1,15,3,no
+I751100031,PARIS ANIM' JEMMAPES,Paris,http://www.crl10.net/,,19,0,0,2,13,4,no
+I751060018,COLLEGE STANISLAS,Paris,http://www.stanislas.fr/,,18,0,0,1,13,4,no
+I751200088,MJC LES HAUTS DE BELLEVILLE,Paris,http://www.mjc-leshautsdebelleville.com/,,18,0,0,0,16,2,no
+I751070004,ASSOCIATION SPORTIVE ET CULTURELLE DE L'ASSEMBLEE NATIONALE,Paris,http://www.ascan.org,,17,0,0,0,17,0,no
+I751160030,CENTRE HIPPIQUE DU BOIS DE BOULOGNE,Paris,http://www.chtcf.com,,17,0,0,0,16,1,no
+I751120063,CENTRE PARIS ANIM' MAURICE RAVEL,Paris,https://animravel.aniapp.fr/,,17,0,0,1,16,0,no
+I751160050,CENTRE PARIS ANIM' POINT DU JOUR,Paris,https://www.anim-lepointdujour.org,,17,0,0,1,12,4,no
+I751110021,GYMNASE JAPY,Paris,https://www.paris.fr/lieux/gymnase-japy-3045,,17,0,0,2,14,1,no
+I751020003,KLAY,Paris,https://www.klay.fr,,17,0,0,0,16,1,no
+I751010006,RITZ CLUB PARIS,Paris,https://www.ritzparis.com/fr-FR/ritz-club-paris,,17,0,0,2,15,0,no
+I751110065,AQUA BY CHARONNE,Paris,https://aqua-by.com/nos-studios/studio-charonne/,,16,0,0,1,15,0,no
+org-8f579d9f31,LES BEBES NAGEURS DU 5E B.B.N. 5E,Paris,https://www.omsparis5.org/bebes-nageurs-du-5e,,15,0,0,1,14,0,no
+I751110048,ON AIR VOLTAIRE,Paris,https://www.onair-fitness.fr/,,15,0,0,1,14,0,no
+I751160013,STE SPORTIVE DU JEU DE PAUME ET DE RAQUETTES,Paris,https://squashjeudepaume.com/,,15,0,0,1,13,1,no
+I751150036,GYMNASE CEVENNES,Paris,https://www.paris.fr/lieux/gymnase-cevennes-3114,,14,0,0,3,10,1,no
+I751190034,CENTRE D'ANIMATION REBEVAL,Paris,https://www.paris.fr/lieux/centre-paris-anim-rebeval-1138,,13,0,0,0,13,0,no
+I751200022,GYMNASE DES VIGNOLES,Paris,https://resolis.org/,,12,0,0,2,10,0,no
+org-f9e7c581c8,ASSOCIATION SPORTIVE DES NAGEURS PARISIENS,Paris,https://www.asnp.club/,,11,0,0,1,9,1,no
+I751150008,CMG GRENELLE,Paris,https://www.clubgrenelle.com/,,11,0,0,1,10,0,no
+I751110059,GYMNASE MAURICE BERLEMONT,Paris,https://www.paris.fr/lieux/gymnase-maurice-berlemont-3363,,11,0,0,2,9,0,no
+I751060013,LYCEE SAINT LOUIS,Paris,http://www.ac-paris.fr/serail/lyc-saint-louis/,,11,0,0,1,10,0,no
+I751020001,NEONESS CHATELET MONTORGUEIL,Paris,https://www.neoness-forme.com,,11,0,0,1,10,0,no
+I751140013,NEONESS MONTPARNASSE,Paris,https://www.neoness-forme.com,,11,0,0,1,9,1,no
+I751100032,PARIS ANIM' LA GRANGE AUX BELLES,Paris,https://www.paris.fr/lieux/centre-paris-anim-la-grange-aux-belles-1151,,11,0,0,2,8,1,no
+I751090030,21 BLANCHE,Paris,https://21blanche.com/#prospect/club,,10,0,0,1,4,5,no
+I751150006,ENERGIE FORME MONTPARNASSE,Paris,https://www.energieforme.net,,10,0,0,0,6,4,no
+I751150029,FITNESS CENTER PARIS EIFFEL,Paris,https://www.novotel-paris-toureiffel.com/fr/piscine-centre-de-fitness/,,10,0,0,0,9,1,no
+I751180021,GYMNASE DOUDEAUVILLE,Paris,https://gouttedor-et-vous.org/,,10,0,0,2,8,0,no
+I751110051,NEONESS BASTILLE,Paris,https://www.neoness-forme.com,,10,0,0,1,9,0,no
+I751190035,CENTRE D'ANIMATION CLAVEL,Paris,http://placedesfetes.fr/,,9,0,0,1,6,2,no
+I751160002,CIRCLE CLUB PARIS 16,Paris,https://www.circleclub.fr/,,9,0,0,0,8,1,no
+I751070008,COLLEGE - LYCEE VICTOR DURUY,Paris,https://www.victor-duruy.org/,,9,0,0,3,5,1,no
+I751040001,L'USINE BEAUBOURG,Paris,https://www.usineopera.com,,9,0,0,1,8,0,no
+I751160012,LES CERCLES DE LA FORME DAUPHINE,Paris,https://www.cerclesdelaforme.com,,9,0,0,0,7,2,no
+I751190020,PISCINE ROUVET,Paris,https://www.paris.fr/lieux/piscine-rouvet-2947,,9,0,0,3,6,0,no
+I751180039,CENTRE PARIS ANIM' BINET,Paris,https://www.animation18.com,,8,0,0,0,8,0,no
+I751010007,CENTRE PARIS ANIM' LES HALLES - LE MARAIS,Paris,https://www.anim-leshalles.org,,8,0,0,1,6,1,no
+I751160009,CMG SPORTS CLUB WAOU AUTEUIL,Paris,https://www.cmgsportsclub.com,,8,0,0,0,8,0,no
+I751130058,COLLEGE - LYCEE CLAUDE MONET,Paris,https://www.ac-paris.fr,,8,0,0,3,5,0,no
+I751010008,GYM LOUVRE,Paris,https://www.gymlouvre.com,,8,0,0,0,3,5,no
+I751200042,GYMNASE DES ORTEAUX,Paris,https://www.paris.fr/lieux/gymnase-des-orteaux-3177,,8,0,0,2,6,0,no
+I751190022,GYMNASE TANDOU,Paris,https://www.paris.fr/lieux/gymnase-tandou-3164,,8,0,0,2,6,0,no
+I751010012,LA PLACE,Paris,https://laplace-paris.com/,,8,0,0,2,5,1,no
+I751160055,LAGARDERE PARIS RACING,Paris,https://lagardereparisracing.com/,,8,0,0,2,6,0,no
+I751140061,PISCINE THERESE ET JEANNE BRULE,Paris,https://www.piscine-brule.com/#presentation,,8,0,0,2,6,0,no
+I751120028,CENTRE SPORTIF CARNOT,Paris,https://www.paris.fr/lieux/gymnase-carnot-3053,,7,0,0,2,5,0,no
+I751150037,CENTRE SPORTIF CROIX NIVERT,Paris,https://www.paris.fr/lieux/gymnase-de-la-croix-nivert-3117,,7,0,0,2,5,0,no
+I751180023,CENTRE SPORTIF DE LA GOUTTE D'OR,Paris,https://www.paris.fr/lieux/gymnase-de-la-goutte-d-or-3147,,7,0,0,2,5,0,no
+I751110064,EASY GYM PARIS REPUBLIQUE,Paris,https://www.easygym.fr/salle-de-sport/easygym-paris-republique/,,7,0,0,0,7,0,no
+I751160051,LE CERCLE DU 33FOCH,Paris,https://le33foch.fr/,,7,0,0,1,6,0,no
+I751080014,Le Raffles Royal Monceau Spa,Paris,https://www.leroyalmonceau.com/spa/spa-clarins-my-blend/,,7,0,0,1,4,2,no
+I751200003,MY FITNESS STUDIO,Paris,http://myfitness-studio.com,,7,0,0,1,5,1,no
+I751190032,PISCINE GEORGES HERMANT,Paris,https://piscine-georgeshermant.fr/,,7,0,0,1,5,1,no
+I751010005,PISCINE SUZANNE BERLIOUX,Paris,https://www.piscine-berlioux.fr,,7,0,0,1,4,2,no
+I751130050,CASERNE MASSENA,Paris,https://www.asaspp.fr/,,6,0,0,3,3,0,no
+I751090019,CENTRE INTERNATIONAL DE DANSE JAZZ,Paris,https://www.centre-rick-odums.com,,6,0,0,0,6,0,no
+I751190056,CENTRE PARIS ANIM' SOLIDARITÉ - ANGÈLE MERCIER,Paris,https://ligueparis.org/loisirs/les-centres-paris-anim/,,6,0,0,1,2,3,no
+I751110006,CENTRE SPORTIF PHILIPPE AUGUSTE,Paris,https://complexesportifinfo.com/,,6,0,0,2,4,0,no
+I751200002,CERCLE DE LA FORME PORTE DE BAGNOLET,Paris,https://www.monclub-m.fr,,6,0,0,1,4,1,no
+I751050012,ESPACE SPORTIF PONTOISE,Paris,https://www.espace-sportif-pontoise-paris.fr/,,6,0,0,1,5,0,no
+I751140024,FEDERATION FRANCAISE DE JUDO,Paris,https://www.ffjda.com,,6,0,0,2,3,1,no
+I751180031,GADA FITNESS,Paris,,,6,0,0,0,3,3,no
+I751080023,Hôtel du Collectionneur,Paris,https://www.hotelducollectionneur.com/?gad_source=1&gad_campaignid=15318110381&gbraid=0AAAAAoPAZQbpVoFgK3PS8Npcwk4PV7Xwe&gclid=EAIaIQobChMIlfPynr_ZlQMVwLVoCR0YIwZnEAAYASAAEgKRn_D_BwE,,6,0,0,0,4,2,no
+I751110011,KAJYN,Paris,http://paris.kajyn.com,,6,0,0,3,3,0,no
+I751050029,NEONESS PARIS AUSTERLITZ,Paris,https://www.neoness.fr/,,6,0,0,1,5,0,no
+I751180018,PISCINE MUNICIPALE DES AMIRAUX,Paris,https://www.paris.fr/lieux/piscine-des-amiraux-2944,,6,0,0,3,3,0,no
+I751120089,easyGym Paris Daumesnil,Paris,,,6,0,0,0,6,0,no
+I751070022,ASIEM BON CONSEIL,Paris,http://www.asiem.fr,,5,0,0,0,3,2,no
+I751080015,AUTOMOBILE CLUB DE FRANCE (ACF),Paris,https://automobileclubdefrance.fr/,,5,0,0,2,2,1,no
+I751120047,CENTRE SPORTIF PICPUS,Paris,https://75.lavieduvillage.fr/,,5,0,0,2,3,0,no
+I751050001,GYMNASE AMYOT,Paris,https://www.mairie05.paris.fr,,5,0,0,2,3,0,no
+I751110019,GYMNASE DE LA FONTAINE AU ROI,Paris,https://www.paris.fr/lieux/gymnase-de-la-fontaine-au-roi-3041,,5,0,0,2,3,0,no
+I751160017,GYMNASE DES BAUCHES,Paris,https://www.mairie16.paris.fr,,5,0,0,3,2,0,no
+I751070016,GYMNASE DES INVALIDES,Paris,https://mairie07.paris.fr/,,5,0,0,1,4,0,no
+I751180038,GYMNASE DES POISONNIERS,Paris,https://www.paris.fr/equipements/centre-sportif-des-poissonniers-3148,,5,0,0,3,2,0,no
+I751170057,GYMNASE PIERRE REMOND,Paris,https://www.paris.fr/lieux/gymnase-pierre-remond-3368,,5,0,0,1,4,0,no
+I751190021,GYMNASE SIMON BOLIVAR,Paris,https://www.paris.fr/lieux/gymnase-simon-bolivar-3163,,5,0,0,2,3,0,no
+I751140054,HOPITAL COCHIN - SALLES DE SPORTS APSAP,Paris,https://www.apsapvp.fr,,5,0,0,4,1,0,no
+I751180002,KEEP COOL PARIS 18,Paris,https://www.keepcool.fr,,5,0,0,1,2,2,no
+I751050015,LYCEE LOUIS LE GRAND,Paris,https://www.fondationlouislegrand.fr/,,5,0,0,0,4,1,no
+I751190012,SALLES DE SPORT CHAUMONT LEPAGE,Paris,https://www.paris.fr/equipements/gymnase-chaumont-17604,,5,0,0,2,3,0,no
+I751140034,SALLES DE SPORT GUILLEMINOT,Paris,https://www.mairie14.paris.fr,,5,0,0,2,3,0,no
+I751200041,SALLES DE SPORTS DE MENILMONTANT,Paris,,,5,0,0,2,3,0,no
+I751020011,SPARK CLUB SENTIER,Paris,https://spark-club.fr,,5,0,0,2,1,2,no
+I751110066,AQUA BY BASTILLE,Paris,https://aqua-by.com/,,4,0,0,1,2,1,no
+I751130002,CLUB TIR 1000 JEANNE D'ARC,Paris,https://www.clubdetirjeannedarc.fr/,,4,0,0,0,2,2,no
+I751140011,DANSOMANIA PARIS 14,Paris,https://www.dansomania.fr,,4,0,0,0,3,1,no
+I751090012,ECOLE DE DANSE JACQUES BENSE,Paris,http://www.jacquesbense.com,,4,0,0,0,4,0,no
+I751200078,ESPACE DANSE GAMBETTA IDFP KIM KAN,Paris,https://www.ecolededansekimkan.com/,,4,0,0,1,3,0,no
+I751200074,ESPACE OXYGENE,Paris,http://espace.oxygene.pagesperso-orange.fr/,,4,0,0,0,4,0,no
+I751200034,GYMNASE BRETONNEAU,Paris,https://paris-f.com/,,4,0,0,0,4,0,no
+I751110052,L'ATELIER 3,Paris,https://www.latelier357.fr/,,4,0,0,3,0,1,no
+org-47c7717a47,LA SALLE D'ARMES - LSA,Paris,https://lasalledarmes.wixsite.com/lasalledarmes,,4,0,0,1,2,1,no
+I751100009,LES AILES DU CANAL,Paris,https://www.curves.eu,,4,0,0,1,1,2,no
+I751100025,LES TEMPS DU CORPS,Paris,https://www.tempsducorps.org/,,4,0,0,2,0,2,no
+I751150041,PISCINE KELLER,Paris,https://www.piscinekeller.com/,,4,0,0,1,3,0,no
+I751120054,STADE LEO LAGRANGE,Paris,https://www.paris.fr/lieux/stade-leo-lagrange-3040,,4,0,0,1,1,2,no
+org-dc044713af,17E DEGRÉ,Paris,https://17edegre.com/,,3,0,0,0,2,1,no
+I751180056,ADIDAS ARENA,Paris,https://www.adidasarena.com/,,3,0,0,0,3,0,no
+I751050011,BOWLING MOUFFETARD,Paris,https://www.bowlingmouffetard.fr,,3,0,0,1,1,1,no
+I751180043,CENTRE PARIS ANIM' HEBERT,Paris,https://www.animactisce.org/,,3,0,0,1,2,0,no
+I751170022,CENTRE PARIS ANIM' INTERCLUB 17,Paris,https://www.anim-interclub17.org,,3,0,0,2,1,0,no
+I751110053,CERCLE DE LA FORME CHARONNE,Paris,http://fitnessprice.com,,3,0,0,0,1,2,no
+I751160067,CITE SCOLAIRE MOLIERE,Paris,https://pia.ac-paris.fr/serail/jcms/s2_2044873/fr/cite-scolaire-moliere,,3,0,0,2,1,0,no
+I751050026,CLUB JEAN DE BEAUVAIS,Paris,https://www.clubjeandebeauvais.fr,,3,0,0,0,3,0,no
+I751130004,CLUB M RIVE GAUCHE,Paris,,,3,0,0,0,2,1,no
+I751150056,COLLEGE - LYCEE CAMILLE SEE (ANNEXE),Paris,https://pia.ac-paris.fr/serail/jcms/s2_1746454/fr/lycee-college-camille-see,,3,0,0,1,2,0,no
+I751170038,COLLEGE BORIS VIAN,Paris,https://pia.ac-paris.fr/serail/jcms/s2_1616653/fr/college-boris-vian,,3,0,0,1,2,0,no
+I751140038,COLLEGE FRANCOIS VILLON,Paris,https://citescolairevillon.paris/,,3,0,0,1,2,0,no
+I751120082,CROSS FIGHT,Paris,https://fightingclubfinder.com/,,3,0,0,1,2,0,no
+I751170041,ECOLE - COLLEGE SAINTE URSULE - LOUISE DE BETTIGNIES,Paris,https://ste-ursule.com/,,3,0,0,3,0,0,no
+I751180004,FITNESS PARK PLACE DE CLICHY,Paris,https://www.fitnesspark.fr/,,3,0,0,1,2,0,no
+I751160075,HEALTHCITY PARIS XVI,Paris,https://clubs-ritm.ritm-sport.fr/ritm-la-fontaine-salle-de-sport-paris-16-75016,,3,0,0,1,2,0,no
+I751040014,LES FRANCS BOURGEOIS - LA SALLE (PRIMAIRE - COLLEGE - LYCEE),Paris,https://www.fblasalle.fr,,3,0,0,0,2,1,no
+I751110031,LYCEE CHARLES PEGUY,Paris,https://charlespeguyparis.com/,,3,0,0,1,2,0,no
+I751120072,LYCEE ELISA LEMONNIER,Paris,https://www.elisa-lemonnier.fr/,,3,0,0,1,2,0,no
+I751030003,LYCEE TURGOT,Paris,https://prepas.org/,,3,0,0,1,2,0,no
+I751170055,NEONESS BATIGNOLLES - PLACE DE CLICHY,Paris,https://www.neoness.fr/,,3,0,0,1,2,0,no
+I751080016,PARIS ANIM' ESPACE BEAUJON,Paris,http://www.ebeaujon.org,,3,0,0,0,3,0,no
+I751030005,SUN CITY,Paris,,etablissement privé commercial:2,3,0,0,0,3,0,no
+I751160004,AQUALOFT FITNESS CLUB,Paris,https://www.aqualoft-paris16.fr,,2,0,0,1,1,0,no
+org-d2127fc226,ASSOCIATION DE JUDO-JUJITSU MAKOTO,Paris,https://www.helloasso.com/associations/association-de-judo-jujitsu-makoto,,2,0,0,0,1,1,no
+I751070001,ASSOCIATION SAINTE-AGNES,Paris,https://www.association-sainte-agnes.fr,,2,0,0,0,1,1,no
+I751190027,ATELIER CHOREGRAPHIQUE,Paris,http://www.atelierchoregraphique.fr/ecoleparis.html,,2,0,0,0,2,0,no
+I751120076,BAYARD CLUB UCPA,Paris,http://vincennes.ucpa.com/,,2,0,0,2,0,0,no
+I751180032,CEDEC,Paris,https://www.lecedec.fr/,,2,0,0,0,1,1,no
+I751190036,CENTRE D'ANIMATION ANIM' MATHIS,Paris,https://www.paris.fr/lieux/centre-paris-anim-mathis-1152,,2,0,0,1,1,0,no
+I751120064,CENTRE PARIS ANIM'  REUILLY,Paris,https://claje.asso.fr/,,2,0,0,1,1,0,no
+I751080013,CERCLE DE L'UNION INTERALLIEE,Paris,https://www.union-interalliee.fr/,,2,0,0,0,0,2,no
+I751110057,CHAPS,Paris,https://www.lasalleparis.com,,2,0,0,0,1,1,no
+I751200082,CLUB DE LA NATION,Paris,https://www.118000.fr/,,2,0,0,0,2,0,no
+I751100024,CLUB LAFAYETTE,Paris,http://www.concorde-lafayette.com,,2,0,0,0,2,0,no
+I751170003,CMG MAILLOT,Paris,https://www.cmgsportsclub.com,,2,0,0,1,1,0,no
+I751010001,CMG SPORTS CLUB ONE PALAIS-ROYAL,Paris,https://www.cmgsportsclub.com,,2,0,0,0,2,0,no
+I751090018,COLLEGE - LYCEE JULES-FERRY,Paris,https://lyc-jules-ferry.fr/,,2,0,0,2,0,0,no
+I751070002,ECOLE DE DANSE GEORGES ET ROSY,Paris,https://www.georgesetrosy.com,,2,0,0,0,1,1,no
+I751120071,ENSEMBLE SCOLAIRE SAINT MICHEL DE PICPUS,Paris,http://www.saintmicheldepicpus.fr,,2,0,0,1,0,1,no
+I751020009,EURO MEN'S CLUB,Paris,https://www.e-m-c.fr,,2,0,0,2,0,0,no
+I751180030,FITNESS STORY,Paris,http://www.fitnessstory.fr/paris/,,2,0,0,0,0,2,no
+I751200090,HARMONY TIME,Paris,http://harmonytime.fr,,2,0,0,0,0,2,no
+I751130084,INTENSIVE DANSE,Paris,https://www.intensive-danse.com,,2,0,0,0,2,0,no
+I751200004,LIBERTY GYM,Paris,https://libertygym.fr/,,2,0,0,1,1,0,no
+I751190048,LYCEE HECTOR GUIMARD,Paris,https://www.ac-paris.fr/serail/jcms/s1_1756964/fr/les-activites-sportives,,2,0,0,2,0,0,no
+I751040013,LYCEE SOPHIE GERMAIN,Paris,https://pia.ac-paris.fr/serail/jcms/s1_624230/fr/accueil,,2,0,0,1,1,0,no
+I751140009,MAGIC FORM PARIS 14,Paris,,,2,0,0,0,1,1,no
+org-6e73b39a0e,MARIE-ROSE ESCALADE,Paris,https://www.helloasso.com/associations/marie-rose-escalade,,2,0,0,0,2,0,no
+I751090026,NEONESS SAINT-LAZARE,Paris,https://www.neoness.fr/,,2,0,0,1,1,0,no
+I751200079,NRGYM,Paris,https://www.nrgym.org,,2,0,0,0,2,0,no
+I751180011,SALLE DE SPORTS DE BNP PARIBAS,Paris,,,2,0,0,0,2,0,no
+I751030017,SALSABOR,Paris,https://salsabor.fr/,,2,0,0,1,0,1,no
+I751150052,STAND DE TIR AQUABOULEVARD,Paris,https://antp.eu/,,2,0,0,0,1,1,no
+org-83b425feb8,AMICALE DES ANCIENS ELEVES DU JUDO CLUB MALESHERBES,Paris,,,1,0,0,0,0,1,no
+I751190029,ANJALIOM,Paris,https://www.yoga.paris/,,1,0,0,1,0,0,no
+I751150093,ANNETTE K.,Paris,https://www.annettek.fr/,,1,0,0,0,0,1,no
+org-53a92a5316,AS HOMENETMEN FRANCE,Paris,https://competitions.ffbb.com/ligues/idf/comites/0075/clubs/idf0075063,,1,0,0,0,1,0,no
+I751140020,ASPTT PARIS - ESPACE SPORTIF BRUNE,Paris,https://parisile-de-france.asptt.com,,1,0,0,0,1,0,no
+I751140062,ASSOCIATION DO SPORT,Paris,https://www.dosport-paris.fr/,,1,0,0,1,0,0,no
+org-68bf0af6e4,ASSOCIATION PARIS SAINT-GERMAIN JUDO,Paris,https://www.psg.fr/judo,,1,0,0,0,1,0,no
+org-d7957a4889,AVANTI BADMINTON 13 - AB13,Paris,http://bad013.free.fr/,,1,0,0,0,0,1,no
+I751120085,BASIC FIT CROZATIER,Paris,https://www.basic-fit.com/fr-fr/clubs/basic-fit-paris-rue-crozatier-a5574a8f117d47918c66f357a8b1fe9f.html,,1,0,0,0,0,1,no
+I751200023,CENTRE D'ANIMATION WANGARI MUTA MAATHAI,Paris,https://www.paris.fr/lieux/centre-paris-anim-wangari-muta-maathai-17828,,1,0,0,0,1,0,no
+I751140017,CENTRE DE DANSE ALESIA,Paris,https://www.centre-danse-alesia.com,,1,0,0,0,0,1,no
+I751120051,CENTRE EQUESTRE DE LA CARTOUCHERIE,Paris,https://cartoucherie-equitation.fr/,,1,0,0,1,0,0,no
+I751170045,CENTRE PARIS ANIM' LA JONQUIERE,Paris,https://www.anim-lajonquiere.org,,1,0,0,1,0,0,no
+I751120020,CENTRE PARIS ANIM' MAISON DES ENSEMBLES,Paris,https://ligueo.ligueparis.org/,,1,0,0,1,0,0,no
+I751060001,CENTRE PARIS ANIM' RENNES,Paris,https://75.lavieduvillage.fr/,,1,0,0,1,0,0,no
+I751120043,CENTRE SPORTIF LA LANCETTE,Paris,https://www.paris.fr/lieux/gymnase-denise-et-robert-gamzon-ex-la-lancette-3057,,1,0,0,0,1,0,no
+I751070003,CLUB 49 BABYLONE,Paris,https://club49.paris/,,1,0,0,1,0,0,no
+org-be2c601ca5,CLUB BASKET PARIS 11,Paris,https://www.cbp11.fr/,,1,0,0,0,0,1,no
+I751020004,CLUB FEYDEAU,Paris,http://www.clubfeydeau.fr/,,1,0,0,0,0,1,no
+I751140018,CMG SPORT CLUB DENFERT,Paris,https://www.cmgsportsclub.com,,1,0,0,0,1,0,no
+I751090001,CMG SPORT WAOU GRANDS BOULEVARDS,Paris,https://www.cmgsportsclub.com,,1,0,0,0,1,0,no
+I751080020,COLLEGE - LYCEE CHAPTAL,Paris,https://pia.ac-paris.fr/serail/jcms/s2_1584175/fr/jcms/s1_1601713/fr/jcms/s2_1608018/fr/onisep,,1,0,0,0,0,1,no
+I751120073,COLLEGE - LYCEE GEORGES LEVEN,Paris,https://www.levenaiu.org/,,1,0,0,0,0,1,no
+I751080017,COLLEGE OCTAVE GREARD,Paris,https://www.paris.fr/lieux/college-octave-greard-770,,1,0,0,1,0,0,no
+I751030011,COLLEGE VICTOR HUGO (ANNEXE BARBETTE),Paris,https://pia.ac-paris.fr/serail/jcms/s2_1792263/fr/types/CalendarEvent/jcms/s1_126420/fr/jcms/s2_2736712/fr/accessibilite,,1,0,0,0,0,1,no
+I751160060,ETABLISSEMENT SAINT-LOUIS DE GONZAGUE,Paris,http://www.franklinparis.com/,,1,0,0,0,1,0,no
+I751190042,GROUPE SCOLAIRE LUCIEN DE HIRSCH,Paris,https://www.luciendehirsch.fr/,,1,0,0,0,0,1,no
+I751200075,GYM STUDIO,Paris,http://www.gymstudio.fr/,,1,0,0,0,1,0,no
+I751110061,GYM STUDIO PARMENTIER,Paris,,,1,0,0,0,0,1,no
+I751200037,GYMNASE LE VAU,Paris,https://www.paris.fr/lieux/gymnase-le-vau-3170,,1,0,0,0,1,0,no
+I751080005,HEALTHCITY PARIS CHAMPS ELYSEES,Paris,https://clubs-ritm.ritm-sport.fr/ritm-champs-elysees-salle-de-sport-paris-8-75008,,1,0,0,0,1,0,no
+I751100037,HOPITAL SAINT LOUIS,Paris,http://www.chu-stlouis.fr,,1,0,0,0,1,0,no
+I751160048,Ken Club,Paris,https://www.kenclub.com/,,1,0,0,1,0,0,no
+I751180003,L'APPART FITNESS PARIS 18,Paris,https://clubs.lappartfitness.com/52-l-appart-fitness-paris-18-jules-joffrin,,1,0,0,0,0,1,no
+I751110049,LA QUILLE DU 11E - BOWLING STADIUM,Paris,https://www.bowlingstadium.fr,,1,0,0,0,0,1,no
+I751140050,LYCEE EMILE DUBOIS,Paris,https://pia.ac-paris.fr/serail/jcms/s1_1705212/fr/lycee-emile-dubois,,1,0,0,0,0,1,no
+I751130052,LYCEE GASTON BACHELARD,Paris,[redacted],,1,0,0,1,0,0,no
+I751060012,LYCÉE FÉNELON,Paris,https://pia.ac-paris.fr/serail/jcms/s2_1470088/fr/lycee-general-fenelon-cpge-filieres-litteraires-et-scientifiques,,1,0,0,1,0,0,no
+org-c6724d8da6,Lumas de Paris,Paris,,,1,0,0,1,0,0,no
+I751120007,MAGIC FORM PARIS 12,Paris,,,1,0,0,0,1,0,no
+I751150079,NEONESS PARIS LA MOTTE PICQUET,Paris,https://www.neoness-forme.com,,1,0,0,1,0,0,no
+I751200008,NEONESS PARIS NATION,Paris,https://www.neoness-forme.com,,1,0,0,1,0,0,no
+I751160053,PARC DES PRINCES,Paris,https://www.psg.fr,,1,0,0,0,1,0,no
+I751150054,PARIS ANIM' ESPACE CEVENNES,Paris,https://www.paris.fr/lieux/centre-paris-anim-espace-cevennes-1132,,1,0,0,1,0,0,no
+I751120006,PARIS MAMBO,Paris,https://www.parismambo.com,,1,0,0,1,0,0,no
+I751200080,PISCINE GEORGES VALLEREY,Paris,https://www.paris.fr/lieux/piscine-georges-vallerey-2949,,1,0,0,1,0,0,no
+I751130068,PLATINIUM HYBRID TRAINING CENTER,Paris,https://platiniumcenterparis.weebly.com,,1,0,0,0,1,0,no
+I751160038,POLO DE PARIS,Paris,https://www.polodeparis.com/fr/,,1,0,0,0,0,1,no
+I751010009,REEBOK CROSSFIT LOUVRE,Paris,https://www.reebokcrossfitlouvre.com,,1,0,0,1,0,0,no
+I751190033,REM GYM,Paris,https://www.rem-gym.com/,,1,0,0,1,0,0,no
+I751160041,SOCIETE EQUESTRE DE L'ETRIER,Paris,http://www.etrierdeparis.com,,1,0,0,0,0,1,no
+I751110009,STUDIO HARMONIC,Paris,http://www.studioharmonic.fr/,,1,0,0,0,0,1,no
+I751060002,STUDIO RITUEL,Paris,https://www.studio-rituel.paris/,,1,0,0,1,0,0,no
+I751030014,TCHILO BODY LAB,Paris,https://elisa-willet-chez-tchilo-body-lab.mytreatwell.fr/,,1,0,0,0,1,0,no
+I751160036,TENNIS CLUB DU XVIEME,Paris,https://www.tc16.fr/,,1,0,0,1,0,0,no
+I751110012,THEATRE DE LA DANSE,Paris,https://www.theatredeladanse.fr,,1,0,0,1,0,0,no
+I751090027,UMA CENTRE,Paris,https://www.uma-paris.com,,1,0,0,1,0,0,no
+I751090011,UNION CHRETIENNE DES JEUNES GENS,Paris,https://annuaire.action-sociale.org/,,1,0,0,0,0,1,no
+I751120060,US METRO,Paris,http://www.us-metro.org,,1,0,0,1,0,0,no
+I751120009,WOMEN'S FIT,Paris,https://www.womensfit.fr,,1,0,0,0,1,0,no
+org-e26866554c,19 ESCALADE,Paris,http://www.19escalade.fr/,,0,0,0,0,0,0,no
+org-28f8697942,42 GRIMPE,Paris,https://grimpeglisse.org/,,0,0,0,0,0,0,no
+PV004,4PADEL,Paris,https://www.4padel.fr/,,0,0,0,0,0,0,no
+org-77ae119d08,A N J - ASSOCIATION NORI JUDO,Paris,,,0,0,0,0,0,0,no
+I751200077,A.A.A.S.C.E.P.,Paris,,,0,0,0,0,0,0,no
+org-7fc6388fa4,A.J.A Paris XX,Paris,http://aja-parisxx.com/,,0,0,0,0,0,0,no
+I751150016,ACADEMIA CADIX,Paris,https://playsport.com/,,0,0,0,0,0,0,no
+I751050010,ACADEMIE PASCAL PLEE,Paris,https://www.pascal-plee.com,,0,0,0,0,0,0,no
+org-7017313257,ACCROGYM,Paris,,,0,0,0,0,0,0,no
+org-2bff1f04b3,ACTIVITES AQUATIQUES ET MATERNITE,Paris,,,0,0,0,0,0,0,no
+org-38eb2f66dc,ADDICT BASKET BALL ACADEMY - ABA,Paris,,,0,0,0,0,0,0,no
+I751150066,AGROPARIS TECH,Paris,https://www.abies.agroparistech.fr/,,0,0,0,0,0,0,no
+org-2a3743ec5c,AJCP XII Judo Paris,Paris,http://ajcp12.fr/,,0,0,0,0,0,0,no
+org-18cfa44891,ALLIANZ ASC,Paris,https://ascallianz.portailce.com,,0,0,0,0,0,0,no
+org-3021325709,AMAGYM (ASSOCIATION MA GYM),Paris,,,0,0,0,0,0,0,no
+org-0c8fb5fa20,AMICALE DES PONGISTES DU 17EME - AP 17,Paris,,,0,0,0,0,0,0,no
+org-f56e1ab4b5,AP JUDO 75,Paris,https://comite75judo.ffjudo.com/,,0,0,0,0,0,0,no
+org-90921db21d,AP Sainte Melanine,Paris,http://www.apsm5.fr,,0,0,0,0,0,0,no
+org-806904ed2d,AP17,Paris,http://ap17tt.sportsregions.fr,,0,0,0,0,0,0,no
+I751100001,APOLLO SPORTING CLUB,Paris,https://www.apollosportingclub.com/,,0,0,0,0,0,0,no
+org-c29a654734,AQUA B DEVELOPPEMENT 75,Paris,https://www.aquagym-asso.fr/,,0,0,0,0,0,0,no
+org-03a684fa7e,AQUACITY PARIS,Paris,https://www.arts-in-the-city.com/,,0,0,0,0,0,0,no
+org-038cb154a2,AQUAMUSE,Paris,,,0,0,0,0,0,0,no
+org-4a4534153b,AQUATROPIC,Paris,https://nimes.onvasortir.com/,,0,0,0,0,0,0,no
+PV001,ARKOSE,Paris,https://arkose.com,,0,0,0,0,0,0,no
+I751110013,ARTS MARTIAUX BASTILLE,Paris,http://www.jujitsuericpariset.com/,,0,0,0,0,0,0,no
+org-ccde7031e3,AS BON CONSEIL,Paris,https://as-bon-conseil.footeo.com/,,0,0,0,0,0,0,no
+org-20d4d3903d,AS Banque de France,Paris,https://www.sport-bdf.com/index.php,,0,0,0,0,0,0,no
+org-b2effe1cef,AS Bouvines Volleyball,Paris,https://booker26.wixsite.com/asbouvines,,0,0,0,0,0,0,no
+org-fd9c5fe42f,AS CE FRANCE TELEVISIONS,Paris,,,0,0,0,0,0,0,no
+org-66b6ca2e49,AS New SFR,Paris,http://asns.fr/wp/,,0,0,0,0,0,0,no
+org-5573eb1d2a,AS ORTF,Paris,https://usortf.com/as-regionales/paris/contacts,,0,0,0,0,0,0,no
+org-82f415dcc0,AS Russe,Paris,https://www.asrtt.com/,,0,0,0,0,0,0,no
+org-62924e4aa4,AS ST CHARLES,Paris,https://www.asstcharlesbasketparis.com/,,0,0,0,0,0,0,no
+org-e9df0d74d7,AS Saint Mande Handball,Paris,https://stmandehandball.com/,,0,0,0,0,0,0,no
+org-d6ef76efe8,AS UGAB UNION SPORTIVE NUBAR,Paris,http://www.usnubar.org/,,0,0,0,0,0,0,no
+org-533ca7188d,AS Vietnam,Paris,https://fr.vietnamplus.vn/,,0,0,0,0,0,0,no
+org-f7f82e9839,ASC BNP PARIBAS,Paris,https://asc.bnpparibas.com/tennis-de-table-asc-paris/,,0,0,0,0,0,0,no
+I751100039,ASCE Section Tir - stand de tir de la Gare de l'Est,Paris,https://qcmfftirfacile.fr/,,0,0,0,0,0,0,no
+org-4a4a26e259,ASE Volley-ball,Paris,http://asdeseaux.kalisport.com/,,0,0,0,0,0,0,no
+org-f07b2a5234,ASP 8,Paris,,,0,0,0,0,0,0,no
+org-6707d6b8c2,ASPTT Grand Paris,Paris,https://grandparis.asptt.com/,,0,0,0,0,0,0,no
+org-2635b82287,ASSOCIATION CHINOISE DE BASKETBALL EN FRANCE,Paris,http://fcba-paris.fr/,,0,0,0,0,0,0,no
+org-a5aaa76042,ASSOCIATION CULTURELLE ET SOCIALE EURE-MAINDRON-DIDOT TENNIS DE TABLE - ACSEMDTT,Paris,,,0,0,0,0,0,0,no
+org-17e8aba0e2,ASSOCIATION DE GYMNASTIQUE VOLONTAIRE PASSY TROCADERO,Paris,,,0,0,0,0,0,0,no
+org-f229ef0e9f,ASSOCIATION DE GYMSTATIQUE,Paris,,,0,0,0,0,0,0,no
+org-d66a0a2134,ASSOCIATION DE JUDOKAS CONGOLAIS ET COMMUNAUTES DE FRANCE AJUCOF JUDO CLUB,Paris,https://manafrance.org/,,0,0,0,0,0,0,no
+org-e5166d01c3,"ASSOCIATION DES INTERNATIONAUX DE JUDO, JUJITSU, KENDO ET DISCIPLINES ASSOCIEES - A.I.J.",Paris,https://aijudo.fr/,,0,0,0,0,0,0,no
+org-b56fca2f26,ASSOCIATION DES SPORTS AU BARREAU DE PARIS,Paris,https://dl.avocatparis.org/,,0,0,0,0,0,0,no
+I751130009,ASSOCIATION FOYER DE JEUNES TOLBIAC,Paris,https://www.foyer-tolbiac.com,,0,0,0,0,0,0,no
+I751130006,ASSOCIATION LE JARDIN DES ENFANTS,Paris,https://www.lejardindesenfants.fr,,0,0,0,0,0,0,no
+I751140016,ASSOCIATION MIEUX VIVRE AVEC SON CORPS,Paris,https://www.ceginformacio.hu/,,0,0,0,0,0,0,no
+org-75f7e9dc11,ASSOCIATION PING PONG BLANCS MANTEAUX,Paris,,,0,0,0,0,0,0,no
+org-092bd061a1,ASSOCIATION SPORTIVE CPCU HANDBALL (ASCH),Paris,,,0,0,0,0,0,0,no
+org-b716cc241e,ASSOCIATION SPORTIVE NATATION FAMILLES,Paris,,,0,0,0,0,0,0,no
+org-ffa6d41d9c,ASSOCIATION SPORTIVE TOO BAD A S TOO BAD,Paris,https://astoobad.fr/,,0,0,0,0,0,0,no
+I751100026,ASSOCIATION THEATRE DE LA TERRE,Paris,,,0,0,0,0,0,0,no
+I751110008,ATHLETIC PLANET SARL (PRIVATE GYM),Paris,,,0,0,0,0,0,0,no
+org-2eb9c5b978,ATT XV,Paris,https://attxv.fr,,0,0,0,0,0,0,no
+org-3e8fd9cfaa,AgroParisTech,Paris,https://www.agroparistech.fr/,,0,0,0,0,0,0,no
+org-554e4f305d,Altitudes ESCP,Paris,https://escp.eu/,,0,0,0,0,0,0,no
+org-39bc9511d6,Amicale Manin Sport Paris-Est,Paris,http://www.manin-sport-paris.com/,,0,0,0,0,0,0,no
+org-0ca6b0fb35,Ands Judo,Paris,http://andsjudo.fr/,,0,0,0,0,0,0,no
+org-5fdd1488e0,Aquatic Club,Paris,http://www.aquatic-club.fr/,,0,0,0,0,0,0,no
+org-1e472fdb02,Arts et Métiers (campus de Paris),Paris,https://artsetmetiers.fr/,,0,0,0,0,0,0,no
+org-ea2b918455,Association Archimede,Paris,http://www.archimede.asso.fr/,,0,0,0,0,0,0,no
+org-8a158fd89d,Association Lin Nam,Paris,http://linnam.fr/,,0,0,0,0,0,0,no
+org-3168902646,Association Sportive Badminton House,Paris,http://www.badmintonhouse.fr/,,0,0,0,0,0,0,no
+org-aa6d8160e2,Association Sportive Dojo Academy,Paris,https://dojoacademy.fr/,,0,0,0,0,0,0,no
+org-1ab2537ab3,Association des Volants Vifs,Paris,http://www.hockeyhebdo.com/,,0,0,0,0,0,0,no
+I751160043,Association du Cercle du Bois de Boulogne,Paris,https://www.letir.fr/,,0,0,0,0,0,0,no
+org-15e175a133,BAD IS GOOD (B.I.G.),Paris,,,0,0,0,0,0,0,no
+org-82a3f2cfe8,BANGLADESH BADMINTON CLUB PARIS,Paris,http://codep75.org/,,0,0,0,0,0,0,no
+org-ee01e2b75e,BASKETTEURS ASSOCIES,Paris,https://competitions.ffbb.com/ligues/idf/comites/0075/clubs/idf0075124,,0,0,0,0,0,0,no
+org-95f9ef665e,BASSE COUR BASKET,Paris,https://competitions.ffbb.com/ligues/idf/comites/0075/clubs/idf0075020,,0,0,0,0,0,0,no
+I751200073,BASSIN ECOLE VITRUVE,Paris,https://lesnaiades-asso.fr/,,0,0,0,0,0,0,no
+I751100002,BATTLING CLUB PARIS,Paris,,,0,0,0,0,0,0,no
+org-22dab7998a,BBG 13 Badminton,Paris,https://bbg13.eu/,,0,0,0,0,0,0,no
+I751120038,BILLARD  SHOOT AGAIN PARIS,Paris,http://www.shootagain.fr,,0,0,0,0,0,0,no
+I751010011,BILLARD CLUB PARISEN,Paris,https://www.m.ffbillard.com/,,0,0,0,0,0,0,no
+org-198e049662,BLOCAMA,Paris,,,0,0,0,0,0,0,no
+I751170056,BOWLING CHAMPERRET,Paris,https://www.xbowlingsympas.com/Bowling-paris-champerret-fr,,0,0,0,0,0,0,no
+I751160005,BOWLING FOCH,Paris,https://www.bowling-foch.com,,0,0,0,0,0,0,no
+org-533c553afa,Bad a Paname,Paris,http://www.bap75.fr/,,0,0,0,0,0,0,no
+org-6c5e4bf259,Badminton Paris 18eme,Paris,https://www.badmintonparis18.fr/,,0,0,0,0,0,0,no
+org-1dcaa180b7,Badminton club Badiset,Paris,https://badiset.org/,,0,0,0,0,0,0,no
+org-d585be059c,Basket Paris 14,Paris,http://basketparis14.com/,,0,0,0,0,0,0,no
+org-62b0898b14,Beaux-Arts de Paris (ENSBA),Paris,https://beauxartsparis.fr/,,0,0,0,0,0,0,no
+I751010014,Billard Club Parisien,Paris,https://www.ffbillard.com/,,0,0,0,0,0,0,no
+I751090034,Body life Paris,Paris,https://bodylifeparis.com/,,0,0,0,0,0,0,no
+org-8d23ca26c3,Budokan Paris 18,Paris,http://budokan18.fr/,,0,0,0,0,0,0,no
+I751070011,CAISSE DES DEPOTS - U.S.A.C,Paris,https://www.caissedesdepots.fr/,,0,0,0,0,0,0,no
+I751100003,CANAL CENTRAL,Paris,https://www.pariscanal.com/,,0,0,0,0,0,0,no
+I751160028,CENTRE  GYM ET DANSE DU TROCADERO,Paris,http://www.gymetdanse.com,,0,0,0,0,0,0,no
+I751090013,CENTRE ANIMA,Paris,http://www.centreanima.com,,0,0,0,0,0,0,no
+I751150018,CENTRE DE JEUNESSE CHRETIENNE ET FAMILIALE,Paris,,,0,0,0,0,0,0,no
+I751190031,CENTRE EQUESTRE DE LA VILLETTE,Paris,https://www.equivil.fr,,0,0,0,0,0,0,no
+I751050021,CENTRE PARIS ANIM' ARRAS,Paris,https://www.anim-arras.org,,0,0,0,0,0,0,no
+I751050022,CENTRE PARIS ANIM' CENSIER,Paris,https://www.anim-censier.org,,0,0,0,0,0,0,no
+I751160054,CENTRE PARIS ANIM' POINT DU JOUR ANTENNE MESNIL SAINT DIDIER,Paris,http://www.pointdujour75016.free.fr/,,0,0,0,0,0,0,no
+I751120010,CENTRE SISMO LIPO,Paris,http://www.centresismo.com/cardio.php,,0,0,0,0,0,0,no
+I751150021,CENTRE SPORTIF SABLONNIÈRE,Paris,https://www.paris.fr/lieux/gymnase-sablonniere-3366,,0,0,0,0,0,0,no
+I751190028,CENTRE TAO PARIS,Paris,https://www.centre-tao-paris.com,,0,0,0,0,0,0,no
+org-49390887ae,CEP Cercle des Escrimeurs Parisiens,Paris,https://www.escrimeclubparis.fr/,,0,0,0,0,0,0,no
+org-c4e62bc113,CERCLE D'ESCRIME ANDRE GARDERE CE GARDERE,Paris,,,0,0,0,0,0,0,no
+org-85b0e6b9bb,CERCLE D'ESCRIME DE SUFFREN,Paris,http://suffren-escrime.com/,,0,0,0,0,0,0,no
+org-0f8ffc708a,CERCLE D'ESCRIME FRANCO-CUBAIN PATTERSON-BETANCOURT - C.E.F.C. PATTERSON-BETANCOURT,Paris,,,0,0,0,0,0,0,no
+I751140014,CERCLE DES ARTS MARTIAUX,Paris,https://www.cercledesartsmartiaux.wordpress.com,,0,0,0,0,0,0,no
+org-617100ca63,CERCLE PEDAGOGIQUE DE JUDO TRADITIONNEL,Paris,https://www.judograndest.fr/,,0,0,0,0,0,0,no
+org-50ab745175,CIMES 19,Paris,https://www.cimes19.fr/,,0,0,0,0,0,0,no
+PV020,CIRCLE MOVEMENT,Paris,https://www.circle-movement.com/,,0,0,0,0,0,0,no
+I751130057,CITE SCOLAIRE GABRIEL FAURE,Paris,https://pia.ac-paris.fr/serail/jcms/s1_717812/fr/accueil,,0,0,0,0,0,0,no
+I751090021,CITE SCOLAIRE LAMARTINE,Paris,https://pia.ac-paris.fr/serail/jcms/p2_73121/fr/accueil,,0,0,0,0,0,0,no
+I751130033,CITE SCOLAIRE RODIN,Paris,https://pia.ac-paris.fr/serail/jcms/s1_1619591/fr/lycee-et-college-rodin,,0,0,0,0,0,0,no
+PV002,CLIMB UP,Paris,https://www.climb-up.fr/,,0,0,0,0,0,0,no
+org-6634506e26,CLUB D'ESCRIME BOURSAULT,Paris,,,0,0,0,0,0,0,no
+org-cce9358814,CLUB D'ESCRIME DE LA TOUR D'AUVERGNE TA,Paris,http://www.escrime-ffe.fr/,,0,0,0,0,0,0,no
+I751160014,CLUB DE TIR DE LA POLICE NATIONALE DE PARIS,Paris,https://www.atscaf.paris/,,0,0,0,0,0,0,no
+I751140039,CLUB DES EX DU 14E,Paris,https://www.lesexdu14.sitew.fr,,0,0,0,0,0,0,no
+org-f1b1b34101,CLUB DES NAGEURS FRANCILIENS,Paris,https://www.idref.fr/,,0,0,0,0,0,0,no
+org-49036f2460,CLUB SPORTIF PARIS 19 EME,Paris,https://www.csp19.fr/,,0,0,0,0,0,0,no
+I751150009,CMG SPORT CLUB VAUGIRARD,Paris,,,0,0,0,0,0,0,no
+I751120024,CMG SPORT CLUB WAOU BERCY,Paris,http://www.clubmedgym.com/,,0,0,0,0,0,0,no
+org-c0828cc5b9,CND13 Natation,Paris,https://www.cnd13natation.com/,,0,0,0,0,0,0,no
+I751190052,COLLEGE - LYCEE BETH ANNA,Paris,,,0,0,0,0,0,0,no
+I751150069,COLLEGE - LYCEE BLOMET,Paris,https://www.blomet-enc.fr/,,0,0,0,0,0,0,no
+I751060017,COLLEGE - LYCEE NOTRE-DAME DE SION,Paris,https://www.sion-paris.fr/,,0,0,0,0,0,0,no
+I751060009,COLLEGE - LYCEE SAINT-SULPICE,Paris,https://www.st-sulpice.fr/,,0,0,0,0,0,0,no
+I751070007,COLLEGE - LYCEE SAINTE JEANNE-ELISABETH,Paris,http://www.ste-jeanne-elisabeth.com,,0,0,0,0,0,0,no
+I751200064,COLLEGE - LYCEE SAINTE LOUISE,Paris,https://www.sainte-louise.com/,,0,0,0,0,0,0,no
+I751130064,COLLEGE - LYCEE YABNE,Paris,https://www.yabne.org,,0,0,0,0,0,0,no
+I751110017,COLLEGE ALAIN FOURNIER,Paris,https://www.adresses-colleges.fr/,,0,0,0,0,0,0,no
+I751150033,COLLEGE ANDRE CITROEN,Paris,https://www.paris.fr/lieux/college-andre-citroen-638,,0,0,0,0,0,0,no
+I751170040,COLLEGE ANDRE MALRAUX,Paris,http://clg-andre-malraux.scola.ac-paris.fr/,,0,0,0,0,0,0,no
+I751110039,COLLEGE ANNE FRANCK,Paris,http://www.jumptt.com/,,0,0,0,0,0,0,no
+I751180052,COLLEGE ANTOINE COYSEVOX,Paris,https://www.paris.fr/lieux/college-antoine-coysevox-641,,0,0,0,0,0,0,no
+I751030006,COLLEGE BERANGER,Paris,https://www.paris.fr/lieux/college-pierre-jean-de-beranger-789,,0,0,0,0,0,0,no
+I751040015,COLLEGE CHARLEMAGNE,Paris,https://pia.ac-paris.fr/serail/jcms/s2_2973739/fr/presentation-du-college-charlemagne,,0,0,0,0,0,0,no
+I751190037,COLLEGE CLAUDE CHAPPE,Paris,http://clg-claude-chappe.scola.ac-paris.fr/,,0,0,0,0,0,0,no
+I751180046,COLLEGE DANIEL MAYER,Paris,https://www.paris.fr/lieux/college-daniel-mayer-3979,,0,0,0,0,0,0,no
+I751190051,COLLEGE EDMOND MICHELET,Paris,https://www.paris.fr/lieux/college-edmond-michelet-655,,0,0,0,0,0,0,no
+I751040011,COLLEGE FRANCOIS COUPERIN,Paris,https://www.ac-paris.fr/,,0,0,0,0,0,0,no
+I751200052,COLLEGE FRANCOISE DOLTO,Paris,http://clg-francoise-dolto.scola.ac-paris.fr/,,0,0,0,0,0,0,no
+I751130053,COLLEGE GEORGES BRAQUE,Paris,https://www.ac-paris.fr/,,0,0,0,0,0,0,no
+I751190071,COLLEGE GEORGES BRASSENS,Paris,https://www.observatoire-oasis.fr/,,0,0,0,0,0,0,no
+I751190050,COLLEGE GEORGES ROUAULT,Paris,http://www.ozp.fr/,,0,0,0,0,0,0,no
+I751190049,COLLEGE GUILLAUME BUDE,Paris,https://college-guillaume-bude-maubeuge.59.ac-lille.fr/,,0,0,0,0,0,0,no
+I751130060,COLLEGE GUSTAVE FLAUBERT,Paris,https://www.ac-paris.fr,,0,0,0,0,0,0,no
+I751140053,COLLEGE JEAN MOULIN,Paris,https://www.ac-paris.fr/,,0,0,0,0,0,0,no
+I751200056,COLLEGE JEAN PERRIN,Paris,https://www.paris.fr/lieux/college-jean-perrin-727,,0,0,0,0,0,0,no
+I751200066,COLLEGE JEAN-BAPTISTE CLEMENT,Paris,https://www.paris.fr/lieux/college-jean-baptiste-clement-730,,0,0,0,0,0,0,no
+I751140058,COLLEGE LA BRUYERE SAINTE ISABELLE,Paris,https://labruyeresainteisabelle.fr/,,0,0,0,0,0,0,no
+I751200067,COLLEGE LEON GAMBETTA,Paris,https://0752696y.index-education.net/,,0,0,0,0,0,0,no
+I751100072,COLLEGE LOUISE MICHEL,Paris,https://www.paris.fr/lieux/college-louise-michel-750,,0,0,0,0,0,0,no
+I751200054,COLLEGE LUCIE FAURE (SITE CRISTINO GARCIA),Paris,https://bib-assia-djebar.wixsite.com/,,0,0,0,0,0,0,no
+I751200053,COLLEGE LUCIE FAURE (SITE PYRENEES),Paris,https://www.plus.transformation.gouv.fr/,,0,0,0,0,0,0,no
+I751180050,COLLEGE MARIE CURIE,Paris,https://pia.ac-paris.fr/serail/jcms/s2_1628257/fr/accueil,,0,0,0,0,0,0,no
+I751180045,COLLEGE MARX DORMOY,Paris,https://www.ac-paris.fr/,,0,0,0,0,0,0,no
+I751150070,COLLEGE MODIGLIANI,Paris,https://www.paris.fr/lieux/college-modigliani-763,,0,0,0,0,0,0,no
+I751130062,COLLEGE MOULINS DES PRES,Paris,https://pia.ac-paris.fr/serail/jcms/s2_1811740/fr/college-moulin-des-pres,,0,0,0,0,0,0,no
+I751190047,COLLEGE MOZART,Paris,https://college-lycee.com/,,0,0,0,0,0,0,no
+I751090005,COLLEGE PAUL GAUGUIN,Paris,https://www.paris.fr/lieux/college-paul-gauguin-774,,0,0,0,0,0,0,no
+I751120075,COLLEGE PAUL VERLAINE,Paris,https://www.paris.fr/lieux/college-paul-verlaine-site-bercy-779,,0,0,0,0,0,0,no
+I751120074,COLLEGE PAUL VERLAINE (ANNEXE),Paris,http://clg-verlaine.scola.ac-paris.fr,,0,0,0,0,0,0,no
+I751170037,COLLEGE PIERRE DE RONSARD,Paris,http://clg-pierre-de-ronsard.scola.ac-paris.fr/,,0,0,0,0,0,0,no
+I751200070,COLLEGE PIERRE MENDES FRANCE,Paris,https://www.paris.fr/lieux/college-pierre-mendes-france-786,,0,0,0,0,0,0,no
+I751110038,COLLEGE PILATRE DE ROZIER,Paris,https://www.paris.fr/lieux/college-pilatre-de-rozier-791,,0,0,0,0,0,0,no
+I751050030,COLLEGE RAYMOND QUENEAU,Paris,https://www.observatoire-oasis.fr/,,0,0,0,0,0,0,no
+I751200058,COLLEGE ROBERT DOISNEAU,Paris,http://clg-doisneau.scola.ac-paris.fr/,,0,0,0,0,0,0,no
+I751140059,COLLEGE SAINT-EXUPERY,Paris,https://www.ac-paris.fr,,0,0,0,0,0,0,no
+I751120050,COLLEGE SAINTE CLOTILDE,Paris,http://www.sainteclotilde.net,,0,0,0,0,0,0,no
+I751170036,COLLEGE STEPHANE MALLARME,Paris,https://www.paris.fr/lieux/college-stephane-mallarme-802,,0,0,0,0,0,0,no
+I751190070,COLLEGE SUZANNE LACORE,Paris,https://pia.ac-paris.fr/serail/jcms/s1_2040737/fr/college-suzanne-lacore,,0,0,0,0,0,0,no
+I751130066,COLLEGE THOMAS MANN,Paris,https://www.ac-paris.fr,,0,0,0,0,0,0,no
+I751030010,COLLEGE VICTOR HUGO,Paris,https://apes75.fr/,,0,0,0,0,0,0,no
+I751180044,COLLEGE YVONNE LE TAC,Paris,https://pia.ac-paris.fr/serail/jcms/p2_73458/fr/accueil,,0,0,0,0,0,0,no
+org-e361728f4b,CORDÉE 13,Paris,https://cordee13.fr/,,0,0,0,0,0,0,no
+org-d1cb277de8,CPS X,Paris,http://cps10.fr/tt/,,0,0,0,0,0,0,no
+I751110047,CROSSFIT ORIGINAL ADDICTS,Paris,https://crossfitoriginaladdicts.com/,,0,0,0,0,0,0,no
+org-3d2a86b90e,CSLG Kellermann,Paris,https://cslg-kellermann.webnode.fr/,,0,0,0,0,0,0,no
+org-136bf8dfbd,CSM FINANCES PARIS,Paris,https://csmf-tt-paris.clubeo.com/,,0,0,0,0,0,0,no
+org-91ba99a5f7,CSM20 Badminton,Paris,http://badminton.csm20.com/,,0,0,0,0,0,0,no
+org-2a56c3441e,CTC PARIS BASKET AVENIR,Paris,https://www.basketidf.com/,,0,0,0,0,0,0,no
+org-9a6ebd5f9a,Cercle du Marais,Paris,http://www.cercledumarais.org/,,0,0,0,0,0,0,no
+org-5f79aad098,Championnet Sports,Paris,https://www.championnet-sports.fr/,,0,0,0,0,0,0,no
+org-8f890db247,Chimie ParisTech - PSL,Paris,https://www.chimieparistech.psl.eu/,,0,0,0,0,0,0,no
+I751120088,Climbing District,Paris,https://climbingdistrict.com/salle-escalade-bastille/,,0,0,0,0,0,0,no
+org-f14da53726,Club Alpin Francais - Comite Regional Ile-de-France,Paris,https://www.clubalpin-idf.com/,,0,0,0,0,0,0,no
+org-315bd5bb88,Club Gymnastique Aquatique et Natation,Paris,https://gymaquatiqueparis.fr/,,0,0,0,0,0,0,no
+org-443168ff2f,Club de Natation des Epinettes de Paris,Paris,https://cne.paris/,,0,0,0,0,0,0,no
+org-6b76a598bf,Club des Nageurs de Paris,Paris,http://www.cnparis.org/,,0,0,0,0,0,0,no
+I751180059,Collège Maurice Utrillo,Paris,http://www.ozp.fr/,,0,0,0,0,0,0,no
+org-73d26ea1e0,Collège Sévigné,Paris,https://www.collegesevigne.org/,,0,0,0,0,0,0,no
+org-d7dd9d15c3,Contrepied,Paris,http://contrepied.com/,,0,0,0,0,0,0,no
+org-d2b7326d5e,Cours Hattemer,Paris,https://www.hattemer.fr/,,0,0,0,0,0,0,no
+org-e5f68e5c6b,D'EPEE - DEVELOPPEMENT PERSONNEL PAR L'ESCRIME,Paris,http://paris-epee.fr/,,0,0,0,0,0,0,no
+org-508e297448,DAGUE A PART,Paris,https://www.planity.com/,,0,0,0,0,0,0,no
+I751170030,DANCE CENTER,Paris,http://www.danse-goube-paris.com/,,0,0,0,0,0,0,no
+I751110055,DANS LA COUR,Paris,https://www.danslacour.fr,,0,0,0,0,0,0,no
+I751120033,DANSE CONNEXION,Paris,https://www.pourdanser.com/,,0,0,0,0,0,0,no
+I751110063,DANSE PILATES,Paris,https://www.dansepilatesparis.fr/,,0,0,0,0,0,0,no
+org-29abfb662a,DIXENGYM,Paris,,,0,0,0,0,0,0,no
+I751180035,DO-IN SPORTS,Paris,http://www.do-in-sport.fr/accueil,,0,0,0,0,0,0,no
+I751150027,DOJO DE GRENELLE,Paris,http://www.dojodegrenelle.com/,,0,0,0,0,0,0,no
+I751180037,DOJO LA CHAPELLE,Paris,https://www.aikido-palmier.com/,,0,0,0,0,0,0,no
+I751150015,DOJO SHISEIKAN,Paris,https://dojoshiseikan.wordpress.com/,,0,0,0,0,0,0,no
+I751200085,DOJO TENSHIN,Paris,http://www.ecole-itsuo-tsuda.org/fr/tenshin,,0,0,0,0,0,0,no
+I751170024,DOJO VERONIQUE PARISET,Paris,https://www.veronique-pariset.com,,0,0,0,0,0,0,no
+org-6a41dd6c25,Domremy Gymnastique,Paris,https://www.la-domremy-gymnastique.com/,,0,0,0,0,0,0,no
+org-08ff4f53a6,DÎNAGYM,Paris,,,0,0,0,0,0,0,no
+I751130005,E.N.S.T PARIS 13,Paris,https://www.telecom-paris.fr/,,0,0,0,0,0,0,no
+I751070005,ECOLE - COLLEGE - LYCEE LA ROCHEFOUCAULD,Paris,https://laroche.org/,,0,0,0,0,0,0,no
+I751200069,ECOLE - COLLEGE NOTRE DAME DE LOURDES,Paris,https://www.ndl75.fr/,,0,0,0,0,0,0,no
+I751130065,ECOLE - COLLEGE NOTRE-DAME DE LA GARE,Paris,https://www.lasallendg.fr,,0,0,0,0,0,0,no
+I751200063,ECOLE - COLLEGE SAINT-GERMAIN DE CHARONNE - LA SALLE,Paris,https://www.saintgermaindecharonne-lasalle.org/,,0,0,0,0,0,0,no
+I751150063,ECOLE ACTIVE BILINGUE JEANINE MANUEL,Paris,https://www.eabjm.com/fr,,0,0,0,0,0,0,no
+I751030007,ECOLE BERANGER,Paris,https://www.letellier-architectes.com/,,0,0,0,0,0,0,no
+org-b1d4327115,ECOLE DE BADMINTON DE PARIS SPORT 12 (EBPS 12),Paris,,,0,0,0,0,0,0,no
+org-d4b1239ba7,ECOLE DE BADMINTON PARIS 14 (EBP14),Paris,,,0,0,0,0,0,0,no
+I751120035,ECOLE DE DANSE ANNE MARIE DURAND,Paris,,,0,0,0,0,0,0,no
+I751120030,ECOLE DE DANSE BURDON,Paris,https://www.inspirationdansestudio.com/,,0,0,0,0,0,0,no
+I751100027,ECOLE DE DANSE DE PARIS,Paris,https://www.clubdesenfantsparisiens.com/,,0,0,0,0,0,0,no
+org-5f444c35d5,ECOLE DE DEFENSE ET D'ESCRIME URBAINE (EDEU),Paris,,,0,0,0,0,0,0,no
+org-785f15bad9,ECOLE DE JUDO DOJO 5 (EJD5),Paris,,,0,0,0,0,0,0,no
+I751150088,ECOLE DES SAINTS ANGES,Paris,http://oeuvre-des-saints-anges.org/,,0,0,0,0,0,0,no
+org-656cfa6909,ECOLE FRANCAISE DE JUDO JU-JUTSU TRADITIONNEL EFJJT,Paris,https://www.efjjt.fr/,,0,0,0,0,0,0,no
+I751040012,ECOLE MASSILLON (PRIMAIRE - COLLEGE - LYCEE),Paris,https://www.ecolemassillon.com,,0,0,0,0,0,0,no
+I751160061,ECOLE SAINT FRANCOIS,Paris,https://ecolesaintfrancois.fr/,,0,0,0,0,0,0,no
+I751130059,ECOLE SAINTE ANNE SAINTE MARIE,Paris,https://www.gs-svp.com,,0,0,0,0,0,0,no
+I751180051,ECOLE SAINTE-MARIE - COLLEGE SAINT-VINCENT,Paris,https://www.adresses-colleges.fr/,,0,0,0,0,0,0,no
+I751090033,ELANCIA,Paris,https://www.elancia.fr/,,0,0,0,0,0,0,no
+I751190025,ENJOY BY FKC,Paris,http://www.enjoy-fkc.com/,,0,0,0,0,0,0,no
+org-1e7e7bf1a0,ENSA Paris-Belleville,Paris,http://www.paris-belleville.archi.fr/,,0,0,0,0,0,0,no
+org-26847e9216,ENSA Paris-La Villette,Paris,https://paris-lavillette.archi.fr/,,0,0,0,0,0,0,no
+org-593ad49b2c,ENSA Paris-Malaquais,Paris,https://paris-malaquais.archi.fr/,,0,0,0,0,0,0,no
+org-299ddbe7d7,ENSA Paris-Val de Seine,Paris,https://www.paris-valdeseine.archi.fr/,,0,0,0,0,0,0,no
+PV011,EPISOD,Paris,https://www.episod.com/,,0,0,0,0,0,0,no
+I751140051,EREA - ETABLISSEMENT REGIONAL D'ENSEIGNEMENT ADAPTE,Paris,https://www.ac-paris.fr,,0,0,0,0,0,0,no
+I751200060,EREA EDITH PIAF,Paris,http://erea-piaf.scola.ac-paris.fr/Sommaire.htm,,0,0,0,0,0,0,no
+org-81ef9436e4,ESCP Business School (campus Paris),Paris,https://campuslife.escp.eu/sxparis/sports-general-information/,,0,0,0,0,0,0,no
+org-cfb0bdf9d0,ESCP EUROPE HANDBALL ALUMNI,Paris,https://monclub.ffhandball.fr/,,0,0,0,0,0,0,no
+org-44d12b0dcf,ESCRIME CLUB ESTUDIANTIN DE PARIS,Paris,http://ece-escrime.fr/,,0,0,0,0,0,0,no
+org-b22904a115,ESCRIME PARIS 15 (E.P.15),Paris,https://www.ep15.fr,,0,0,0,0,0,0,no
+org-69a07acc85,ESCRIME PARIS NORD (EPN),Paris,https://escrime-parisnord.com/,,0,0,0,0,0,0,no
+I751100028,ESPACE EN MOUVEMENT,Paris,,,0,0,0,0,0,0,no
+I751090008,ESPACE FONTAINE,Paris,https://annuaire.action-sociale.org/,,0,0,0,0,0,0,no
+org-368a9d14cb,ESPACE JEUNE GOUTTE D OR,Paris,http://gouttedor-et-vous.org/,,0,0,0,0,0,0,no
+I751140015,ESPACE VILLA D'ORLEANS,Paris,https://espace-villa-orleans.monsite-orange.fr,,0,0,0,0,0,0,no
+org-a773e9a378,ESPCI Paris - PSL,Paris,https://www.espci.psl.eu/,,0,0,0,0,0,0,no
+I751150061,ETABLISSEMENT SAINTE ELISABETH,Paris,https://www.sainte-elisabeth.com/,,0,0,0,0,0,0,no
+org-3b8044d2ad,Ecole de Judo des Mines,Paris,http://ecoledejudodesmines.blogspot.com/,,0,0,0,0,0,0,no
+org-47ed7d809c,Eiffel Basket Club,Paris,http://www.eiffelbasketclub.fr/,,0,0,0,0,0,0,no
+org-0351130043,En Avant de Paris,Paris,http://enavantparis.fr/,,0,0,0,0,0,0,no
+org-3043429ffe,Encordes pour s'Elever,Paris,,,0,0,0,0,0,0,no
+org-f18af92701,Entente Volleyball de Paris,Paris,https://envolparis.webself.net/,,0,0,0,0,0,0,no
+org-2e9f807ffd,Escalad' Indoor,Paris,https://www.escalad-indoor.com/,,0,0,0,0,0,0,no
+org-97978a7227,Escrime des Quais de Seine,Paris,https://www.escrimequaisdeseine.fr/,,0,0,0,0,0,0,no
+org-2df697cd71,Esperance de Reuilly,Paris,https://www.reuillytt.fr,,0,0,0,0,0,0,no
+org-1c0d84ee59,Evasao BJJ,Paris,,,0,0,0,0,0,0,no
+org-5d2522408f,Exquise Ivresse,Paris,https://heure-exquise.org/,,0,0,0,0,0,0,no
+I751200086,FAIR PLAY SPORT 20EME (DOJO UNIVERSEL),Paris,,,0,0,0,0,0,0,no
+org-1462d4b02a,FC BADMINTON,Paris,https://formabad.catalogueformpro.com/,,0,0,0,0,0,0,no
+org-81362c482e,FEEDBAC,Paris,https://www.feedbac.fr/,,0,0,0,0,0,0,no
+org-fd8b982d3e,FENCING ADDICT,Paris,https://www.addict-paris.fr/,,0,0,0,0,0,0,no
+I751170059,FITNESS PARK BATIGNOLLES,Paris,https://www.q-park.fr/,,0,0,0,0,0,0,no
+I751120092,FITNESS PARK DIDEROT,Paris,https://sallesdesport.fitness/,,0,0,0,0,0,0,no
+I751200091,FITNESS PARK PARIS BAGNOLET,Paris,https://www.fitnesspark.fr/club/paris-rue-de-bagnolet/,,0,0,0,0,0,0,no
+I751150097,FITNESS PARK PARIS THEATRE,Paris,https://www.fitnesspark.fr/club/paris-theatre/,,0,0,0,0,0,0,no
+I751200024,FITNESS SANTE,Paris,http://fitness-sante.fr/index.php,,0,0,0,0,0,0,no
+I751170047,FORME EXPRESS,Paris,https://forme-express-paris17.com,,0,0,0,0,0,0,no
+I751130048,FRANCE BUDO CLUB,Paris,https://www.cartes-2-france.com/,,0,0,0,0,0,0,no
+I751150025,FRANCOISE DALLY DAOUD,Paris,,,0,0,0,0,0,0,no
+I751160037,FRONTON DE PARIS,Paris,https://www.frontons.net/,,0,0,0,0,0,0,no
+I751130096,Fitness Park Chevaleret - Salle de sport Paris 13,Paris,https://mon-sport-fitness.fr/,,0,0,0,0,0,0,no
+org-7333e90d51,Funny Club J2A Judo,Paris,https://www.judoj2a.com/,,0,0,0,0,0,0,no
+I751120014,GOBABYGYM PARIS 12,Paris,,,0,0,0,0,0,0,no
+I751130079,GOBABYGYM PARIS 13,Paris,https://paris-fleuristes.com/,,0,0,0,0,0,0,no
+I751170020,GORYU DOJO,Paris,http://www.kinomichi.com,,0,0,0,0,0,0,no
+org-cf9805d7e3,GRIMPE PARIS 13,Paris,http://www.grimpe13.org/,,0,0,0,0,0,0,no
+I751110034,GROUPE SCOLAIRE SAINT AMBROISE,Paris,http://saintambroise.fr/,,0,0,0,0,0,0,no
+I751180053,GROUPE SCOLAIRE SAINT JEAN DE MONTMARTRE,Paris,https://stjeandemontmartre.com/,,0,0,0,0,0,0,no
+I751130063,GROUPE SCOLAIRE SAINT VINCENT DE PAUL,Paris,https://www.gs-svp.com,,0,0,0,0,0,0,no
+org-4ef19f7162,GRS GLACIERE XIII,Paris,https://www.gestgym.com/,,0,0,0,0,0,0,no
+org-a3cc27e4ef,GRS Glaciere 13,Paris,https://www.grsglaciere13.fr/,,0,0,0,0,0,0,no
+org-79a2c796c3,GRS Paris Centre,Paris,https://grspariscentre.fr/,,0,0,0,0,0,0,no
+org-be564bb554,GUMS Paris,Paris,https://association-ou-organisation.association.tel/,,0,0,0,0,0,0,no
+org-1e1f08cc4e,GYMACC,Paris,,,0,0,0,0,0,0,no
+I751100015,GYMNASE BUISSON SAINT LOUIS,Paris,,,0,0,0,0,0,0,no
+I751170029,GYMNASE DE L'ACEPMT,Paris,,,0,0,0,0,0,0,no
+I751150042,GYMNASE DE L'INGÉNIEUR KELLER,Paris,https://www.paris.fr/lieux/gymnase-de-l-ingenieur-robert-keller-3122,,0,0,0,0,0,0,no
+I751200033,GYMNASE DE LA BIDASSOA,Paris,https://paris-promeneurs.com/,,0,0,0,0,0,0,no
+I751150038,GYMNASE DUPLEIX,Paris,https://www.evous.fr/,,0,0,0,0,0,0,no
+I751150040,GYMNASE FALGUIERE,Paris,https://www.paris.fr/lieux/gymnase-falguiere-3119,,0,0,0,0,0,0,no
+I751190067,GYMNASE HAUTPOUL,Paris,https://www.volleyfsgtidf.org/,,0,0,0,0,0,0,no
+I751070017,GYMNASE MASSERAN,Paris,https://www.paris.fr/lieux/gymnase-masseran-3362,,0,0,0,0,0,0,no
+I751150044,GYMNASE OLIVIER DE SERRES,Paris,https://www.paristaekwondo.com/,,0,0,0,0,0,0,no
+org-475abce653,GYMNASTIQUE SAINT ANDRE DE LEUROPE,Paris,https://75.lavieduvillage.fr/,,0,0,0,0,0,0,no
+org-ff0d5577c5,GYMNASTIQUE VOLONTAIRE 5EME,Paris,,,0,0,0,0,0,0,no
+org-68c616cc39,GYMNASTIQUE VOLONTAIRE SECTION PARIS 75011,Paris,http://www.oms-paris11.org/,,0,0,0,0,0,0,no
+org-824476f687,Gassendiana,Paris,http://www.gassendiana.fr/,,0,0,0,0,0,0,no
+org-0d239f3532,Geecko,Paris,https://geecko.tech/,,0,0,0,0,0,0,no
+org-178ab2472e,Generali Sport et Culture,Paris,,,0,0,0,0,0,0,no
+org-81981fad61,Grimpo6,Paris,http://grimpo6.org/,,0,0,0,0,0,0,no
+org-a21bd416b0,Gym Paris 15,Paris,http://www.gymparis15.fr/,,0,0,0,0,0,0,no
+org-16745bc8b0,HANDBALL CLUB 75 (HBC75),Paris,https://www.handball-idf.com/,,0,0,0,0,0,0,no
+org-303829c227,HANDBALL CLUB PARIS 17,Paris,,,0,0,0,0,0,0,no
+org-811eab4eeb,HANDBALL CLUB PARISIEN,Paris,,,0,0,0,0,0,0,no
+org-d594b123a1,HDN Handanous,Paris,,,0,0,0,0,0,0,no
+org-ddbd0030af,HL Basketball,Paris,http://hlbasketball.com/,,0,0,0,0,0,0,no
+I751080009,HOTEL PLAZA ATHENEE,Paris,http://www.plaza-athenee-paris.com,,0,0,0,0,0,0,no
+org-3f71107622,Hustle Paris,Paris,https://hustle-paris.com/,,0,0,0,0,0,0,no
+I751190065,IFLY PARIS,Paris,https://www.iflyfrance.com,,0,0,0,0,0,0,no
+org-3d937ad70f,INALCO,Paris,https://www.inalco.fr/,,0,0,0,0,0,0,no
+I751180012,INDY BOWLING PARIS PORTE DE LA CHAPELLE,Paris,https://www.sportenfrance.fr/,,0,0,0,0,0,0,no
+org-580022ba24,INSEE PARIS CLUB,Paris,http://inseeparisclub.fr/,,0,0,0,0,0,0,no
+I751160064,INSPE,Paris,http://www.paris.iufm.fr/,,0,0,0,0,0,0,no
+I751070009,INSTITUT DE L'ALMA,Paris,https://www.ecl-alma.com/,,0,0,0,0,0,0,no
+I751160066,INSTITUT DE L'ASSOMPTION,Paris,http://www.assomption-lubeck.com/,,0,0,0,0,0,0,no
+I751010002,INSTITUT LUDONG MING,Paris,https://www.ludongming.fr,,0,0,0,0,0,0,no
+I751120069,INSTITUT SAINT PIERRE FOURIER,Paris,https://www.spfparis12.fr/,,0,0,0,0,0,0,no
+I751060010,INSTITUT SAINTE GENEVIEVE,Paris,https://isg6.paris/,,0,0,0,0,0,0,no
+org-2684661109,INTERBUDO,Paris,http://interbudo.fr/,,0,0,0,0,0,0,no
+org-a466f6915e,Institut Catholique de Paris,Paris,https://www.icp.fr/,,0,0,0,0,0,0,no
+I751140063,Institut d'éducation sensorielle,Paris,https://annuaire-education.fr/,,0,0,0,0,0,0,no
+org-d4e9334237,Inter Activites,Paris,http://www.inter-activites.com/,,0,0,0,0,0,0,no
+org-a64d1d4c75,JAM Paris 14,Paris,https://lajamtt.blogspot.com,,0,0,0,0,0,0,no
+org-a4b4fff69c,JUDO ALLIANCE PARIS (JAP),Paris,http://www.judoallianceparis.fr/,,0,0,0,0,0,0,no
+org-2d945b1dd2,JUDO CLUB MALESHERBES,Paris,https://www.118000.fr/,,0,0,0,0,0,0,no
+org-a3ee25d7d7,JUDO DIASPORA,Paris,https://www.diasporadz.com/,,0,0,0,0,0,0,no
+org-e2a8b38c7a,JUDO FORCE PROMOTION (JFP),Paris,https://www.judofranceparis.fr/,,0,0,0,0,0,0,no
+org-6e53b508b7,JUDOKAN PARIS,Paris,,,0,0,0,0,0,0,no
+org-f358364668,Jiu-Jitsu France Paris,Paris,,,0,0,0,0,0,0,no
+org-74f7eb7b7d,Judo Club Alesia,Paris,https://judoclub-alesia.com/,,0,0,0,0,0,0,no
+org-d713c53b21,Judo Club Baudricourt,Paris,https://judo-club-baudricourt.fr/,,0,0,0,0,0,0,no
+org-fc52aac4a5,Judo Club Bolivar,Paris,https://judoclubbolivar.ffjudo.com/,,0,0,0,0,0,0,no
+org-2357589ba4,Judo Club Sorbier,Paris,http://www.judoclubsorbier.fr/,,0,0,0,0,0,0,no
+org-d2e2b0e2ff,Judo France Paris CEASC,Paris,https://www.judofranceparis.fr/,,0,0,0,0,0,0,no
+org-420c5de51e,Judo Paris 17,Paris,https://www.judoparis17.fr/,,0,0,0,0,0,0,no
+org-5b90689b90,Judokan 9,Paris,http://judokan9.blogspot.fr/,,0,0,0,0,0,0,no
+org-f8b3c726c4,Jump,Paris,http://www.jumptt.com,,0,0,0,0,0,0,no
+org-7d7f022adc,Kin-Ball Paris 13,Paris,https://paris13.kin-ball.fr/,,0,0,0,0,0,0,no
+I751130072,L'APPART FITNESS PARIS 13 IVRY,Paris,https://www.parisgym.com/,,0,0,0,0,0,0,no
+org-3037f4b022,L'ARC ALPIN,Paris,,,0,0,0,0,0,0,no
+I751100010,L'ART DU FITNESS,Paris,https://www.parismambo.com,,0,0,0,0,0,0,no
+I751140021,L'ATELIER DU VERBE,Paris,https://www.theatreatelierduverbe.com,,0,0,0,0,0,0,no
+I751160042,L'ETRIER PARIS DAUPHINE,Paris,https://www.etrierdeparis.fr,,0,0,0,0,0,0,no
+I751140023,L'OEUVRE D'EDUCATION POPULAIRE ET FAMILIALE,Paris,https://oepf.chez.com,,0,0,0,0,0,0,no
+org-febf0f383b,L.M.P. ASSOCIATION,Paris,https://competitions.ffbb.com/ligues/idf/comites/0075/clubs/idf0075103,,0,0,0,0,0,0,no
+I751190030,LA CASA DEL TANGO,Paris,http://www.lacasadeltango.net/index.htm,,0,0,0,0,0,0,no
+I751160049,LA CLE TOUR EIFFEL PARIS,Paris,https://www.sortiraparis.com/,,0,0,0,0,0,0,no
+I751100004,LA GYM SUEDOISE PARIS 10,Paris,https://www.gymsuedoise.com,,0,0,0,0,0,0,no
+I751100005,LA MAISON DE M.A.I - SALLE KILLA,Paris,https://www.maisondemai.org,,0,0,0,0,0,0,no
+org-f96839f77f,LA SALESIENNE DE PARIS,Paris,https://www.salesiennedeparis.com/,,0,0,0,0,0,0,no
+org-955eb2499d,LA SALLE D'ARMES - ECOLE ANCIENNE - PARIS,Paris,http://la-salle-darmes-ancienne.fr/,,0,0,0,0,0,0,no
+I751120032,LAPEBIE PIERRE,Paris,,,0,0,0,0,0,0,no
+org-5a530c0e35,LAPELCHA,Paris,https://resultats.ffbb.com/organisation/b5e6211d5407.html,,0,0,0,0,0,0,no
+PV009,LE FIVE,Paris,https://www.lefive.fr/,,0,0,0,0,0,0,no
+I751170025,LE SPORTING,Paris,http://www.lesporting.fr/accueil.html,,0,0,0,0,0,0,no
+org-d00a8adea9,LES COMPAGNONS D'ARMES DU PHOENIX (CAP),Paris,https://www.phoenixpharma.fr/,,0,0,0,0,0,0,no
+org-ae1c2bfecb,LES RAQUETTES DU 11,Paris,,,0,0,0,0,0,0,no
+I751120005,LIBERTY GYM,Paris,https://www.libertygym-paris12-bercy.fr,,0,0,0,0,0,0,no
+I751180047,LYCEE AUGUSTE RENOIR,Paris,https://classement-lycees.com/,,0,0,0,0,0,0,no
+I751060016,LYCEE CARCADO SAISSEVAL,Paris,http://www.carcado-saisseval.com,,0,0,0,0,0,0,no
+I751100029,LYCEE COLBERT,Paris,https://pia.ac-paris.fr/serail/jcms/s6_208046/fr/accueil,,0,0,0,0,0,0,no
+I751090020,LYCEE CONDORCET,Paris,https://pia.ac-paris.fr/serail/jcms/s2_2323780/fr/lycee-condorcet-paris-9e,,0,0,0,0,0,0,no
+I751150059,LYCEE FRESNEL,Paris,https://pia.ac-paris.fr/serail/jcms/s2_3657136/fr/lycee-des-metiers-fresnel,,0,0,0,0,0,0,no
+I751150067,LYCEE INNOVANT DE PARIS (LIP),Paris,https://pia.ac-paris.fr/serail/jcms/s2_3492385/fr/lycee-innovant-de-paris-lip-l-autre-lycee,,0,0,0,0,0,0,no
+I751130067,LYCEE JEAN LURCAT,Paris,https://lycee-jean-lurcat.net,,0,0,0,0,0,0,no
+I751190044,LYCEE JULES RICHARD,Paris,https://www.lyceejulesrichard.fr/,,0,0,0,0,0,0,no
+I751190040,LYCEE L'INITIATIVE,Paris,http://www.lyceelinitiative.org/,,0,0,0,0,0,0,no
+I751200068,LYCEE MARTIN NADAUD,Paris,http://lyc-nadaud.scola.ac-paris.fr/,,0,0,0,0,0,0,no
+I751140057,LYCEE PAUL BERT,Paris,https://www.lycee-buffon.fr/,,0,0,0,0,0,0,no
+I751070006,LYCEE PAUL CLAUDEL D'HULST,Paris,https://paulclaudel-hulst.fr/,,0,0,0,0,0,0,no
+I751130051,LYCEE PIERRE-GILLES DE GENNES,Paris,https://encpb.org/,,0,0,0,0,0,0,no
+I751080018,LYCEE RACINE,Paris,[redacted],,0,0,0,0,0,0,no
+I751060014,LYCEE SAINT-NICOLAS,Paris,http://www.lyceesaintnicolas.com/,,0,0,0,0,0,0,no
+I751160065,LYCEE SAINTE-THERESE,Paris,https://www.sainte-therese.fr/,,0,0,0,0,0,0,no
+I751110030,LYCEE TURQUETIL,Paris,https://pia.ac-paris.fr/serail/jcms/s1_714926/fr/accueil,,0,0,0,0,0,0,no
+I751030009,LYCEE VICTOR HUGO,Paris,https://www.classement-lycees.com/,,0,0,0,0,0,0,no
+org-d75e76352b,La Domremy Basket 13,Paris,https://ladomremybasket13.com/,,0,0,0,0,0,0,no
+I751080024,La Réserve Paris,Paris,https://www.lareserve-paris.com/,,0,0,0,0,0,0,no
+org-423d2c3e67,Le 8 Assure,Paris,https://www.le8assure.club/,,0,0,0,0,0,0,no
+org-7f9e570cc7,Le 8eme Homme,Paris,,,0,0,0,0,0,0,no
+org-597f413f8e,Le Club Block'Out Paris 17eme,Paris,https://www.tourisme93.com/,,0,0,0,0,0,0,no
+org-e4979110ef,Le Club du Cinquieme,Paris,http://www.leclubdu5.com/,,0,0,0,0,0,0,no
+org-5e7a7899d9,Le Mur Escalade,Paris,https://www.lemur-escalade.org/,,0,0,0,0,0,0,no
+org-735a076acd,Le Pied dans l'Eau,Paris,https://www.pied-dans-eau.fr/,,0,0,0,0,0,0,no
+I751120090,Le Triangle,Paris,https://www.letriangle.net/,,0,0,0,0,0,0,no
+org-629c63c63b,Lepic Populaire,Paris,https://lepic-populaire.fr/tennis-de-table/,,0,0,0,0,0,0,no
+org-5d6d3d79d4,Les 9 Mousquetons,Paris,http://www.les3mousquetons.net/,,0,0,0,0,0,0,no
+org-78297e5dca,Les Colombes de Bercy,Paris,http://www.lescolombesdebercy.fr/,,0,0,0,0,0,0,no
+org-fe91a14c9b,Les Girondins de Paris,Paris,https://girondins.com/,,0,0,0,0,0,0,no
+org-195a36adad,Les Sudistes,Paris,,,0,0,0,0,0,0,no
+org-be16bd79e7,Licorne Handball Club Paris,Paris,https://poitiers-ec-handball.fr/,,0,0,0,0,0,0,no
+org-ec113d69b4,Lycée Saint-Michel des Batignolles (Ensemble scolaire Batignolles-Epinettes),Paris,https://es-be.fr/,,0,0,0,0,0,0,no
+I751110050,MAISON KELLER,Paris,,,0,0,0,0,0,0,no
+org-7932d49232,MONCOURSNATATION,Paris,,,0,0,0,0,0,0,no
+org-9fbe1b580e,MX OMNISPORTS,Paris,,,0,0,0,0,0,0,no
+org-259eb5011c,Marines Sportives du Centre de Paris,Paris,https://www.marines-sportives.com/,,0,0,0,0,0,0,no
+org-5f871f68b1,Martigua,Paris,https://martigua-handball.wixsite.com/martigua-hb,,0,0,0,0,0,0,no
+org-b146ac32ca,Menilmontant Paris Sports,Paris,https://menilmontantbb.com/,,0,0,0,0,0,0,no
+org-41aa84e4c0,Metro Badminton Paris,Paris,https://metrobadmintonparis.fr/,,0,0,0,0,0,0,no
+I751110068,Milon-Club,Paris,https://www.milon-club.fr,,0,0,0,0,0,0,no
+org-294c8275de,Mines Paris - PSL,Paris,https://www.minesparis.psl.eu/,,0,0,0,0,0,0,no
+org-45d417a7c5,NAGEURS CITOYENS,Paris,https://www.nageurs.com/,,0,0,0,0,0,0,no
+I751120039,NIHON DOJO,Paris,https://nihondojo.fr/,,0,0,0,0,0,0,no
+org-710d669312,NIKE PARIS BASKETBALL,Paris,,,0,0,0,0,0,0,no
+I751130085,NR FIGHT,Paris,https://www.nrfight.com/,,0,0,0,0,0,0,no
+org-30f857c188,Natixis Bred,Paris,,,0,0,0,0,0,0,no
+org-65911f7727,Neptune Club de France,Paris,https://neptuneclubdefrance.fr/,,0,0,0,0,0,0,no
+I751200010,O SPORT 20,Paris,http://amazonia.fr/club/paris20,,0,0,0,0,0,0,no
+org-ed7e0ca6fe,OBJECTIF SOMMET,Paris,,,0,0,0,0,0,0,no
+PV013,OLYMPE CLUB,Paris,https://olympe-club.com/,,0,0,0,0,0,0,no
+org-9dcf47e156,OLYMPIQUE PARIS-NATATION (O.P.N),Paris,https://www.op-natation.fr/,,0,0,0,0,0,0,no
+PV006,PADEL 15,Paris,https://www.padel15.fr/,,0,0,0,0,0,0,no
+PV007,PADELISTES,Paris,https://padelistes.com/,,0,0,0,0,0,0,no
+I751050013,PALESTRA CLUB,Paris,https://www.gympauldaniel.com,,0,0,0,0,0,0,no
+org-7f3e408bb4,PARIS ACADEMIE RESPECT INTEGRITE SPORT MVAC,Paris,http://www.sport-seniors-paris-ouest.fr/,,0,0,0,0,0,0,no
+org-d66f2c1d61,PARIS ALLIANCE NATATION - PAN,Paris,https://abcnatation.fr/,,0,0,0,0,0,0,no
+I751150055,PARIS ANIM' BRANCION,Paris,https://blog.paris15.fr/,,0,0,0,0,0,0,no
+org-86b5f74351,PARIS AVENIR NATATION,Paris,https://www.ffnatation.fr/,,0,0,0,0,0,0,no
+org-01e908fac2,PARIS BADMINTON CLUB,Paris,https://badminton-web.com/,,0,0,0,0,0,0,no
+org-f3bf9a653c,PARIS BASKET 15,Paris,https://www.parisbasket15.fr/,,0,0,0,0,0,0,no
+org-783b0c852a,PARIS BASKET 18,Paris,https://pb18.fr/,,0,0,0,0,0,0,no
+org-f589a543c8,PARIS BASKET 9,Paris,https://parisbasketball.paris/,,0,0,0,0,0,0,no
+org-60869e6f3a,PARIS BASKET BOWL,Paris,https://parisbasketball.com/,,0,0,0,0,0,0,no
+org-6528aa36be,PARIS BASKET CENTRE 3,Paris,https://www.valdeseinebasket.fr/,,0,0,0,0,0,0,no
+org-47cedb44e4,PARIS BASKETBALL ASSOCIATION,Paris,https://www.mr-stats.frenchbasketballscouting.fr/,,0,0,0,0,0,0,no
+I751120011,PARIS CENTRAL TENNIS,Paris,https://paris-central-tennis.fr,,0,0,0,0,0,0,no
+I751110058,PARIS COACH,Paris,https://www.pariscoach.fr,,0,0,0,0,0,0,no
+org-a9b0c1b73c,PARIS JEAN BOUIN CASG,Paris,https://www.leparisien.fr/,,0,0,0,0,0,0,no
+org-0467802ce1,PARIS NAGE LIBRE,Paris,https://www.leparisien.fr/,,0,0,0,0,0,0,no
+PV008,PARIS PADEL,Paris,https://www.citypadel.fr/parispadel,,0,0,0,0,0,0,no
+org-70ea50d6d4,PARIS SPORT SWIM,Paris,https://openswimstars.com/,,0,0,0,0,0,0,no
+org-60e50433bf,PARIS SUD BASKET,Paris,http://www.assohome.com/,,0,0,0,0,0,0,no
+org-4159a39529,PARIS SWIM,Paris,https://www.swim.legal/,,0,0,0,0,0,0,no
+I751150005,PAROISSE SAINT-JEAN DE LA SALLE,Paris,https://www.paroisse-sjbs.fr/,,0,0,0,0,0,0,no
+org-f1da893bde,PING SANS FRONTIERES,Paris,http://www.pingsansfrontieres.org/,,0,0,0,0,0,0,no
+org-192cb2a3eb,PONGIFORME,Paris,,,0,0,0,0,0,0,no
+org-31ab3a7114,PYRAMIDE OLYMPIQUE DE JUDO,Paris,https://www.ffjudo.com/,,0,0,0,0,0,0,no
+org-1fc1e5d0c1,Paris 13 TT,Paris,http://www.paris13tt.org,,0,0,0,0,0,0,no
+org-ee9808129e,Paris 18e Handball,Paris,http://www.p18hb.com/,,0,0,0,0,0,0,no
+org-ad8c2010b2,Paris Escrime Sporting Club,Paris,https://paris-escrime-sporting.fr/,,0,0,0,0,0,0,no
+org-1c12088293,Paris Gasyers,Paris,http://parisgasyers.com/,,0,0,0,0,0,0,no
+org-7d4149da8e,Paris Handball,Paris,https://www.psgacademyhandball.fr/,,0,0,0,0,0,0,no
+org-937e4d031c,Paris IX ATT,Paris,http://www.paris9ping.com,,0,0,0,0,0,0,no
+org-ac4953aeab,Paris Lady Basket,Paris,https://parisladybasket.fr/,,0,0,0,0,0,0,no
+org-94ad74355e,Paris Open Bad,Paris,,,0,0,0,0,0,0,no
+org-61781b8274,Paris Rythmique,Paris,http://parisrythmique.com/,,0,0,0,0,0,0,no
+org-7bc4cc4a8b,Paris Sport Club,Paris,http://www.paris-sport-club.org/,,0,0,0,0,0,0,no
+org-843c6288d4,Paris Sport Sante,Paris,https://www.parissportsante.fr/,,0,0,0,0,0,0,no
+org-6b266d7787,Paris Sud Judo,Paris,https://www.parissudjudo.com/,,0,0,0,0,0,0,no
+org-077283d7ac,Paris Universite Club,Paris,https://puc.paris/,,0,0,0,0,0,0,no
+org-df5937957a,Paris Volley Club,Paris,http://www.parisvolleyclub.fr/,,0,0,0,0,0,0,no
+org-e34a42dbe3,Paris Volley Loisirs,Paris,https://www.paris-volley-loisirs.com/,,0,0,0,0,0,0,no
+org-acdb9877d7,Paris XO Handball,Paris,https://www.ffhandball.fr/,,0,0,0,0,0,0,no
+org-fd467d4e2d,Ping Paris 14,Paris,http://ping-paris14.fr/,,0,0,0,0,0,0,no
+I751110042,Piscine Oberkampf,Paris,https://espaceformoberkampf.com,,0,0,0,0,0,0,no
+I751150096,Pulse Studio,Paris,https://pulsestudio.fr,,0,0,0,0,0,0,no
+PV018,R2 TRAINING,Paris,https://www.r2training.fr/,,0,0,0,0,0,0,no
+PV012,RITM,Paris,https://ritm-sport.fr/,,0,0,0,0,0,0,no
+I751190024,SACAMP,Paris,http://sacamp2.fr/,,0,0,0,0,0,0,no
+I751060019,SALLE D'ARMES CAUDURIER,Paris,,,0,0,0,0,0,0,no
+I751110029,SALLE DE L'ALLEE VERTE,Paris,http://www.us-metro.com/us-metro/,,0,0,0,0,0,0,no
+I751200025,SALLE SERPOLLET ANNEXE CENTRE PARIS ANIM' LOUIS LUMIERE,Paris,http://www.ligueparis.org,,0,0,0,0,0,0,no
+org-2d10040ccd,SCUF - Sporting Club Universitaire de France,Paris,https://scuf.org/,,0,0,0,0,0,0,no
+I751160029,SHOGUN CENTER,Paris,https://shogunlachapelle.fr/,,0,0,0,0,0,0,no
+org-e11860c1ec,SMA Sport,Paris,,,0,0,0,0,0,0,no
+PV021,SOFIT CLUB,Paris,https://www.sofit-club.com/,,0,0,0,0,0,0,no
+org-a66ac9b36d,SOSM Badminton Paris,Paris,https://welcometothesport.com/section-olympique-saint-medard,,0,0,0,0,0,0,no
+org-51217d381f,SPEED BADMINTON CLUB DE PARIS 17,Paris,https://www.vgfbadminton.fr/,,0,0,0,0,0,0,no
+PV005,SPORTFIELD,Paris,https://www.sportfield.fr/,,0,0,0,0,0,0,no
+org-436625bf34,SPORTING CLUB MACCABI DE PARIS,Paris,http://www.oms-paris11.org/,,0,0,0,0,0,0,no
+PV010,SQUASH HORIZON,Paris,https://squash-horizon.fr/,,0,0,0,0,0,0,no
+I751120056,STADE JEAN PIERRE GARCHERIE,Paris,,,0,0,0,0,0,0,no
+I751070018,STUDIO A,Paris,https://www.archistorm.com/,,0,0,0,0,0,0,no
+I751150017,STUDIO CHANDON,Paris,http://shukaba.org/Studio-Chandon.html,,0,0,0,0,0,0,no
+I751150019,STUDIO DANSE ENERGIE,Paris,http://www.studio-danse-energie.com,,0,0,0,0,0,0,no
+I751130003,STUDIO DE LA BUTTE AUX CAILLES,Paris,,,0,0,0,0,0,0,no
+I751110010,STUDIO DE LA MAIN D'OR,Paris,https://studiomaps.app/,,0,0,0,0,0,0,no
+PV015,STUDIO DE SPORT CO2,Paris,https://www.co2-coaching.fr/,,0,0,0,0,0,0,no
+I751110016,STUDIO KELLER,Paris,https://www.prosmaison.fr/,,0,0,0,0,0,0,no
+I751130094,STUDIO VARIATIONS SUR LE CORPS,Paris,https://www.studio-variations.com/,,0,0,0,0,0,0,no
+org-ab8cb60c83,SWIMMING CLUB PSA - LES LOUTRES,Paris,,,0,0,0,0,0,0,no
+org-43ee97c2c3,Sciences Po Paris,Paris,https://www.sciencespo.fr/students/fr/participer/sports/,,0,0,0,0,0,0,no
+org-55214271b4,SiteBad,Paris,http://www.sitebad.com/,,0,0,0,0,0,0,no
+org-86429f2706,Sporting Club Nord Parisien,Paris,https://www.scnp.fr/,,0,0,0,0,0,0,no
+org-991af9a370,Sporting Paris 20 TT,Paris,https://www.sp20tt.net,,0,0,0,0,0,0,no
+I751020010,Studio Feet in Straps,Paris,https://www.fpmp.fr/dsdsheet/karine-dubois/,,0,0,0,0,0,0,no
+org-5fc0efc572,Swim Easy - Natation Pour Tous,Paris,https://www.swimeasy.fr/,,0,0,0,0,0,0,no
+I751150011,TENNIS CLUB CHEMINOT DE VAUGIRARD,Paris,https://service-tennis.fr/,,0,0,0,0,0,0,no
+I751150028,TENNIS CLUB DE LA CAVALERIE,Paris,http://www.tennisdelacavalerie.fr,,0,0,0,0,0,0,no
+I751140012,TENNIS CLUB MONTSOURIS,Paris,https://tennis-idf.fr/,,0,0,0,0,0,0,no
+I751160071,TENNIS CLUB RIBERA,Paris,https://tennis-ribera.com/,,0,0,0,0,0,0,no
+I751050017,TENNIS CLUB SAINT JACQUES,Paris,,,0,0,0,0,0,0,no
+I751150032,TRINQUET DE LA CAVALERIE,Paris,https://www.trinquetdelacavalerie.fr/,,0,0,0,0,0,0,no
+org-8709699833,TRISWIM PERFORMANCE,Paris,,,0,0,0,0,0,0,no
+org-99bbbdcaa8,TT Plus,Paris,https://www.ttplus.fr/,,0,0,0,0,0,0,no
+org-0f07353c60,TT16,Paris,https://tt16.fr,,0,0,0,0,0,0,no
+I751010013,Temple | Noble Art,Paris,https://www.temple-nobleart.com,,0,0,0,0,0,0,no
+org-5b5fd5f19b,The American University of Paris,Paris,https://www.aup.edu/,,0,0,0,0,0,0,no
+I751160078,The Movemnt,Paris,https://www.themovemnt.fr/,,0,0,0,0,0,0,no
+PV016,UCPA SPORT STATION,Paris,https://www.ucpa.com/sport-station/paris-19,,0,0,0,0,0,0,no
+org-f7446fe0ce,UN SOMMET DE PLUS,Paris,,,0,0,0,0,0,0,no
+org-8e1ec8ac5c,UNION DES HANDBALLEURS ALGERIENS EN FRANCE (UHAF),Paris,https://www.enscmu.uha.fr/,,0,0,0,0,0,0,no
+org-951d0b1091,US 2 Paris,Paris,http://us2tt.org,,0,0,0,0,0,0,no
+org-aab65599f6,US Curial Cambrai,Paris,https://inscriptionenligne.fftt.com/club/08751445,,0,0,0,0,0,0,no
+org-567a2ae2e2,USD CHARONNE,Paris,https://club.mon-club.tel/,,0,0,0,0,0,0,no
+I751050023,Université PARIS III - SORBONNE NOUVELLE,Paris,https://www.sorbonne-nouvelle.fr/,,0,0,0,0,0,0,no
+org-3efd66f074,Université PSL (PSL Sport),Paris,https://sports.psl.eu/,,0,0,0,0,0,0,no
+org-992ddc43fb,Université Paris 1 Panthéon-Sorbonne,Paris,https://sport.pantheonsorbonne.fr/,,0,0,0,0,0,0,no
+PV003,VERTICAL WORLD,Paris,https://www.vertical-world.fr/,,0,0,0,0,0,0,no
+org-70595b6efd,VERTICAL12,Paris,https://www.vertical12.org/,,0,0,0,0,0,0,no
+org-91b1db1363,Viking Club Paris,Paris,https://www.vikingclubparis.org/,,0,0,0,0,0,0,no
+org-15eeab6f7a,Vol au Vent Gym danse 4e,Paris,http://www.volauvent.fr/,,0,0,0,0,0,0,no
+org-060c3934b0,Volley 6,Paris,https://www.volley6.fr/,,0,0,0,0,0,0,no
+org-08cc2f9b6b,Volley Loisirs Sixieme,Paris,http://volleyloisirssixieme.free.fr/,,0,0,0,0,0,0,no
+org-49c70fbf75,Volley Rive Gauche VRG,Paris,https://sites.google.com/site/volleyrivegauche,,0,0,0,0,0,0,no
+I751080022,WELLIO Paris Saint-Lazare L'Atelier,Paris,https://wellio.com/fr/paris-saint-lazare/,,0,0,0,0,0,0,no
+I751200083,WING CHUN,Paris,http://www.wingchunbeddar.com/accueil.php3,,0,0,0,0,0,0,no
+org-9a14db6bb5,Who's Bad Paris,Paris,https://www.whosbad.org/,,0,0,0,0,0,0,no
+PV019,ZONES SPORT STUDIO,Paris,https://landing.zones.paris/home,,0,0,0,0,0,0,no
+org-a05fa6d501,École Boulle,Paris,https://ecole-boulle.org/,,0,0,0,0,0,0,no
+org-c3813303cc,École Estienne,Paris,http://www.ecole-estienne.paris/,,0,0,0,0,0,0,no
+org-df177ed9c5,École Pascal,Paris,https://www.ecolepascal.fr/,,0,0,0,0,0,0,no
+org-bcf9514b31,École nationale supérieure des Arts Décoratifs (ENSAD) - PSL,Paris,https://www.ensad.fr/,,0,0,0,0,0,0,no
+org-20e3aec1d4,École pratique des hautes études (EPHE) - PSL,Paris,https://www.ephe.psl.eu/,,0,0,0,0,0,0,no
+PV014,ÔZENHIT,Paris,https://ozenhit.com/,,0,0,0,0,0,0,no
