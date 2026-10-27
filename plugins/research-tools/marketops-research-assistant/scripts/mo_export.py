@@ -296,7 +296,18 @@ def export(pdir) -> dict:
     out = pdir / f"{pdir.name}-{stamp}.xlsx"
     out.write_bytes(render_workbook(sheets))
     routes = _routes_csv(pdir, emails, stamp)
-    return {"file": str(out), "routes_csv": str(routes), "contacts": len(route_rows), **m,
+    import mo_journal
+    checked = [c for c in emails if c.get("checked") in ("ok", "wrong")]
+    if len(checked) >= 20 and sum(c["checked"] == "ok" for c in checked) / len(checked) < 0.9:
+        mo_journal.auto(pdir, "precision", f"spot check precision {_precision(emails)} - under the 90% delivery bar",
+                        "抽检 sheet")
+    retro = mo_journal.retro(pdir, {r["项目"]: r["值"] for r in summary if r["项目"] not in ("说明", "导出时间")},
+                             ws.stages(pdir),
+                             {"Playbook segments": sorted(ws.playbook(pdir))[:40],
+                              "Agent verdicts": [f"{k}: {n}" for k, n in sorted(
+                                  __import__("collections").Counter(v.get("verdict", "") for v in
+                                                                    ws.read_csv(pdir / "verdicts.csv")).items())]})
+    return {"file": str(out), "routes_csv": str(routes), "retro": str(retro), "contacts": len(route_rows), **m,
             "to_review": sum(c.get("review") == "yes" for c in emails)}
 
 

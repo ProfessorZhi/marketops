@@ -524,6 +524,7 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
     submitted, futures = set(finished), []
     waiting: dict[str, list] = {}   # source -> organisations not yet started
     last_new, last_snap, last_export = time.time(), 0.0, time.time()
+    last_watch = [time.time()]
     with ThreadPoolExecutor(max_workers=workers) as pool:
         while True:
             if not stopping():
@@ -560,6 +561,12 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
                     waiting.setdefault(_source(org), []).append(org)
                 state["source_yield"] = {src: {"done": d, "with_ab": a, "turns": _turns((d, a))}
                                          for src, (d, a) in yields.items()}
+                for src, (d, a) in yields.items():
+                    if _turns((d, a)) == 0:
+                        import mo_journal
+                        mo_journal.auto(pdir, f"source:{src}", f"source '{src}': A/B for {a} of {d} organisations "
+                                        f"(under 5%) - moved to the back; a better source is worth looking for",
+                                        "source_yield", every_s=10 ** 9)
             else:
                 futures = prune(futures)
             # organisations waiting for an agent to hand them back keep the run alive (a stale claim
@@ -571,6 +578,10 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
                 last_snap = time.time()
                 m = snapshot()
                 ws.snapshot_contacts(pdir)
+                if time.time() - last_watch[0] > 300:   # a provider failing far more than usual
+                    last_watch[0] = time.time()
+                    import mo_journal
+                    mo_journal.watch(pdir)
                 if time.time() - last_export > 1800:   # long runs: a fresh workbook every half hour
                     last_export = time.time()
                     mo_export.export(pdir)
@@ -754,6 +765,10 @@ def supervise(pdir, shards: int, opts: dict, poll: float = 15.0) -> dict:
             log.write(f"\n[supervisor {ws._now()}] shard {k} ended without finishing "
                       f"({st.get('stage') or 'no state'}); restart {restarts[k]}\n")
             log.flush()
+            import mo_journal
+            mo_journal.auto(pdir, f"restart:{k}:{restarts[k]}", f"shard {k} ended without finishing "
+                            f"({st.get('stage') or 'no state'}: {str(st.get('error') or '')[:160]}); restarted",
+                            "supervisor.log")
             st.update(restarts=restarts[k], done=False)
             _save_state(pdir, st if st.get("file") else {**st, "file": "run.json" if shards == 1 else f"run.{k}.json"})
             start(k)

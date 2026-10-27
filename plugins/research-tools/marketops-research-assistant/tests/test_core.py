@@ -16,6 +16,7 @@ os.environ.update(MARKETOPS_HOME=TMP + "/home", MARKETOPS_PROJECTS=TMP + "/proje
 for k in ("SERPER_API_KEY", "SERPAPI_API_KEY", "DEEPSEEK_API_KEY", "TINYFISH_API_KEY", "TYPESAFE_API_KEY"):
     os.environ.pop(k, None)
 
+import mo_budget  # noqa: E402
 import mo_export  # noqa: E402
 import mo_pages  # noqa: E402
 from mo_pool import norm as norm_name  # noqa: E402
@@ -779,6 +780,29 @@ class SiteHealth(unittest.TestCase):
         other = self.h._Health()          # a second process reading the same file
         other._catch_up(force=True)
         self.assertIn("page set aside", other.skip("https://gone.fr/p", "deepseek"))
+
+
+class Journal(unittest.TestCase):
+    def test_agents_and_the_plugin_write_the_journal_and_export_writes_a_masked_retro(self):
+        import mo_journal
+        pdir = ws.project_dir("t54")
+        ws.write_csv(pdir / "orgs.csv", ["id", "name", "website"], [{"id": "o1", "name": "A", "website": "a.fr"}])
+        server.project("t54", journal=[{"type": "blocker", "text": "mairie04.paris.fr is dead; asked jean.ex@paris.fr",
+                                        "evidence": "+33 1 23 45 67 89"},
+                                       {"type": "smooth", "text": "review caught 9 misattached addresses"}], agent="dig-1")
+        self.assertTrue(mo_journal.auto(pdir, "fail:tinyfish", "tinyfish failing"))
+        self.assertFalse(mo_journal.auto(pdir, "fail:tinyfish", "tinyfish failing"))   # once an hour
+        for k in range(40):
+            mo_budget.record(pdir, "tinyfish", "fetch", k < 5, "TinyFishError: bot_blocked | https://x.fr")
+        f = mo_journal.failures(pdir)["tinyfish"]
+        self.assertEqual((40, 35, {"blocked": 35}), (f["calls"], f["failed"], f["by_kind"]))
+        out = mo_export.export(pdir)
+        text = Path(out["retro"]).read_text(encoding="utf-8")
+        self.assertIn("## Blockers", text)
+        self.assertIn("j***@paris.fr", text)
+        self.assertNotIn("jean.ex@paris.fr", text)
+        self.assertNotIn("45 67 89", text)
+        self.assertIn("| tinyfish | 40 | 35 | blocked 35 |", text)
 
 
 class Reconcile(unittest.TestCase):

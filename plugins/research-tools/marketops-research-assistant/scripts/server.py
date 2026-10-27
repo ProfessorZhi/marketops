@@ -46,7 +46,8 @@ def _err(exc: Exception) -> dict:
     return {"error": mo_config.scrub(f"{type(exc).__name__}: {exc}")[:300]}
 
 
-def project(name: str, brief: dict | None = None, playbook: dict | None = None) -> dict:
+def project(name: str, brief: dict | None = None, playbook: dict | None = None,
+            journal: dict | list | None = None, agent: str = "") -> dict:
     """Open (or create) a project folder and report where it stands.
 
     brief (optional, saved as brief.json): {"goal": "...", "region": "...", "country": "FR",
@@ -65,6 +66,9 @@ def project(name: str, brief: dict | None = None, playbook: dict | None = None) 
     segment is an organisation's segment/type/category/source ("*" for all). The pipeline reads
     the paths first and runs the queries first for every organisation of that kind; sweep the
     rest of the segment again with run(project, orgs=[...], again=True).
+    journal (optional): what you ran into, for the run's retrospective (RETRO.md at export) and
+    the plugin's next changes - {"type": "blocker"|"smooth"|"decision"|"idea"|"retro", "text":
+    "...", "evidence": "file / sheet / count"} or a list; agent: your name.
     """
     try:
         pdir = ws.project_dir(name)
@@ -72,6 +76,9 @@ def project(name: str, brief: dict | None = None, playbook: dict | None = None) 
             (pdir / "brief.json").write_text(json.dumps(brief, ensure_ascii=False, indent=1), encoding="utf-8")
         if playbook:
             ws.update_playbook(pdir, playbook)
+        if journal:
+            import mo_journal
+            mo_journal.add(pdir, journal, agent)
         out = ws.status(pdir)
         out["version"] = VERSION
         out["providers"] = mo_config.configured() + ["crawl4ai"]
