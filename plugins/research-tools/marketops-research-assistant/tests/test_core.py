@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 TMP = tempfile.mkdtemp()
 os.environ.update(MARKETOPS_HOME=TMP + "/home", MARKETOPS_PROJECTS=TMP + "/projects",
-                  MARKETOPS_HEALTH="0")   # site health is shared state: only its own tests turn it on
+                  MARKETOPS_HEALTH="0", MARKETOPS_KNOWLEDGE="0")   # shared state: only their own tests turn them on
 for k in ("SERPER_API_KEY", "SERPAPI_API_KEY", "DEEPSEEK_API_KEY", "TINYFISH_API_KEY", "TYPESAFE_API_KEY"):
     os.environ.pop(k, None)
 
@@ -803,6 +803,95 @@ class Journal(unittest.TestCase):
         self.assertNotIn("jean.ex@paris.fr", text)
         self.assertNotIn("45 67 89", text)
         self.assertIn("| tinyfish | 40 | 35 | blocked 35 |", text)
+
+
+class Knowledge(unittest.TestCase):
+    def setUp(self):
+        import mo_knowledge
+        self.k = mo_knowledge
+        os.environ["MARKETOPS_KNOWLEDGE"] = "1"
+        os.environ["MARKETOPS_LIBRARY"] = tempfile.mkdtemp()
+        mo_knowledge.reset_for_tests()
+
+    def tearDown(self):
+        os.environ["MARKETOPS_KNOWLEDGE"] = "0"
+        os.environ.pop("MARKETOPS_LIBRARY", None)
+        self.k.reset_for_tests()
+
+    def test_untested_kinds_first_then_the_one_that_finds_people(self):
+        K = self.k.KNOWLEDGE
+        self.assertEqual(list(self.k.DIG_KINDS), K.dig_order("FR", "communes"))
+        for kind, hits in (("terms", 1), ("site_pdf", 6), ("directories", 0), ("email", 3)):
+            for n in range(10):
+                K.record_dig("FR", "communes", kind, n < hits)
+        self.assertEqual(["site_pdf", "email", "terms", "directories"], K.dig_order("FR", "communes"))
+        self.assertEqual(list(self.k.DIG_KINDS), K.dig_order("DE", "communes"))   # another market starts fresh
+        q = mo_run._queries({"name": "Stade X", "website": "https://x.fr"}, 1, ["chef"], ["annuaire"],
+                            K.dig_order("FR", "communes"))
+        self.assertTrue(q[0][0].startswith("site:x.fr"))
+
+    def test_a_playbook_carries_to_the_next_project_until_it_stops_working(self):
+        p1, p2 = ws.project_dir("t55"), ws.project_dir("t56")
+        for p in (p1, p2):
+            (p / "brief.json").write_text(json.dumps({"country": "FR"}), encoding="utf-8")
+        ws.update_playbook(p1, {"communes": {"paths": ["/services/sports"], "queries": ['"{name}" syndicat']}})
+        pb = ws.playbook_for(p2, {"segment": "communes"})
+        self.assertEqual(["/services/sports"], pb["paths"])
+        self.assertIn("earlier projects", pb["learned"])
+        for _ in range(12):
+            self.k.KNOWLEDGE.record_use("FR", "communes", False)
+        self.assertEqual([], ws.playbook_for(p2, {"segment": "communes"})["paths"])
+        other = self.k._Knowledge()   # another process reads the same file
+        self.assertEqual({}, other.playbook("FR", "communes"))
+
+
+class Slots(unittest.TestCase):
+    def setUp(self):
+        self.home = tempfile.mkdtemp()
+        self.env = mock.patch.dict(os.environ, {"MARKETOPS_HOME": self.home}, clear=False)
+        self.env.start()
+        for n in ("TYPESAFE_API_KEY", "TYPESAFE_API_KEY_2", "MARKETOPS_KEYS_FILE"):
+            os.environ.pop(n, None)
+
+    def tearDown(self):
+        self.env.stop()
+
+    def test_a_used_up_key_hands_over_to_the_next_and_a_new_key_needs_no_restart(self):
+        import mo_budget
+        import mo_config
+        (Path(self.home) / "keys.env").write_text("TYPESAFE_API_KEY=key-one-aaaa\nTYPESAFE_API_KEY_2=key-two-bbbb\n")
+        self.assertEqual("key-one-aaaa", mo_config.key("jev"))
+        mo_budget.mark_exhausted("jev", "Jev refused for money")
+        self.assertEqual("key-two-bbbb", mo_config.key("jev"))
+        self.assertTrue(mo_budget.allowed("jev")[0])
+        mo_budget.mark_exhausted("jev", "Jev refused for money")
+        self.assertEqual("", mo_config.key("jev"))
+        self.assertFalse(mo_budget.allowed("jev")[0])
+        states = {s["state"] for s in mo_config.slot_status("jev")}
+        self.assertEqual({"set aside"}, states)
+        import time as _t
+        _t.sleep(0.01)
+        vault = Path(self.home) / "vault.env"     # a new key in a vault file, while running
+        vault.write_text("export TYPESAFE_API_KEY_3=key-three-cccc\n")
+        os.environ["MARKETOPS_KEYS_FILE"] = str(vault)
+        self.assertEqual("key-three-cccc", mo_config.key("jev"))
+        self.assertTrue(mo_budget.allowed("jev")[0])
+        self.assertNotIn("key-three", json.dumps(mo_config.slot_status("jev")))   # fingerprints only
+
+    def test_several_keys_in_one_value(self):
+        import mo_config
+        os.environ["TYPESAFE_API_KEY"] = "k-aaaaaaaa, k-bbbbbbbb"
+        self.assertEqual(["k-aaaaaaaa", "k-bbbbbbbb"], mo_config.slots("jev"))
+
+    def test_a_generic_page_read_for_many_is_not_credited_to_one_it_does_not_name(self):
+        pdir = ws.project_dir("t57")
+        html = "<p>Réserver un créneau</p><p>reservation@paris.fr</p>" + " " * 300
+        with mock.patch.object(mo_providers, "read", return_value={"crawl4ai": {"final_url": "u", "html": html, "text": ""}}), \
+                mock.patch.object(mo_providers, "public_url", side_effect=lambda u: u):
+            for oid, name in (("o1", "Gymnase Alpha"), ("o2", "Gymnase Beta"), ("o3", "Gymnase Gamma")):
+                ws.fetch(pdir, "https://paris.fr/reserver", ["crawl4ai"], oid, name, "paris.fr")
+        holders = {r["org_id"] for r in ws.read_contacts(pdir) if r["value"] == "reservation@paris.fr"}
+        self.assertEqual({"o1", "o2"}, holders)   # the third reader of a page that names none of them adds nothing
 
 
 class Reconcile(unittest.TestCase):

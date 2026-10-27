@@ -26,6 +26,7 @@ import mo_export
 import mo_grade
 import mo_pages
 import mo_providers
+import mo_knowledge
 import mo_tasks
 import mo_workspace as ws
 from mo_pool import mentions as _mentions, name_words as _name_words
@@ -51,14 +52,17 @@ def measure(pdir, shard: tuple[int, int] = (0, 1)) -> dict:
     return mo_export.metrics(_mine(ws.read_csv(pdir / "orgs.csv"), shard), emails)
 
 
-def _queries(org: dict, rnd: int, terms: list[str], dir_terms: list[str]) -> list[tuple[str, bool]]:
-    """The searches for one organisation in round rnd: each round digs a different way.
+def _queries(org: dict, rnd: int, terms: list[str], dir_terms: list[str],
+             order: list[str] | None = None) -> list[tuple[str, bool]]:
+    """The searches for one organisation in round rnd: each round digs a different way, in the
+    order that has worked best for this market and kind of organisation (mo_knowledge).
     Returns (query, maps)."""
     name = str(org.get("name") or "").strip()
     site = mo_pages.site_of(str(org.get("website") or ""))
     city = str(org.get("city") or "").strip()
     q = f'"{name}"' if name else ""
-    kind = (rnd - 1) % 4
+    kinds = list(order or mo_knowledge.DIG_KINDS)
+    kind = mo_knowledge.DIG_KINDS.index(kinds[(rnd - 1) % len(kinds)])
     if kind == 0:   # the organisation with the market's own words for the people wanted
         return [(" ".join(x for x in (q, city, t) if x), False) for t in terms[:4]]
     if kind == 1:   # inside its own site, PDFs included (address lists, staff lists, minutes)
@@ -122,7 +126,8 @@ def _playbook_queries(org: dict, templates: list[str]) -> list[tuple[str, bool]]
 
 
 def _leads(pdir, org: dict, rnd: int, terms: list[str], dir_terms: list[str], engines: list[str] | None,
-           per_org: int = 8, rank: bool = True, playbook_queries: list[str] | None = None) -> list[str]:
+           per_org: int = 8, rank: bool = True, playbook_queries: list[str] | None = None,
+           order: list[str] | None = None) -> list[str]:
     """Pages worth reading for one organisation: its own pages and PDFs, and other sites
     whose result mentions it (directories, federation and council pages)."""
     name = str(org.get("name") or "").strip()
@@ -131,7 +136,8 @@ def _leads(pdir, org: dict, rnd: int, terms: list[str], dir_terms: list[str], en
     found: dict[str, dict] = {}
     weights = ws.weights(pdir, "search")
     # round 1 starts with what agents learned works for this kind of organisation
-    planned = (_playbook_queries(org, playbook_queries or []) if rnd == 1 else []) + _queries(org, rnd, terms, dir_terms)
+    planned = (_playbook_queries(org, playbook_queries or []) if rnd == 1 else []) + \
+        _queries(org, rnd, terms, dir_terms, order)
     for query, maps in planned:
         try:
             res = mo_providers.search(query, None, n=8, maps=maps, project_dir=pdir, weights=weights)
@@ -270,6 +276,11 @@ def _corroborate(pdir, org: dict, weights: dict, most: int = 3) -> int:
         return sum(pool.map(one, todo))
 
 
+def mo_budget_allowed(provider: str) -> bool:
+    import mo_budget
+    return mo_budget.allowed(provider)[0]
+
+
 class _Grader:
     """One background grader per run: whatever new addresses the organisations produce are
     graded together in batches (Jev stays efficient while the pipeline keeps moving)."""
@@ -278,7 +289,7 @@ class _Grader:
         import threading
         self.pdir, self.stop, self.busy = pdir, threading.Event(), threading.Lock()
         self.kick = threading.Event()
-        self.enabled = bool(mo_config.key("jev"))   # no Jev: nothing to wait for, the agent grades later
+        self.enabled = bool(mo_config.slots("jev"))   # no Jev: nothing to wait for, the agent grades later
         self.thread = threading.Thread(target=self._loop, daemon=True, name="grader")
 
     def _pending(self) -> bool:
@@ -313,7 +324,9 @@ class _Grader:
             self.kick.clear()
 
     def wait_for(self, oid: str, timeout: int = 90) -> None:
-        if not self.enabled:
+        # no usable Jev key (none, or every slot used up): nothing will be graded, do not wait -
+        # the rows stay ungraded for later and the organisation moves on
+        if not self.enabled or not mo_config.key("jev") or not mo_budget_allowed("jev"):
             return
         deadline = time.time() + timeout
         while time.time() < deadline:
@@ -372,6 +385,7 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
     dir_terms = focus.get("directory_terms") or DEFAULT_DIRECTORY_TERMS
     weights = ws.weights(pdir, "search")
     target = max(1, int(b.get("routes_per_org") or ROUTES_PER_ORG))
+    country = str(b.get("country") or "")
     # Ablation: switch stages off to measure what each one brings (brief.ablate).
     off = set(b.get("ablate") or [])
     mine = {str(o.get("id") or o.get("org_id") or "") for o in _mine(ws.read_csv(pdir / "orgs.csv"), sh)}
@@ -435,13 +449,16 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
         mark("grade_wait")
         move("grading", "digging")
         dry = 0
+        seg = ws.segment_of(org)
+        learn = mo_knowledge.enabled()
+        order = mo_knowledge.KNOWLEDGE.dig_order(country, seg) if learn else list(mo_knowledge.DIG_KINDS)
         for rnd in range(1, 0 if "dig" in off else rounds + 1):
             have = _ab_count(pdir, oid)
             if stopping() or have >= target:
                 break
             before = len(_emails_of(pdir, oid))
             leads = _leads(pdir, org, rnd, hints["roles"] + terms, dir_terms, None, rank="rank" not in off,
-                           playbook_queries=hints["queries"])
+                           playbook_queries=hints["queries"], order=order)
             if leads:
                 ws.append_csv(pdir / "crawl.csv", ws.CRAWL_COLS,
                               ws._crawl_one(pdir, org, deep_pages, None, leads, f"deep{rnd}"))
@@ -452,8 +469,12 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
             # Bruce: 3-5 key-role addresses per organisation, at least one, "不能硬3-5个降低效率" -
             # with one A/B already, a round that adds no further A/B ends the dig.
             now = _ab_count(pdir, oid)
+            if learn:   # which kind of search found an A/B here, for the next organisations and projects
+                mo_knowledge.KNOWLEDGE.record_dig(country, seg, order[(rnd - 1) % len(order)], now > have)
             if dry >= 2 or (have >= 1 and now == have):
                 break
+        if learn and (hints["paths"] or hints["queries"]):   # did the playbook lead somewhere
+            mo_knowledge.KNOWLEDGE.record_use(country, seg, _has_ab(pdir, oid))
         if agent and not _has_ab(pdir, oid) and mo_config.key("tinyfish"):
             for _oid_, url in _button_pages(pdir, {oid}):
                 if agent_budget[0] <= 0:

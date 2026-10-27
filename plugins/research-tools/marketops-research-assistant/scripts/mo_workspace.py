@@ -494,7 +494,16 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
         buttons = max(buttons, parsed.get("hidden_email_buttons", 0))
     found = {c["value"].lower(): c for c in extract(parsed_by)}
     contacts = list(found.values())
-    added = merge_contacts(pdir, contacts, org_id, org, via) if (org_id or org) else 0
+    # A page already read for two or more other organisations that does not name this one is a
+    # generic page (a portal's booking or legal page): reading it for this organisation adds
+    # nothing to it. A district or federation page that lists this organisation still does.
+    others = {str(r.get("org_id") or "") for r in saved} - {str(org_id), ""}
+    generic = False
+    if org_id and len(others) >= 2:
+        import mo_pool
+        page_text = " ".join(" ".join(p["lines"]) for p in parsed_by.values())
+        generic = not mo_pool.mentions(org, page_text)
+    added = merge_contacts(pdir, contacts, org_id, org, via) if (org_id or org) and not generic else 0
     best = max((p["lines"] for p in parsed_by.values()), key=lambda ls: sum(map(len, ls)), default=[])
     emails_seen = sum(c["kind"] == "email" for c in contacts)
     if parsed_by and not saved:   # a fresh read: how much this site's pages bring (site health)
@@ -554,14 +563,19 @@ def playbook(pdir: Path) -> dict:
 
 
 def playbook_for(pdir: Path, org: dict) -> dict:
-    """The playbook entries for this organisation: "*" (all) plus its own segment."""
+    """The playbook entries for this organisation: "*" (all) plus its own segment, plus what
+    earlier projects learned for this market and kind of organisation (mo_knowledge)."""
+    import mo_knowledge
     pb, seg = playbook(pdir), segment_of(org)
+    learned = mo_knowledge.KNOWLEDGE.playbook(str(brief(pdir).get("country") or ""), seg) \
+        if seg and mo_knowledge.enabled() else {}
     out: dict = {"paths": [], "queries": [], "roles": []}
-    for key in ("*", seg):
-        e = pb.get(key) if key else None
+    for e in (pb.get("*"), pb.get(seg) if seg else None, learned):
         if isinstance(e, dict):
-            for f in out:
+            for f in ("paths", "queries", "roles"):
                 out[f] += [x for x in e.get(f) or [] if isinstance(x, str) and x not in out[f]]
+    if learned:
+        out["learned"] = learned.get("learned", "")
     return out
 
 
@@ -581,6 +595,10 @@ def update_playbook(pdir: Path, changes: dict) -> dict:
                 else:
                     cur[f] = str(v)
             cur["updated"] = _now()
+            if seg != "*":   # what works for this kind of organisation, kept for the next projects
+                import mo_knowledge
+                if mo_knowledge.enabled():
+                    mo_knowledge.KNOWLEDGE.learn_playbook(str(brief(pdir).get("country") or ""), str(seg).lower(), e)
         tmp = path.with_name(f"playbook.{os.getpid()}.{threading.get_ident()}.tmp")
         tmp.write_text(json.dumps(pb, ensure_ascii=False, indent=1), encoding="utf-8")
         tmp.replace(path)

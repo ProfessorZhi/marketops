@@ -151,9 +151,11 @@ RATE = _Rate()
 def _check_money(provider: str, response: httpx.Response, kind: str = "") -> None:
     if response.status_code == 429:
         RATE.learn(f"{provider}:{kind}", response)
-    if response.status_code in (402,) or (response.status_code == 429 and provider != "crawl4ai"):
+    if response.status_code in (401, 402) or (response.status_code == 429 and provider != "crawl4ai"):
         if response.status_code == 402:
             mo_budget.mark_exhausted(provider, "provider refused for money (HTTP 402)")
+        if response.status_code == 401:   # an invalid or revoked key: the next slot takes over
+            mo_budget.mark_exhausted(provider, "provider refused the key (HTTP 401)")
         raise ProviderError(f"HTTP {response.status_code}")
     if response.status_code >= 400:
         raise ProviderError(f"HTTP {response.status_code}")

@@ -151,7 +151,9 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: 
         except Exception as exc:  # noqa: BLE001
             text = f"{type(exc).__name__} {exc}".lower()
             if "402" in text or "quota" in text or "credit" in text or "payment" in text:
-                mo_budget.mark_exhausted("jev", "Jev refused for money")
+                mo_budget.mark_exhausted("jev", "Jev refused for money")   # the next key slot takes over
+            elif "401" in text or "unauthorized" in text or "invalid api key" in text:
+                mo_budget.mark_exhausted("jev", "Jev refused the key")
             mo_budget.record(pdir, "jev", "grade", False, f"{type(exc).__name__}: {exc}")
             counts["failed"] += len(chunk)
             return

@@ -55,6 +55,11 @@ def record(project_dir, provider: str, action: str, ok: bool, note: str = "",
 
 
 def mark_exhausted(provider: str, why: str) -> None:
+    """The provider refused the key in use for money or quota: that slot is set aside and the
+    next key takes over; only when no slot is left is the provider skipped."""
+    if provider in mo_config.KEYS:
+        if mo_config.mark_slot_used_up(provider, why):
+            return
     _exhausted[provider] = why
 
 
@@ -93,12 +98,13 @@ def _read_balance(provider: str) -> dict | None:
 
 
 def balance(provider: str, fresh: bool = False) -> dict | None:
-    cached = _balances.get(provider)
+    slot = f"{provider}:{mo_config.fingerprint(mo_config.key(provider))}" if provider in mo_config.KEYS else provider
+    cached = _balances.get(slot)
     if cached and not fresh and time.time() - cached[0] < BALANCE_TTL:
         return cached[1]
     reading = _read_balance(provider)
     if reading is not None:
-        _balances[provider] = (time.time(), reading)
+        _balances[slot] = (time.time(), reading)
     return reading
 
 
@@ -111,23 +117,32 @@ def _lines() -> dict:
 
 def allowed(provider: str, action: str = "") -> tuple[bool, str]:
     """May this provider be called now? (False, reason) when it is under its red line."""
+    if provider in mo_config.KEYS:
+        if mo_config.slots(provider) and not mo_config.key(provider):
+            return False, f"every {provider} key is used up or set aside (project() shows the slots)"
+        _exhausted.pop(provider, None)   # a new or topped-up key brings the provider back
     if provider in _exhausted:
         return False, _exhausted[provider]
     if provider in ("crawl4ai", "jev") or PRICES.get((provider, action), 1) == 0:
         return True, ""  # free calls never wait on a balance
-    reading = balance(provider)
-    if reading is None:
-        return True, ""
-    with _lock:
-        lines = _lines()
-        if provider not in lines:
-            lines[provider] = {"baseline": reading["left"], "unit": reading["unit"],
+    for _ in range(len(mo_config.slots(provider)) or 1):
+        reading = balance(provider)
+        if reading is None:
+            return True, ""
+        slot = f"{provider}:{mo_config.fingerprint(mo_config.key(provider))}"   # a red line per key
+        with _lock:
+            lines = _lines()
+            if slot not in lines:
+                lines[slot] = {"baseline": reading["left"], "unit": reading["unit"],
                                "red_line": round(reading["left"] * RED_LINE_SHARE, 4), "set": _now()}
-            (mo_config.home() / "redlines.json").write_text(json.dumps(lines, indent=1), encoding="utf-8")
-    line = lines[provider]["red_line"]
-    if reading["left"] <= line:
-        return False, f"below red line ({reading['left']} {reading['unit']} left, line {line})"
-    return True, ""
+                (mo_config.home() / "redlines.json").write_text(json.dumps(lines, indent=1), encoding="utf-8")
+        line = lines[slot]["red_line"]
+        if reading["left"] > line:
+            return True, ""
+        # this key is at its red line: the next slot takes over, if there is one
+        if not mo_config.mark_slot_used_up(provider, f"below red line ({reading['left']} {reading['unit']} left)"):
+            return False, f"below red line ({reading['left']} {reading['unit']} left, line {line}) on every key"
+    return False, "no key left above its red line"
 
 
 def summary(project_dir=None) -> dict:
@@ -150,6 +165,8 @@ def accounts() -> dict:
     out = {}
     for p in mo_config.configured():
         reading = balance(p) if p not in ("jev",) else None
-        out[p] = {"balance": reading, "red_line": lines.get(p, {}).get("red_line"),
-                  "skipped": _exhausted.get(p)}
+        slot = f"{p}:{mo_config.fingerprint(mo_config.key(p))}" if mo_config.key(p) else p
+        out[p] = {"balance": reading, "red_line": (lines.get(slot) or lines.get(p) or {}).get("red_line"),
+                  "skipped": _exhausted.get(p) or (None if mo_config.key(p) else "every key used up"),
+                  "slots": mo_config.slot_status(p)}
     return out
