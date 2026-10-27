@@ -127,7 +127,7 @@ def _leads(pdir, org: dict, rnd: int, terms: list[str], dir_terms: list[str], en
     whose result mentions it (directories, federation and council pages)."""
     name = str(org.get("name") or "").strip()
     site = mo_pages.site_of(str(org.get("website") or ""))
-    seen = set(ws._pages(pdir))
+    seen = ws.read_for(pdir, _oid(org))
     found: dict[str, dict] = {}
     weights = ws.weights(pdir, "search")
     # round 1 starts with what agents learned works for this kind of organisation
@@ -253,7 +253,7 @@ def _corroborate(pdir, org: dict, weights: dict, most: int = 3) -> int:
             res = mo_providers.search(f'"{c["value"]}"', None, n=5, project_dir=pdir, weights=weights)
         except Exception:  # noqa: BLE001
             return 0
-        seen, n = set(ws._pages(pdir)), 0
+        seen, n = ws.read_for(pdir, oid), 0
         for hit in res["results"][:2]:
             url = hit.get("url") or ""
             if url.startswith("http") and url not in seen:

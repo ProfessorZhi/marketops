@@ -182,6 +182,14 @@ def _pages(pdir: Path) -> dict[str, list[dict]]:
     return _page_index[key]
 
 
+def read_for(pdir: Path, org_id: str) -> set[str]:
+    """Pages already read for this organisation. A page read for another one (a district,
+    syndicate or federation page listing several) is not on it: reading it again for this
+    organisation costs no call (its saved copy is parsed) and credits its addresses here too."""
+    oid = str(org_id)
+    return {u for u, rows in _pages(pdir).items() if any(str(r.get("org_id") or "") == oid for r in rows)}
+
+
 # ------------------------------------------------------------------ contact store
 # One small file per organisation (contacts/<org>.csv), so finishing a page rewrites only that
 # organisation's file - a project with tens of thousands of addresses stays fast with many
@@ -380,6 +388,11 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
             _index_page(pdir, row)
             saved.append({**row, "library": True})
     read_at: dict[str, str] = {}
+    if saved and org_id and not any(str(r.get("org_id") or "") == str(org_id) for r in saved):
+        # a page read for another organisation, now read for this one: note it, so this
+        # organisation does not take it again as a new lead
+        first = next((r for r in saved if not r.get("library")), saved[0])
+        _index_page(pdir, {k: first.get(k, "") for k in PAGE_COLS} | {"org_id": org_id})
     if saved:
         for row in saved:
             try:

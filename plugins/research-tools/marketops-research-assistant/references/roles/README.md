@@ -21,3 +21,5 @@ Rules for every role:
 - Keep notes short and factual; put what only the user can decide in your final report as a
   numbered item, never as a question mid-work.
 - Research only; nothing is sent to anyone.
+- Several workers share one machine: keep any helper files of your own in a folder named after
+  you (e.g. `<scratch>/<worker-name>/`), never in a shared spot another worker may overwrite.

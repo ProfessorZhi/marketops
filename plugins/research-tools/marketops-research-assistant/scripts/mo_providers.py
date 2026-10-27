@@ -539,11 +539,22 @@ def tinyfish_mcp(tool: str, args: dict, timeout: float = 60):
                     return {"text": "\n".join(parts)}
 
     box = {}
-    t = threading.Thread(target=lambda: box.setdefault("v", asyncio.run(go())), daemon=True)
+
+    def work():
+        try:
+            box["v"] = asyncio.run(go())
+        except BaseException as exc:  # noqa: BLE001 - a refused key or a dropped session ends here, not on stderr
+            box["error"] = exc
+
+    t = threading.Thread(target=work, daemon=True)
     t.start()
     t.join(timeout + 15)
     if "v" not in box:
-        raise ProviderError("TinyFish did not answer")
+        err = box.get("error")
+        text = mo_config.scrub(f"{type(err).__name__}: {err}")[:160] if err else "no answer in time"
+        if err is not None and "unauthorized" in str(err).lower():
+            text = "TinyFish refused the key (Unauthorized)"
+        raise ProviderError(f"TinyFish did not answer: {text}")
     return box["v"]
 
 

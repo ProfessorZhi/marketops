@@ -691,6 +691,33 @@ class AgentParts(unittest.TestCase):
         self.assertEqual(3, len(mo_export._check_sample(list(rows.values()))))
 
 
+class SharedPages(unittest.TestCase):
+    def test_a_page_read_for_one_org_is_read_again_for_another_and_credits_it(self):
+        pdir = ws.project_dir("t53")
+        html = ("<div><p>SIVOM 4 - communes membres : Stade Alpha, Stade Beta</p><p>Responsable</p>"
+                "<p>Anne Ex</p><p>resp@sivom4.fr</p></div>" + " " * 300)
+        calls = []
+
+        def read(url, readers=None, project_dir=None):
+            calls.append(url)
+            return {"crawl4ai": {"final_url": url, "html": html, "text": ""}}
+        with mock.patch.object(mo_providers, "read", side_effect=read), \
+                mock.patch.object(mo_providers, "public_url", side_effect=lambda u: u):
+            ws.fetch(pdir, "https://sivom4.fr/equipe", ["crawl4ai"], "o1", "Stade Alpha", "")
+            self.assertNotIn("https://sivom4.fr/equipe", ws.read_for(pdir, "o2"))      # still a lead for o2
+            ws.fetch(pdir, "https://sivom4.fr/equipe", ["crawl4ai"], "o2", "Stade Beta", "")
+        self.assertEqual(1, len(calls))                                               # second read: no new call
+        self.assertIn("https://sivom4.fr/equipe", ws.read_for(pdir, "o2"))
+        self.assertEqual({"o1", "o2"}, {r["org_id"] for r in ws.read_contacts(pdir) if r["value"] == "resp@sivom4.fr"})
+
+    def test_a_refused_tinyfish_key_is_an_error_not_a_crash(self):
+        with mock.patch("mo_config.key", return_value="bad"), \
+                mock.patch("asyncio.run", side_effect=RuntimeError("Unauthorized: Valid OAuth Bearer token required")):
+            with self.assertRaises(mo_providers.ProviderError) as e:
+                mo_providers.tinyfish_mcp("wallet", {}, timeout=1)
+        self.assertIn("refused the key", str(e.exception))
+
+
 class Reconcile(unittest.TestCase):
     def test_every_org_counted_once_under_its_best_grade(self):
         rows = [{"最佳等级": "A 关键岗位"}, {"最佳等级": "B 相关操作人（待复核）"}, {"最佳等级": "D 通用入口"},
