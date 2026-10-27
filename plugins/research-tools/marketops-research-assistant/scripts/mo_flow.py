@@ -171,17 +171,24 @@ def queue_pages(pdir: Path, items: list[dict], agent: str = "") -> int:
     return n
 
 
+READING_LEASE_MIN = 10   # a page claimed for reading longer than this (its harvest died) is queued again
+
+
 def _take(pdir: Path, source: str, limit: int) -> list[dict]:
     """Claim up to `limit` queued pages of a source (list pages first) so two harvest calls on
-    one source never read the same page."""
+    one source never read the same page. A claim is a lease: pages a dead harvest left in
+    `reading` come back after READING_LEASE_MIN minutes."""
+    from datetime import datetime, timedelta, timezone
+    stale = (datetime.now(timezone.utc) - timedelta(minutes=READING_LEASE_MIN)).isoformat(timespec="seconds")
     path = pdir / "frontier.csv"
     with ws._lock(path):
         rows = ws.read_csv(path)
-        mine = [r for r in rows if r.get("source") == source and r.get("status") == "queued"]
+        mine = [r for r in rows if r.get("source") == source and (
+            r.get("status") == "queued" or (r.get("status") == "reading" and r.get("time", "") < stale))]
         mine.sort(key=lambda r: r.get("kind") != "list")
         mine = mine[:limit]
         for r in mine:
-            r["status"] = "reading"
+            r["status"], r["time"] = "reading", ws._now()
         ws.write_csv(path, FRONTIER_COLS, rows)
     return [dict(r) for r in mine]
 
@@ -428,7 +435,7 @@ def harvest(pdir: Path, source: str, start: str = "", follow: str = "", next: st
         with ws._lock(out_path):
             old = ws.read_csv(out_path)
             ws.write_csv(out_path, HARVEST_COLS, old + rows)
-    left = sum(1 for r in ws.read_csv(pdir / "frontier.csv") if r.get("source") == source and r.get("status") == "queued")
+    left = sum(1 for r in ws.read_csv(pdir / "frontier.csv") if r.get("source") == source and r.get("status") in ("queued", "reading"))
     if not left:
         mark_source(pdir, source, "harvested")
     total = len(ws.read_csv(out_path))

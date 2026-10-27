@@ -1244,6 +1244,18 @@ class SuperPipeline(unittest.TestCase):
             ranked = mo_run._rank(ws.project_dir("rank"), {"name": "Club"}, hits)
         self.assertEqual("https://c.test/comite", ranked[0]["url"])
 
+    def test_pages_a_dead_harvest_left_reading_come_back(self):
+        import mo_flow
+        pdir = ws.project_dir("lease")
+        mo_flow.queue_pages(pdir, [{"url": "https://l.test/1", "source": "s"}, {"url": "https://l.test/2", "source": "s"}])
+        self.assertEqual(2, len(mo_flow._take(pdir, "s", 5)))      # claimed, then the process dies
+        self.assertEqual([], mo_flow._take(pdir, "s", 5))           # still leased
+        rows = ws.read_csv(pdir / "frontier.csv")
+        for r in rows:
+            r["time"] = "2000-01-01T00:00:00+00:00"
+        ws.write_csv(pdir / "frontier.csv", mo_flow.FRONTIER_COLS, rows)
+        self.assertEqual(2, len(mo_flow._take(pdir, "s", 5)))      # the lease ran out: back in the queue
+
     def test_found_sources_without_a_miner_are_flagged(self):
         pdir = ws.project_dir("flow2")
         server.sources("flow2", add=[{"source": "census", "url": "https://data.test/x.csv"}], agent="f")
