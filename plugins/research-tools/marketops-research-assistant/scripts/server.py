@@ -249,7 +249,8 @@ def browse(project: str, url: str, goal: str = "", org_id: str = "", org: str = 
         return _err(exc)
 
 
-def grade(project: str, set: list[dict] | None = None, regrade: bool = False, limit: int = 0) -> dict:
+def grade(project: str, set: list[dict] | None = None, regrade: bool = False, limit: int = 0,
+          orgs: list[str] | None = None) -> dict:
     """Grade the project's email candidates.
 
     Without set: Jev grades ungraded rows from each row's quote against the brief's grades
@@ -258,11 +259,12 @@ def grade(project: str, set: list[dict] | None = None, regrade: bool = False, li
     set: your own judgement, a list of {"value": email, "org_id"?, "grade"?, "person"?,
     "role"?, "note"?}; rows you set are never regraded by Jev. Spot check: {"value", "org_id",
     "checked": "ok"|"wrong", "note"?} records that you opened the page and the row holds (or
-    not) - the workbook's 抽检 sheet lists the sample and the precision.
+    not) - the workbook's 抽检 sheet lists the sample and the precision. orgs=[ids]: grade only
+    these organisations' rows - pass your package, so you never wait on other agents' rows.
     """
     try:
         pdir = ws.project_dir(project)
-        return mo_grade.manual(pdir, set) if set else mo_grade.auto(pdir, limit, regrade)
+        return mo_grade.manual(pdir, set) if set else mo_grade.auto(pdir, limit, regrade, orgs=orgs)
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
 

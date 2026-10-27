@@ -284,21 +284,30 @@ class _Grader:
     """One background grader per run: whatever new addresses the organisations produce are
     graded together in batches (Jev stays efficient while the pipeline keeps moving)."""
 
-    def __init__(self, pdir):
+    def __init__(self, pdir, only: set | None = None):
         import threading
         self.pdir, self.stop, self.busy = pdir, threading.Event(), threading.Lock()
+        # a batch grades its own organisations only: batches of different agents never grade
+        # the same rows, and one never waits on another's
+        self.only = {str(i) for i in only} if only else None
         self.kick = threading.Event()
         self.enabled = bool(mo_config.slots("jev"))   # no Jev: nothing to wait for, the agent grades later
         self.thread = threading.Thread(target=self._loop, daemon=True, name="grader")
 
     def _pending(self) -> bool:
+        if self.only is not None:
+            return any(c.get("kind") == "email" and not c.get("grade")
+                       for oid in self.only for c in ws.contacts_of(self.pdir, oid))
         return any(c.get("kind") == "email" and not c.get("grade") for c in ws.read_contacts(self.pdir))
 
     def grade_now(self) -> None:
         with self.busy:
             try:
                 import fcntl
-                fh = open(self.pdir / "grade.lock", "a")
+                import hashlib
+                name = "grade.lock" if self.only is None else \
+                    "grade." + hashlib.sha256("|".join(sorted(self.only)).encode()).hexdigest()[:10] + ".lock"
+                fh = open(self.pdir / name, "a")
                 try:
                     fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 except OSError:
@@ -308,7 +317,7 @@ class _Grader:
                 fh = None
             try:
                 if self._pending():
-                    mo_grade.auto(self.pdir)
+                    mo_grade.auto(self.pdir, orgs=self.only)
             finally:
                 if fh is not None:
                     fh.close()
@@ -398,7 +407,7 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
     agent_budget = [AGENT_PAGES_PER_ROUND * max(1, rounds // 2)]
     t0, spent0 = time.time(), sum(v["usd"] for v in mo_budget.summary(pdir).values())
     ab0 = measure(pdir, sh).get("ab_routes", 0)
-    grader = _Grader(pdir)
+    grader = _Grader(pdir, batch or None)
     grader.thread.start()
     goal_hit = [False]
 

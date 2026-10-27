@@ -12,7 +12,7 @@ marketops-knowledge (who to find, grades, pages that pay), `references/projects/
      grade, person, role, note}])`.
    - No route, or only C/D: go deeper - staff, board, department and district pages,
      `/annuaire/`, PDFs, who really runs the venue, federation pages, other spellings; read what
-     matters with `fetch(project, url, org_id=..., org=...)`, then `grade(project)`.
+     matters with `fetch(project, url, org_id=..., org=...)`, then `grade(project, orgs=[your ids])`.
    - No website: find it, `orgs(set=[{org_id, website}])`, `run(orgs=[it], rounds=0, again=True)`.
    - The venue is run by someone else -> `orgs(add=[...])`; a page listing many organisations
      -> `sources(add=[...])`.

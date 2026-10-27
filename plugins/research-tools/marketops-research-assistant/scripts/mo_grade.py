@@ -95,8 +95,11 @@ def _address_words(email: str) -> str:
     return " ".join(w for w in re.split(r"[._\-+0-9]+", local) if len(w) > 1)
 
 
-def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: int = 8) -> dict:
+def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: int = 8,
+         orgs: set | list | None = None) -> dict:
     """Grade the email candidates that have no grade yet (or all, with regrade). limit 0 = all.
+    orgs: only these organisations' rows - an agent grades its own package and never waits on, or
+    pays twice for, rows another agent's package is grading.
 
     Rules first, at no cost: the brief's address rules, an organisation's own plain inbox (D) and
     an address that has nothing to do with the organisation (X: neither its page, its domain nor
@@ -115,8 +118,9 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: 
             site = org_site.get(r.get("org_id"))
             holders.setdefault(r["value"].lower(), set()).add(site if site and site not in portals else r.get("org_id"))
     common = common_words([str(o.get("name") or "") for o in ws.read_csv(pdir / "orgs.csv")])
+    only = {str(o) for o in orgs} if orgs else None
     todo = [r for r in rows if r.get("kind") == "email" and not r.get("graded_by", "").startswith("agent")
-            and (regrade or not r.get("grade"))]
+            and (regrade or not r.get("grade")) and (only is None or str(r.get("org_id")) in only)]
     if limit:
         todo = todo[:limit]
     fields = ["grade", "graded_by", "grade_reason", "review", "review_reason"]

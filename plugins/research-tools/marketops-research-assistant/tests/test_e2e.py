@@ -165,7 +165,7 @@ class Team:
                 ids = [i for i in task["items"].split("|") if i]
                 self.times["swept"].append(time.time())
                 mo_run.run_sync(self.pdir, rounds=0, workers=4, job={"id": task["task_id"], "orgs": ids})
-                server.grade(self.p)   # no Jev: the rules grade the obvious rows
+                server.grade(self.p, orgs=ids)   # its own package only; no Jev: the rules grade the obvious rows
                 # the agent's judgment: read each quote, grade what the rules left
                 todo = [c for c in ws.read_contacts(self.pdir) if c.get("org_id") in ids and c.get("kind") == "email"
                         and not c.get("grade")]
@@ -246,6 +246,41 @@ class WholeJob(unittest.TestCase):
         for bad in ("nobody mines", "never pooled", "no organisation behind", "does not add up"):
             self.assertNotIn(bad, flags)
         self.assertTrue(Path(book["file"]).exists())
+
+
+class GradingDoesNotOverlap(unittest.TestCase):
+    def test_each_agent_grades_its_own_package_once(self):
+        import types
+        import mo_budget
+        import mo_grade
+        pdir = ws.project_dir("grade-scope")
+        for o in range(6):
+            ws.merge_contacts(pdir, [{"kind": "email", "value": f"chef{k}@org{o}.test", "quote": f"Chef {k} chef{k}@org{o}.test",
+                                      "page_url": f"https://org{o}.test/", "same_site": "yes", "mailbox": "personal"}
+                                     for k in range(3)], f"o{o}", f"Org {o}")
+        asked = []
+        lock = threading.Lock()
+
+        def fake_jev(state, qs):
+            with lock:
+                asked.extend(k for k in qs if k.startswith("grade_"))
+            time.sleep(0.2)
+            return types.SimpleNamespace(answers={k: types.SimpleNamespace(choice="decision_maker", probabilities={"decision_maker": 0.9})
+                                                  for k in qs if k.startswith("grade_")})
+        with mock.patch.object(mo_budget, "jev_ready", return_value=True), \
+                mock.patch.object(mo_grade, "_jev", side_effect=fake_jev), \
+                mock.patch.object(mo_budget, "allowed", return_value=(True, "")):
+            t0 = time.time()
+            agents = [threading.Thread(target=mo_grade.auto, args=(pdir,), kwargs={"orgs": [f"o{i}", f"o{i + 3}"]})
+                      for i in range(3)]
+            for a in agents:
+                a.start()
+            for a in agents:
+                a.join(30)
+            took = time.time() - t0
+        self.assertEqual(18, len(asked))          # 6 organisations x 3 addresses, each asked once
+        self.assertLess(took, 1.5)                # the three packages graded side by side
+        self.assertTrue(all(c.get("grade") for c in ws.read_contacts(pdir)))
 
 
 class KeysSwitchInsideTheCall(unittest.TestCase):
