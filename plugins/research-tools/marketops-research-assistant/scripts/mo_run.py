@@ -26,6 +26,7 @@ import mo_export
 import mo_grade
 import mo_pages
 import mo_providers
+import mo_tasks
 import mo_workspace as ws
 from mo_pool import mentions as _mentions, name_words as _name_words
 
@@ -511,6 +512,7 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
                 # >=10% scale it, <5% stop spending on it): a strong source gets two turns, a
                 # weak one waits until the others are empty - its organisations are never dropped.
                 futures = prune(futures)
+                held, deferred = mo_tasks.held_orgs(pdir), []   # an agent has these right now
                 while waiting and len(futures) < workers * 2:
                     turns = {src: _turns(yields.get(src)) for src in waiting}
                     if not any(turns.values()):
@@ -518,14 +520,22 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
                     for src, k in turns.items():
                         for _ in range(k):
                             if waiting.get(src):
-                                futures.append(pool.submit(org_flow, waiting[src].pop(0)))
+                                org = waiting[src].pop(0)
+                                if _oid(org) in held:
+                                    deferred.append(org)
+                                else:
+                                    futures.append(pool.submit(org_flow, org))
                         if not waiting.get(src):
                             waiting.pop(src, None)
+                for org in deferred:   # back of the queue; taken once the agent hands the package back
+                    waiting.setdefault(_source(org), []).append(org)
                 state["source_yield"] = {src: {"done": d, "with_ab": a, "turns": _turns((d, a))}
                                          for src, (d, a) in yields.items()}
             else:
                 futures = prune(futures)
-            busy = bool(futures)
+            # organisations waiting for an agent to hand them back keep the run alive (a stale claim
+            # frees them after CLAIM_MINUTES, so this cannot hang)
+            busy = bool(futures) or (bool(waiting) and not stopping())
             pool_open = discovering.is_set() or (
                 follow and not (pdir / "POOL_DONE").exists() and time.time() - last_new < 1800)
             if time.time() - last_snap > 30:

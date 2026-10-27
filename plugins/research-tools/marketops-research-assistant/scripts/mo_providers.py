@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import ipaddress
+import os
 import re
 import socket
 import threading
@@ -69,31 +70,77 @@ def _again(call, tries: int = 2, wait: float = 3.0, transient=TRANSIENT):
 
 
 class _Rate:
-    """Per-endpoint pace. Starts from the provider's documented limit where there is one and
-    adopts the limit a 429 reports (TinyFish puts it in error.details)."""
+    """Per-endpoint pace, shared by every process on this machine: many workers and shards call
+    one provider account, so the pace lives in a file under the marketops home, not in one
+    process. Starts from the provider's documented limit where there is one and adopts the
+    limit a 429 reports (TinyFish puts it in error.details). Without OS file locks (Windows)
+    it paces this process only."""
+
+    DEFAULTS = {"tinyfish:search": 30.0}   # docs.tinyfish.ai error codes
 
     def __init__(self):
         self.lock = threading.Lock()
-        self.per_min: dict[str, float] = {"tinyfish:search": 30}   # docs.tinyfish.ai error codes
-        self.next_at: dict[str, float] = {}
+        self.local: dict[str, dict] = {}
+
+    def _file(self, key: str):
+        d = mo_config.home() / "rate"
+        d.mkdir(parents=True, exist_ok=True)
+        return d / (re.sub(r"[^a-z0-9_-]", "_", key.lower()) + ".json")
+
+    def _update(self, key: str, change) -> dict:
+        """Read the endpoint's state, apply change(state) under the lock, write it back."""
+        import json as _json
+        with self.lock:
+            path = self._file(key)
+            try:
+                import fcntl
+                fh = open(str(path) + ".lock", "a")
+                fcntl.flock(fh, fcntl.LOCK_EX)
+            except (ImportError, OSError):
+                fh = None
+            try:
+                if fh is None:
+                    st = self.local.setdefault(key, {})
+                else:
+                    try:
+                        st = _json.loads(path.read_text(encoding="utf-8"))
+                    except (OSError, ValueError):
+                        st = {}
+                out = change(st)
+                if fh is not None:
+                    tmp = path.with_name(f"{path.stem}.{os.getpid()}.{threading.get_ident()}.tmp")
+                    tmp.write_text(_json.dumps(st), encoding="utf-8")
+                    tmp.replace(path)
+                return out
+            finally:
+                if fh is not None:
+                    import fcntl
+                    fcntl.flock(fh, fcntl.LOCK_UN)
+                    fh.close()
 
     def wait(self, key: str) -> None:
         import time
-        rate = self.per_min.get(key)
-        if not rate:
-            return
-        with self.lock:
+
+        def take(st: dict):
+            rate = float(st.get("per_min") or self.DEFAULTS.get(key) or 0)
+            if not rate:
+                return 0.0
             now = time.time()
-            at = max(now, self.next_at.get(key, 0.0))
-            self.next_at[key] = at + 60.0 / rate
-        if at > now:
-            time.sleep(at - now)
+            at = max(now, float(st.get("next_at") or 0.0))
+            st["next_at"] = at + 60.0 / rate
+            return at - now
+        if key not in self.DEFAULTS and not self._file(key).exists() and key not in self.local:
+            return   # no known limit for this endpoint: no file, no lock
+        delay = self._update(key, take)
+        if delay > 0:
+            time.sleep(delay)
 
     def learn(self, key: str, response) -> None:
         try:
             d = ((response.json() or {}).get("error") or {}).get("details") or {}
             if d.get("limit") and d.get("window_seconds"):
-                self.per_min[key] = float(d["limit"]) * 60.0 / float(d["window_seconds"])
+                per_min = float(d["limit"]) * 60.0 / float(d["window_seconds"])
+                self._update(key, lambda st: st.__setitem__("per_min", per_min))
         except Exception:  # noqa: BLE001
             pass
 

@@ -296,6 +296,8 @@ class Reach(unittest.TestCase):
         pdir = ws.project_dir("t10")
         (pdir / "orgs.csv").write_text("id,name,website\n" + "".join(f"o{i},Org {i},o{i}.ch\n" for i in range(5)),
                                        encoding="utf-8")
+        for i in range(5):   # dig packages hold only organisations the pipeline has finished
+            ws.append_csv(pdir / "crawl.csv", ws.CRAWL_COLS, {"org_id": f"o{i}", "pass": "final", "status": "done"})
         self.assertEqual(3, server.tasks("t10", action="plan", kind="dig", size=2)["planned"])
         self.assertEqual(0, server.tasks("t10", action="plan", kind="dig", size=2)["planned"])  # no double booking
         a = server.tasks("t10", action="claim", agent="w1")
@@ -601,6 +603,21 @@ class DeadSites(unittest.TestCase):
         self.assertEqual("no_dns", row["status"])
 
 
+class Locks(unittest.TestCase):
+    def test_an_org_an_agent_holds_waits_and_dig_packages_only_finished_orgs(self):
+        import mo_tasks
+        pdir = ws.project_dir("t47")
+        ws.write_csv(pdir / "orgs.csv", ["id", "name", "website"],
+                     [{"id": "o1", "name": "A", "website": ""}, {"id": "o2", "name": "B", "website": ""}])
+        ws.append_csv(pdir / "crawl.csv", ws.CRAWL_COLS, {"org_id": "o1", "pass": "final", "status": "done"})
+        out = mo_tasks.plan(pdir, "dig")
+        self.assertEqual(1, out["items"])                       # o2 is still in the pipeline
+        task = mo_tasks.claim(pdir, "w1", "dig")["task"]
+        self.assertEqual({"o1"}, mo_tasks.held_orgs(pdir))
+        mo_tasks.done(pdir, task["task_id"], "found one")
+        self.assertEqual(set(), mo_tasks.held_orgs(pdir))
+
+
 class Reconcile(unittest.TestCase):
     def test_every_org_counted_once_under_its_best_grade(self):
         rows = [{"最佳等级": "A 关键岗位"}, {"最佳等级": "B 相关操作人（待复核）"}, {"最佳等级": "D 通用入口"},
@@ -715,7 +732,17 @@ class Providers(unittest.TestCase):
             def json(self):
                 return {"error": {"code": "RATE_LIMIT_EXCEEDED", "details": {"limit": 60, "window_seconds": 60}}}
         rate.learn("tinyfish:fetch", R())
-        self.assertEqual(60, rate.per_min["tinyfish:fetch"])
+        self.assertEqual(60, rate._update("tinyfish:fetch", lambda st: st.get("per_min")))
+
+    def test_two_processes_share_one_pace(self):
+        first, second = mo_providers._Rate(), mo_providers._Rate()   # separate memory, like two processes
+        first._update("tinyfish:search", lambda st: st.update(per_min=60.0, next_at=0.0))
+        slept = []
+        with mock.patch("time.sleep", side_effect=slept.append):
+            first.wait("tinyfish:search")
+            second.wait("tinyfish:search")
+        self.assertEqual(1, len(slept))            # the second caller waits for the first one's slot
+        self.assertAlmostEqual(1.0, slept[0], delta=0.2)
 
     def test_transient_errors_are_tried_once_more(self):
         calls = []
