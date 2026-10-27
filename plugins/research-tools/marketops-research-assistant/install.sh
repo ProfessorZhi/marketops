@@ -37,6 +37,12 @@ done
 
 "$home/venv/bin/python" "$here/scripts/server.py" --check
 echo
+here_abs=$(CDPATH= cd "${0%/*}" && pwd)
+echo "Codex: add to ~/.codex/config.toml"
+echo "  [mcp_servers.marketops]"
+echo "  command = \"sh\""
+echo "  args = [\"$here_abs/scripts/run.sh\"]"
+echo "WorkBuddy: an MCP server of type stdio, command sh, argument $here_abs/scripts/run.sh (see HOSTS.md)."
 echo "Done. In Claude Code:  /plugin marketplace add ProfessorZhi/marketops"
 echo "                       /plugin install marketops-research-assistant@marketops"
 echo "then restart Claude Code and ask for a research task (or /marketops-research-assistant:research ...)."

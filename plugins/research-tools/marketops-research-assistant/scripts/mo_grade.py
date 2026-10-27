@@ -348,13 +348,14 @@ def manual(pdir, updates: list[dict]) -> dict:
         value = str(u.get("value") or "").lower()
         for r in rows:
             if r.get("value", "").lower() == value and (not u.get("org_id") or r.get("org_id") == str(u["org_id"])):
-                for f in ("grade", "person", "role", "note", "grade_reason"):
+                for f in ("grade", "person", "role", "note", "grade_reason", "checked"):
                     if f in u:
                         r[f] = str(u[f])
-                r["graded_by"], r["review"] = "agent", ""
+                if any(f in u for f in ("grade", "person", "role")):   # a spot check alone changes nothing else
+                    r["graded_by"], r["review"] = "agent", ""
                 picked.append(r)
     changed = ws.update_contacts(pdir, picked, ["grade", "person", "role", "note", "grade_reason", "graded_by",
-                                                "review"])
+                                                "review", "checked"])
     import mo_evidence
     mo_evidence.rescore(pdir)
     return {"updated": changed}

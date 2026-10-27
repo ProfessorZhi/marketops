@@ -63,13 +63,18 @@ jobs:
       - id: diff
         env:
           EVENT: ${{ github.event_name }}
-          BASE: ${{ github.event.pull_request.base.sha }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
-          if [ "$EVENT" != "pull_request" ]; then
+          # A push compares with the commit before it, a PR with its base. Without a
+          # usable base (a new branch, a manual run) the whole suite runs.
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] \
+              || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
             echo "service=true" >> "$GITHUB_OUTPUT"; exit 0
           fi
           # Skip the service suite only when every changed file belongs to the
-          # research plugin or its own workflows; docs and README still run it.
+          # research plugin or its own workflows; docs and README still run it
+          # (the service tests read docs/). A merge of a plugin-only PR to main
+          # no longer runs the 3.11 + 3.12 service suite.
           if git diff --name-only "$BASE"...HEAD \
               | grep -qvE '^(plugins/research-tools/|\.github/workflows/research-plugin-)'; then
             echo "service=true" >> "$GITHUB_OUTPUT"

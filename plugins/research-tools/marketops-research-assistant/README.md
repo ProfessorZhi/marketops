@@ -1,4 +1,4 @@
-# MarketOps Research Assistant 0.6.6
+# MarketOps Research Assistant 0.7.0
 
 调研插件：从公开数据集到场地池、机构池，再到带证据、已评级的联系人，最后交付一张 Excel。
 给 Claude Code 用。插件只提供能力，流程由 agent 自己掌握。
@@ -25,6 +25,8 @@
 
 直接说任务，或者用 `/marketops-research-assistant:research 瑞士户外天然草足球场，找场地负责人`。
 
+插件 = MCP 工具 + skill。主 agent 照 `marketops-research` skill 带一支 agent 团队干活：用宿主自己的多智能体模式（Claude Code 子代理、Codex agent、WorkBuddy 多智能体）开来源、建池、官网、挖掘、整理五组 worker，五段同时推进；脚本是团队手里的批量工具（读页、抽取、搜索、定级）。Codex 和 WorkBuddy 的接法见 [HOSTS.md](HOSTS.md)。
+
 | 工具 | 做什么 |
 |---|---|
 | `project` | 建立或打开项目文件夹，保存简报，查看进度、成本和余额 |
@@ -35,11 +37,23 @@
 | `judge` | Jev 对任意池子逐行回答一个选择题，例如是否在范围内、是不是官网 |
 | `grade` | Jev 按简报评 A/B/C/D/X，不分语言；agent 也可以手工改 |
 | `run` | 后台流水线：每家机构 抓官网 → 评级 → 没有 A/B 就换方法深挖（本地关键词、站内与 PDF、名录、地图、宽搜）→ 补证据；可分片多进程、边建池边跑、续跑、脱离会话运行 |
-| `tasks` | 共享任务队列：主 agent 把缺口机构、待复核、难站、数据源切成任务包，多个子 agent（`marketops-worker`）并行认领、完成、交回 |
+| `tasks` | 共享任务队列：主 agent 把缺口机构、待复核、难站、数据源切成任务包，多个 worker 并行认领、完成、交回；agent 拿着的机构流水线不碰；`verdict` 记每家的结论 |
+| `orgs` | 每家机构一份摘要（扫到了什么、待复核、找法手册、结论），按阶段筛选；`set` 改官网、分类、范围 |
 | `export` | 导出 Excel（指标口径写明、分批、待复核标记）和 Bruce 的 18 列路线 CSV |
 
 项目文件夹就是普通文件（`~/MarketOps/<项目>/`）：`brief.json`、`venues.csv`、`orgs.csv`、
 `contacts/`、`crawl.csv`、`trace.jsonl`、`costs.jsonl`；网页原件在共享资料库 `~/.marketops/library`。agent 和人都可以直接打开、修改，断了接着跑。
+
+## 0.7.0 更新：agent 团队分段协同
+
+- 推动工作流的 skill 重写：主 agent 用宿主的多智能体模式开五组 worker（来源、建池、官网、挖掘、整理），五段同时推进，按 `project()` 的 `stages` 积压调人；脚本扫描是团队的第一遍，不是终点。各组职责在 `references/roles/`，三种宿主通用。
+- 新工具 `orgs`：每家机构的摘要（agent 不用重读网页就能决定下一步），按阶段筛选，`set` 改官网、分类、范围。
+- `run(orgs=[...], again=True)`：给 agent 用的批量扫描，后台跑，和主流水线并行。
+- 找法手册（`project(name, playbook=...)`）：agent 总结某类机构的联系人在哪类页面、用什么搜索词、找什么岗位；脚本对这类机构先读这些页、先跑这些搜索。agent 研究一小批，脚本放大到整类。
+- 并行安全：provider 限速全机共享（多个 agent 一起调也不会挤爆 429）；agent 领着的机构流水线先跳过；深挖任务只派流水线做完的机构。
+- 页数按收益：页面还在出新地址就继续读（最多 40 页），名录翻页跟到底；连续两页没新东西才停。
+- agent 结论（`tasks(action="verdict")`）和交付抽检（工作簿「抽检」页 100 条，`grade(set=[{..., checked}])` 记结果，说明页给准确率）。
+- Codex、WorkBuddy 接入说明（HOSTS.md），安装器打印 Codex 配置片段；这两家要在真机上验证。
 
 ## 0.6.6 更新：巴黎真跑（953 家）暴露的问题
 

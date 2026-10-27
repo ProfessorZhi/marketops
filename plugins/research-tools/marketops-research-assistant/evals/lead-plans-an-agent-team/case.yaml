@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: lead-plans-an-agent-team
+expected_outcome: |
+  A plan in which the lead agent starts the script sweep and, with the host's own multi-agent mode, workers for the five stages (sources, pool, websites, dig, finish) running at the same time; dig workers take organisations the sweep finished without a confirmed A/B, write verdicts and the playbook, and the segment is re-swept with it; the user gets one numbered list; delivery waits for a 100-row spot check at 90% precision.

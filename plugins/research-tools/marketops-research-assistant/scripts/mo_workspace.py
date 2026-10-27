@@ -33,7 +33,7 @@ import mo_providers
 CONTACT_COLS = ["org_id", "org", "kind", "value", "person", "role", "grade", "grade_reason",
                 "graded_by", "review", "review_reason", "evidence", "evidence_score", "evidence_why",
                 "pages_seen", "also_on", "last_verified", "still_listed", "email_on_org", "found_in", "mailbox", "same_site", "email_site", "page_site", "page_on_org_site",
-                "page_url", "found_by", "quote", "quote_from", "note", "added"]
+                "page_url", "found_by", "quote", "quote_from", "note", "checked", "added"]
 PHONE_COLS = ["org_id", "org", "value", "page_url", "quote", "found_by", "added"]
 PAGE_COLS = ["url", "final_url", "reader", "file", "chars", "org_id", "time"]
 CRAWL_COLS = ["org_id", "org", "website", "status", "pages", "emails", "readers_ok", "email_buttons",
@@ -512,6 +512,199 @@ def shared_sites(pdir: Path) -> set[str]:
     return cached[1]
 
 
+# ------------------------------------------------------------------ playbook and verdicts
+# The playbook is what agents learned about finding people per kind of organisation ("Paris
+# municipal centres: the people are on the district page"): pages to read first, searches to
+# run, the roles to look for. The pipeline reads it for every organisation of that kind, so a
+# sample studied by an agent improves the whole segment.
+
+def segment_of(org: dict) -> str:
+    """The kind of organisation the playbook is keyed on: a segment the pool gave it, else its
+    type or category, else the source it came from."""
+    for k in ("segment", "type", "category", "sources", "source"):
+        v = str(org.get(k) or "").strip()
+        if v:
+            return v.split("|")[0].strip().lower()
+    return ""
+
+
+def playbook(pdir: Path) -> dict:
+    try:
+        return json.loads((pdir / "playbook.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def playbook_for(pdir: Path, org: dict) -> dict:
+    """The playbook entries for this organisation: "*" (all) plus its own segment."""
+    pb, seg = playbook(pdir), segment_of(org)
+    out: dict = {"paths": [], "queries": [], "roles": []}
+    for key in ("*", seg):
+        e = pb.get(key) if key else None
+        if isinstance(e, dict):
+            for f in out:
+                out[f] += [x for x in e.get(f) or [] if isinstance(x, str) and x not in out[f]]
+    return out
+
+
+def update_playbook(pdir: Path, changes: dict) -> dict:
+    """Merge agents' findings into playbook.json under a lock: lists are united, text fields
+    replaced. {segment: {"paths": [...], "queries": [...], "roles": [...], "notes": "..."}}"""
+    path = pdir / "playbook.json"
+    with _lock(path):
+        pb = playbook(pdir)
+        for seg, e in (changes or {}).items():
+            if not isinstance(e, dict):
+                continue
+            cur = pb.setdefault(str(seg).strip().lower() or "*", {})
+            for f, v in e.items():
+                if isinstance(v, list):
+                    cur[f] = list(dict.fromkeys([*(cur.get(f) or []), *[str(x) for x in v if str(x).strip()]]))
+                else:
+                    cur[f] = str(v)
+            cur["updated"] = _now()
+        tmp = path.with_name(f"playbook.{os.getpid()}.{threading.get_ident()}.tmp")
+        tmp.write_text(json.dumps(pb, ensure_ascii=False, indent=1), encoding="utf-8")
+        tmp.replace(path)
+    return pb
+
+
+VERDICT_COLS = ["org_id", "org", "agent", "verdict", "found", "where", "why", "time"]
+
+
+def add_verdicts(pdir: Path, items: list[dict], agent: str = "") -> int:
+    """One line per organisation an agent finished: what it found, where, why that grade.
+    verdict: routes (has A/B) | partial (C/D only) | none (searched, nothing public) | user (needs the user)."""
+    names = {str(o.get("id") or o.get("org_id") or ""): o.get("name", "") for o in read_csv(pdir / "orgs.csv")}
+    n = 0
+    for it in items or []:
+        oid = str(it.get("org_id") or "")
+        if not oid:
+            continue
+        append_csv(pdir / "verdicts.csv", VERDICT_COLS, {
+            "org_id": oid, "org": names.get(oid, it.get("org", "")), "agent": agent or it.get("agent", ""),
+            "verdict": str(it.get("verdict") or ""), "found": str(it.get("found") or "")[:300],
+            "where": str(it.get("where") or "")[:300], "why": str(it.get("why") or "")[:400], "time": _now()})
+        n += 1
+    return n
+
+
+def stages(pdir: Path) -> dict:
+    """How much work waits at each stage of the chain - the lead agent staffs where it piles up."""
+    import mo_tasks
+    orgs = read_csv(pdir / "orgs.csv")
+    ids = {str(o.get("id") or o.get("org_id") or "") for o in orgs}
+    crawl = read_csv(pdir / "crawl.csv")
+    read = {r["org_id"] for r in crawl if (r.get("pass") or "site") == "site"}
+    final = {r["org_id"] for r in crawl if r.get("pass") == "final"}
+    contacts = read_contacts(pdir)
+    confirmed = {c["org_id"] for c in contacts if c.get("grade") in ("A", "B") and c.get("review") != "yes"}
+    judged = {r["org_id"] for r in read_csv(pdir / "verdicts.csv")}
+    sources = read_csv(pdir / "sources.csv")
+    checked = [c for c in contacts if c.get("checked") in ("ok", "wrong")]
+    return {
+        "sources": {"pooled": len({r.get("source") for r in sources if r.get("source")}),
+                    "waiting_to_pool": sum(1 for t in read_csv(pdir / "tasks.csv") if t.get("kind") == "custom"
+                                           and t.get("title", "").lower().startswith("pool") and t.get("status") != "done")},
+        "orgs": {"total": len(ids), "no_website": sum(1 for o in orgs if not o.get("website")),
+                 "not_read": len(ids - read), "in_pipeline": len((read - final) & ids), "pipeline_done": len(final & ids)},
+        "dig": {"done_without_confirmed_ab": len((final & ids) - confirmed),
+                "waiting_for_an_agent": len(((final & ids) - confirmed) - judged), "agent_verdicts": len(judged)},
+        "review": {"ab_rows_to_review": sum(1 for c in contacts if c.get("grade") in ("A", "B") and c.get("review") == "yes")},
+        "check": {"checked": len(checked), "ok": sum(c["checked"] == "ok" for c in checked)},
+        "held_by_agents": len(mo_tasks.held_orgs(pdir)),
+    }
+
+
+ORG_SETTABLE = ("website", "segment", "scope", "city", "note")
+
+
+def update_orgs(pdir: Path, items: list[dict]) -> int:
+    """An agent corrects organisations: website (found or fixed), segment (for the playbook),
+    scope (in / out / unsure), city, note. Matched by org_id; other fields are left alone."""
+    path = pdir / "orgs.csv"
+    with _lock(path):
+        rows = read_csv(path)
+        cols = list(rows[0].keys()) if rows else ["id", "name", "website"]
+        idx = {str(r.get("id") or r.get("org_id") or ""): r for r in rows}
+        n = 0
+        for it in items or []:
+            r = idx.get(str(it.get("org_id") or ""))
+            if r is None:
+                continue
+            for f in ORG_SETTABLE:
+                if f in it:
+                    r[f] = str(it[f])
+                    if f not in cols:
+                        cols.append(f)
+            n += 1
+        write_csv(path, cols, rows)
+    return n
+
+
+def org_summaries(pdir: Path, ids: list[str] | None = None, stage: str = "", limit: int = 30) -> dict:
+    """What an agent needs to decide its next step on each organisation, without reading pages."""
+    import mo_tasks
+    orgs = read_csv(pdir / "orgs.csv")
+    by_id = {str(o.get("id") or o.get("org_id") or ""): o for o in orgs}
+    crawl = read_csv(pdir / "crawl.csv")
+    passes: dict[str, list] = {}
+    for r in crawl:
+        passes.setdefault(r["org_id"], []).append(r)
+    contacts = read_contacts(pdir)
+    mine: dict[str, list] = {}
+    for c in contacts:
+        if c.get("kind") == "email":
+            mine.setdefault(c.get("org_id", ""), []).append(c)
+    verdicts: dict[str, list] = {}
+    for v in read_csv(pdir / "verdicts.csv"):
+        verdicts.setdefault(v["org_id"], []).append(v)
+    held = mo_tasks.held_orgs(pdir)
+    final = {oid for oid, ps in passes.items() if any(p.get("pass") == "final" for p in ps)}
+
+    def confirmed(oid):
+        return [c for c in mine.get(oid, []) if c.get("grade") in ("A", "B") and c.get("review") != "yes"]
+
+    if ids:
+        pick = [str(i) for i in ids]
+    elif stage == "no_ab":
+        pick = [i for i in by_id if i in final and not confirmed(i) and i not in verdicts]
+    elif stage == "review":
+        pick = [i for i in by_id if any(c.get("review") == "yes" and c.get("grade") in ("A", "B") for c in mine.get(i, []))]
+    elif stage == "no_website":
+        pick = [i for i, o in by_id.items() if not o.get("website")]
+    elif stage == "unread":
+        pick = [i for i in by_id if i not in passes]
+    elif stage == "held":
+        pick = [i for i in by_id if i in held]
+    else:
+        pick = list(by_id)
+    total = len(pick)
+    out = []
+    for oid in pick[:max(1, int(limit or 30))]:
+        o = by_id.get(oid, {"id": oid})
+        rows = mine.get(oid, [])
+        site_passes = [p for p in passes.get(oid, []) if (p.get("pass") or "site") == "site"]
+        out.append({
+            "org_id": oid, "name": o.get("name", ""), "segment": segment_of(o), "city": o.get("city", ""),
+            "website": o.get("website", ""),
+            "state": "held by an agent" if oid in held else "pipeline done" if oid in final
+                     else "in pipeline" if oid in passes else "not read yet",
+            "site_pass": {k: (site_passes[-1] if site_passes else {}).get(k, "") for k in ("status", "pages", "note")},
+            "dig_passes": sum(1 for p in passes.get(oid, []) if str(p.get("pass", "")).startswith("deep")),
+            "emails_by_grade": {g: sum(1 for c in rows if (c.get("grade") or "?") == g) for g in "ABCDX?"
+                                if any((c.get("grade") or "?") == g for c in rows)},
+            "confirmed_ab": [{k: c.get(k, "") for k in ("value", "grade", "person", "role", "page_url")}
+                             for c in confirmed(oid)][:8],
+            "to_review": [{k: c.get(k, "") for k in ("value", "grade", "review_reason", "page_url", "quote")}
+                          for c in rows if c.get("review") == "yes" and c.get("grade") in ("A", "B")][:8],
+            "playbook": playbook_for(pdir, o),
+            "verdicts": [{k: v.get(k, "") for k in ("agent", "verdict", "found", "where", "why")}
+                         for v in verdicts.get(oid, [])][-3:],
+        })
+    return {"total": total, "shown": len(out), "orgs": out}
+
+
 _web_cache: dict[str, tuple] = {}
 
 
@@ -564,10 +757,29 @@ def _resolves(host: str) -> bool:
     return False
 
 
+_PAGE_NO = re.compile(r"(?:[?&](?:page|p|pg|seite|pagina|start)=\d+|/(?:page|seite|pagina)[/-]?\d+/?$)", re.I)
+
+
+def _next_page_of(url: str, link: str) -> bool:
+    """Is link another page of the same listing as url (?page=3, /page/3, /seite-3)?"""
+    if not _PAGE_NO.search(link):
+        return False
+    strip = lambda u: _PAGE_NO.sub("", u.split("#")[0]).rstrip("/?&")  # noqa: E731
+    return strip(link) == strip(url)
+
+
+PAGE_CAP = 40        # max pages of one site when every page keeps bringing new addresses
+DRY_PAGES_STOP = 2   # after max_pages, stop once this many pages in a row brought nothing new
+
+
 def _crawl_one(pdir: Path, t: dict, max_pages: int, readers, extra: list[str] | None = None,
-               label: str = "site", budget_s: float = SITE_BUDGET_S) -> dict:
+               label: str = "site", budget_s: float = SITE_BUDGET_S, hint_paths: list[str] | None = None) -> dict:
     """Read one organisation's site: home, then the best-scoring same-site pages two levels
-    deep (contact, imprint, team, board, staff, venue pages and PDFs), up to max_pages."""
+    deep (contact, imprint, team, board, staff, venue pages and PDFs). max_pages is the floor:
+    while pages keep bringing new addresses (a staff directory over several pages) it reads on,
+    up to PAGE_CAP, and stops after DRY_PAGES_STOP pages in a row with nothing new.
+    hint_paths: pages the project's playbook says this kind of organisation keeps its people on,
+    read first."""
     import heapq
     org_id, org, site = str(t.get("id") or t.get("org_id") or ""), str(t.get("name") or t.get("org") or ""), \
         str(t.get("website") or t.get("url") or "").strip()
@@ -594,9 +806,13 @@ def _crawl_one(pdir: Path, t: dict, max_pages: int, readers, extra: list[str] | 
         return key == scope or key.startswith(scope + "/")
 
     heap: list = []
-    for n, u in enumerate(([site] if site else []) + (extra or [])):
+    base = site if site.endswith("/") else site + "/"   # under the organisation's own page, portal or not
+    hinted = [urllib.parse.urljoin(base, p.lstrip("/"))
+              for p in (hint_paths or []) if site and isinstance(p, str) and p.strip()]
+    for n, u in enumerate(([site] if site else []) + hinted + (extra or [])):
         heapq.heappush(heap, (-100 + n, 0, u))
     seen, pages, emails, ok_readers, notes, buttons = set(), 0, 0, set(), [], 0
+    dry = 0   # pages in a row that brought no new address
 
     def get(url):
         try:
@@ -607,12 +823,13 @@ def _crawl_one(pdir: Path, t: dict, max_pages: int, readers, extra: list[str] | 
     import time as _time
     started = _time.time()
     with ThreadPoolExecutor(max_workers=PAGE_PARALLEL) as pages_pool:
-        while heap and pages < max_pages:
+        while heap and (pages < max_pages or (dry < DRY_PAGES_STOP and pages < PAGE_CAP)):
             if _time.time() - started > budget_s:
                 notes.append(f"time budget {int(budget_s)} s reached")
                 break
             batch = []   # the best few waiting pages, read at the same time
-            while heap and len(batch) < min(PAGE_PARALLEL, max_pages - pages):
+            while heap and len(batch) < max(1, min(PAGE_PARALLEL, max(max_pages, PAGE_CAP if dry < DRY_PAGES_STOP
+                                                                            else max_pages) - pages)):
                 _neg, depth, url = heapq.heappop(heap)
                 if url not in seen:
                     seen.add(url)
@@ -633,6 +850,7 @@ def _crawl_one(pdir: Path, t: dict, max_pages: int, readers, extra: list[str] | 
                 pages += 1
                 ok_readers |= set(ok)
                 emails += sum(c["kind"] == "email" for c in got["contacts"])
+                dry = 0 if got.get("contacts_added") else dry + 1
                 if got["email_buttons_without_address"] >= 3:
                     buttons += got["email_buttons_without_address"]
                     notes.append(f"{got['email_buttons_without_address']} email buttons without address on "
@@ -640,7 +858,10 @@ def _crawl_one(pdir: Path, t: dict, max_pages: int, readers, extra: list[str] | 
                 if depth < 2 and mo_pages.site_of(url) == (org_site or mo_pages.site_of(url)):
                     for link, score in got["scored_links"]:
                         if link not in seen and in_scope(link):
-                            heapq.heappush(heap, (-score + depth, depth + 1, link))
+                            # the next page of a directory stays at this page's depth: a staff list over
+                            # ten pages is read to the end, not cut at the second level
+                            d = depth if _next_page_of(url, link) else depth + 1
+                            heapq.heappush(heap, (-score + d, d, link))
     status = "done" if ok_readers else "unreadable"
     if scope:
         notes.insert(0, f"shared portal: only {scope} and below")
@@ -733,7 +954,10 @@ def status(pdir: Path) -> dict:
         "sites_read": {"orgs": len(crawl), "by_status": _count(crawl, "status")},
         "stop_requested": stop_requested(pdir),
         "run": _runs(pdir),
+        "batches": [b for b in __import__("mo_run").batch_states(pdir) if not b.get("done")] or None,
         "queue": _queue(pdir),
+        "stages": stages(pdir),
+        "playbook_segments": sorted(playbook(pdir)),
         "agent_runs": _count(agent, "status"),
         "costs": mo_budget.summary(pdir),
     }

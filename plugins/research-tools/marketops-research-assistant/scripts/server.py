@@ -46,7 +46,7 @@ def _err(exc: Exception) -> dict:
     return {"error": mo_config.scrub(f"{type(exc).__name__}: {exc}")[:300]}
 
 
-def project(name: str, brief: dict | None = None) -> dict:
+def project(name: str, brief: dict | None = None, playbook: dict | None = None) -> dict:
     """Open (or create) a project folder and report where it stands.
 
     brief (optional, saved as brief.json): {"goal": "...", "region": "...", "country": "FR",
@@ -56,11 +56,22 @@ def project(name: str, brief: dict | None = None) -> dict:
     grade; leave any out to use Bruce's default. Returns pools, contacts by grade, run and
     agent progress, costs, account balances with their red lines, and `needs_you`: the numbered
     list of things only the user can decide - present it in one message, take one reply.
+    `stages` shows the work waiting at each stage of the chain (sources, organisations not
+    read, done without a confirmed A/B and waiting for an agent, rows to review) - staff the
+    stage where it piles up.
+    playbook (optional, merged into playbook.json): what you learned about finding people for
+    one kind of organisation, {segment: {"paths": ["/annuaire", ...], "queries": ['"{name}"
+    {city} responsable', ...], "roles": ["chef d'établissement", ...], "notes": "..."}};
+    segment is an organisation's segment/type/category/source ("*" for all). The pipeline reads
+    the paths first and runs the queries first for every organisation of that kind; sweep the
+    rest of the segment again with run(project, orgs=[...], again=True).
     """
     try:
         pdir = ws.project_dir(name)
         if brief:
             (pdir / "brief.json").write_text(json.dumps(brief, ensure_ascii=False, indent=1), encoding="utf-8")
+        if playbook:
+            ws.update_playbook(pdir, playbook)
         out = ws.status(pdir)
         out["version"] = VERSION
         out["providers"] = mo_config.configured() + ["crawl4ai"]
@@ -177,7 +188,9 @@ def grade(project: str, set: list[dict] | None = None, regrade: bool = False, li
     (any language), all of them unless limit. A/B rows that need a look (low confidence,
     address shared with other organisations, page on another site) get review=yes. With
     set: your own judgement, a list of {"value": email, "org_id"?, "grade"?, "person"?,
-    "role"?, "note"?}; rows you set are never regraded by Jev.
+    "role"?, "note"?}; rows you set are never regraded by Jev. Spot check: {"value", "org_id",
+    "checked": "ok"|"wrong", "note"?} records that you opened the page and the row holds (or
+    not) - the workbook's 抽检 sheet lists the sample and the precision.
     """
     try:
         pdir = ws.project_dir(project)
@@ -203,7 +216,7 @@ def judge(project: str, file: str, question: str, options: dict, column: str,
 
 def run(project: str, rounds: int = 6, max_pages: int = 15, goal_ab_org_share: float | None = None,
         agent: bool = False, stop: bool = False, workers: int = 24, shards: int = 1,
-        follow: bool = False, pool_done: bool = False) -> dict:
+        follow: bool = False, pool_done: bool = False, orgs: list[str] | None = None, again: bool = False) -> dict:
     """Long research as a pipeline in its own background process(es) (survives this session).
 
     Each organisation in orgs.csv flows on its own, many at once: its site is read, a
@@ -219,17 +232,22 @@ def run(project: str, rounds: int = 6, max_pages: int = 15, goal_ab_org_share: f
     progress (organisations per minute, minutes left, cost per organisation) and results.
     workers: organisations worked at the same time per process (each read by several providers
     at once); shards: split orgs.csv between that many processes running in parallel.
+    orgs=[ids]: a batch for an agent - sweep just these organisations in the background, beside
+    any main run (again=True: sweep them anew with the playbook as it is now); then read each
+    one's result with orgs(project, ids=[...]). max_pages is a floor: a site keeps being read
+    while its pages bring new addresses (up to 40).
     """
     try:
         return mo_run.run(ws.project_dir(project), rounds=rounds, max_pages=max_pages,
                           goal_ab_org_share=goal_ab_org_share, agent=agent, stop=stop, workers=workers,
-                          shards=shards, follow=follow, pool_done=pool_done)
+                          shards=shards, follow=follow, pool_done=pool_done, orgs=orgs, again=again)
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
 
 
 def tasks(project: str, action: str = "status", kind: str = "", size: int = 15, agent: str = "",
-          task_id: str = "", note: str = "", title: str = "", release: bool = False) -> dict:
+          task_id: str = "", note: str = "", title: str = "", release: bool = False,
+          verdicts: list[dict] | None = None) -> dict:
     """Shared work queue so several agents work one project in parallel.
 
     Coordinator: action="plan", kind="dig" (organisations still without a confirmed A/B),
@@ -240,6 +258,10 @@ def tasks(project: str, action: str = "status", kind: str = "", size: int = 15, 
     (optionally kind) returns one package with its organisations or rows and how to do it;
     work it with the other tools, then action="done", task_id, note="what you found/tried"
     (release=True hands it back undone). A claim untouched for 40 minutes is offered again.
+    While an agent holds a package, the pipeline leaves its organisations alone.
+    action="verdict", verdicts=[{org_id, verdict: routes|partial|none|user, found, where, why}]:
+    one line per organisation you finished - what you found, on which kind of page, why that
+    grade (goes to verdicts.csv and the workbook).
     """
     try:
         pdir = ws.project_dir(project)
@@ -251,7 +273,33 @@ def tasks(project: str, action: str = "status", kind: str = "", size: int = 15, 
             return mo_tasks.claim(pdir, agent or "worker", kind)
         if action == "done":
             return mo_tasks.done(pdir, task_id, note, release)
+        if action == "verdict":
+            return {"recorded": ws.add_verdicts(pdir, verdicts or [], agent), **ws.stages(pdir)}
         return mo_tasks.summary(pdir)
+    except Exception as exc:  # noqa: BLE001
+        return _err(exc)
+
+
+def orgs(project: str, ids: list[str] | None = None, stage: str = "", limit: int = 30,
+         set: list[dict] | None = None) -> dict:
+    """One summary per organisation, for an agent deciding what to do next with it.
+
+    ids: these organisations; or stage: "no_ab" (pipeline done, no confirmed A/B, no agent
+    verdict yet), "review" (has A/B rows to review), "no_website", "unread", "held" (an agent
+    has it). Each: name, segment, website, pages read and how the site pass went, addresses by
+    grade, its confirmed A/B (address, person, role, page), rows to review with the reason,
+    the playbook entries for its segment, and agent verdicts so far.
+    set=[{org_id, website?, segment?, scope?, city?, note?}]: correct organisations - a website
+    you found or fixed (the sweep reads it next; re-sweep with run(orgs=[...], again=True)),
+    the segment the playbook keys on, scope in/out/unsure.
+    """
+    try:
+        pdir = ws.project_dir(project)
+        if set:
+            changed = ws.update_orgs(pdir, set)
+            if not ids and not stage:
+                return {"updated": changed}
+        return ws.org_summaries(pdir, ids, stage, limit)
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
 
@@ -286,7 +334,7 @@ def export(project: str) -> dict:
         return _err(exc)
 
 
-TOOLS = (project, search, pool, fetch, browse, judge, grade, run, tasks, export)
+TOOLS = (project, search, pool, fetch, browse, judge, grade, run, tasks, orgs, export)
 
 
 def check() -> int:
@@ -341,6 +389,22 @@ def main() -> None:
         raise SystemExit(check())
     if len(sys.argv) > 1 and sys.argv[1] == "run":
         raise SystemExit(headless(sys.argv[2:]))
+    if len(sys.argv) > 1 and sys.argv[1] == "batch":
+        import argparse
+        ap = argparse.ArgumentParser(prog="server.py batch")
+        ap.add_argument("project")
+        ap.add_argument("--job", required=True)
+        ap.add_argument("--opts", default="{}")
+        a = ap.parse_args(sys.argv[2:])
+        pdir, job, o = ws.project_dir(a.project), json.loads(a.job), json.loads(a.opts)
+        try:
+            mo_run.run_sync(pdir, rounds=int(o.get("rounds", 6)), max_pages=int(o.get("max_pages", 15)),
+                            agent=bool(o.get("agent")), workers=int(o.get("workers", 12)), job=job)
+        except Exception as exc:  # noqa: BLE001
+            mo_run._save_state(pdir, {"file": f"batch.{job['id']}.json", "stage": "failed", "done": True,
+                                      "error": mo_config.scrub(f"{type(exc).__name__}: {exc}")[:300]})
+            raise
+        raise SystemExit(0)
     if len(sys.argv) > 1 and sys.argv[1] == "supervise":
         import argparse
         ap = argparse.ArgumentParser(prog="server.py supervise")

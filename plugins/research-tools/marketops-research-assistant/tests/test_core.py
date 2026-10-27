@@ -618,6 +618,79 @@ class Locks(unittest.TestCase):
         self.assertEqual(set(), mo_tasks.held_orgs(pdir))
 
 
+class AgentParts(unittest.TestCase):
+    def test_playbook_merges_and_applies_by_segment(self):
+        pdir = ws.project_dir("t48")
+        ws.update_playbook(pdir, {"Commune": {"paths": ["/annuaire"], "queries": ['"{name}" {city} chef']}})
+        ws.update_playbook(pdir, {"commune": {"paths": ["/annuaire", "/services/sports"], "roles": ["chef"]},
+                                  "*": {"paths": ["/contact"]}})
+        pb = ws.playbook_for(pdir, {"type": "Commune"})
+        self.assertEqual(["/contact", "/annuaire", "/services/sports"], pb["paths"])
+        self.assertEqual(["chef"], pb["roles"])
+        self.assertEqual([('"Stade X" Lyon chef', False)],
+                         mo_run._playbook_queries({"name": "Stade X", "city": "Lyon"}, pb["queries"]))
+
+    def test_playbook_pages_come_first_and_a_site_is_read_while_pages_bring_new_addresses(self):
+        pdir = ws.project_dir("t49")
+        order = []
+
+        def fetch(pdir_, url, readers, oid, org, site, via="site"):
+            order.append(url)
+            n = len(order)
+            links = [(f"https://club.fr/bureau?page={n}", 10)]   # a directory over many pages
+            return {"readers": {"crawl4ai": {}}, "contacts": [], "contacts_added": 1 if n <= 20 else 0,
+                    "email_buttons_without_address": 0, "scored_links": links}
+        with mock.patch.object(ws, "fetch", side_effect=fetch):
+            row = ws._crawl_one(pdir, {"id": "o1", "name": "Club", "website": "https://club.fr"}, 5, None,
+                                hint_paths=["/bureau"])
+        self.assertEqual("https://club.fr/bureau", order[1])           # the playbook's page right after home
+        self.assertGreater(row["pages"], 20)                           # read on past max_pages while new addresses came
+        self.assertLessEqual(row["pages"], 20 + ws.DRY_PAGES_STOP + ws.PAGE_PARALLEL)
+
+    def test_a_batch_job_sweeps_only_its_organisations(self):
+        pdir = ws.project_dir("t50")
+        (pdir / "brief.json").write_text(json.dumps({"goal": "x", "ablate": ["dig", "evidence", "findsite"]}),
+                                         encoding="utf-8")
+        ws.write_csv(pdir / "orgs.csv", ["id", "name", "website"],
+                     [{"id": f"o{i}", "name": f"Org {i}", "website": ""} for i in range(4)])
+        with mock.patch("mo_grade.auto", return_value={}):
+            state = mo_run.run_sync(pdir, rounds=1, workers=2, job={"id": "b1", "orgs": ["o1", "o3"]})
+        self.assertEqual("batch.b1.json", state["file"])
+        self.assertEqual({"o1", "o3"}, {r["org_id"] for r in ws.read_csv(pdir / "crawl.csv") if r.get("pass") == "final"})
+        self.assertEqual({}, state["export"])
+
+    def test_org_summaries_and_verdicts_tell_an_agent_what_is_left(self):
+        pdir = ws.project_dir("t51")
+        ws.write_csv(pdir / "orgs.csv", ["id", "name", "website", "type"],
+                     [{"id": "o1", "name": "A", "website": "a.fr", "type": "Club"},
+                      {"id": "o2", "name": "B", "website": "b.fr", "type": "Club"}])
+        for oid in ("o1", "o2"):
+            ws.append_csv(pdir / "crawl.csv", ws.CRAWL_COLS, {"org_id": oid, "pass": "final", "status": "done"})
+        ws.merge_contacts(pdir, [{"kind": "email", "value": "p@a.fr", "quote": "Président", "page_url": "u"}], "o1", "A", "site")
+        ws.update_contacts(pdir, [{"org_id": "o1", "value": "p@a.fr", "grade": "A"}], ["grade"])
+        self.assertEqual(["o2"], [o["org_id"] for o in server.orgs("t51", stage="no_ab")["orgs"]])
+        server.tasks("t51", action="verdict", agent="w1",
+                     verdicts=[{"org_id": "o2", "verdict": "none", "found": "-", "where": "site, federation", "why": "no names"}])
+        self.assertEqual(0, server.orgs("t51", stage="no_ab")["total"])
+        self.assertEqual({"updated": 1}, server.orgs("t51", set=[{"org_id": "o2", "website": "https://b.fr/",
+                                                                  "segment": "club", "name": "ignored"}]))
+        row = {r["id"]: r for r in ws.read_csv(pdir / "orgs.csv")}["o2"]
+        self.assertEqual(("https://b.fr/", "club", "B"), (row["website"], row["segment"], row["name"]))
+        self.assertEqual(1, ws.stages(pdir)["dig"]["agent_verdicts"])
+
+    def test_spot_checks_give_the_precision(self):
+        pdir = ws.project_dir("t52")
+        ws.merge_contacts(pdir, [{"kind": "email", "value": f"p{k}@a.fr", "quote": "q", "page_url": "u"} for k in range(3)],
+                          "o1", "A", "site")
+        ws.update_contacts(pdir, [{"org_id": "o1", "value": f"p{k}@a.fr", "grade": "B"} for k in range(3)], ["grade"])
+        server.grade("t52", set=[{"value": "p0@a.fr", "org_id": "o1", "checked": "ok"},
+                                 {"value": "p1@a.fr", "org_id": "o1", "checked": "wrong"}])
+        rows = {r["value"]: r for r in ws.read_contacts(pdir)}
+        self.assertEqual("", rows["p0@a.fr"].get("graded_by", ""))     # a check alone does not take the row over
+        self.assertEqual("50.0%（1/2）", mo_export._precision(list(rows.values())))
+        self.assertEqual(3, len(mo_export._check_sample(list(rows.values()))))
+
+
 class Reconcile(unittest.TestCase):
     def test_every_org_counted_once_under_its_best_grade(self):
         rows = [{"最佳等级": "A 关键岗位"}, {"最佳等级": "B 相关操作人（待复核）"}, {"最佳等级": "D 通用入口"},
@@ -759,7 +832,7 @@ class Providers(unittest.TestCase):
 
 class Package(unittest.TestCase):
     def test_tools_and_manifest(self):
-        self.assertEqual(["project", "search", "pool", "fetch", "browse", "judge", "grade", "run", "tasks", "export"],
+        self.assertEqual(["project", "search", "pool", "fetch", "browse", "judge", "grade", "run", "tasks", "orgs", "export"],
                          [f.__name__ for f in server.TOOLS])
         manifest = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["version"], server.VERSION)
