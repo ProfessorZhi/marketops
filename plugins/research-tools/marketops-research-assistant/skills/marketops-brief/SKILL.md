@@ -27,7 +27,7 @@ whole reruns.
     "search_terms": ["responsable des espaces verts", "service des sports", "président"],
     "directory_terms": ["district de football clubs", "annuaire des associations sportives"]
   },
-  "providers": {"search": {"serper": 0.5}},
+  "providers": {"search": {"serpapi": 0.3}},
   "ablate": []
 }
 ```
