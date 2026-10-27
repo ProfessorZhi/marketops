@@ -350,7 +350,10 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
     target = max(1, int(b.get("routes_per_org") or ROUTES_PER_ORG))
     # Ablation: switch stages off to measure what each one brings (brief.ablate).
     off = set(b.get("ablate") or [])
-    finished = {r["org_id"] for r in ws.read_csv(pdir / "crawl.csv") if r.get("pass") == "final"}
+    mine = {str(o.get("id") or o.get("org_id") or "") for o in _mine(ws.read_csv(pdir / "orgs.csv"), sh)}
+    # this shard's finished organisations only: counting the whole project's made "done" pass the
+    # shard's size after a restart
+    finished = {r["org_id"] for r in ws.read_csv(pdir / "crawl.csv") if r.get("pass") == "final" and r["org_id"] in mine}
     flow = {"queued": 0, "site": 0, "grading": 0, "digging": 0, "evidence": 0, "done": len(finished)}
     agent_budget = [AGENT_PAGES_PER_ROUND * max(1, rounds // 2)]
     import mo_budget
@@ -458,7 +461,8 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
                              # Bruce's one hard rhythm: valid key-role addresses per 30 minutes
                              "ab_routes_per_30_min": round((m.get("ab_routes", 0) - ab0) / elapsed * 1800, 1),
                              "minutes_left": round(left / rate, 1) if rate else None,
-                             "usd_this_run": round(spent, 3),
+                             # the cost log is the project's, not the shard's: never add this up across shards
+                             "usd_project_since_start": round(spent, 3),
                              "usd_per_org": round(spent / max(flow["done"] - len(finished), 1), 4)}
         state["result"] = m
         if agent and (pdir / "agent.csv").exists():

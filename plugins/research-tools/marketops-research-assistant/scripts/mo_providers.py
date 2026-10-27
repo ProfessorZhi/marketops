@@ -402,7 +402,9 @@ def read(url: str, readers=None, project_dir=None) -> dict:
             mo_budget.record(project_dir, reader, "fetch", True, url[:120])
             return reader, res
         except Exception as exc:  # noqa: BLE001 - each reader fails on its own
-            mo_budget.record(project_dir, reader, "fetch", False, f"{type(exc).__name__}")
+            # keep the reason ("no text", "HTTP 403", a timeout) so failures can be told apart later
+            mo_budget.record(project_dir, reader, "fetch", False,
+                             mo_config.scrub(f"{type(exc).__name__}: {exc}")[:80] + " | " + url[:80])
             return reader, {"error": mo_config.scrub(f"{type(exc).__name__}: {exc}")[:160]}
 
     with ThreadPoolExecutor(max_workers=3) as pool:

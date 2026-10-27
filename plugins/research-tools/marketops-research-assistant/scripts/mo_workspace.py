@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import re
 import threading
 import urllib.parse
@@ -107,7 +108,9 @@ def read_csv(path: Path) -> list[dict]:
 def write_csv(path: Path, cols: list[str], rows: list[dict]) -> None:
     extra = [k for r in rows for k in r if k not in cols]
     cols = cols + list(dict.fromkeys(extra))
-    tmp = path.with_suffix(".tmp")
+    # one temp file per process and thread: shards share the project folder, and a fixed
+    # "contacts.tmp" let one shard rename another's file away (FileNotFoundError, a restart)
+    tmp = path.with_name(f"{path.stem}.{os.getpid()}.{threading.get_ident()}.tmp")
     with open(tmp, "w", newline="", encoding="utf-8") as fh:
         w = csv.DictWriter(fh, fieldnames=cols, extrasaction="ignore")
         w.writeheader()
@@ -388,14 +391,23 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
     page_site = mo_pages.site_of(url)
     words = [w for w in re.findall(r"[a-z0-9]+", (org or "").lower()) if len(w) > 3]
     known_site = org_site  # the organisation's own website, if the pool has one
+    # On a portal shared by many organisations (a city site) only the organisation's own page
+    # and what is below it is its own; another venue's page on the same portal is not, and an
+    # address on the portal's domain says nothing about whose it is.
+    scope = portal_scope(pdir, org_id) if known_site and known_site in shared_sites(pdir) else ""
 
-    def belongs(site: str) -> str:
+    def belongs(site: str, page_url: str = "") -> str:
+        if known_site and scope:
+            if not page_url:
+                return "unknown" if site == known_site else "no"
+            parts = urllib.parse.urlsplit(page_url)
+            return "yes" if (parts.netloc.lower() + parts.path).startswith(scope) else "no"
         if known_site:
             return "yes" if site == known_site else "no"
         # no known website: a domain carrying the organisation's name is likely its own
         squashed = re.sub(r"[^a-z0-9]", "", site)
         return "likely" if words and any(w in squashed for w in words) else "unknown"
-    on_org = belongs(page_site)
+    on_org = belongs(page_site, url)
     org_site = org_site or page_site
 
     def take(reader: str, res: dict):
@@ -498,6 +510,24 @@ def shared_sites(pdir: Path) -> set[str]:
                 names.setdefault(site, set()).add(str(o.get("name") or "").strip().lower())
         _shared_cache[str(pdir)] = cached = (sig, {s for s, n in names.items() if len(n) >= SHARED_SITE_ORGS})
     return cached[1]
+
+
+_web_cache: dict[str, tuple] = {}
+
+
+def portal_scope(pdir: Path, org_id: str) -> str:
+    """host + path of the organisation's own page on a shared portal ("" when unknown)."""
+    f = pdir / "orgs.csv"
+    sig = f.stat().st_mtime_ns if f.exists() else 0
+    cached = _web_cache.get(str(pdir))
+    if not cached or cached[0] != sig:
+        _web_cache[str(pdir)] = cached = (sig, {str(o.get("id") or o.get("org_id") or ""): str(o.get("website") or "")
+                                               for o in read_csv(f)})
+    site = cached[1].get(str(org_id), "")
+    if not site:
+        return ""
+    parts = urllib.parse.urlsplit(site if "://" in site else "https://" + site)
+    return parts.netloc.lower() + (parts.path.rstrip("/") or "/")
 
 
 SITE_BUDGET_S = 150   # one organisation's site pass stops queueing pages after this (Bruce: per-domain budget)
