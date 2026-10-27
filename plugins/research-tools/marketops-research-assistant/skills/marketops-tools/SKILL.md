@@ -24,10 +24,10 @@ counts and slower engines get a few seconds; late answers land in the library fo
 
 | Engine | Good at | Use |
 |---|---|---|
-| DeepSeek | broad web search; operators `site:`, `"..."`, `lang:`, `after:`; long summaries | freely (paid per request, cheap) |
-| TinyFish search | broad web search, fast; `include_domains` | freely (free, 30 a minute - paced) |
-| Serper (Google) | exact phrases, `site:`, `filetype:pdf`, maps places with website and phone | moderately (credits) |
-| SerpApi (Google / Bing) | the same, smaller quota | sparingly |
+| Serper (Google) | fast (1-2 s), exact phrases, `site:`, `filetype:pdf`, maps places with website and phone | **main engine** - keep it funded; several keys in slots |
+| DeepSeek | broad web search; operators `site:`, `"..."`, `lang:`, `after:`; long summaries | **main engine** (paid per request, cheap) |
+| TinyFish search | broad web search, fast; `include_domains` | always on, 30 a minute per account (paced for the whole machine) |
+| SerpApi (Google / Bing) | the same as Serper, small quota | backup |
 
 Recipes Bruce used most (`derived/websearch-queries.csv`, 1,000 queries):
 - **Reverse look-up of an address you already found**: `"<address>"` (his most used query) and
