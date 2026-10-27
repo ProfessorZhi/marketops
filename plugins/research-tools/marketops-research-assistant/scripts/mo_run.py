@@ -21,6 +21,7 @@ import re
 import time
 import urllib.parse
 
+import mo_budget
 import mo_config
 import mo_export
 import mo_grade
@@ -81,7 +82,7 @@ def _queries(org: dict, rnd: int, terms: list[str], dir_terms: list[str],
 def _rank(pdir, org: dict, hits: list[dict]) -> list[dict]:
     """Jev puts the leads most likely to name this organisation's people first. Order only:
     nothing is dropped here."""
-    if len(hits) < 2 or not mo_config.key("jev"):
+    if len(hits) < 2 or not mo_budget.jev_ready():
         return hits
     try:
         import typesafe_sdk as sdk
@@ -94,7 +95,6 @@ def _rank(pdir, org: dict, hits: list[dict]) -> list[dict]:
                       "unlikely": "no, news, other organisations or general content"})
             for k in range(len(hits))}
         resp = mo_grade._jev({"organisation": str(org.get("name")), "pages": listing}, qs)
-        import mo_budget
         mo_budget.record(pdir, "jev", "grade", True, f"rank leads x{len(hits)}")
         choices = mo_grade.answers(resp)
 
@@ -277,7 +277,6 @@ def _corroborate(pdir, org: dict, weights: dict, most: int = 3) -> int:
 
 
 def mo_budget_allowed(provider: str) -> bool:
-    import mo_budget
     return mo_budget.allowed(provider)[0]
 
 
@@ -326,7 +325,7 @@ class _Grader:
     def wait_for(self, oid: str, timeout: int = 90) -> None:
         # no usable Jev key (none, or every slot used up): nothing will be graded, do not wait -
         # the rows stay ungraded for later and the organisation moves on
-        if not self.enabled or not mo_config.key("jev") or not mo_budget_allowed("jev"):
+        if not self.enabled or not mo_budget.jev_ready():
             return
         deadline = time.time() + timeout
         while time.time() < deadline:
@@ -397,7 +396,6 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
         {r["org_id"] for r in ws.read_csv(pdir / "crawl.csv") if r.get("pass") == "final" and r["org_id"] in mine}
     flow = {"queued": 0, "site": 0, "grading": 0, "digging": 0, "evidence": 0, "done": len(finished)}
     agent_budget = [AGENT_PAGES_PER_ROUND * max(1, rounds // 2)]
-    import mo_budget
     t0, spent0 = time.time(), sum(v["usd"] for v in mo_budget.summary(pdir).values())
     ab0 = measure(pdir, sh).get("ab_routes", 0)
     grader = _Grader(pdir)

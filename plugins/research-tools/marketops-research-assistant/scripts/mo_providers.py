@@ -163,6 +163,24 @@ def _check_money(provider: str, response: httpx.Response, kind: str = "") -> Non
         raise ProviderError(f"HTTP {response.status_code}")
 
 
+SLOT_REFUSAL = re.compile(r"HTTP 40[12]\b|used up|refused", re.I)
+
+
+def with_slots(provider: str, call):
+    """Run a provider call; when the key in use is refused (401, 402, quota used up) and the
+    refusal set it aside, run the same call again at once with the next key slot - the switch
+    happens inside this call, not on the next one."""
+    tried = set()
+    while True:
+        tried.add(mo_config.key(provider))
+        try:
+            return call()
+        except ProviderError as exc:
+            nxt = mo_config.key(provider)
+            if not (SLOT_REFUSAL.search(str(exc)) and nxt and nxt not in tried):
+                raise
+
+
 def public_url(url: str) -> str:
     """http(s) to a public host only (no local network, no credentials in the URL)."""
     parts = urllib.parse.urlsplit(url.strip())
@@ -322,7 +340,7 @@ def search(query: str, engines=None, country: str = "", lang: str = "", n: int =
         if not ok:
             return engine, None, why
         try:
-            rows = _again(lambda: _SEARCH[engine](query, country, lang, n, maps, purpose, page, near))
+            rows = with_slots(engine, lambda: _again(lambda: _SEARCH[engine](query, country, lang, n, maps, purpose, page, near)))
             mo_budget.record(project_dir, engine, "search", True, query[:80])
             mo_library.put_search(key, rows)
             return engine, rows, ""
@@ -438,12 +456,14 @@ def prefetch_tinyfish(urls: list[str], project_dir=None) -> dict[str, dict]:
     for i in range(0, len(urls), 10):
         chunk = [public_url(u) for u in urls[i:i + 10]]
         RATE.wait("tinyfish:fetch")
-        try:
+        def batch(chunk=chunk):
             r = httpx.post("https://api.fetch.tinyfish.ai",
                            json={"urls": chunk, "format": "html", "per_url_timeout_ms": 35000},
                            headers={"X-API-Key": mo_config.key("tinyfish")}, timeout=60)
             _check_money("tinyfish", r, "fetch")
-            rows = r.json().get("results") or []
+            return r.json().get("results") or []
+        try:
+            rows = with_slots("tinyfish", batch)
         except Exception as exc:  # noqa: BLE001 - the normal readers take over
             mo_budget.record(project_dir, "tinyfish", "fetch", False, f"batch: {type(exc).__name__}: {exc}"[:120])
             continue
@@ -539,7 +559,7 @@ def capabilities() -> dict:
     import mo_budget
     search = [e for e in SEARCH_ENGINES if mo_config.key(e) and mo_budget.allowed(e, "search")[0]]
     readers = available_readers()
-    jev = bool(mo_config.key("jev")) and mo_budget.allowed("jev")[0]
+    jev = mo_budget.jev_ready()
     missing, effects = [], []
     if not any(e in search for e in ("serper", "serpapi")):
         missing.append("serper/serpapi")
@@ -602,7 +622,9 @@ def read(url: str, readers=None, project_dir=None, force: bool = False) -> dict:
             return reader, {"error": "skipped: " + aside}
         try:
             # a page that timed out in the browser is not read again (it already took 30 s)
-            res = _again(lambda: _READ[reader](url), transient=TRANSIENT_FAST if reader == "crawl4ai" else TRANSIENT)
+            res = with_slots("serpapi" if reader == "facebook" else reader,
+                             lambda: _again(lambda: _READ[reader](url),
+                                            transient=TRANSIENT_FAST if reader == "crawl4ai" else TRANSIENT))
             mo_budget.record(project_dir, "serpapi" if reader == "facebook" else reader,
                              "search" if reader == "facebook" else "fetch", True, url[:120])
             if mo_health.enabled():
@@ -746,12 +768,12 @@ def agent_submit(url: str, goal: str, country: str = "", stealth: bool = False) 
             "output_schema": CONTACTS_SCHEMA, "api_integration": "marketops"}
     if country.upper() in AGENT_PROXY_COUNTRIES:
         body["proxy_config"] = {"enabled": True, "country_code": country.upper()}
-    r = httpx.post("https://agent.tinyfish.ai/v1/automation/run-async", json=body,
-                   headers={"X-API-Key": mo_config.key("tinyfish")}, timeout=60)
-    _check_money("tinyfish", r, "agent")
-    if r.status_code >= 400:
-        raise ProviderError(f"HTTP {r.status_code}: {r.text[:160]}")
-    res = r.json() or {}
+    def submit():
+        r = httpx.post("https://agent.tinyfish.ai/v1/automation/run-async", json=body,
+                       headers={"X-API-Key": mo_config.key("tinyfish")}, timeout=60)
+        _check_money("tinyfish", r, "agent")
+        return r.json() or {}
+    res = with_slots("tinyfish", submit)
     if not res.get("run_id"):
         raise ProviderError("TinyFish gave no run id: " + str(res.get("error") or res)[:160])
     return str(res["run_id"])

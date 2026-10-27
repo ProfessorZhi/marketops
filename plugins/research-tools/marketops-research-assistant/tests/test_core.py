@@ -1221,6 +1221,29 @@ class SuperPipeline(unittest.TestCase):
         self.assertEqual((True, ""), mo_budget.allowed("http", "fetch"))
         self.assertEqual((True, ""), mo_budget.allowed("download", "fetch"))
 
+    def test_a_jev_key_without_the_sdk_steps_down_instead_of_failing(self):
+        import mo_budget
+        import mo_flow
+        rows = [{"title": "Club", "lines": "x", "_cands": ["https://a.test"], "name": "Club"}]
+        with mock.patch.dict(os.environ, {"TYPESAFE_API_KEY": "test-key"}), mock.patch.object(mo_budget, "_SDK", [False]):
+            self.assertFalse(mo_budget.jev_ready())
+            self.assertEqual(0, mo_flow._jev_rows(ws.project_dir("nosdk"), rows))
+            self.assertEqual("rules + agents", mo_providers.capabilities()["grade"])
+
+    def test_jev_orders_dig_leads_when_ready(self):
+        import types
+        import mo_budget
+        import mo_grade
+        hits = [{"title": "News", "url": "https://c.test/news"}, {"title": "Comité", "url": "https://c.test/comite"}]
+
+        def fake_jev(state, qs):
+            return types.SimpleNamespace(answers={"r1": types.SimpleNamespace(choice="unlikely", confidence=0.9),
+                                                  "r2": types.SimpleNamespace(choice="likely", confidence=0.9)})
+        with mock.patch.object(mo_budget, "jev_ready", return_value=True), \
+                mock.patch.object(mo_grade, "_jev", side_effect=fake_jev):
+            ranked = mo_run._rank(ws.project_dir("rank"), {"name": "Club"}, hits)
+        self.assertEqual("https://c.test/comite", ranked[0]["url"])
+
     def test_found_sources_without_a_miner_are_flagged(self):
         pdir = ws.project_dir("flow2")
         server.sources("flow2", add=[{"source": "census", "url": "https://data.test/x.csv"}], agent="f")

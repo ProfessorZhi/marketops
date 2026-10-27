@@ -44,9 +44,30 @@ def rubric(pdir) -> dict:
 
 
 def _jev(state: dict, questions: dict):
+    """One Jev request; a key refused for money or as invalid is set aside and the same request
+    goes out again at once with the next key slot."""
+    tried = set()
+    while True:
+        key = mo_config.key("jev")
+        tried.add(key)
+        try:
+            return _jev_once(state, questions, key)
+        except Exception as exc:  # noqa: BLE001
+            text = f"{type(exc).__name__} {exc}".lower()
+            if "402" in text or "quota" in text or "credit" in text or "payment" in text:
+                mo_budget.mark_exhausted("jev", "Jev refused for money")
+            elif "401" in text or "unauthorized" in text or "invalid api key" in text:
+                mo_budget.mark_exhausted("jev", "Jev refused the key")
+            else:
+                raise
+            if not mo_config.key("jev") or mo_config.key("jev") in tried:
+                raise
+
+
+def _jev_once(state: dict, questions: dict, key: str):
     import typesafe_sdk as sdk
     with sdk.TypeSafeClient(
-            api_key=mo_config.key("jev"), timeout=120,
+            api_key=key, timeout=120,
             model=os.environ.get("MARKETOPS_JEV_MODEL") or None,
             ) as client:   # the SDK's default retry backs off on 429 / 529 (docs.typesafe.ai)
         return client.system_one(state, questions)
@@ -82,7 +103,7 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: 
     its name). Jev grades the rest - only the rows that need judgement. Without Jev the rules still
     run and the rest waits for agents (grade(set=[...]))."""
     rows = ws.read_contacts(pdir)
-    jev = bool(mo_config.key("jev"))
+    jev = mo_budget.jev_ready()
     import mo_pages
     org_site = {str(o.get("id") or o.get("org_id") or ""): mo_pages.site_of(str(o.get("website") or ""))
                 for o in ws.read_csv(pdir / "orgs.csv")}
@@ -311,7 +332,7 @@ def fill_people(pdir, only: set | None = None, batch: int = 6, workers: int = 8)
     """For A/B rows without a person: Jev picks, from the quote's own segments, the one that
     is the person's name and the one that is the job title (any language, any layout).
     only: the (org_id, address) rows to look at - the ones just graded; each address+text once."""
-    if not mo_config.key("jev"):
+    if not mo_budget.jev_ready():
         return 0
     import typesafe_sdk as sdk
     from concurrent.futures import ThreadPoolExecutor
@@ -405,7 +426,7 @@ def judge(pdir, file: str, question: str, options: dict, column: str, fields: li
     an answer are skipped unless redo. Use it wherever a decision repeats over many rows:
     is this venue in scope, is this the organisation's own site, is this a duplicate.
     """
-    if not mo_config.key("jev"):
+    if not mo_budget.jev_ready():
         return {"judged": 0, "note": "no Jev key: decide yourself and edit the CSV"}
     if not isinstance(options, dict) or len(options) < 2:
         return {"error": "options: at least two {answer: what it means}"}

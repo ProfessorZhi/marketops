@@ -15,7 +15,6 @@ from __future__ import annotations
 import re
 import urllib.parse
 
-import mo_config
 import mo_grade
 import mo_pages
 import mo_pool
@@ -91,7 +90,8 @@ def _from_lists(pdir, what: str, where: str) -> list[tuple[str, list[dict]]]:
 
 def scope(pdir) -> None:
     """Jev: which pooled organisations are clearly outside the brief (kept, marked scope=out)."""
-    if not mo_config.key("jev"):
+    import mo_budget
+    if not mo_budget.jev_ready():
         return
     b = ws.brief(pdir)
     kinds = ", ".join((b.get("focus") or {}).get("find") or []) or b.get("goal", "")

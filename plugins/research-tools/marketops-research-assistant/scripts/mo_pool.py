@@ -265,6 +265,11 @@ def _pool(pdir: Path, file: str, into: str, filters: dict | None, map: dict | No
     raw = _rows(src)
     kept = [r for r in raw if _match(r, filters or {})]
     rows = [{t: r.get(s, "") for t, s in map.items()} if map else dict(r) for r in kept]
+    # a row with no name is not a venue or an organisation (a listing page, a blank line): it
+    # stays in the file, it does not enter the pool
+    named = [(r, o) for r, o in zip(rows, kept) if str(r.get("name") or "").strip()]
+    no_name = len(rows) - len(named)
+    rows, kept = [r for r, _ in named], [o for _, o in named]
     orgs = ws.read_csv(pdir / "orgs.csv")
     o_added = o_merged = 0
     if into == "orgs":
@@ -280,8 +285,8 @@ def _pool(pdir: Path, file: str, into: str, filters: dict | None, map: dict | No
             hit = index.get(org_key(r)) or index.get(org_key(r) + "|" + site_signal(r))
             if r.get("page_url") and hit is not None:
                 bind.append((hit["id"], hit.get("name", ""), r["page_url"]))
-        return {"read": len(raw), "kept": len(kept), "orgs_added": o_added, "orgs_merged": o_merged,
-                "columns_in_file": list(raw[0].keys())[:60] if raw else [], "_bind": bind}
+        return {"read": len(raw), "kept": len(kept), "skipped_no_name": no_name, "orgs_added": o_added,
+                "orgs_merged": o_merged, "columns_in_file": list(raw[0].keys())[:60] if raw else [], "_bind": bind}
     # venues, and with group_by the organisations behind them
     if group_by:
         groups = []
@@ -314,7 +319,8 @@ def _pool(pdir: Path, file: str, into: str, filters: dict | None, map: dict | No
     _write(pdir / "venues.csv", venues, ["id", "name"])
     if group_by:
         _write(pdir / "orgs.csv", orgs, ["id", "name", "website", "city", "venues"])
-    return {"read": len(raw), "kept": len(kept), "added": v_added, "merged_with_existing": v_merged,
+    return {"read": len(raw), "kept": len(kept), "skipped_no_name": no_name, "added": v_added,
+            "merged_with_existing": v_merged,
             "orgs_added": o_added, "orgs_merged": o_merged,
             "columns_in_file": list(raw[0].keys())[:60] if raw else [],
             "next": "every source goes into the same pools (union); duplicates across sources are merged "

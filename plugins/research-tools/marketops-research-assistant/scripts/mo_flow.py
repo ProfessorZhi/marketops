@@ -269,9 +269,8 @@ def _jev_rows(pdir: Path, rows: list[dict]) -> int:
     page in its own question. Returns rows judged; 0 when Jev is not there (rows keep their
     candidates, the agent picks)."""
     import mo_budget
-    import mo_config
     import mo_grade
-    if not mo_config.key("jev") or not mo_budget.allowed("jev")[0]:
+    if not mo_budget.jev_ready():
         return 0
     import typesafe_sdk as sdk
     judged = 0
@@ -345,8 +344,9 @@ def harvest(pdir: Path, source: str, start: str = "", follow: str = "", next: st
     src_host = _host(start) if start else ""
     queued = 0
     if start:
-        queued += queue_pages(pdir, [{"url": start, "kind": "list" if (follow or next) else "detail",
-                                      "source": source}], agent)
+        # the start page is a listing: its entry links (follow), its next pages (next), or without
+        # follow its own links off the site are the entries
+        queued += queue_pages(pdir, [{"url": start, "kind": "list", "source": source}], agent)
     if urls:
         queued += queue_pages(pdir, [{"url": u, "kind": "detail", "source": source} for u in urls], agent)
     if sitemap and start:
@@ -450,7 +450,6 @@ def harvest(pdir: Path, source: str, start: str = "", follow: str = "", next: st
 def flow(pdir: Path) -> dict:
     """How full each pool is, what waits between pools, and who works where - the lead staffs
     the stage where work piles up, and every stage keeps running while the others do."""
-    import mo_tasks
     spool = source_pool(pdir)
     ledger = [r for r in ws.read_csv(pdir / "sources.csv") if r.get("source")]
     pooled_names = {r["source"] for r in ledger}

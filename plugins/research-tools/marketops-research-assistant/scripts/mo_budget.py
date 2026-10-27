@@ -115,6 +115,19 @@ def _lines() -> dict:
         return {}
 
 
+_SDK: list[bool] = []
+
+
+def jev_ready() -> bool:
+    """Jev can be used now: a key in a slot that is not set aside, credit above the red line, and
+    the TypeSafe SDK installed. Every Jev call checks this, so a missing piece steps the plugin
+    down to rules + agents instead of failing."""
+    if not _SDK:
+        import importlib.util
+        _SDK.append(importlib.util.find_spec("typesafe_sdk") is not None)
+    return _SDK[0] and bool(mo_config.key("jev")) and allowed("jev")[0]
+
+
 def allowed(provider: str, action: str = "") -> tuple[bool, str]:
     """May this provider be called now? (False, reason) when it is under its red line."""
     if provider in mo_config.KEYS:

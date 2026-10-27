@@ -18,7 +18,7 @@ SKIP = {"script", "style", "noscript", "svg", "template", "iframe", "head"}
 # Words that mark a page worth reading for contacts, in the languages we meet most.
 # A hint for picking links, never a filter on what is kept.
 CONTACT_HINTS = (
-    "contact", "kontakt", "impressum", "imprint", "legal", "mentions", "about", "ueber", "über",
+    "contact", "kontakt", "impressum", "annuaire", "services-techniques", "service-des-sports", "imprint", "legal", "mentions", "about", "ueber", "über",
     "uber-uns", "wir", "team", "staff", "people", "personen", "vorstand", "board", "committee",
     "comite", "comité", "officers", "verein", "organisation", "organization", "organigramm",
     "ansprechpartner", "management", "leadership", "governors", "who-we-are", "equipe", "équipe",
