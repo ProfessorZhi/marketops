@@ -38,6 +38,26 @@ DEFAULT_GRADES = {
 }
 
 
+def mark_missing_role(rows: list[dict], just: set) -> list[dict]:
+    """A/B rows with no role after the name look-up go to review.
+
+    The brief's A requires a name, a role and the address in one official record; B requires
+    a role address or a transferable operations person. When no role could be read, the row
+    may still be right, but it must not pass as confirmed: flag it instead of trusting it.
+    """
+    out = []
+    for r in rows:
+        key = (r.get("org_id"), (r.get("value") or "").lower())
+        if r.get("grade") not in ("A", "B") or key not in just:
+            continue
+        if str(r.get("role") or "").strip() or r.get("review") == "yes":
+            continue
+        why = (r.get("review_reason") or "").strip()
+        out.append({**r, "review": "yes",
+                    "review_reason": (why + "; " if why else "") + "no role recorded"})
+    return out
+
+
 def rubric(pdir) -> dict:
     grades = ws.brief(pdir).get("grades") or {}
     return {g: grades.get(g) or DEFAULT_GRADES[g] for g in "ABCDX"}
@@ -254,6 +274,9 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: 
                and not str(r.get("person") or "").strip() and (r.get("org_id"), r.get("value", "").lower()) in just]
     if no_name:
         ws.update_contacts(pdir, no_name, ["grade", "grade_reason"])
+    no_role = mark_missing_role(ws.read_contacts(pdir), just)
+    if no_role:
+        ws.update_contacts(pdir, no_role, ["review", "review_reason"])
     import mo_evidence
     evidence = mo_evidence.rescore(pdir)
     after = ws.read_contacts(pdir)
