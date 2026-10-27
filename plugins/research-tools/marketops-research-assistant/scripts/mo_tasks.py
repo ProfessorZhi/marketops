@@ -47,6 +47,16 @@ def _open_items(rows: list[dict], kind: str) -> set[str]:
     return {i for r in rows if r["kind"] == kind and r["status"] != "done" for i in r["items"].split("|") if i}
 
 
+def held_orgs(pdir) -> set[str]:
+    """Organisations an agent is working on right now (in a claimed package whose claim is not
+    stale): the pipeline leaves them alone until the package comes back, so two writers never
+    work one organisation at once."""
+    stale = (_now() - timedelta(minutes=CLAIM_MINUTES)).isoformat(timespec="seconds")
+    return {i.split("::", 1)[0] for r in ws.read_csv(_path(pdir))
+            if r.get("status") == "claimed" and r.get("claimed", "") >= stale
+            for i in r.get("items", "").split("|") if i}
+
+
 def plan(pdir, kind: str, size: int = 15) -> dict:
     """Cut the current work of one kind into packages of `size` and add them to tasks.csv."""
     with ws._lock(_path(pdir)):
@@ -55,8 +65,11 @@ def plan(pdir, kind: str, size: int = 15) -> dict:
         if kind == "dig":
             have = {c["org_id"] for c in ws.read_contacts(pdir)
                     if c.get("grade") in ("A", "B") and c.get("review") != "yes"}
+            # only organisations the pipeline has finished: one still in its flow is not a gap yet,
+            # and handing it out would put two writers on it
+            finished = {r["org_id"] for r in ws.read_csv(pdir / "crawl.csv") if r.get("pass") == "final"}
             items = [str(o.get("id") or o.get("org_id") or "") for o in ws.read_csv(pdir / "orgs.csv")]
-            items = [i for i in items if i and i not in have]
+            items = [i for i in items if i and i not in have and i in finished]
         elif kind == "review":
             items = [f"{c['org_id']}::{c['value']}" for c in ws.read_contacts(pdir)
                      if c.get("review") == "yes" and not c.get("graded_by", "").startswith("agent")]

@@ -60,6 +60,30 @@ def _sheet(name, rows, cols, widths=()):
                  widths=tuple(widths))
 
 
+CHECK_SAMPLE = 100
+
+
+def _check_sample(emails: list) -> list[dict]:
+    """A fixed random sample of confirmed A/B rows for the delivery spot check (the same rows on
+    every export, so checks recorded with grade(set=[{..., "checked": "ok"|"wrong"}]) stay put)."""
+    import random
+    pool = sorted((c for c in emails if c.get("grade") in ("A", "B") and c.get("review") != "yes"),
+                  key=lambda c: (c.get("org_id", ""), c.get("value", "")))
+    pick = random.Random(20261027).sample(pool, min(CHECK_SAMPLE, len(pool)))
+    return [{"机构": c.get("org"), "邮箱": c.get("value"), "等级": c.get("grade"), "姓名": c.get("person"),
+             "岗位": c.get("role"), "来源页面": c.get("page_url"), "原文引用": c.get("quote"),
+             "核对结果": {"ok": "正确", "wrong": "错误"}.get(c.get("checked", ""), "未核对"), "备注": c.get("note")}
+            for c in pick]
+
+
+def _precision(emails: list) -> str:
+    done = [c for c in emails if c.get("checked") in ("ok", "wrong")]
+    if not done:
+        return "未抽检（打开抽检页逐条核对，用 grade(set=[{value, org_id, checked}]) 记下结果）"
+    ok = sum(c["checked"] == "ok" for c in done)
+    return f"{round(100 * ok / len(done), 1)}%（{ok}/{len(done)}）"
+
+
 def _reconcile(org_rows: list, total: int) -> str:
     """Bruce could never tell which of three numbers to trust: every organisation is counted once,
     under its best grade, and the parts must add up to the total."""
@@ -223,6 +247,8 @@ def export(pdir) -> dict:
         {"项目": "国家未识别的机构（应补齐，不得交付为未识别）", "值": sum(1 for r in org_rows if not r.get("国家"))},
         {"项目": "邮箱总数（A/B/C/D/未评级/X）", "值": " / ".join(str(sum(c.get("grade", "") == g for c in emails)) for g in ("A", "B", "C", "D", "", "X"))},
         {"项目": "证据强/中/弱（邮箱数；弱的也保留，由人判断）", "值": " / ".join(str(sum(c.get("evidence") == lv for c in emails)) for lv in ("strong", "medium", "weak"))},
+        {"项目": "抽检准确率（抽检页已核对的确认 A/B 中正确的比例；交付门槛 ≥ 90%）", "值": _precision(emails)},
+        {"项目": "agent 已下结论的机构（agent 结论页）", "值": len({v["org_id"] for v in ws.read_csv(pdir / "verdicts.csv")})},
         {"项目": "说明", "值": "仅供调研，未授权外联。每行都有来源页面和原文引用，可复核。"},
         {"项目": "导出时间", "值": datetime.now().strftime("%Y-%m-%d %H:%M")},
     ]
@@ -257,6 +283,14 @@ def export(pdir) -> dict:
         sheets.append(_sheet("过程（耗时）", trace_rows, list(trace_rows[0].keys()), (12, 24, 10, 12, 12, 14)))
     if venues:
         sheets.append(_sheet("场地", venues, list(venues[0].keys())))
+    check_rows = _check_sample(emails)
+    if check_rows:
+        sheets.append(_sheet("抽检", check_rows, list(check_rows[0].keys()), (24, 30, 6, 18, 24, 50, 70, 10, 30)))
+    verdict_rows = [{"机构": v.get("org"), "机构ID": v.get("org_id"), "agent": v.get("agent"), "结论": v.get("verdict"),
+                     "找到了什么": v.get("found"), "在哪类页面": v.get("where"), "为什么": v.get("why"), "时间": v.get("time")}
+                    for v in ws.read_csv(pdir / "verdicts.csv")]
+    if verdict_rows:
+        sheets.append(_sheet("agent 结论", verdict_rows, list(verdict_rows[0].keys()), (24, 10, 12, 10, 40, 30, 50, 18)))
     sheets.append(_sheet("成本", costs, ["供应商", "调用", "成功", "估算美元"]))
     stamp = datetime.now().strftime('%Y%m%d-%H%M')
     out = pdir / f"{pdir.name}-{stamp}.xlsx"

@@ -26,6 +26,7 @@ import mo_export
 import mo_grade
 import mo_pages
 import mo_providers
+import mo_tasks
 import mo_workspace as ws
 from mo_pool import mentions as _mentions, name_words as _name_words
 
@@ -105,16 +106,33 @@ def _rank(pdir, org: dict, hits: list[dict]) -> list[dict]:
         return hits
 
 
+def _playbook_queries(org: dict, templates: list[str]) -> list[tuple[str, bool]]:
+    """The playbook's searches for this kind of organisation, filled in: {name} {city} {site}."""
+    vals = {"name": str(org.get("name") or "").strip(), "city": str(org.get("city") or "").strip(),
+            "site": mo_pages.site_of(str(org.get("website") or ""))}
+    out = []
+    for t in templates:
+        try:
+            q = t.format_map(vals).strip()
+        except (KeyError, ValueError, IndexError):
+            continue
+        if q and ("{site}" not in t or vals["site"]):
+            out.append((q, False))
+    return out
+
+
 def _leads(pdir, org: dict, rnd: int, terms: list[str], dir_terms: list[str], engines: list[str] | None,
-           per_org: int = 8, rank: bool = True) -> list[str]:
+           per_org: int = 8, rank: bool = True, playbook_queries: list[str] | None = None) -> list[str]:
     """Pages worth reading for one organisation: its own pages and PDFs, and other sites
     whose result mentions it (directories, federation and council pages)."""
     name = str(org.get("name") or "").strip()
     site = mo_pages.site_of(str(org.get("website") or ""))
-    seen = set(ws._pages(pdir))
+    seen = ws.read_for(pdir, _oid(org))
     found: dict[str, dict] = {}
     weights = ws.weights(pdir, "search")
-    for query, maps in _queries(org, rnd, terms, dir_terms):
+    # round 1 starts with what agents learned works for this kind of organisation
+    planned = (_playbook_queries(org, playbook_queries or []) if rnd == 1 else []) + _queries(org, rnd, terms, dir_terms)
+    for query, maps in planned:
         try:
             res = mo_providers.search(query, None, n=8, maps=maps, project_dir=pdir, weights=weights)
         except Exception:  # noqa: BLE001
@@ -235,7 +253,7 @@ def _corroborate(pdir, org: dict, weights: dict, most: int = 3) -> int:
             res = mo_providers.search(f'"{c["value"]}"', None, n=5, project_dir=pdir, weights=weights)
         except Exception:  # noqa: BLE001
             return 0
-        seen, n = set(ws._pages(pdir)), 0
+        seen, n = ws.read_for(pdir, oid), 0
         for hit in res["results"][:2]:
             url = hit.get("url") or ""
             if url.startswith("http") and url not in seen:
@@ -333,6 +351,12 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
     k, n = (int(x) for x in shard.split("/"))
     sh = (k, n)
     fname = "run.json" if n == 1 else f"run.{k}.json"
+    # A batch job: an agent asked for these organisations to be swept (again, with what the
+    # playbook now says); it runs beside the main run and ends when they are done.
+    batch = {str(i) for i in (job or {}).get("orgs") or []}
+    again = bool((job or {}).get("again"))
+    if job:
+        fname = f"batch.{job['id']}.json"
     try:
         state = json.loads((pdir / fname).read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -351,9 +375,12 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
     # Ablation: switch stages off to measure what each one brings (brief.ablate).
     off = set(b.get("ablate") or [])
     mine = {str(o.get("id") or o.get("org_id") or "") for o in _mine(ws.read_csv(pdir / "orgs.csv"), sh)}
+    if job:
+        mine = batch
     # this shard's finished organisations only: counting the whole project's made "done" pass the
     # shard's size after a restart
-    finished = {r["org_id"] for r in ws.read_csv(pdir / "crawl.csv") if r.get("pass") == "final" and r["org_id"] in mine}
+    finished = set() if again else \
+        {r["org_id"] for r in ws.read_csv(pdir / "crawl.csv") if r.get("pass") == "final" and r["org_id"] in mine}
     flow = {"queued": 0, "site": 0, "grading": 0, "digging": 0, "evidence": 0, "done": len(finished)}
     agent_budget = [AGENT_PAGES_PER_ROUND * max(1, rounds // 2)]
     import mo_budget
@@ -392,15 +419,16 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
                 org = {**org, "website": found_site}
             tr["found_site"] = found_site
             mark("find_site")
-        if (oid, "site") not in _done_passes(pdir):
-            res = ws._crawl_one(pdir, org, max_pages, None, None, "site")
+        hints = ws.playbook_for(pdir, org)
+        if again or (oid, "site") not in _done_passes(pdir):
+            res = ws._crawl_one(pdir, org, max_pages, None, None, "site", hint_paths=hints["paths"])
             ws.append_csv(pdir / "crawl.csv", ws.CRAWL_COLS, res)
             if res.get("status") == "no_dns" and "findsite" not in off:   # the listed site is dead: look again
                 new_site = _find_site(pdir, {**org, "website": ""}, replace=True)
                 if new_site and mo_pages.site_of(new_site) != mo_pages.site_of(str(org.get("website") or "")):
                     org = {**org, "website": new_site}
                     ws.append_csv(pdir / "crawl.csv", ws.CRAWL_COLS,
-                                  ws._crawl_one(pdir, org, max_pages, None, None, "site"))
+                                  ws._crawl_one(pdir, org, max_pages, None, None, "site", hint_paths=hints["paths"]))
         mark("site")
         move("site", "grading")
         grader.wait_for(oid)
@@ -412,7 +440,8 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
             if stopping() or have >= target:
                 break
             before = len(_emails_of(pdir, oid))
-            leads = _leads(pdir, org, rnd, terms, dir_terms, None, rank="rank" not in off)
+            leads = _leads(pdir, org, rnd, hints["roles"] + terms, dir_terms, None, rank="rank" not in off,
+                           playbook_queries=hints["queries"])
             if leads:
                 ws.append_csv(pdir / "crawl.csv", ws.CRAWL_COLS,
                               ws._crawl_one(pdir, org, deep_pages, None, leads, f"deep{rnd}"))
@@ -498,7 +527,8 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
     with ThreadPoolExecutor(max_workers=workers) as pool:
         while True:
             if not stopping():
-                for org in _mine(ws.read_csv(pdir / "orgs.csv"), sh):
+                for org in ([o for o in ws.read_csv(pdir / "orgs.csv") if _oid(o) in batch] if job
+                            else _mine(ws.read_csv(pdir / "orgs.csv"), sh)):
                     oid = _oid(org)
                     if oid and oid not in submitted and org.get("scope") != "out":
                         submitted.add(oid)
@@ -511,6 +541,7 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
                 # >=10% scale it, <5% stop spending on it): a strong source gets two turns, a
                 # weak one waits until the others are empty - its organisations are never dropped.
                 futures = prune(futures)
+                held, deferred = mo_tasks.held_orgs(pdir) - batch, []   # an agent has these (its own batch excepted)
                 while waiting and len(futures) < workers * 2:
                     turns = {src: _turns(yields.get(src)) for src in waiting}
                     if not any(turns.values()):
@@ -518,14 +549,22 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
                     for src, k in turns.items():
                         for _ in range(k):
                             if waiting.get(src):
-                                futures.append(pool.submit(org_flow, waiting[src].pop(0)))
+                                org = waiting[src].pop(0)
+                                if _oid(org) in held:
+                                    deferred.append(org)
+                                else:
+                                    futures.append(pool.submit(org_flow, org))
                         if not waiting.get(src):
                             waiting.pop(src, None)
+                for org in deferred:   # back of the queue; taken once the agent hands the package back
+                    waiting.setdefault(_source(org), []).append(org)
                 state["source_yield"] = {src: {"done": d, "with_ab": a, "turns": _turns((d, a))}
                                          for src, (d, a) in yields.items()}
             else:
                 futures = prune(futures)
-            busy = bool(futures)
+            # organisations waiting for an agent to hand them back keep the run alive (a stale claim
+            # frees them after CLAIM_MINUTES, so this cannot hang)
+            busy = bool(futures) or (bool(waiting) and not stopping())
             pool_open = discovering.is_set() or (
                 follow and not (pdir / "POOL_DONE").exists() and time.time() - last_new < 1800)
             if time.time() - last_snap > 30:
@@ -549,7 +588,7 @@ def run_sync(pdir, rounds: int = 6, max_pages: int = 15, deep_pages: int = 10, g
     if ws.stop_requested(pdir):
         state["stopped_because"] = "stopped on request"
     state["stopped_because"] = state.get("stopped_because") or "every organisation went through the pipeline"
-    out = mo_export.export(pdir)
+    out = {} if job else mo_export.export(pdir)   # a batch leaves the workbook to the main run / export()
     state.update(done=True, stage="done", export=out, result=m)
     if not any(_alive(p) for p in _pids(pdir) if str(p) != str(os.getpid())):
         (pdir / "STOP").unlink(missing_ok=True)
@@ -593,12 +632,31 @@ def _pids(pdir) -> list[str]:
 
 def run(pdir, rounds: int = 6, max_pages: int = 15, goal_ab_org_share: float | None = None,
         agent: bool = False, stop: bool = False, workers: int = 24, shards: int = 1,
-        follow: bool = False, pool_done: bool = False) -> dict:
-    """Start the long run as its own process(es) - shards splits orgs.csv between them - or stop it."""
+        follow: bool = False, pool_done: bool = False, orgs: list | None = None, again: bool = False) -> dict:
+    """Start the long run as its own process(es) - shards splits orgs.csv between them - or stop it.
+    orgs=[ids]: a batch job for just these organisations, beside any main run (again=True sweeps
+    them anew, with the playbook as it is now)."""
     import os
     import subprocess
     import sys
     from pathlib import Path
+    if orgs:
+        import hashlib
+        ids = list(dict.fromkeys(str(i) for i in orgs if str(i).strip()))[:200]
+        jid = hashlib.sha256(("|".join(ids) + ws._now()).encode()).hexdigest()[:8]
+        job = {"id": jid, "orgs": ids, "again": bool(again)}
+        _save_state(pdir, {"file": f"batch.{jid}.json", "stage": "starting", "done": False, "orgs": len(ids)})
+        opts = {"rounds": rounds, "max_pages": max_pages, "workers": min(workers, max(4, len(ids))), "agent": agent}
+        server = Path(__file__).resolve().parent / "server.py"
+        env = dict(os.environ, MARKETOPS_PROJECTS=str(pdir.parent))
+        cmd = [sys.executable, str(server), "batch", pdir.name, "--job", json.dumps(job), "--opts", json.dumps(opts)]
+        with open(pdir / "batch.log", "a", encoding="utf-8") as log:
+            proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                                    start_new_session=True, env=env)
+        _procs[proc.pid] = proc
+        return {"batch": jid, "orgs": len(ids), "pid": proc.pid,
+                "next": "orgs(project, ids=[...]) shows each organisation's pages, addresses and grades as they "
+                        "land; project(name).batches shows when this batch is done."}
     pids = [p for p in _pids(pdir) if _alive(p)]
     if pool_done:
         (pdir / "POOL_DONE").write_text(ws._now(), encoding="utf-8")
@@ -705,6 +763,17 @@ def supervise(pdir, shards: int, opts: dict, poll: float = 15.0) -> dict:
             break
         time.sleep(poll)
     return {"restarts": restarts}
+
+
+def batch_states(pdir) -> list[dict]:
+    out = []
+    for f in sorted(pdir.glob("batch.*.json")):
+        try:
+            st = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        out.append({"batch": f.name.split(".")[1], **{k: st.get(k) for k in ("stage", "done", "error", "orgs", "progress")}})
+    return out
 
 
 def run_states(pdir) -> list[dict]:

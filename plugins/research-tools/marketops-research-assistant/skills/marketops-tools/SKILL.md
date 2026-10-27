@@ -69,8 +69,9 @@ When a page will not read:
 ## Jev: `judge`, `grade`, ranking, scope
 
 Jev answers multiple-choice questions over rows, in any language, cheaply and in batches.
-- `grade(project)`: A-D/X from each address's own quote against the brief's grades; each
-  address with the same quote is graded once; names and titles are picked from the quote.
+- `grade(project)`: A-D/X from each address's own quote against the brief's grades; the same
+  address with the same quote is graded once per organisation; names and titles are picked
+  from the quote.
 - `judge(project, file, question, options, column)`: one decision per row - in scope?, same
   organisation?, is this the official site?, maintenance in-house or outsourced? Give 2-4
   options that are mutually exclusive and an "unsure" option; ask about what the row shows,
@@ -78,7 +79,23 @@ Jev answers multiple-choice questions over rows, in any language, cheaply and in
 - The pipeline also uses Jev to order dig leads (order only, nothing dropped) and to mark
   organisations clearly outside the brief (`scope=out`, kept, skipped).
 
-## Claude's own WebSearch / WebFetch
+## Tools for a team of agents
+
+| Tool | Use it for |
+|---|---|
+| `project(name)` -> `stages` | how much work waits at each stage; staff where it piles up |
+| `orgs(project, stage="no_ab" \| "review" \| "no_website" \| "unread" \| "held", ids=[...])` | one summary per organisation - what the sweep read and found, rows to review, playbook, verdicts - so you decide without re-reading pages |
+| `orgs(project, set=[{org_id, website, segment, scope, note}])` | fix a website, set the segment the playbook keys on, mark scope |
+| `run(project, orgs=[...], again=True)` | sweep a batch again in the background (after fixing websites or writing the playbook); results land as `orgs(ids=...)` shows |
+| `tasks(action="plan" \| "claim" \| "done" \| "add")` | the shared queue; while you hold a package the pipeline leaves its organisations alone; a claim untouched for 40 minutes returns to the queue |
+| `tasks(action="verdict", verdicts=[{org_id, verdict, found, where, why}])` | one line per organisation you finished (workbook sheet "agent 结论") |
+| `project(name, playbook={segment: {paths, queries, roles, notes}})` | what works for a kind of organisation: `paths` read first on its site, `queries` (`{name}`, `{city}`, `{site}`) run first in its dig, `roles` added to its search words |
+| `grade(set=[{value, org_id, checked: "ok" \| "wrong"}])` | the delivery spot check (sheet 抽检, precision on 说明) |
+
+Several agents call providers at once: the plugin paces each provider for the whole machine
+(TinyFish search 30 a minute, and what a 429 reports), so more workers never means more 429s.
+
+## The host's own web search / fetch (Claude Code, Codex, WorkBuddy)
 
 Fine for a quick check or when every plugin provider is out of credit. Results do not enter
 the project or the library: anything worth keeping goes through `fetch(project, url)` so it is
