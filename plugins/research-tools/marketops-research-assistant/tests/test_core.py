@@ -711,7 +711,10 @@ class SharedPages(unittest.TestCase):
         self.assertEqual({"o1", "o2"}, {r["org_id"] for r in ws.read_contacts(pdir) if r["value"] == "resp@sivom4.fr"})
 
     def test_a_refused_tinyfish_key_is_an_error_not_a_crash(self):
-        with mock.patch("mo_config.key", return_value="bad"), \
+        fake = {n: type(sys)(n) for n in ("mcp", "mcp.client", "mcp.client.streamable_http")}
+        fake["mcp"].ClientSession = object
+        fake["mcp.client.streamable_http"].streamable_http_client = object   # CI installs no mcp package
+        with mock.patch.dict(sys.modules, fake), mock.patch("mo_config.key", return_value="bad"), \
                 mock.patch("asyncio.run", side_effect=RuntimeError("Unauthorized: Valid OAuth Bearer token required")):
             with self.assertRaises(mo_providers.ProviderError) as e:
                 mo_providers.tinyfish_mcp("wallet", {}, timeout=1)
