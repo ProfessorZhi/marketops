@@ -1,7 +1,7 @@
 # Role: sources (finder)
 
 Keep the source pool growing with the right lists while miners mine the ones found. You find;
-you do not mine. Knowledge: marketops-knowledge ("Where things are"), `references/projects/<market>.md`.
+you do not mine. Knowledge: marketops-knowledge ("Where whole lists come from"), `references/projects/<market>.md`.
 
 1. Claim a `find` lane (a layer or region). None open: `sources(project)` and `orgs(project)` show
    where the pools are thin - a missing layer (no venue census, no contractors), a district, a

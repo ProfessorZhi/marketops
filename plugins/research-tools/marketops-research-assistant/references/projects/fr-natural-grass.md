@@ -23,6 +23,12 @@
 - Mirror pass rates of 8-20% came from page selection (which pages were picked), not reading.
 
 ## Titles and grades
+- Mowing and line marking are one campaign and one list ("我是一起推的，发同一封开发信").
+- Pool: Data ES one-click CSV filtered to open air + natural grass + large pitches, golf excluded.
+- Three layers per organisation (decides / maintains on site / department inbox), 3-5 routes; one
+  generic inbox kept for forwarding, never in an A/B slot. Rejected: ticketing, membership, fans,
+  marketing, media, PR, youth sign-up, sponsorship sales.
+- The bottleneck was pages with no address (4-10 usable from 50 mirrored sites), not speed.
 - Graded accounts: 249 - A 4 / B 67 / C 102 / D 76 (Bruce's table, `role_priority` prefixes
   `A_*`, `B_related_operator`, `C_relevant_official_business_entry`,
   `D_official_general_research_entry`).

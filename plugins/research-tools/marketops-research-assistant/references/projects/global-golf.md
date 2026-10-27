@@ -38,9 +38,11 @@ Mother pool: 16 countries, 23,788 rows.
 ## From his own instructions (supplement)
 
 - One run per country, frozen before the next country starts.
-- Title priority is scenario-specific, not universal: for a ball-picker robot, Range Manager ->
-  Director of Golf -> Golf Operations, with the Superintendent explicitly not first; for the ATX
-  line, Equipment Manager ranks much higher. Ask which scenario before ranking titles.
+- **No title list from Bruce for golf**: in his own words the line has none (customer: "golf
+  courses, to book a demo"; he sent country lists and screened replies). A ball-picker order seen
+  in the sessions (Range Manager -> Director of Golf -> Golf Operations, Superintendent not
+  first; Equipment Manager higher for the ATX line) came from agent proposals, not from him -
+  confirm titles with the user before ranking.
 - Non-golf venues are excluded from this line by name (they belong to `other-lines.md` /
   `uk-pitches-schools.md`). Artificial turf is not a reason to exclude a venue: from 2026-09-21
   outdoor artificial-turf pitches are in scope on the non-golf lines.

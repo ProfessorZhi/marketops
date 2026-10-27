@@ -20,6 +20,18 @@
   of a batch fell from 72.73% to 26.11% as easier sites ran out.
 
 ## Titles and grades
+- His own trilingual table (the only title list he wrote, thread 01a066c5):
+  | | A - can push line marking, turf, purchase, a demo | B - runs the ground | C inboxes |
+  |---|---|---|---|
+  | DE | Geschäftsführer, Direktor, Leiter Sportanlagen | Platzwart, Greenkeeper, Mitarbeiter Sportanlagen, technischer Mitarbeiter | sport@, sports@, sportanlagen@, facility@, facilities@, grounds@ |
+  | FR | Directeur, Responsable des installations sportives, intendant, responsable des sports | Responsable entretien, agent d'entretien des terrains | same |
+  | IT | Direttore | Addetto manutenzione, custode impianti | same |
+  German-speaking areas have a separate ground keeper (Platzwart); French and Italian fold it into
+  intendant / custode - there, look towards the maintenance contractor.
+- Generic info@ / contact@ / admin@: "recorded, not counted as valid" for football (he reversed it
+  once the next day); the golf line sent 92 generic inboxes the same week. Settle it in the brief.
+- Surface must come from an official source (Naturrasen / gazon naturel / erba naturale), never
+  inferred from satellite images or the sport. The football line is the one he stopped for ROI.
 - Football batch result: 66 routes - A 16 / B 26 / C 24 (the deliverable unit is a role
   bound to an organisation).
 

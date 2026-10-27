@@ -9,7 +9,7 @@ The work is building five pools, one after the other in order of dependency but 
 same time**. Agents do the work (you and the workers you start with your host's multi-agent
 mode); the marketops tools are their power tools and only act when an agent calls them.
 Other knowledge, read when needed: **marketops-tools** (the six providers and the tools),
-**marketops-knowledge** (Bruce's business experience and the usual blockers).
+**marketops-knowledge** (business judgment that holds for any market: success, grades, customer, sources, blockers); `references/projects/<line>.md` for one market or line.
 
 ```
  SOURCES ──mine──▶ PAGES ──pool──▶ VENUES ──who runs it──▶ ORGANISATIONS ──read, judge──▶ CONTACTS ──▶ Excel
@@ -33,7 +33,7 @@ before anything else:
 - register the client's own lists and any inherited list as sources (`sources(add=...)`);
 - open `find` lanes for every layer the brief needs: **a venue census** (when the product is
   used on venues), **organisation lists** (federations, registers, city portals), **operators
-  and contractors** (tenders) - see marketops-knowledge for each market's sources;
+  and contractors** (tenders) - `references/projects/<line>.md` lists each market's sources;
 - keep the finders running beside everyone else until the pool is saturated.
 
 ## Running the job

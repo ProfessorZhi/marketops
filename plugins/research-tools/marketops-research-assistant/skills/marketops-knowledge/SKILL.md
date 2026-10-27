@@ -1,103 +1,111 @@
 ---
 name: marketops-knowledge
-description: Bruce's business experience for MarketOps research and the usual blockers - who counts as a customer, the questions to settle in the brief, the A/B/C/D/X grades and each market's job titles, where each market's venues, organisations and people are, which pages pay, when to stop a source, and the failures that cost his runs most. Use when writing the brief, choosing sources, judging a contact, or when results look thin or wrong.
+description: Business judgment for any MarketOps research job, distilled from Bruce's research lines - what counts as success, how to grade a contact (A/B/C/D/X and the two ledgers), who the customer is, how to test, scale or stop a source, the questions to settle before starting, where whole lists come from, and the blockers that cost most. Use when writing the brief, choosing or dropping a source, judging a contact or a grade, deciding whether to keep going, or when results look thin or wrong - for any market or product.
 ---
 
-# Bruce's business experience
+# Business judgment for research
 
-From Bruce's own research sessions (the `marketops-session` analysis). Single numbers come from
-one session each: a guide, not a law - measure your own. Per market detail (sources, titles,
-corrections, benchmarks): `references/projects/<market>.md`; the standing tests:
-`references/benchmarks.md`.
+Distilled from Bruce's research lines across markets and products. Only what holds for any
+market or product is kept here; what one line or market taught (its sources, titles,
+corrections, numbers) lives in `references/projects/<line>.md` - read the closest one when you
+write a brief. Where Bruce never decided something, this page says so: ask the user, never fill
+the gap with a guess.
 
-## Who to find
+## Success
 
-- **The customer buys and uses the product to do the work**: venue owner, operator, grounds
-  team, maintenance contractor. Whoever sells or distributes the same products is a competitor
-  (keep the row, mark it, do not research it). When maintenance is outsourced, the contractor
-  is the customer to reach.
-- **Find the people who would want a demo, can recommend it, or can decide on it.** The person
-  who runs the grounds, equipment or maintenance contract counts more than the highest title;
-  title order is per product (golf ball picker: Range Manager before Superintendent).
-- **Venues and organisations are different things.** A venue has an owner, an operator and
-  maybe a maintenance contractor - each a possible customer; one council department runs fifty
-  venues. Contacts hang on organisations; a person may be responsible for some of its venues.
-- **The unit is the operating organisation**, researched once with all its venues. A name is
-  not required: a clear role and a real work address is a route.
+**Research-valid work addresses per unit of time** - not organisations finished, not coverage,
+not pages read. Fifty organisations finished with no strict contact is not success. What costs
+most is not crawling but the upstream choice of **which list and which kind of page to look
+for people on**; when yield is low, change the source or the page type before tuning anything
+else.
 
-Settle in the brief, once, up front (each one cost him a rerun when left open): what is sold and
-the one scenario; one country; customer vs competitor; in-house or outsourced maintenance;
-scope by name (artificial turf counts with natural since 2026-09-21, indoor does not, golf is
-its own line); what the client already has (lists, past replies); delivery rules (excluded
-inboxes, columns); routes per organisation (default 3, at least 1).
+## Grading a contact
 
-## Grades (his contract `fjd-email-role-qualification`)
+Grades describe how close an address is to the people the product needs, tied to the evidence
+on the page. The brief puts the product's own functions and titles into them.
 
-| Grade | Meaning |
-|---|---|
-| A | named person who decides on or owns the grounds or the purchase (head of grounds / facilities / estates, sports department head, club president, the board member for the ground), own address |
-| B | leadership or operations who can act or forward (groundsman, site / venue manager, caretaker, club secretary, other board members), or that function's role mailbox |
-| C | an official team inbox: bookings, sports office, department |
-| D | a generic official inbox (info@, contact@) - a usable first contact, labelled D, never dressed up as a person |
-| X | not a route here: sponsor, web designer, no-reply, unrelated private |
+| Grade | What it is | Evidence required |
+|---|---|---|
+| A | a named key person: decides, evaluates technically, buys, or runs the operation the product serves | name + role + organisation + address tied together on an official page |
+| B | an operator role for that function (on sports-ground lines: grounds, facilities, estates, maintenance, operations) | role + real work address in the same official record; **a name is not required** |
+| C | that function's department inbox (grounds@, facilities@, booking@ ...) | official, for this organisation |
+| D | a general official inbox (info@, office@, enquiries@) | official; labelled D, never presented as a person |
+| X | functions unrelated to the product's use or purchase (admissions, HR, finance, marketing, PR, student or customer service, no-reply), anything inferred, guessed or malformed | - |
+| review | the owner is clear, the relevance is not | kept with the reason, outside the grades |
 
-A+B is the KPI, C/D are assets, X is waste - count them apart. A role word in the address counts
-(facilities@, grounds@, platzwart@, bursar@). An address listed for many organisations belongs to
-one only when its card names it; a federation inbox is nobody's route. Titles come from the page
-- a title guessed from structure stays empty. Free-mail domains are never excluded wholesale.
-Output is called 研究有效邮箱; research never sends.
+A name is the condition for A, not for B: a role with a real work address is a route.
 
-| Market | A | B | C |
-|---|---|---|---|
-| France | président, responsable du service des sports / des espaces verts | secrétaire, régisseur, gardien de stade, adjoint technique | service des sports, réservations |
-| UK | head of grounds, facilities / estates manager, chairman, school business manager | groundsman, club secretary, bursar, site manager | bookings / lettings, parks team |
-| DE / CH | Präsident, Vorsitzender, Leiter Sportamt | Platzwart, Ansprechpartner, Vorstand Infrastruktur | Sportamt, Vermietung |
-| US | athletic director, parks & recreation director, owner (contractors) | field / grounds manager, league president | facility rentals, parks office |
+**Two ledgers, never one number**: research-valid routes (A-D, each labelled) and the strict
+ledger (named A, or A+B - the brief says which for this job). They answer different questions;
+passing one off as the other overstates a run. Report both.
 
-## Where things are
+**Never guess an address** - no pattern, no concatenation, no probing. A named person with no
+address on any page: one or two targeted searches, then record that none was found; never put a
+general inbox in their place.
 
-**Sources, best first** (yields differ by an order of magnitude): one request that returns the
-whole roster (federation finder, CMS endpoint, open-data export - Spain's golf federation 580
-clubs from one sitemap, Canada 4,632 facilities in one REST call) > content sitemaps > real links
-on the home page > guessed paths (6.5%). The client's own list beats every automatic path (one
-snapshot: 31,262 records). A register is not a directory: check 20 rows (a charity code read
-wrong nearly delivered 37,196 churches). Maps give venues, not organisations. Search engines
-return pages, not rosters - last resort for a pool.
+## The customer
 
-| Market | Venues | Organisations, operators | People |
-|---|---|---|---|
-| France | RES facility census (owner / operator per facility) | federation club finders, `recherche-entreprises` NAF 93.12Z, annuaire service-public (mairies), BOAMP / DECP (contractors) | commune `/annuaire/`, `/sports`, `/equipements-sportifs`, `mentions-legales`; "services techniques", "cadre de vie" pages; club bureau pages |
-| UK | Active Places (47,648 grass pitches), Pitchfinder | GIAS (schools, trusts), charity register code 110, Contracts Finder | school staff / governance, trust estates, parish council minutes (PDF) |
-| Germany | NRW open sports data, city / Land Sportstätten lists | Landessportbund club finders, TED, Vergabeportale | Impressum, Ansprechpartner, Vorstand; Bauhof / Grünflächenamt pages |
-| Switzerland | municipal Sportamt lists | cantonal football association club lists | club Vorstand (Präsident, Platzwart) |
-| US | TPL ParkServe, OSM | NCES / PSS schools, IPEDS, league directories, CISA .gov registry | district contact pages, then staff directories; count per district |
-| Golf | - | national federation register (98.4% list a website) | the club's staff page |
+- **Whoever owns, runs or maintains what the product is used on or for** - the operator, the
+  public body or department, the group, the maintenance contractor. Competitors and resellers
+  are kept, marked, not researched; end customers and dealers are separate jobs.
+- **Test a role by what the person does, not the title**: approves budget or suppliers,
+  evaluates the technology, owns the work or the equipment, controls purchasing, or can credibly
+  take a demo - any one is enough. Titles differ by market and product; take them from the page.
+- **The organisation researched may not be the buyer** (a tenant using a site someone else owns
+  and a contractor maintains): record the route under the organisation it reaches. One site or
+  account often needs several people.
+- **Count each organisation once**, at account level - never by contact rows.
+- **A list the client hands over is trusted**: dedupe it, drop history and hard exclusions, do
+  not re-screen it for relevance - the client has already decided who is in scope.
 
-**Pages, by yield**: staff / board pages 1.73 A/B per 100 pages, contact 0.18, home 0.08;
-"facilities" keyword pages none. The legal page names the operator. Department pages beat
-searching role titles. Clubs often live on hosting platforms (clubeo, pitchero, sportsregions):
-follow them. Read 4+ pages a site - every site read that deep produced a route.
+## Running a job
 
-**Stop a source, not the job**: after ~30 organisations, >= 10% with A/B scale it, 5-10% improve
-once, < 5% stop. Two rounds with no new route: switch source.
+- **Building the pool and researching people are separate jobs**; a pool's unit is a channel
+  (one register, one directory, one export), not a page.
+- **Calibrate before scaling**: a small batch (about 20-25 organisations) to check the method,
+  then hundreds.
+- **Test each source on about 30 organisations** by its strict-account rate: >= 10% scale it;
+  5-10% improve once, do not scale; < 5% stop that method and change source. A source is judged
+  by what its organisations yield, not by its size.
+- **Stopping**: one low batch is never a reason to stop; repeated low waves stop the method or
+  the source, never the job - work out why, then change.
+- **Page budget**: about 6-8 high-value pages per organisation, continuing only while pages still
+  bring new addresses; without a budget an organisation with no public address eats unlimited
+  time.
+- **Hand over on disk, automatically**: a handover that lives in a chat message is not one.
 
-## The blockers that cost him most
+## Settle before starting
 
-- **One list, one kind of entity.** A pool from one list finds only what it knew - an
-  organisation list gives no venues. Pool 1 is several sources, every layer the brief needs.
-- **Green but empty.** A status said done while the rows were empty (mirror "success", extraction
-  0). Judge by rows, pages and quotes on disk.
-- **The middle layer never used up.** 18,954 rows built, 2 written back; 953 real council
-  addresses dropped between steps. Every harvested file reaches the pools; every organisation
-  ends with routes or a verdict.
-- **Numbers that do not reconcile.** One metric moved 882 -> 1,197 -> 584 across reports ("我也
-  不知道你哪个数据是真的"). One source of truth; the pool grows by exactly what its sources added.
-- **Extraction before blame.** Lost `mailto:` and undecoded addresses (hit rate 1.3% -> 45% once
-  fixed), gzip not decompressed (200 OK, zero emails), a DNS burst that threw away 183 live
-  domains, a name key that collapsed 40 Cyrillic names into 12. Zero results on a big site is a
-  parsing problem first.
-- **Blocks.** Cloudflare blocks by IP - another reader or the TinyFish Agent, not retries.
-- **Asking too often.** Twelve open questions held his queue for a hundred rounds: one numbered
-  list, one reply. Rules repeated 3-9 times in chat belong in the brief or the project file.
-- **Polling instead of working.** A heartbeat added 8 pages in 14 minutes; more workers on one
-  heartbeat made it slower. Work flows by claims and finished events, never by status loops.
+Bruce's lines answered these differently - there is no default; ask the user once, up front:
+- what is sold and the one application scenario (several products sold together are one list);
+- which grades the strict ledger counts, and whether D counts as valid (he never defined it);
+- the unit: the operating organisation, the site, or the account;
+- whether the pool is capped once deep research starts, or keeps growing;
+- in-house or outsourced operation (outsourced: the contractor is the customer);
+- what the client already has (lists, past replies, exclusions) and the delivery columns.
+
+## Where whole lists come from
+
+By yield, an order of magnitude apart: one request that returns the whole roster (open-data
+export, register, federation or association finder, CMS endpoint) > content sitemaps > the
+home page's real links > guessed paths. A list from the client beats every automatic path. A
+register is not a directory of customers: read 20 rows before pooling it. Maps give places, not
+organisations. Search engines return pages, not rosters. Pages by yield: staff, team and board
+pages carry many times more A/B than contact or home pages; the legal page names the operator;
+department pages beat searching role titles.
+
+## The blockers that cost most
+
+- **Pages with no address at all** - the usual bottleneck, not speed. Change page type or source.
+- **One list, one kind of entity**: an organisation list has no sites, a site census has no
+  tenants. Pool from several sources, every layer the job needs.
+- **Duplicates** across channels and inside one site (copies of the same page): a pool that
+  shrinks by most of its size after dedupe was counted wrong all along.
+- **Green but empty**: a status says done while the rows are empty. Judge by rows on disk.
+- **The middle layer never used up**: rows built in one step and never reaching the deliverable.
+- **Splitting work across too many hands**: coordination, not crawling, became the cost - one
+  agent owns a package end to end.
+- **Extraction before blame**: lost `mailto:` links, undecoded addresses, compressed responses,
+  DNS bursts that drop live sites. Zero addresses on a big site is a parsing problem first.
+- **Asking one question at a time**: open questions held his queue for a hundred rounds. One
+  numbered list, one reply.

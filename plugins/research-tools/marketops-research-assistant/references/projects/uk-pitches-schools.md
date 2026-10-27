@@ -28,6 +28,10 @@
   connection resets and was dropped.
 
 ## Titles and grades
+- He gave page types, not titles: Staff, Team, Facilities, Grounds, Estates, Venue Hire,
+  Operations pages. One venue needs several people ("每个场地不是找到1个，是要多个").
+- D is valid and deliverable ("D可以去发信，回复概率低…X明确就不是有效邮箱"); do not add gates that
+  hold back researched routes.
 - Schools: estates or business manager, bursar; councils: parks / grounds team or the
   contractor; clubs: chairman, secretary, groundsman.
 - In-house vs outsourced maintenance measured on 1.7% of domains; "in-house" had been

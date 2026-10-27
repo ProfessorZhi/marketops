@@ -22,7 +22,11 @@
   organisations, are the bottleneck.
 
 ## Titles and grades
-- Präsident / Vorsitzender, Leiter Sportamt; Platzwart, Hauswart, Vorstand Infrastruktur.
+- No title list from Bruce for Germany: he sent mixed lists (schools, clubs, councils, contractors)
+  as one batch and screened only duplicates, history and sensitive inboxes. Titles seen in runs,
+  to confirm on the pages: Präsident / Vorsitzender, Leiter Sportamt; Platzwart, Hauswart,
+  Vorstand Infrastruktur. The Verein (registered club) is usually the venue owner.
+- Free-mail addresses (gmx, web.de) are often a small club's only address: keep them.
 - A title field filled from a template (69.3% of rows) left 188 real titles - titles come from
   the page.
 
