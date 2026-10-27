@@ -516,7 +516,7 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
     return {"url": url, "title": title, "readers": report, "contacts": contacts, "contacts_added": added,
             "links": mo_pages.contact_links(links, url, limit=25),
             "scored_links": mo_pages.contact_links(links, url, limit=25, scores=True),
-            "links_total": len(links), "content_links": content_links[:800],
+            "links_total": len(links), "content_links": content_links[:800], "page_links": links[:3000],
             "email_buttons_without_address": max(0, buttons - emails_seen),
             "text": "\n".join(best)}
 

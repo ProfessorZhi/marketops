@@ -1201,6 +1201,17 @@ class SuperPipeline(unittest.TestCase):
         rows = {r["name"]: r for r in ws.read_csv(pdir / out["file"])}
         self.assertEqual("https://usgamma.test", rows["US Gamma"]["website"])
         self.assertEqual("club_or_association", rows["US Gamma"]["kind"])
+        # a page Jev reads as a list of several entries gets no website, whatever it picked
+        listing = [{"title": "Clubs", "lines": "FC A, AS B", "_cands": ["https://a.test", "https://b.test"], "name": "x"}]
+
+        def list_jev(state, qs):
+            return types.SimpleNamespace(answers={"p1_kind": types.SimpleNamespace(choice="list_or_other"),
+                                                  "p1_own": types.SimpleNamespace(noul=0.8),
+                                                  "p1_site": types.SimpleNamespace(choice="https://a.test")})
+        with mock.patch.dict(os.environ, {"TYPESAFE_API_KEY": "test-key"}), \
+                mock.patch.object(mo_grade, "_jev", side_effect=list_jev):
+            mo_flow._jev_rows(pdir, listing)
+        self.assertFalse(listing[0].get("website"))
 
     def test_keyless_readers_are_always_allowed(self):
         # the minimal level: no keys, no browser - plain HTTP must still read (0.7.1 crashed here)

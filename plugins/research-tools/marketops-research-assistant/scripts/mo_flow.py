@@ -61,6 +61,13 @@ def _host(url: str) -> str:
     return urllib.parse.urlsplit(url).netloc.lower().removeprefix("www.")
 
 
+def _base(host: str) -> str:
+    """The registered domain, roughly: portail.example.fr and www.example.fr are one site."""
+    parts = host.split(".")
+    keep = 3 if len(parts) > 2 and len(parts[-1]) == 2 and parts[-2] in ("co", "com", "org", "net", "gov", "ac") else 2
+    return ".".join(parts[-keep:])
+
+
 # ------------------------------------------------------------------ the source pool
 
 def source_pool(pdir: Path) -> list[dict]:
@@ -224,11 +231,11 @@ def sitemap_urls(url: str, pattern: str, limit: int = 2000) -> list[str]:
 def _row_from_page(page: dict, source_host: str) -> dict:
     """One detail page -> one candidate row. Code finds the candidates (name, links off the
     site, addresses, phones, postcode lines); choosing among them is Jev's or the agent's job."""
-    page_host = _host(page["url"])
+    own = {_base(_host(page["url"])), _base(source_host)} - {""}
     seen, cands = set(), []
-    for href, label in page.get("content_links") or []:
+    for href, label in page.get("page_links") or page.get("content_links") or []:
         h = _host(href)
-        if not h or h in (page_host, source_host) or any(p in h for p in PLATFORMS) or not href.startswith("http"):
+        if not h or _base(h) in own or any(p in h for p in PLATFORMS) or not href.startswith("http"):
             continue
         site = f"{urllib.parse.urlsplit(href).scheme}://{urllib.parse.urlsplit(href).netloc}"
         if site not in seen:
@@ -298,6 +305,8 @@ def _jev_rows(pdir: Path, rows: list[dict]) -> int:
                 judged += 1
             own = mo_grade.yes(got.get(f"{k}_own"))
             site = got.get(f"{k}_site")
+            if r.get("kind") == "list_or_other":   # a list of several entries has no own site of one
+                continue
             if own is not None and site is not None:
                 if own >= 0.7:
                     r["website"] = site.choice
@@ -349,12 +358,13 @@ def harvest(pdir: Path, source: str, start: str = "", follow: str = "", next: st
         more: list[dict] = []
         for item, page in results:
             read += 1
-            if "error" in page or not (page.get("text") or page.get("content_links")):
+            if "error" in page or not (page.get("text") or page.get("page_links")):
                 done[item["url"]] = ("failed", (page.get("error") or "no text")[:120])
                 continue
             if item["kind"] == "list":
                 lists += 1
-                links = page.get("content_links") or []
+                # every link on the listing: entry cards often sit outside the main content block
+                links = list(dict.fromkeys(map(tuple, page.get("page_links") or page.get("content_links") or [])))
                 details = [h for h, _ in links if follow_rx and follow_rx.search(h)]
                 pages = [h for h, _ in links if next_rx and next_rx.search(h)][:LIST_PAGES_MAX]
                 more += [{"url": h, "kind": "detail", "source": source} for h in details]
@@ -378,6 +388,20 @@ def harvest(pdir: Path, source: str, start: str = "", follow: str = "", next: st
             queued += queue_pages(pdir, more, agent)
     rows = [r for r in new_rows if r["page_url"] not in have]
     rows = list({r["page_url"]: r for r in rows}.values())
+    # a link on most entry pages of a source is the portal's own chrome (its partners, its app),
+    # not any entry's website
+    entry_rows = [r for r in rows if "_cands" in r]
+    if len(entry_rows) >= 4:
+        freq: dict[str, int] = {}
+        for r in entry_rows:
+            for c in set(r["_cands"]):
+                freq[c] = freq.get(c, 0) + 1
+        chrome = {c for c, n in freq.items() if n > len(entry_rows) / 2}
+        for r in entry_rows:
+            if chrome & set(r["_cands"]):
+                r["_cands"] = [c for c in r["_cands"] if c not in chrome]
+                r["website_candidates"] = " ".join(x for x in r["website_candidates"].split(" ")
+                                                   if not any(x.startswith(c) for c in chrome) and x)
     judged = _jev_rows(pdir, [r for r in rows if "_cands" in r])
     for r in rows:
         if "_cands" in r and not r.get("website") and judged == 0:

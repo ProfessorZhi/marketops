@@ -204,6 +204,7 @@ def fetch(project: str, url: str, readers: list[str] | str | None = None, org_id
         out = ws.fetch(ws.project_dir(project), url, readers, org_id, org, refresh=refresh)
         out["text"] = out["text"][:max_chars]
         out.pop("content_links", None)
+        out.pop("page_links", None)
         out.pop("scored_links", None)   # the same links as `links`, with scores: half the size for the agent
         out["contacts"] = [{k: c[k] for k in ("kind", "value", "mailbox", "same_site", "found_by", "quote")}
                            for c in out["contacts"]]
