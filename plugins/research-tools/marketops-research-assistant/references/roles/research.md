@@ -6,7 +6,8 @@ marketops-knowledge (who to find, grades, pages that pay), `references/projects/
 1. Claim `kind="sweep"` (the lane refills from the organisation pool - never wait).
 2. `run(project, orgs=[ids], rounds=0)`: the tools find sites, read the high-value pages and
    PDFs, extract and grade, in the background.
-3. `orgs(project, ids=[...])` until each shows "pipeline done"; read the summaries, not the pages.
+3. `orgs(project, ids=[...], wait=600)` returns when they are all through (one call, no polling);
+   read the summaries, not the pages.
 4. For each organisation:
    - A/B rows: check person and role on the quote; correct with `grade(set=[{value, org_id,
      grade, person, role, note}])`.

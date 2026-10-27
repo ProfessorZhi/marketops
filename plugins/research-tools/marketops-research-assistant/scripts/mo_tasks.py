@@ -39,7 +39,7 @@ GUIDE = {
                 "address and the name, fetch the pages that print them with org_id (each page raises the "
                 "evidence score); fix person/role with grade(set=...) if the pages say otherwise.",
     "sweep": "These organisations are yours from start to finish: run(project, orgs=[their ids], rounds=0) reads "
-             "their sites at once (no digging); read orgs(project, ids=[...]) until each shows 'pipeline done'; "
+             "their sites at once (no digging); orgs(project, ids=[...], wait=600) returns when they are through; "
              "then for each: judge what was found, dig where a route is missing, verdict. See references/roles/research.md.",
     "source": "Mine this list (references/roles/pool.md): harvest(project, source, start=url, follow=..., next=...) "
               "until nothing is queued, check 20 rows, then pool(project, file, into=..., map=..., source=...). "

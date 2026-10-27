@@ -283,6 +283,74 @@ class GradingDoesNotOverlap(unittest.TestCase):
         self.assertTrue(all(c.get("grade") for c in ws.read_contacts(pdir)))
 
 
+class PoliteAndAsync(unittest.TestCase):
+    def setUp(self):
+        self.home = tempfile.mkdtemp()
+        self.env = mock.patch.dict(os.environ, {"MARKETOPS_HOME": self.home})
+        self.env.start()
+
+    def tearDown(self):
+        self.env.stop()
+
+    def test_one_host_never_gets_more_than_its_slots_and_a_429_pauses_it(self):
+        live, peak, lock = [0], [0], threading.Lock()
+
+        def slow_read(url):
+            with lock:
+                live[0] += 1
+                peak[0] = max(peak[0], live[0])
+            time.sleep(0.1)
+            with lock:
+                live[0] -= 1
+            return {"final_url": url, "html": "<p>" + "x" * 300 + "</p>", "text": ""}
+        with mock.patch.dict(mo_providers._READ, {"http": slow_read}), \
+                mock.patch.object(mo_providers, "HOST_INTERVAL", 0.0):
+            readers = [threading.Thread(target=mo_providers.read, args=(f"https://portal.test/v/{i}", ["http"]))
+                       for i in range(12)]
+            t0 = time.time()
+            for t in readers:
+                t.start()
+            for t in readers:
+                t.join(30)
+        self.assertLessEqual(peak[0], mo_providers.HOST_CAP)        # many organisations, one portal: polite
+        self.assertGreater(time.time() - t0, 0.25)                   # 12 reads in rounds of at most 4
+
+        def busy(url):
+            raise mo_providers.ProviderError("HTTP 429 retry-after=7")
+        with mock.patch.dict(mo_providers._READ, {"http": busy}):
+            mo_providers.read("https://busy.test/a", ["http"])
+        st = json.loads((Path(self.home) / "rate" / "host_busy_test.json").read_text())
+        self.assertGreater(st["until"], time.time() + 4)             # paused for its Retry-After
+        self.assertEqual(mo_providers.HOST_CAP - 1, st["cap"])       # and one slot fewer from now on
+
+    def test_waiting_for_a_package_is_one_call(self):
+        pdir = ws.project_dir("wait-pkg")
+        ws.write_csv(pdir / "orgs.csv", ["id", "name"], [{"id": "w1", "name": "W1"}])
+
+        def finish():
+            time.sleep(1)
+            ws.append_csv(pdir / "crawl.csv", ws.CRAWL_COLS + ["pass"], {"org_id": "w1", "status": "done", "pass": "final"})
+        threading.Thread(target=finish).start()
+        t0 = time.time()
+        out = server.orgs("wait-pkg", ids=["w1"], wait=30)
+        self.assertLess(time.time() - t0, 10)
+        self.assertEqual("pipeline done", out["orgs"][0]["state"], out)
+
+    def test_harvest_keeps_reading_in_the_background(self):
+        build_web()
+        with mock.patch.object(mo_providers, "read", side_effect=fake_read), \
+                mock.patch.object(mo_providers, "read_race", side_effect=fake_read), \
+                mock.patch.object(mo_providers, "public_url", side_effect=lambda u: u):
+            out = server.harvest("bg-harvest", "fed", start="https://fed.test/clubs", follow=r"/club/\d+$",
+                                 next=r"page=\d+$", limit=3, background=True)
+            self.assertIn("background", out)
+            end = time.time() + 20
+            while time.time() < end and server.sources("bg-harvest")["sources"][0]["status"] != "harvested":
+                time.sleep(0.2)
+        rows = ws.read_csv(ws.project_dir("bg-harvest") / out["file"])
+        self.assertEqual(10, len(rows))
+
+
 class KeysSwitchInsideTheCall(unittest.TestCase):
     def setUp(self):
         self.home = tempfile.mkdtemp()

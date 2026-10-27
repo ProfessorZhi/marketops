@@ -150,6 +150,64 @@ class _Rate:
 RATE = _Rate()
 
 
+class _Gate(_Rate):
+    """Machine-wide slots for one key, shared by every process on this machine (the same file
+    lock as _Rate): at most `cap` requests in flight at once, `interval` seconds apart, and a
+    pause after the other side said "too many" (429 / 503, with its Retry-After). Used per web
+    host - many organisations live on one city portal, and every agent's batch reads at once -
+    and for the browser's tabs across processes. A slot left by a dead process expires."""
+
+    STALE_S = 180
+
+    def hold(self, key: str, cap: int, interval: float = 0.0, max_wait: float = 120.0):
+        import contextlib
+        import time
+        token = f"{os.getpid()}.{threading.get_ident()}.{time.time()}"
+
+        def try_take(st: dict):
+            now = time.time()
+            st["in"] = [e for e in st.get("in", []) if now - e[1] < self.STALE_S]
+            limit = max(1, min(cap, int(st.get("cap") or cap)))
+            if now < float(st.get("until") or 0) or len(st["in"]) >= limit \
+                    or now - float(st.get("last") or 0) < interval:
+                return False
+            st["in"].append([token, now])
+            st["last"] = now
+            return True
+
+        def give_back(st: dict):
+            st["in"] = [e for e in st.get("in", []) if e[0] != token]
+
+        @contextlib.contextmanager
+        def slot():
+            end = time.time() + max_wait
+            while not self._update(key, try_take):
+                if time.time() > end:
+                    break   # never block an agent for good: go ahead after max_wait
+                time.sleep(0.15)
+            try:
+                yield
+            finally:
+                self._update(key, give_back)
+        return slot()
+
+    def back_off(self, key: str, seconds: float = 30.0) -> None:
+        """The host said too many: pause it and take one slot off its cap (never below 1)."""
+        import time
+
+        def pause(st: dict):
+            st["until"] = time.time() + min(max(seconds, 5.0), 600.0)
+            st["cap"] = max(1, int(st.get("cap") or HOST_CAP) - 1)
+        self._update(key, pause)
+
+
+GATE = _Gate()
+HOST_CAP = int(os.environ.get("MARKETOPS_PER_HOST", "4"))           # requests in flight per web host
+HOST_INTERVAL = float(os.environ.get("MARKETOPS_HOST_INTERVAL", "0.25"))
+BROWSER_TABS = int(os.environ.get("MARKETOPS_BROWSER_TABS", "12"))  # browser tabs on the whole machine
+BUSY = re.compile(r"HTTP (429|503)\b(?:.*?retry-after=(\d+))?", re.I)
+
+
 def _check_money(provider: str, response: httpx.Response, kind: str = "") -> None:
     if response.status_code == 429:
         RATE.learn(f"{provider}:{kind}", response)
@@ -179,6 +237,11 @@ def with_slots(provider: str, call):
             nxt = mo_config.key(provider)
             if not (SLOT_REFUSAL.search(str(exc)) and nxt and nxt not in tried):
                 raise
+
+
+def _nullcontext():
+    import contextlib
+    return contextlib.nullcontext()
 
 
 def public_url(url: str) -> str:
@@ -412,7 +475,7 @@ class _Browser:
         from crawl4ai import CacheMode, CrawlerRunConfig
         cfg = CrawlerRunConfig(cache_mode=CacheMode.BYPASS, page_timeout=timeout * 1000,
                                verbose=False, delay_before_return_html=1.0)
-        with self.slots:
+        with self.slots, GATE.hold("crawl4ai:tabs", BROWSER_TABS):   # tabs of every process together
             result = asyncio.run_coroutine_threadsafe(self.crawler.arun(url, config=cfg),
                                                       self.loop).result(timeout + 30)
         if not result.success:
@@ -538,7 +601,8 @@ def _read_http(url):
                       follow_redirects=True) as c:
         r = c.get(url)
     if r.status_code >= 400:
-        raise ProviderError(f"HTTP {r.status_code}")
+        wait = r.headers.get("retry-after", "")
+        raise ProviderError(f"HTTP {r.status_code}" + (f" retry-after={wait}" if wait.isdigit() else ""))
     body = r.text or ""
     if len(body.strip()) < 200:
         raise ProviderError("no text")
@@ -622,9 +686,19 @@ def read(url: str, readers=None, project_dir=None, force: bool = False) -> dict:
             return reader, {"error": "skipped: " + aside}
         try:
             # a page that timed out in the browser is not read again (it already took 30 s)
-            res = with_slots("serpapi" if reader == "facebook" else reader,
-                             lambda: _again(lambda: _READ[reader](url),
-                                            transient=TRANSIENT_FAST if reader == "crawl4ai" else TRANSIENT))
+            # every reader puts load on the page's own site (TinyFish and DeepSeek fetch it too):
+            # all of them share the host's slots; Facebook goes through SerpApi, not the site
+            host = "" if reader == "facebook" else (urllib.parse.urlsplit(url).hostname or "").lower()
+            try:
+                with GATE.hold("host:" + host, HOST_CAP, HOST_INTERVAL) if host else _nullcontext():
+                    res = with_slots("serpapi" if reader == "facebook" else reader,
+                                     lambda: _again(lambda: _READ[reader](url),
+                                                    transient=TRANSIENT_FAST if reader == "crawl4ai" else TRANSIENT))
+            except ProviderError as exc:
+                busy = BUSY.search(str(exc))
+                if busy and host:
+                    GATE.back_off("host:" + host, float(busy.group(2) or 30))
+                raise
             mo_budget.record(project_dir, "serpapi" if reader == "facebook" else reader,
                              "search" if reader == "facebook" else "fetch", True, url[:120])
             if mo_health.enabled():

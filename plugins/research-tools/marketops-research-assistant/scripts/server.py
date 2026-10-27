@@ -352,7 +352,8 @@ def tasks(project: str, action: str = "status", kind: str = "", size: int = 15, 
 
 
 def orgs(project: str, ids: list[str] | None = None, stage: str = "", limit: int = 30,
-         set: list[dict] | None = None, add: list[dict] | None = None, agent: str = "") -> dict:
+         set: list[dict] | None = None, add: list[dict] | None = None, agent: str = "",
+         wait: int = 0) -> dict:
     """One summary per organisation, for an agent deciding what to do next with it.
 
     ids: these organisations; or stage: "no_ab" (pipeline done, no confirmed A/B, no agent
@@ -366,6 +367,9 @@ def orgs(project: str, ids: list[str] | None = None, stage: str = "", limit: int
     add=[{name, city, website?, segment?, note?}]: organisations you found while researching (the
     council department or contractor that really runs a venue, a club found on a federation
     page) - merged into the pool on name + place like any source; plan sweep packages for them.
+    wait=seconds (with ids): return once every one of them is through the tools' read (after
+    run(orgs=...)), or after that many seconds (at most 900) - one call instead of asking again
+    and again.
     """
     try:
         pdir = ws.project_dir(project)
@@ -380,6 +384,14 @@ def orgs(project: str, ids: list[str] | None = None, stage: str = "", limit: int
             changed = ws.update_orgs(pdir, set)
             if not ids and not stage:
                 return {"updated": changed}
+        if ids and wait:
+            import time
+            want, end = {str(i) for i in ids}, time.time() + max(1, min(int(wait), 900))
+            while time.time() < end:
+                done = {r["org_id"] for r in ws.read_csv(pdir / "crawl.csv") if r.get("pass") == "final"}
+                if want <= done:
+                    break
+                time.sleep(3)
         return ws.org_summaries(pdir, ids, stage, limit)
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
@@ -426,7 +438,8 @@ def sources(project: str, add: list[dict] | None = None, set: list[dict] | None 
 
 
 def harvest(project: str, source: str, start: str = "", follow: str = "", next: str = "",
-            sitemap: bool = False, urls: list[str] | None = None, limit: int = 40, agent: str = "") -> dict:
+            sitemap: bool = False, urls: list[str] | None = None, limit: int = 40, agent: str = "",
+            background: bool = False) -> dict:
     """Mine one source into the page pool and out of it, in bulk - the miner's power tool.
 
     start: the source's listing (or first results page); follow: a regex for the links that are
@@ -440,11 +453,26 @@ def harvest(project: str, source: str, start: str = "", follow: str = "", next: 
     until still_queued is 0 - several miners can harvest different sources at once. Then check
     20 rows and pool(project, file, into=..., map=..., source=...): the pages are already saved,
     so their addresses join the new organisations without a new call.
+    background=True: read the first `limit` pages now, then keep reading the rest of the source
+    in the background (this server) while you check the first rows; sources(project) shows
+    where it stands, and harvest(project, source) again picks up whatever is left.
     """
     try:
         import mo_flow
-        return mo_flow.harvest(ws.project_dir(project), source, start, follow, next, sitemap, urls,
-                               max(1, min(int(limit), 300)), agent)
+        pdir = ws.project_dir(project)
+        out = mo_flow.harvest(pdir, source, start, follow, next, sitemap, urls, max(1, min(int(limit), 300)), agent)
+        if background and out.get("still_queued"):
+            import threading
+
+            def rest():
+                try:
+                    while mo_flow.harvest(pdir, source, limit=100, agent=agent).get("still_queued"):
+                        pass
+                except Exception:  # noqa: BLE001 - leased pages return to the queue for the next call
+                    pass
+            threading.Thread(target=rest, daemon=True, name=f"harvest-{source}").start()
+            out["background"] = "reading the rest of this source now; check the first rows meanwhile"
+        return out
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
 
