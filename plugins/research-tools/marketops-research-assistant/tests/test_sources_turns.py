@@ -326,6 +326,41 @@ class TheRest(Patched):
         self.assertEqual({"o1": 120 - mo_grade.FLOOD}, held)
         self.assertTrue(all(f"club{i}@chain.test" in {r["value"] for r in keep} for i in range(5)))   # the district first
 
+    def test_a_club_page_on_the_city_portal_is_read_as_that_page_not_the_portal(self):
+        import mo_workspace
+        self.assertTrue(mo_workspace.page_on_a_portal("https://www.paris.fr/lieux/volley-turn-1", "Paris Volley Turn",
+                                                      "Paris"))
+        self.assertFalse(mo_workspace.page_on_a_portal("https://volleyturn.test/equipe", "Volley Turn"))
+        self.assertFalse(mo_workspace.page_on_a_portal("https://www.paris.fr/", "Ville de Paris"))
+        pdir = ws.project_dir("portal-073")
+        pdir.mkdir(parents=True, exist_ok=True)
+        page = '<a href="/lieux/volley-turn-1/bureau">Bureau</a><a href="/mentions-legales">Mentions</a>' + "<p>x</p>" * 40
+        seen = []
+
+        def read(url, readers=None, project_dir=None, **kw):
+            seen.append(url)
+            return {"crawl4ai": {"final_url": url, "html": page, "text": ""}}
+        with mock.patch.object(mo_providers, "read", side_effect=read), \
+                mock.patch.object(mo_providers, "read_race", side_effect=read):
+            ws._crawl_one(pdir, {"id": "v1", "name": "Paris Volley Turn", "city": "Paris",
+                                 "website": "https://www.paris.fr/lieux/volley-turn-1"}, 5, None)
+        self.assertIn("https://www.paris.fr/lieux/volley-turn-1/bureau", seen)
+        self.assertNotIn("https://www.paris.fr/mentions-legales", seen)
+
+    def test_an_agent_adds_a_list_row_with_its_address_and_it_becomes_a_contact(self):
+        p = "rows-073"
+        server.project(p, brief={"goal": "x"})
+        server.sources(p, add=[{"source": "fed-75", "url": "https://fed.turn.test/clubs", "kind": "federation"}])
+        out = server.orgs(p, source="fed-75", agent="miner", add=[
+            {"name": "Badminton Turn 11", "city": "Paris", "email": "president@bad-turn.test", "person": "Ana Turn",
+             "role": "Présidente", "page_url": "https://fed.turn.test/club/42",
+             "quote": "Badminton Turn 11 - Présidente : Ana Turn - president@bad-turn.test"}])
+        self.assertEqual(1, out["contacts_from_rows"])
+        c = ws.read_contacts(ws.project_dir(p))[0]
+        self.assertEqual(("Ana Turn", "Présidente", "https://fed.turn.test/club/42"), (c["person"], c["role"], c["page_url"]))
+        self.assertIn("Présidente", c["quote"])
+        self.assertNotIn("email", ws.read_csv(ws.project_dir(p) / "orgs.csv")[0])   # the address lives in contacts
+
     def test_every_tool_call_is_logged_with_its_agent_and_no_addresses(self):
         p = "calls-073"
         server.project(p, brief={"goal": "x"})

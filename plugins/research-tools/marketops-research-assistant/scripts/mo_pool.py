@@ -294,16 +294,30 @@ def _bind_saved_pages(pdir: Path, pairs: list[tuple[str, str, str]]) -> int:
     return n
 
 
+ROW_CONTACT = ("email", "person", "role", "page_url", "quote")
+
+
 def add_orgs(pdir: Path, rows: list[dict], source: str, kind: str, query: str = "") -> dict:
-    """Organisations found by discovery (maps, directory pages): merged into orgs.csv."""
+    """Organisations found by discovery or by an agent (maps, directory pages): merged into
+    orgs.csv. A row that carries an address (email, with person / role / page_url / quote) gives
+    it to that organisation as a contact, quoted from the row - what an agent read on a list
+    reaches the contact pool without a file (073 smoke: a worker with no file tool lost them)."""
     with ws._lock(pdir / "pools"):
         orgs = ws.read_csv(pdir / "orgs.csv")
-        added, merged, _ = _merge_into(orgs, rows, org_key, source, by_name=True, signal=site_signal)
+        extra = [{k: r.pop(k) for k in ROW_CONTACT if k in r} for r in rows]
+        added, merged, index = _merge_into(orgs, rows, org_key, source, by_name=True, signal=site_signal)
         for o in orgs:
             if not o.get("id"):
                 o["id"] = new_oid(o)
         _write(pdir / "orgs.csv", orgs, ["id", "name", "website", "city"])
-    out = {"read": len(rows), "kept": len(rows), "orgs_added": added, "orgs_merged": merged}
+    listed = 0
+    for r, x in zip(rows, extra):
+        hit = index.get(org_key(r)) or index.get(org_key(r) + "|" + site_signal(r))
+        if hit is not None and x.get("email"):
+            found = _row_contacts({**r, **x}, x, hit, x.get("page_url") or f"list:{source}")
+            listed += ws.merge_contacts(pdir, found, hit["id"], hit.get("name", ""), via="list")
+    out = {"read": len(rows), "kept": len(rows), "orgs_added": added, "orgs_merged": merged,
+           "contacts_from_rows": listed}
     log_source(pdir, source, kind, out, query)
     return out
 
@@ -321,9 +335,9 @@ def _row_contacts(orig: dict, mapped: dict, org: dict, where: str) -> list[dict]
                                 for e in mo_pages.EMAIL.findall(f)))
     if not values:
         return []
-    quote = " / ".join(dict.fromkeys(str(v).strip() for v in list(mapped.values()) + list(orig.values())
-                                     if isinstance(v, (str, int, float)) and str(v).strip()
-                                     and len(str(v)) < 200))[:500]
+    quote = str(mapped.get("quote") or "").strip()[:500] or " / ".join(dict.fromkeys(
+        str(v).strip() for v in list(mapped.values()) + list(orig.values())
+        if isinstance(v, (str, int, float)) and str(v).strip() and len(str(v)) < 200))[:500]
     own = mo_pages.site_of(str(org.get("website") or ""))
     out = []
     for e in values:

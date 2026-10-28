@@ -201,7 +201,8 @@ def needs_you(pdir, status: dict) -> list[str]:
 
 
 def search(query: str, project: str = "", engines: list[str] | None = None, country: str = "",
-           lang: str = "", n: int = 10, maps: bool = False, pages: int = 1, near: list[str] | None = None) -> dict:
+           lang: str = "", n: int = 10, maps: bool = False, pages: int = 1, near: list[str] | None = None,
+           agent: str = "") -> dict:
     """Search the web with every engine at once and merge by URL (found_by says who found it).
 
     engines: any of serper, serpapi, deepseek, tinyfish (default: by the project's provider
@@ -237,7 +238,7 @@ def search(query: str, project: str = "", engines: list[str] | None = None, coun
 
 
 def fetch(project: str, url: str, readers: list[str] | str | None = None, org_id: str = "",
-          org: str = "", max_chars: int = 3000, refresh: bool = False) -> dict:
+          org: str = "", max_chars: int = 3000, refresh: bool = False, agent: str = "") -> dict:
     """Read one page with Crawl4AI, TinyFish and DeepSeek at the same time and save every version.
 
     Returns each reader's outcome, the emails/phones found (with the lines around them),
@@ -283,7 +284,7 @@ def browse(project: str, url: str, goal: str = "", org_id: str = "", org: str = 
 
 
 def grade(project: str, set: list[dict] | None = None, regrade: bool = False, limit: int = 0,
-          orgs: list[str] | None = None) -> dict:
+          orgs: list[str] | None = None, agent: str = "") -> dict:
     """Grade the project's email candidates.
 
     Without set: Jev grades ungraded rows from each row's quote against the brief's grades
@@ -306,7 +307,7 @@ def grade(project: str, set: list[dict] | None = None, regrade: bool = False, li
 
 
 def judge(project: str, file: str, question: str, options: dict, column: str,
-          fields: list[str] | None = None, limit: int = 300, redo: bool = False) -> dict:
+          fields: list[str] | None = None, limit: int = 300, redo: bool = False, agent: str = "") -> dict:
     """Let Jev make a repeated decision over the rows of a project CSV (venues.csv, orgs.csv, ...).
 
     question: one plain question; options: {answer: what it means}, e.g. {"yes": "outdoor
@@ -323,7 +324,7 @@ def judge(project: str, file: str, question: str, options: dict, column: str,
 def run(project: str, rounds: int = 0, max_pages: int = 15, goal_ab_org_share: float | None = None,
         agent: bool = False, stop: bool = False, workers: int = 8, shards: int = 1,
         follow: bool = False, pool_done: bool = False, orgs: list[str] | None = None, again: bool = False,
-        discover: bool = False) -> dict:
+        discover: bool = False, worker: str = "") -> dict:
     """The agents' bulk reader, in background processes (survives this session). Agents lead
     the research; this reads organisations' own sites for them, many at once.
 
@@ -436,12 +437,15 @@ def orgs(project: str, ids: list[str] | None = None, stage: str = "", limit: int
     the segment the playbook keys on, scope in/out/unsure, part_of: the id of the organisation
     that decides for this one (a chain's head office for its store) - the lanes then research
     the chain, not the store, and the headline counts the chain once.
-    add=[{name, city, website?, segment?, note?, source?}]: organisations you found (the council
+    add=[{name, city, website?, segment?, note?, source?, email?, person?, role?, page_url?,
+    quote?}]: organisations you found (the council
     department or contractor that really runs a venue, a club found on a federation page, the
     places a maps search returned) - merged into the pool like any source. source: the
     registered source they came from (sources(add=...) first), per row or for all with the
     `source` argument - without it they are filed under your name, and the lanes cannot give
-    each source its turn.
+    each source its turn. A row with an email (the address the list prints for it, with the
+    person and role next to it, the page and the line it is on as quote) gives that address
+    to the organisation as a contact at once - no file needed.
     wait=seconds (with ids): return once every one of them is through the tools' read (after
     run(orgs=...)), or after that many seconds (at most 900) - one call instead of asking again
     and again.
@@ -451,17 +455,19 @@ def orgs(project: str, ids: list[str] | None = None, stage: str = "", limit: int
         if add:
             import mo_pool
             import mo_flow
-            keep = ("name", "city", "website", "segment", "note", "type", "uai", "siret", "rna", "siren")
+            keep = ("name", "city", "website", "segment", "note", "type", "uai", "siret", "rna", "siren",
+                    "email", "person", "role", "page_url", "quote")
             groups: dict[str, list] = {}
             for r in add:
                 if isinstance(r, dict) and str(r.get("name") or "").strip():
                     src = str(r.get("source") or source or "").strip() or f"agent:{agent or 'agent'}"
                     groups.setdefault(src, []).append({k: str(v) for k, v in r.items() if k in keep})
-            out = {"orgs_added": 0, "orgs_merged": 0, "sources": {}}
+            out = {"orgs_added": 0, "orgs_merged": 0, "contacts_from_rows": 0, "sources": {}}
             for src, rows in groups.items():
                 got = mo_pool.add_orgs(pdir, rows, src, "agent")
                 out["orgs_added"] += got["orgs_added"]
                 out["orgs_merged"] += got["orgs_merged"]
+                out["contacts_from_rows"] += got["contacts_from_rows"]
                 out["sources"][src] = got["orgs_added"] + got["orgs_merged"]
                 if not src.startswith("agent:"):
                     mo_flow.mark_source(pdir, src, "pooled", agent)
@@ -569,7 +575,7 @@ def harvest(project: str, source: str, start: str = "", follow: str = "", next: 
 
 def pool(project: str, file: str, into: str = "venues", filters: dict | None = None,
          map: dict | None = None, group_by: str = "", org_fields: dict | None = None,
-         source: str = "", replace_operator: bool = False) -> dict:
+         source: str = "", replace_operator: bool = False, agent: str = "") -> dict:
     """Build the pools from a data file fetch saved (JSON, GeoJSON, CSV; e.g. an open-data export).
 
     filters: {column: value or [values]} kept rows (exact, case-insensitive). map: {new column:
@@ -599,7 +605,7 @@ def pool(project: str, file: str, into: str = "venues", filters: dict | None = N
         return _err(exc)
 
 
-def export(project: str) -> dict:
+def export(project: str, agent: str = "") -> dict:
     """Write the Excel workbook (summary with clearly defined metrics, per-batch table, contacts A
     first with page, quote and review flag, organisations, venues, costs, X rows) and Bruce's
     18-column routes CSV."""
@@ -655,8 +661,10 @@ def logged(fn):
                     if isinstance(out, dict) and out.get("error"):
                         err = str(out["error"])
                     ws.append_jsonl(pdir / "calls.jsonl", {
-                        "time": ws._now(), "tool": fn.__name__, "agent": str(args.get("agent") or ""),
-                        "args": {key: _brief_arg(v) for key, v in args.items() if key not in ("project", "agent")},
+                        "time": ws._now(), "tool": fn.__name__,
+                        "agent": str(args.get("agent") if isinstance(args.get("agent"), str) else args.get("worker") or ""),
+                        "args": {key: _brief_arg(v) for key, v in args.items() if key not in ("project", "worker")
+                                 and not (key == "agent" and isinstance(v, str))},
                         "seconds": round(_time.time() - t0, 2), "ok": not err,
                         "error": mo_config.scrub(_EMAIL.sub("<email>", err))[:200],
                         "result_chars": len(json.dumps(out, ensure_ascii=False, default=str)) if out is not None else 0})

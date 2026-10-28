@@ -24,5 +24,7 @@ Turn one source after another into rows in the page, venue and organisation pool
    `orgs(add)`. Organisations you collect by hand (a maps search, a listing you read yourself)
    go in with their source: register it first (`sources(add=[{source, url, kind}])`), then
    `orgs(add=[...], source="<that name>")` - the research lanes give every source its turn and
-   its pilot by that name. Not worth it -> `sources(set=[{source, status: "dropped", note}])`.
+   its pilot by that name. When the list prints an address for the row, put it on the row
+   (`email`, `person`, `role`, `page_url`, `quote` = the line as printed): it reaches the
+   contact pool at once, quoted - no file needed. Not worth it -> `sources(set=[{source, status: "dropped", note}])`.
 6. `tasks(action="done", task_id, note="rows read / kept / new / merged")`; next source.

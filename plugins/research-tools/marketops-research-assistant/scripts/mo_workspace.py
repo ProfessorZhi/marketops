@@ -580,7 +580,8 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
     # On a portal shared by many organisations (a city site) only the organisation's own page
     # and what is below it is its own; another venue's page on the same portal is not, and an
     # address on the portal's domain says nothing about whose it is.
-    scope = portal_scope(pdir, org_id) if known_site and known_site in shared_sites(pdir) else ""
+    scope = portal_scope(pdir, org_id) if known_site and (known_site in shared_sites(pdir) or page_on_a_portal(
+        org_website(pdir, org_id), org, str(_org_rows(pdir).get(str(org_id), {}).get("city") or ""))) else ""
 
     def belongs(site: str, page_url: str = "") -> str:
         if known_site and scope:
@@ -704,6 +705,23 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
 # ------------------------------------------------------------------ crawl jobs
 SHARED_SITE_ORGS = 3   # a website domain listed for this many organisations is a portal, not their own site
 _shared_cache: dict[str, tuple] = {}
+
+
+def page_on_a_portal(website: str, name: str, city: str = "") -> bool:
+    """An organisation whose website is a page deep inside a domain that does not carry its
+    name - a club's page on the city portal, a federation's club page - owns that page and what
+    is below it, not the domain (073 smoke: a volleyball club's paris.fr page made the site read
+    walk the city's legal and council pages: 17 X)."""
+    if not website:
+        return False
+    parts = urllib.parse.urlsplit(website if "://" in website else "https://" + website)
+    if not parts.path.strip("/"):
+        return False
+    squashed = re.sub(r"[^a-z0-9]", "", mo_pages.site_of(website))
+    # the town is not the organisation: "Paris Volley Club" does not own paris.fr
+    place = set(re.findall(r"[a-z0-9]+", (city or "").lower())) | {"ville", "mairie", "city", "town", "commune"}
+    words = [w for w in re.findall(r"[a-z0-9]+", (name or "").lower()) if len(w) > 3 and w not in place]
+    return not any(w in squashed for w in words)
 
 
 def shared_sites(pdir: Path) -> set[str]:
@@ -977,15 +995,22 @@ def site_health(url: str) -> dict:
 _web_cache: dict[str, tuple] = {}
 
 
-def portal_scope(pdir: Path, org_id: str) -> str:
-    """host + path of the organisation's own page on a shared portal ("" when unknown)."""
+def _org_rows(pdir: Path) -> dict:
     f = pdir / "orgs.csv"
     sig = f.stat().st_mtime_ns if f.exists() else 0
     cached = _web_cache.get(str(pdir))
     if not cached or cached[0] != sig:
-        _web_cache[str(pdir)] = cached = (sig, {str(o.get("id") or o.get("org_id") or ""): str(o.get("website") or "")
-                                               for o in read_csv(f)})
-    site = cached[1].get(str(org_id), "")
+        _web_cache[str(pdir)] = cached = (sig, {str(o.get("id") or o.get("org_id") or ""): o for o in read_csv(f)})
+    return cached[1]
+
+
+def org_website(pdir: Path, org_id: str) -> str:
+    return str(_org_rows(pdir).get(str(org_id), {}).get("website") or "")
+
+
+def portal_scope(pdir: Path, org_id: str) -> str:
+    """host + path of the organisation's own page on a shared portal ("" when unknown)."""
+    site = org_website(pdir, org_id)
     if not site:
         return ""
     parts = urllib.parse.urlsplit(site if "://" in site else "https://" + site)
@@ -1063,7 +1088,7 @@ def _crawl_one(pdir: Path, t: dict, max_pages: int, readers, extra: list[str] | 
     # On a portal shared by many organisations only the organisation's own page and the pages
     # below it are followed - never the whole portal (its inboxes belong to nobody here).
     scope = ""
-    if org_site and org_site in shared_sites(pdir):
+    if org_site and (org_site in shared_sites(pdir) or page_on_a_portal(site, org, str(t.get("city") or ""))):
         parts = urllib.parse.urlsplit(site)
         scope = parts.netloc.lower() + (parts.path.rstrip("/") or "/")
 
