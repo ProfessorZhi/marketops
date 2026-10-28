@@ -1,26 +1,48 @@
 
-# The quick test: one Paris district from zero
+# How a plugin change is tested
 
-For every plugin change, before the long tests. Small enough to run in about an hour for a few
-euros, real enough to exercise the whole chain.
+Four steps, each only after the one before is clean. The scale grows; the chain is the same.
+
+| Step | Where, who | Scope | What it proves |
+|---|---|---|---|
+| 0 offline | the developer, every change | `tests/` (fake web): the agent chain, sources taking turns, each fix | nothing broke |
+| 1 smoke | the developer, real providers, workers on a small model (Haiku) | one district, one segment, at most 20 organisations, from zero (below) | the real chain runs end to end: sources -> pools -> contacts -> export, every tool reachable, no worker stuck |
+| 2 regional | the user's machine | Paris (the standing test below) | speed, yield and cost at a scale where problems show |
+| 3 delivery | the user's machine | France | what the client receives |
+
+Step 1 keeps a **baseline**: the same brief every time, the numbers in a table (version, date,
+model, minutes, sources pooled / researched, organisations, with A/B, X share, tool calls,
+errors, provider spend, agent turns). A change that lowers it is not shipped.
+
+# The smoke test: one district, one segment, from zero
+
+For every plugin change, before the regional test. Small enough to run in half an hour for a few
+cents, real enough to exercise the whole chain: real lists, real sites, real graders. Pick a
+district and a segment that exist there (the 073 smoke asked for climbing gyms in a district
+that has none).
 
 - **Brief**: `{"goal": "people who run, manage or decide on indoor sports venues - venue and
   facilities managers, sports department heads, club presidents", "country": "FR", "language":
-  "fr", "region": "Paris 11e arrondissement (75011)", "scenario": "indoor sports venues of one
-  district", "address_rules": {"info": "X", "admin": "X", "book": "X"}, "strict_ledger": "AB",
+  "fr", "region": "Paris 11e arrondissement (75011)", "scenario": "private gyms and indoor sports
+  venues of one district (fitness, dance, combat sports, squash / padel), at most 20 organisations", "address_rules": {"info": "X", "admin": "X", "book": "X"}, "strict_ledger": "AB",
   "fresh": true}`. Nothing else: no sources, no pool, no playbook - the finders find them.
 - **Start from zero**: a new project name per run (`bench-paris11-<version>-<date>`) and an empty
   `MARKETOPS_HOME` (no shared pages, searches or lessons). `project()` must show no brought-in
   source; one is a failed test, not a result.
-- **Team**: the lead plus a finder, a miner, a websites worker and two researchers, all at once.
-  Record the model every worker really ran on.
-- **Limits**: 90 minutes, about 30 EUR of provider spend, paid TinyFish Agent off.
+- **Team**: the lead plus two workers started at once in the background - sources+pool and
+  research - all on Haiku (`claude -p --model haiku --plugin-dir <plugin> --max-turns 60`, host
+  tools limited to the plugin's, Skill, Read, Glob, Grep and Agent). Record the model every
+  worker really ran on.
+- **Limits**: 35 minutes, a few cents of provider spend, paid TinyFish Agent off.
 - **Report**: sources found / pooled / piloted / scaled / dropped; organisations (and the share
   out of scope); organisations researched per source; organisations with A/B and A/B per 30
   minutes; X share; spend per provider; agent turns; the slowest stage and the most frequent
   error from `calls.jsonl`.
-- **Pass**: at least 3 sources each researched on its pilot; no source's organisations left
-  unread while another's are past their pilot; every contact quoted; spot check of 30 rows >= 90%.
+- **Pass (the chain)**: at least 3 sources registered with their URL and their organisations
+  filed under them; every source's organisations researched (none left unread while another's
+  are past their pilot); site reads past the home page; every worker kept working until its
+  lane ended; a journal entry from each worker; `RETRO.md` written; every contact quoted.
+  A/B counts at this size are a baseline to compare, not a pass mark.
 
 # Two standing tests
 

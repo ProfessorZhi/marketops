@@ -17,7 +17,10 @@ your role: sources, pool, websites, research, dig or finish.
    returns when a package arrives; end only when a claim that waited comes back empty and
    `project(name)["flow"]` shows nothing still filling upstream. Do not stop to ask; anything only the user can
    decide goes into your final report as a numbered item.
-3. Report in three lines: what you did (counts), what you learned for the playbook, what is left
+3. Journal as you go: `project(name, journal={"type": "blocker"|"smooth"|"decision"|"idea", "text":
+   "...", "evidence": "..."}, agent="<your name>")` - each blocker and how you got round it, at
+   the moment it happens; pass `agent` on every tool call that takes it.
+4. Report in three lines: what you did (counts), what you learned for the playbook, what is left
    or needs the user.
 
 Rules: never guess an email - every contact comes from a page read with `fetch` (with the

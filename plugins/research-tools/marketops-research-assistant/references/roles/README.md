@@ -17,6 +17,9 @@ what you claimed, hand it back with `tasks(action="done", task_id, note)`. An em
 pools before it still fill: claim again with `wait=600` (one call that returns with the next
 package), or move to where `project(name)["flow"]["waiting_between_pools"]` is highest. Feed other pools
 as you go: a new list -> `sources(add)`, a venue's real operator -> `orgs(add)`. Every address
-comes from a page read with the tools; never guess one. Decisions only the user can make go in
+comes from a page read with the tools; never guess one. Pass `agent="<your name>"` on every tool
+call that takes it, and journal what blocks you or works well as it happens
+(`project(name, journal={"type": "blocker"|"smooth"|"decision"|"idea", "text", "evidence"},
+agent=...)`) - the run's RETRO.md, and the plugin's next change, are built from it. Decisions only the user can make go in
 your final report as numbered items. Keep helper files in a folder named after you. Report in
 three lines: done (counts), learned, left.

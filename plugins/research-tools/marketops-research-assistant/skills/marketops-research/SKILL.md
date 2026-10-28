@@ -112,6 +112,23 @@ before anything else:
 7. **Deliver** when the lanes are empty, the 100-row spot check is >= 90% and the 对账 line adds
    up: `export(project)`; then the `learn` command.
 
+## Keep the record
+
+Every run is also a test of the plugin, so the work leaves its own trail - written while it
+happens, never reconstructed afterwards:
+- **The tools log themselves**: every call goes to `calls.jsonl` (who, which tool, how long,
+  what failed). Pass `agent="<your name>"` on every call that takes it, so the log can tell the
+  workers apart.
+- **Agents write what the log cannot see**: `project(name, journal={"type": "blocker" | "smooth" |
+  "decision" | "idea", "text": "...", "evidence": "file / count"}, agent="<name>")` - the moment a
+  tool or a site stops you and how you got round it, a source that paid or did not, a decision
+  others should know (dropping a source, scaling one, changing the scope). One line each; a
+  worker writes at least its blockers, the lead its decisions.
+- **The lead closes it**: before `export`, one `{"type": "retro"}` entry - what went well, what
+  cost the most, what the plugin should do differently. `export` writes `RETRO.md` from all of it
+  (numbers, the tool-call table, the journal), addresses masked: the file to read for the next
+  plugin change.
+
 ## Rules
 
 - Every address comes from a page read with the tools (`fetch`, `harvest`, `run`) and keeps
