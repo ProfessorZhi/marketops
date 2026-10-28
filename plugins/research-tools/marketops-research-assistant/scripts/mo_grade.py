@@ -115,6 +115,45 @@ def _address_words(email: str) -> str:
     return " ".join(w for w in re.split(r"[._\-+0-9]+", local) if len(w) > 1)
 
 
+FLOOD = 60   # more new addresses than this on one organisation: a list, not its people
+
+
+def _flood(pdir, todo: list[dict]) -> tuple[list[dict], dict[str, int]]:
+    """An organisation whose pages printed a whole directory (a chain's every store, a
+    federation's every club - 073: 1,167 on one fitness chain) does not send it all to Jev:
+    rows whose quote names the brief's region or postcode go first, up to FLOOD; the rest wait
+    ungraded for an agent who decides which belong (they are kept, nothing is dropped)."""
+    import re as _re
+    per: dict[str, list[dict]] = {}
+    for r in todo:
+        per.setdefault(str(r.get("org_id") or ""), []).append(r)
+    b = ws.brief(pdir)
+    place = " ".join(str(b.get(k) or "") for k in ("region", "scenario")).lower()
+    marks = [w for w in _re.findall(r"[a-zà-ÿ]{4,}|\d{4,5}", place) if w not in ("paris",) or len(place) < 12]
+    keep, held = [], {}
+    for oid, rows in per.items():
+        if len(rows) <= FLOOD:
+            keep += rows
+            continue
+        near = [r for r in rows if marks and any(m in str(r.get("quote") or "").lower() for m in marks)]
+        rest = [r for r in rows if r not in near]
+        chosen = (near + rest)[:FLOOD]
+        keep += chosen
+        held[oid] = len(rows) - len(chosen)
+        # held for good: the next grading round must not send the rest after all (073 smoke: 109
+        # of one federation page's 123 addresses reached Jev over several rounds)
+        ws.update_contacts(pdir, [{**r, "graded_by": "held", "grade_reason": f"held: over {FLOOD} new addresses on "
+                                   "this organisation - an agent picks the ones that belong"}
+                                  for r in rows if r not in chosen], ["graded_by", "grade_reason"])
+    if held:
+        import mo_journal
+        for oid, n in held.items():
+            mo_journal.auto(pdir, f"flood:{oid}", f"organisation {oid}: {n} more addresses than the {FLOOD} graded - its "
+                            "pages list a whole directory; an agent decides which belong (they wait ungraded)",
+                            "contacts", every_s=10 ** 9)
+    return keep, held
+
+
 def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: int = 8,
          orgs: set | list | None = None) -> dict:
     """Grade the email candidates that have no grade yet (or all, with regrade). limit 0 = all.
@@ -140,7 +179,8 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: 
     common = common_words([str(o.get("name") or "") for o in ws.read_csv(pdir / "orgs.csv")])
     only = {str(o) for o in orgs} if orgs else None
     todo = [r for r in rows if r.get("kind") == "email" and not r.get("graded_by", "").startswith("agent")
-            and (regrade or not r.get("grade")) and (only is None or str(r.get("org_id")) in only)]
+            and (regrade or not r.get("grade")) and (only is None or str(r.get("org_id")) in only)
+            and (regrade or r.get("graded_by") != "held")]   # held back from a flood: an agent's to pick
     if limit:
         todo = todo[:limit]
     fields = ["grade", "graded_by", "grade_reason", "review", "review_reason"]
@@ -165,9 +205,11 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: 
         else:
             first[_same(r)] = r
     todo = list(first.values())
+    todo, held = _flood(pdir, todo)
     if not jev:   # no Jev: the rules' grades stand, the rest waits for an agent
         ws.update_contacts(pdir, by_rule + reused, fields, guard=lambda cur: not cur.get("graded_by", "").startswith("agent"))
-        return {"graded": 0, "by_rule": len(by_rule), "reused": len(reused), "waiting_for_an_agent": len(todo) + len(copies),
+        return {"graded": 0, "by_rule": len(by_rule), "reused": len(reused), "held_for_an_agent": held,
+                "waiting_for_an_agent": len(todo) + len(copies),
                 "note": "no usable Jev key: the rules graded what they can; agents grade the rest with grade(set=[...])"}
     import typesafe_sdk as sdk
     from concurrent.futures import ThreadPoolExecutor
@@ -282,7 +324,12 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: 
     after = ws.read_contacts(pdir)
     left = sum(1 for r in after if r.get("kind") == "email" and not r.get("grade"))
     review = sum(1 for r in after if r.get("review") == "yes")
-    return {**counts, "people_filled": named, "evidence": evidence, "still_ungraded": left, "to_review": review}
+    out = {**counts, "people_filled": named, "evidence": evidence, "still_ungraded": left, "to_review": review}
+    if held:
+        out["held_for_an_agent"] = {**held, "why": f"over {FLOOD} new addresses on one organisation: a list of other "
+                                               "places or clubs, not its people - pick the ones that belong with "
+                                               "grade(set=...), or file its stores under it (orgs set part_of)"}
+    return out
 
 
 GRADES = ("A", "B", "C", "D", "X")
@@ -424,10 +471,35 @@ def fill_people(pdir, only: set | None = None, batch: int = 6, workers: int = 8)
     return len(filled)
 
 
+def conflicts(pdir, row: dict) -> list[str]:
+    """Where an agent's A or B disagrees with the grade table or the brief: kept, but marked for
+    review. (073 smoke: a worker on a small model set accueil@, contact@ and info@ to B - D in the
+    table, and info@ X by the brief's address_rules - and nothing showed it.)"""
+    import re as _re
+    import mo_pages
+    g, value = row.get("grade"), str(row.get("value") or "")
+    if g not in ("A", "B") or row.get("kind", "email") != "email":
+        return []
+    out = []
+    head = _re.split(r"[._-]", value.split("@")[0].lower())[0]
+    rule = ws.address_rule(pdir, value)
+    if rule and rule not in ("A", "B"):
+        out.append(f"the brief's address_rules grade this address {rule}")
+    elif head in mo_pages.GENERIC:
+        out.append(f"{head}@ is a general inbox: D in the grade table (C if it is the venue/function's own)")
+    if g == "A" and not str(row.get("person") or "").strip():
+        out.append("A needs the named person (person)")
+    if not str(row.get("role") or "").strip():
+        out.append(f"{g} needs the role the page gives (role)")
+    return out
+
+
 def manual(pdir, updates: list[dict]) -> dict:
-    """The agent sets grade/person/role/note on rows, matched by value (+ org_id if given)."""
+    """The agent sets grade/person/role/note on rows, matched by value (+ org_id if given).
+    An A or B that disagrees with the grade table or the brief is kept and marked review with
+    the reason (confirm=True on the update: the agent has looked, no mark)."""
     rows = ws.read_contacts(pdir)
-    picked = []
+    picked, checks = [], []
     for u in updates:
         value = str(u.get("value") or "").lower()
         for r in rows:
@@ -436,13 +508,24 @@ def manual(pdir, updates: list[dict]) -> dict:
                     if f in u:
                         r[f] = str(u[f])
                 if any(f in u for f in ("grade", "person", "role")):   # a spot check alone changes nothing else
-                    r["graded_by"], r["review"] = "agent", ""
+                    r["graded_by"], r["review"], r["review_reason"] = "agent", "", ""
+                    why = [] if u.get("confirm") else conflicts(pdir, r)
+                    if why:
+                        r["review"], r["review_reason"] = "yes", "agent grade: " + "; ".join(why)
+                        checks.append({"value": r["value"], "org_id": r.get("org_id"), "grade": r["grade"], "why": why})
                 picked.append(r)
     changed = ws.update_contacts(pdir, picked, ["grade", "person", "role", "note", "grade_reason", "graded_by",
-                                                "review", "checked"])
+                                                "review", "review_reason", "checked"])
     import mo_evidence
     mo_evidence.rescore(pdir)
-    return {"updated": changed}
+    out: dict = {"updated": changed}
+    if checks:
+        table = rubric(pdir)
+        out["check"] = checks
+        out["grade_table"] = {g: table[g] for g in sorted({c["grade"] for c in checks} | {"C", "D"})}
+        out["note"] = ("these A/B rows disagree with the grade table or the brief and are marked review: correct "
+                       "them, or set them again with confirm=true if the page really says so")
+    return out
 
 
 def judge(pdir, file: str, question: str, options: dict, column: str, fields: list | None = None,

@@ -107,6 +107,43 @@ def watch(pdir: Path) -> None:
                  "costs.jsonl")
 
 
+def calls_summary(pdir: Path) -> list[str]:
+    """The tool-call log (calls.jsonl) in brief: who worked when, which tools, the slowest
+    calls and the errors - the chain of the run without its transcripts."""
+    rows = []
+    try:
+        for line in (pdir / "calls.jsonl").read_text(encoding="utf-8").splitlines():
+            try:
+                rows.append(json.loads(line))
+            except ValueError:
+                continue
+    except OSError:
+        return []
+    if not rows:
+        return []
+    out = ["", "## The tool calls (calls.jsonl)", "", "| agent | first | last | calls | seconds | tools |", "|---|---|---|---|---|---|"]
+    by: dict[str, list] = {}
+    for r in rows:
+        by.setdefault(r.get("agent") or "(unnamed)", []).append(r)
+    for a, rs in sorted(by.items(), key=lambda kv: kv[1][0].get("time", "")):
+        tools: dict[str, int] = {}
+        for r in rs:
+            tools[r.get("tool", "?")] = tools.get(r.get("tool", "?"), 0) + 1
+        out.append(f"| {a} | {rs[0].get('time', '')[11:16]} | {rs[-1].get('time', '')[11:16]} | {len(rs)} | "
+                   f"{round(sum(r.get('seconds') or 0 for r in rs))} | "
+                   + ", ".join(f"{t} {n}" for t, n in sorted(tools.items(), key=lambda kv: -kv[1])) + " |")
+    slow = sorted(rows, key=lambda r: -(r.get("seconds") or 0))[:5]
+    out += ["", "Slowest: " + "; ".join(f"{r.get('tool')} {r.get('seconds')} s ({r.get('agent') or '-'})" for r in slow)]
+    errs: dict[str, int] = {}
+    for r in rows:
+        if not r.get("ok"):
+            k = f"{r.get('tool')}: {mask(str(r.get('error') or ''))[:90]}"
+            errs[k] = errs.get(k, 0) + 1
+    if errs:
+        out += ["", "Errors: " + "; ".join(f"{k} (x{n})" for k, n in sorted(errs.items(), key=lambda kv: -kv[1])[:8])]
+    return out
+
+
 def retro(pdir: Path, metrics: dict, stages: dict, extra: dict | None = None) -> Path:
     """RETRO.md: the numbers, where reads failed, and what agents and the plugin noted."""
     entries = read(pdir)
@@ -123,6 +160,7 @@ def retro(pdir: Path, metrics: dict, stages: dict, extra: dict | None = None) ->
     for p, f in sorted(fails.items()):
         lines.append(f"| {p} | {f['calls']} | {f['failed']} | "
                      + ", ".join(f"{k} {n}" for k, n in f["by_kind"].items()) + " |")
+    lines += calls_summary(pdir)
     for k, v in (extra or {}).items():
         lines += ["", f"## {k}", ""] + [f"- {x}" for x in v]
     titles = {"blocker": "Blockers", "smooth": "What went smoothly", "decision": "Decisions",

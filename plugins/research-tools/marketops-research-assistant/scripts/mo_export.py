@@ -45,7 +45,9 @@ def ledgers(emails: list, strict: str = "AB") -> dict:
 
 
 def metrics(orgs: list, emails: list) -> dict:
-    """Headline numbers count confirmed A/B only; rows still marked review=yes are reported apart."""
+    """Headline numbers count confirmed A/B only; rows still marked review=yes are reported apart.
+    A store filed under its chain (part_of) is not counted on its own: the chain is."""
+    orgs = [o for o in orgs if not o.get("part_of")] or orgs
     ids = [str(o.get("id") or o.get("org_id") or "") for o in orgs] or list({c.get("org_id") for c in emails})
     idset, n = set(ids), len(set(ids)) or 1
     mine = [c for c in emails if c.get("org_id") in idset]

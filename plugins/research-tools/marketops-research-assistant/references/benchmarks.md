@@ -1,4 +1,61 @@
 
+# How a plugin change is tested
+
+Four steps, each only after the one before is clean. The scale grows; the chain is the same.
+
+| Step | Where, who | Scope | What it proves |
+|---|---|---|---|
+| 0 offline | the developer, every change | `tests/` (fake web): the agent chain, sources taking turns, each fix | nothing broke |
+| 1 smoke | the developer, real providers, workers on a small model (Haiku) | one district, one segment, at most 20 organisations, from zero (below) | the real chain runs end to end: sources -> pools -> contacts -> export, every tool reachable, no worker stuck |
+| 2 regional | the user's machine | Paris (the standing test below) | speed, yield and cost at a scale where problems show |
+| 3 delivery | the user's machine | France | what the client receives |
+
+Step 1 keeps a **baseline**: the same brief every time, the numbers in a table (version, date,
+model, minutes, sources pooled / researched, organisations, with A/B, X share, tool calls,
+errors, provider spend, agent turns). A change that lowers it is not shipped.
+
+# The smoke test: one district, one segment, from zero
+
+For every plugin change, before the regional test. Small enough to run in half an hour for a few
+cents, real enough to exercise the whole chain: real lists, real sites, real graders. Pick a
+district and a segment that exist there (the 073 smoke asked for climbing gyms in a district
+that has none).
+
+- **Brief**: `{"goal": "people who run, manage or decide on indoor sports venues - venue and
+  facilities managers, sports department heads, club presidents", "country": "FR", "language":
+  "fr", "region": "Paris 11e arrondissement (75011)", "scenario": "sports associations and clubs of
+  one district (indoor: basketball, handball, volleyball, badminton, table tennis, gymnastics,
+  combat sports, dance, fencing, climbing): presidents, secretaries, facility leads - at most 20
+  organisations from at least 3 sources, no more than 8 from one", "pilot": 5, "address_rules": {"info": "X", "admin": "X", "book": "X"}, "strict_ledger": "AB",
+  "fresh": true}`. Nothing else: no sources, no pool, no playbook - the finders find them.
+- **Start from zero**: a new project name per run (`bench-paris11-<version>-<date>`) and an empty
+  `MARKETOPS_HOME` (no shared pages, searches or lessons). `project()` must show no brought-in
+  source; one is a failed test, not a result.
+- **Team**: the lead plus two workers started at once in the background - sources+pool and
+  research - all on Haiku (`claude -p --model haiku --plugin-dir <plugin> --max-turns 60`, host
+  tools limited to the plugin's, Skill, Read, Glob, Grep and Agent). Record the model every
+  worker really ran on.
+- **Limits**: 35 minutes, a few cents of provider spend, paid TinyFish Agent off.
+- **Report**: sources found / pooled / piloted / scaled / dropped; organisations (and the share
+  out of scope); organisations researched per source; organisations with A/B and A/B per 30
+  minutes; X share; spend per provider; agent turns; the slowest stage and the most frequent
+  error from `calls.jsonl`.
+- **Pass (the chain)**: at least 3 sources registered with their URL and their organisations
+  filed under them; every source's organisations researched (none left unread while another's
+  are past their pilot); site reads past the home page; every worker kept working until its
+  lane ended; a journal entry from each worker; `RETRO.md` written; every contact quoted.
+  A/B counts at this size are a baseline to compare, not a pass mark.
+
+## Smoke baseline
+
+| version (commit) | date | model | minutes | sources found / pooled / researched | orgs | site reads past home | orgs with A/B | rows A/B/C/D/X | tool calls / errors | provider spend | lead turns | journal | notes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0.7.3 (3622ca3), team of 7, 11e + 12e | 2026-10-28 | Haiku | ~20 (stopped) | 13 / 7 / 7 | 279 (cap 60 not kept) | 89 verdicts | 14 strict (16% of researched), 31 more A/B in review | 38/37/3/127/571 | 394 / 2 | ~$0.2 | ~970 model turns, all agents | every worker + lead retro | 8 agents active at once, all pools growing together; 390 directory addresses held from Jev; fixes in 24c6df9 |
+| 0.7.3 (7bb8bc8), associations, 3+ sources | 2026-10-28 | Haiku | ~15 | 3 / 3 / 3 | 13 | 10 researched | 2 strict (15%; 20% of researched) | 1/1/0/6/7 | 76 / 0 | ~$0.06 | 18 | every worker + lead retro | every source researched on its pilot; no flood; waits <= 51 s; 3 organisations got a website late and were not swept; a wrong website the worker did not know how to clear |
+| 0.7.3 (5b881a3), associations | 2026-10-28 | Haiku | ~25 | 4 / 1 / 1 | 20 | 15 of 18 read | **4 strict (20%)**, 5 named A | 5/0/2/18/134 | 70 / 0 | ~$0.10 | 20 | every worker + lead retro | one source filled the cap of 20; 123 X from one club fiche on its federation's site (fixed after); a 300 s wait outlived the host's 60 s tool timeout |
+| 0.7.3 (3df6854) | 2026-10-28 | Haiku | ~10 | 4 / 3 / 3 | 17 | 12 of 17 | 5 as graded, **0 strict** (the 7 B were accueil@ / contact@ / info@ set by the worker, and two venue inboxes Jev sent to review; flagged since 170664e) | 0/7/3/12/1 | 55 / 0 | ~$0.13 | 12 | none (guidance came in af50018) | 38 of 55 calls without an agent name |
+| 0.7.3 (921fe0f) | 2026-10-28 | Sonnet | ~8 | 3 / 3 / 1 | 15 | 0 of 15 | 0 | 0/0/0/11/5 | 49 / 0 | ~$0.03 | 15 | none | site reads stopped at the home page (fixed in 3df6854); maps rows filed under the agent |
+
 # Two standing tests
 
 Every plugin version runs both. Report the version (`project()` shows it) with every number.

@@ -148,6 +148,27 @@ def brief(pdir: Path) -> dict:
         return {}
 
 
+def fresh(pdir: Path) -> bool:
+    return bool(brief(pdir).get("fresh"))
+
+
+def fresh_since(pdir: Path) -> str:
+    """In a fresh project, the moment it started: shared pages, searches and lessons older than
+    this are not reused ("" = not fresh: everything in the library is fair game)."""
+    b = brief(pdir)
+    return str(b.get("fresh_since") or "9999") if b.get("fresh") else ""
+
+
+def note_made(pdir: Path, rel: str) -> None:
+    """A file the tools wrote into this project (a download, a harvest): its provenance."""
+    append_csv(pdir / "made.csv", ["file", "time"], {"file": rel.replace("\\", "/"), "time": _now()})
+
+
+def made_here(pdir: Path, rel: str) -> bool:
+    rel = rel.replace("\\", "/").lstrip("./")
+    return any(r.get("file", "").lstrip("./") == rel for r in read_csv(pdir / "made.csv"))
+
+
 def locale(pdir: Path) -> dict:
     """Where and in what language to search (brief.country ISO-2, brief.language), and the goal
     as the search intent. Engines default to US / English without them."""
@@ -350,6 +371,7 @@ def _download(pdir: Path, url: str, org_id: str) -> dict:
         f = _save(pdir, url, "download", got["bytes"], ext, got["final_url"], org_id)
         local = pdir / "pages" / Path(f).name   # data files also in the project, for pool(...)
         local.write_bytes(got["bytes"])
+        note_made(pdir, "pages/" + local.name)
         mo_budget.record(pdir, "download", "fetch", True, url[:120])
         report["download"] = {"file": "pages/" + local.name, "bytes": len(got["bytes"]), "type": got["content_type"]}
     except Exception as exc:  # noqa: BLE001
@@ -506,7 +528,7 @@ def save_unattributed(pdir: Path, contacts: list[dict], org_id: str, org: str, v
 
 
 def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
-          org_site: str = "", refresh: bool = False, via: str = "fetch") -> dict:
+          org_site: str = "", refresh: bool = False, via: str = "fetch", links: bool = False) -> dict:
     """Read a page with every chosen reader at once; save each version; collect contacts.
 
     A URL already read in this project is parsed from its saved copies (no new calls)
@@ -531,7 +553,10 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
                                                         f"in the last {BAD_URL_HOURS} h (refresh=True to try again)"}})
     if not saved and not refresh:
         import mo_library
+        since = fresh_since(pdir)
         for r in mo_library.get_pages(url):   # read before, by any project: reuse, no new call
+            if since and str(r.get("time") or "") <= since:
+                continue   # a fresh project reuses only what it read itself
             row = {**r, "org_id": org_id}
             _index_page(pdir, row)
             saved.append({**row, "library": True})
@@ -555,7 +580,8 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
     # On a portal shared by many organisations (a city site) only the organisation's own page
     # and what is below it is its own; another venue's page on the same portal is not, and an
     # address on the portal's domain says nothing about whose it is.
-    scope = portal_scope(pdir, org_id) if known_site and known_site in shared_sites(pdir) else ""
+    scope = portal_scope(pdir, org_id) if known_site and (known_site in shared_sites(pdir) or page_on_a_portal(
+        org_website(pdir, org_id), org, str(_org_rows(pdir).get(str(org_id), {}).get("city") or ""))) else ""
 
     def belongs(site: str, page_url: str = "") -> str:
         if known_site and scope:
@@ -613,7 +639,7 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
 
     def read_with(chosen, race: bool = False):
         forced = {"force": True} if refresh else {}   # only a forced re-read passes it on
-        got = mo_providers.read_race(url, chosen, project_dir=pdir, on_late=late, **forced) if race \
+        got = mo_providers.read_race(url, chosen, project_dir=pdir, on_late=late, links=links, **forced) if race \
             else mo_providers.read(url, chosen, project_dir=pdir, **forced)
         for reader, res in got.items():
             parsed = take(reader, res)
@@ -657,7 +683,17 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
     held: list[dict] = []
     added = 0
     if (org_id or org) and not generic:
-        keep, held = split_attribution(contacts, org, org_site, on_org, name_counts(pdir))
+        if scope:
+            # the portal's own addresses on the organisation's page there (a federation's committees
+            # beside a club's fiche) are the portal's, unless the quote names the organisation
+            mine, portal = [], []
+            for c in contacts:
+                (portal if c.get("email_site") and c.get("email_site") == page_site else mine).append(c)
+            keep, held = split_attribution(mine, org, org_site, on_org, name_counts(pdir))
+            k2, h2 = split_attribution(portal, org, "", "no", name_counts(pdir))
+            keep, held = keep + k2, held + h2
+        else:
+            keep, held = split_attribution(contacts, org, org_site, on_org, name_counts(pdir))
         added = merge_contacts(pdir, keep, org_id, org, via)
         save_unattributed(pdir, held, org_id, org, via)
     best = max((p["lines"] for p in parsed_by.values()), key=lambda ls: sum(map(len, ls)), default=[])
@@ -679,6 +715,23 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
 # ------------------------------------------------------------------ crawl jobs
 SHARED_SITE_ORGS = 3   # a website domain listed for this many organisations is a portal, not their own site
 _shared_cache: dict[str, tuple] = {}
+
+
+def page_on_a_portal(website: str, name: str, city: str = "") -> bool:
+    """An organisation whose website is a page deep inside a domain that does not carry its
+    name - a club's page on the city portal, a federation's club page - owns that page and what
+    is below it, not the domain (073 smoke: a volleyball club's paris.fr page made the site read
+    walk the city's legal and council pages: 17 X)."""
+    if not website:
+        return False
+    parts = urllib.parse.urlsplit(website if "://" in website else "https://" + website)
+    if not parts.path.strip("/"):
+        return False
+    squashed = re.sub(r"[^a-z0-9]", "", mo_pages.site_of(website))
+    # the town is not the organisation: "Paris Volley Club" does not own paris.fr
+    place = set(re.findall(r"[a-z0-9]+", (city or "").lower())) | {"ville", "mairie", "city", "town", "commune"}
+    words = [w for w in re.findall(r"[a-z0-9]+", (name or "").lower()) if len(w) > 3 and w not in place]
+    return not any(w in squashed for w in words)
 
 
 def shared_sites(pdir: Path) -> set[str]:
@@ -726,7 +779,7 @@ def playbook_for(pdir: Path, org: dict) -> dict:
     import mo_knowledge
     pb, seg = playbook(pdir), segment_of(org)
     learned = mo_knowledge.KNOWLEDGE.playbook(str(brief(pdir).get("country") or ""), seg) \
-        if seg and mo_knowledge.enabled() else {}
+        if seg and mo_knowledge.enabled() and not fresh(pdir) else {}
     out: dict = {"paths": [], "queries": [], "roles": []}
     for e in (pb.get("*"), pb.get(seg) if seg else None, learned):
         if isinstance(e, dict):
@@ -847,12 +900,14 @@ def stages(pdir: Path) -> dict:
     }
 
 
-ORG_SETTABLE = ("website", "segment", "scope", "city", "note")
+ORG_SETTABLE = ("website", "segment", "scope", "city", "note", "part_of")
 
 
 def update_orgs(pdir: Path, items: list[dict]) -> int:
     """An agent corrects organisations: website (found or fixed), segment (for the playbook),
-    scope (in / out / unsure), city, note. Matched by org_id; other fields are left alone."""
+    scope (in / out / unsure), city, note, part_of (the id of the organisation that really
+    decides for it - a chain's head office for one of its stores). Matched by org_id; other
+    fields are left alone."""
     path = pdir / "orgs.csv"
     with _lock(path):
         rows = read_csv(path)
@@ -950,15 +1005,22 @@ def site_health(url: str) -> dict:
 _web_cache: dict[str, tuple] = {}
 
 
-def portal_scope(pdir: Path, org_id: str) -> str:
-    """host + path of the organisation's own page on a shared portal ("" when unknown)."""
+def _org_rows(pdir: Path) -> dict:
     f = pdir / "orgs.csv"
     sig = f.stat().st_mtime_ns if f.exists() else 0
     cached = _web_cache.get(str(pdir))
     if not cached or cached[0] != sig:
-        _web_cache[str(pdir)] = cached = (sig, {str(o.get("id") or o.get("org_id") or ""): str(o.get("website") or "")
-                                               for o in read_csv(f)})
-    site = cached[1].get(str(org_id), "")
+        _web_cache[str(pdir)] = cached = (sig, {str(o.get("id") or o.get("org_id") or ""): o for o in read_csv(f)})
+    return cached[1]
+
+
+def org_website(pdir: Path, org_id: str) -> str:
+    return str(_org_rows(pdir).get(str(org_id), {}).get("website") or "")
+
+
+def portal_scope(pdir: Path, org_id: str) -> str:
+    """host + path of the organisation's own page on a shared portal ("" when unknown)."""
+    site = org_website(pdir, org_id)
     if not site:
         return ""
     parts = urllib.parse.urlsplit(site if "://" in site else "https://" + site)
@@ -1036,7 +1098,7 @@ def _crawl_one(pdir: Path, t: dict, max_pages: int, readers, extra: list[str] | 
     # On a portal shared by many organisations only the organisation's own page and the pages
     # below it are followed - never the whole portal (its inboxes belong to nobody here).
     scope = ""
-    if org_site and org_site in shared_sites(pdir):
+    if org_site and (org_site in shared_sites(pdir) or page_on_a_portal(site, org, str(t.get("city") or ""))):
         parts = urllib.parse.urlsplit(site)
         scope = parts.netloc.lower() + (parts.path.rstrip("/") or "/")
 
@@ -1058,7 +1120,8 @@ def _crawl_one(pdir: Path, t: dict, max_pages: int, readers, extra: list[str] | 
 
     def get(url):
         try:
-            return url, fetch(pdir, url, readers, org_id, org, org_site, via=label), None
+            # a site read follows links: wait for a reader whose version keeps them
+            return url, fetch(pdir, url, readers, org_id, org, org_site, via=label, links=True), None
         except Exception as exc:  # noqa: BLE001
             return url, None, exc
 
@@ -1132,8 +1195,29 @@ Edge cases: an address shown as an image or behind a form only - skip it. No add
 """
 
 
-def browse(pdir: Path, url: str, goal: str = "", org_id: str = "", org: str = "", stealth: bool = False) -> dict:
+WANTED_COLS = ["url", "org_id", "org", "goal", "why", "agent", "time"]
+
+
+def paid_agent_allowed(pdir: Path) -> bool:
+    """The paid TinyFish Agent runs only after the user said yes (brief.paid_agent: true)."""
+    return bool(brief(pdir).get("paid_agent"))
+
+
+def browse(pdir: Path, url: str, goal: str = "", org_id: str = "", org: str = "", stealth: bool = False,
+           why: str = "", agent: str = "") -> dict:
     url = mo_providers.public_url(url)
+    if not paid_agent_allowed(pdir):
+        # off by default: the page is kept as a request and asked about once, with the others,
+        # in needs_you - the agent goes on with free tools meanwhile
+        with _lock(pdir / "browse_wanted"):   # append_csv locks the file itself
+            if not any(r["url"] == url for r in read_csv(pdir / "browse_wanted.csv")):
+                append_csv(pdir / "browse_wanted.csv", WANTED_COLS, {
+                    "url": url, "org_id": org_id, "org": org, "goal": goal[:200], "why": why[:200],
+                    "agent": agent, "time": _now()})
+        return {"status": "WAITING_FOR_USER",
+                "note": "the paid TinyFish Agent (about $0.016 a step, up to 40 steps a page) is off until the user "
+                        "allows it; this page is on the list project(name)['needs_you'] asks about. Carry on with "
+                        "the free tools (fetch with other readers, search the people's names, the site's PDFs)."}
     for r in read_csv(pdir / "agent.csv"):
         if r["url"] == url and r["status"] not in ("FAILED", "CANCELLED", "error"):
             return {"run_id": r["run_id"], "status": r["status"], "note": "already submitted for this URL"}
