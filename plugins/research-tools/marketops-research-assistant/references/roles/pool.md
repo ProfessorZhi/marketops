@@ -32,5 +32,6 @@ Turn one source after another into rows in the page, venue and organisation pool
    contact pool at once, quoted - no file needed (the row's organisation name is added to a quote
    that lacks it: the grader judges an address by its quote).
    Rows from one page that lists several organisations each keep only their own address; the
-   page's other addresses are never spread over them. Not worth it -> `sources(set=[{source, status: "dropped", note}])`.
+   page's other addresses are never spread over them. A PDF is read locally in seconds and kept
+   (`pdf_file`): read it yourself if your host reads PDFs and the text came out mangled. Not worth it -> `sources(set=[{source, status: "dropped", note}])`.
 6. `tasks(action="done", task_id, note="rows read / kept / new / merged")`; next source.

@@ -298,35 +298,51 @@ def _name_candidates(page: dict, lines: list[str]) -> list[str]:
     return out
 
 
+CHROME_REPEAT = 3
+
+
 def _drop_chrome(rows: list[dict]) -> dict:
-    """What most entry pages of one source share is the source's own chrome: a name ("Haut", the
-    portal's title) or an address (the directory's office mailbox in its footer - 074: on 181 of
-    188 rows). A shared name gives way to the entry's next candidate; a shared address leaves the
-    rows - it is the source's, not each entry's."""
+    """What CHROME_REPEAT or more entry pages of one source share is the source's own chrome: a
+    name ("Haut", a sidebar's club, a filter bar) or an address (the directory's office mailbox in
+    its footer - 074: on 181 of 188 rows). A shared name gives way to the entry's next candidate; a
+    shared address leaves the rows - it is the source's, not each entry's."""
     entry = [r for r in rows if "_names" in r]
     if len(entry) < 4:
         return {}
-    half = len(entry) / 2
+    # a name on three entry pages or more is no entry's own (075: a sidebar leak on 14 of 40 rows
+    # and a filter bar on 15 - under half, so the 0.7.5 bar let them through)
+    repeat = CHROME_REPEAT
     nfreq: dict[str, int] = {}
     efreq: dict[str, int] = {}
     for r in entry:
         nfreq[r["name"].lower()] = nfreq.get(r["name"].lower(), 0) + 1
         for e in set(r.get("emails", "").split()):
             efreq[e.lower()] = efreq.get(e.lower(), 0) + 1
-    bad_names = {n for n, k in nfreq.items() if k > half}
+    bad_names = {n for n, k in nfreq.items() if k >= repeat}
+    lines: dict[str, int] = {}
+    for r in entry:
+        for cand in set(r["_names"]):
+            lines[cand] = lines.get(cand, 0) + 1
     for r in entry:
         for cand in r["_names"]:
-            seen = sum(1 for x in entry if cand in x["_names"])
-            if cand.lower() not in bad_names and seen <= half:
+            if cand.lower() not in bad_names and lines.get(cand, 0) < repeat:
                 r["name"] = cand
                 break
         else:
             r["name"] = r["name"] if r["name"].lower() not in bad_names else ""
-    shared = {e for e, k in efreq.items() if k > half}
+    shared = {e for e, k in efreq.items() if k >= repeat}
     for r in entry:
         if shared:
             r["emails"] = " ".join(e for e in r.get("emails", "").split() if e.lower() not in shared)
     out = {}
+    final: dict[str, int] = {}
+    for r in entry:
+        if r["name"]:
+            final[r["name"].lower()] = final.get(r["name"].lower(), 0) + 1
+    twice = sum(k for k in final.values() if k > 1)
+    if twice:
+        out["duplicate_names"] = {"rows": twice, "of": len(entry), "note": "rows sharing a name with another row: "
+                                  "check them before pooling - one entry read twice, or a page that is not an entry"}
     nameless = sum(1 for r in entry if not r["name"])
     if nameless:
         out["rows_without_name"] = {"rows": nameless, "note": "no name of their own on the page (only the site's "
@@ -619,7 +635,8 @@ def flow(pdir: Path) -> dict:
             # stores of one chain: research the head office once (orgs(set=[{org_id, part_of}]))
             "possible_chains": mo_tasks.possible_chains(pdir),
             # one organisation pooled twice: merge it (orgs(merge=[{keep, drop}])), not a chain
-            "possible_duplicates": mo_tasks.possible_duplicates(pdir),
+            **(lambda d: {"possible_duplicates": d[:200], "possible_duplicates_total": len(d)})(
+                mo_tasks.possible_duplicates(pdir)),
             "reconcile": {"organisations": len(ids), "added_by_logged_sources": from_sources,
                           "without_logged_source": unlogged,
                           "adds_up": len(ids) == from_sources + unlogged}}

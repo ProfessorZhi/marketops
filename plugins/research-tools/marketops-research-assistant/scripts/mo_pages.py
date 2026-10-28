@@ -243,6 +243,9 @@ def _deobfuscate(line: str) -> str:
     line = re.sub(r"\s*[\[\(\{<]\s*(?:at|ät|arobase|@)\s*[\]\)\}>]\s*", "@", line, flags=re.I)
     line = re.sub(r"\s*[\[\(\{<]\s*(?:dot|punkt|point|\.)\s*[\]\)\}>]\s*", ".", line, flags=re.I)
     if "@" in line:
+        # text taken out of a PDF breaks addresses at a space: "name @ host.fr", "name@yahoo .fr" (075)
+        line = re.sub(r"(?<=[\w.-])[ \t]+@[ \t]*(?=[\w-])|(?<=[\w.-])@[ \t]+(?=[\w-]+\.)", "@", line)
+        line = re.sub(r"(@[\w-]+(?:\.[\w-]+)*)[ \t]+\.[ \t]?(?=[a-z]{2,6}\b)", r"\1.", line, flags=re.I)
         line = EMAIL.sub(lambda m: unrot(m.group(0)), line)
     return line
 
@@ -258,6 +261,18 @@ TLDS = {"com", "org", "net", "edu", "gov", "int", "info", "biz", "eu", "fr", "de
 MAIL_HOSTS = {"gmail.com", "hotmail.com", "hotmail.fr", "outlook.com", "outlook.fr", "yahoo.com", "yahoo.fr",
               "orange.fr", "wanadoo.fr", "free.fr", "sfr.fr", "laposte.net", "live.fr", "live.com", "icloud.com",
               "gmx.de", "gmx.net", "web.de", "aol.com", "neuf.fr", "bbox.fr"}
+
+
+def _rot_like_page(address: str, page_site: str) -> str:
+    """.fr and .se, .it and .vg, .pl and .cy are each other's ROT13: an address whose ROT13 ends like
+    the page it is printed on, while the address itself does not, is that ROT13 (075: a paris.fr
+    page's own mailbox came through as "...@cnevf.se" and was nearly graded A for a club)."""
+    tld = address.rsplit(".", 1)[-1].lower()
+    page_tld = page_site.rsplit(".", 1)[-1].lower() if "." in page_site else ""
+    decoded = codecs.decode(address, "rot13")
+    if page_tld and tld != page_tld and decoded.rsplit(".", 1)[-1].lower() == page_tld:
+        return decoded
+    return address
 
 
 def unrot(address: str) -> str:
@@ -347,9 +362,10 @@ def contacts(lines: list[str], page_url: str, org_site: str = "", blocks: dict |
             at = line.find(e)
             fixed.append(_unglue(e, line[:at] if at >= 0 else "", mailtos or set()))
         emails = fixed
-        for n, e in enumerate(dict.fromkeys(emails)):
-            at = line.find(e, pos)
-            end = at + len(e) if at >= 0 else len(line)
+        for n, raw in enumerate(dict.fromkeys(emails)):
+            e = _rot_like_page(raw, page_site)   # found on the line as written, kept as decoded
+            at = line.find(raw, pos)
+            end = at + len(raw) if at >= 0 else len(line)
             # Several entries can share one line: this address owns the text since the previous one.
             seg = line[pos:end].strip(" -/|,;")
             before = clean[max(last + 1, i - 4):i] if n == 0 else []
@@ -358,7 +374,7 @@ def contacts(lines: list[str], page_url: str, org_site: str = "", blocks: dict |
             if after:
                 quote += " [next: " + after + "]"
             pos = end
-            block = (blocks or {}).get(e.lower())
+            block = (blocks or {}).get(e.lower()) or (blocks or {}).get(raw.lower())
             if block:
                 quote = block[-600:]
             dom = site_of("http://" + e.split("@")[1])

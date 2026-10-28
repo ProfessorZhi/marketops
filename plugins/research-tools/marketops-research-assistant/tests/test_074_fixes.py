@@ -217,10 +217,16 @@ class EmptyLanes(Base):
         mo_tasks.plan(pdir, "sweep", 1)   # none: both read; put one in a research package by hand
         mo_tasks.add(pdir, "x")
         rows = ws.read_csv(pdir / "tasks.csv")
-        rows.append({"task_id": "sweep-x", "kind": "sweep", "title": "", "items": ids[0], "status": "done"})
+        rows.append({"task_id": "sweep-x", "kind": "sweep", "title": "", "items": ids[0], "status": "claimed",
+                     "claimed": mo_tasks._now().isoformat(timespec="seconds")})
         ws.write_csv(pdir / "tasks.csv", mo_tasks.TASK_COLS, rows)
         st = ws.stages(pdir)["dig"]
         self.assertEqual((1, 1), (st["waiting_for_an_agent"], st["in_packages_without_verdict"]))
+        # swept and handed back without a verdict: it goes on to the dig lane once (0.7.7)
+        rows[-1]["status"] = "done"
+        ws.write_csv(pdir / "tasks.csv", mo_tasks.TASK_COLS, rows)
+        self.assertEqual((2, 0), tuple(ws.stages(pdir)["dig"][k] for k in ("waiting_for_an_agent",
+                                                                            "in_packages_without_verdict")))
 
 
 class HeldAndCheck(Base):

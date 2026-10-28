@@ -24,6 +24,10 @@ marketops-knowledge (who to find, grades, pages that pay), `references/projects/
      (`fetch` returns `list_page`: only the entry naming yours was given to it) -> `sources(add=[...])`,
      and its entries are organisations of their own: `orgs(add=[{name, email, person, role, quote}],
      source=...)`.
+   - An address you saw on a list (a yearbook PDF, a district table) belongs to one of yours: set it
+     on that organisation with `grade(set=[{value, org_id, grade, person, role}])` - it is attached
+     from the page that prints it (pass `page_url` for a long list); a `pdf_file` in fetch's answer
+     is the PDF itself, for a host that reads PDFs.
    - Two of your organisations are one (the same president, the same address, two spellings):
      `orgs(merge=[{keep, drop}])` - never `part_of`.
    - A store of a chain or franchise (one domain, many branches; `flow.possible_chains` lists

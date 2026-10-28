@@ -325,7 +325,7 @@ def export(pdir) -> dict:
         {"项目": "待复核的 A/B（低置信度、共用地址或来自他站；不计入上面的数）", "值": m["ab_to_review"]},
         {"项目": "若待复核全部成立：每百机构 A+B 路线数", "值": m["ab_routes_per_100_orgs_if_review_holds"]},
         {"项目": "对账：机构按最佳等级 确认A / 确认B / 只有待复核的A或B / C / D / 未找到（其中未抓取） = 机构数；确认A + 确认B = 上面的有 A+B 机构数",
-         "值": _reconcile(org_rows, total)},
+         "值": _reconcile([r for r in org_rows if ws.counted(r)], total)},   # a store filed under its chain is in neither
         {"项目": "国家未识别的机构（应补齐，不得交付为未识别）", "值": sum(1 for r in org_rows if not r.get("国家"))},
         {"项目": "邮箱总数（A/B/C/D/未评级/X）", "值": " / ".join(str(sum(c.get("grade", "") == g for c in emails)) for g in ("A", "B", "C", "D", "", "X"))},
         {"项目": "证据强/中/弱（邮箱数；弱的也保留，由人判断）", "值": " / ".join(str(sum(c.get("evidence") == lv for c in emails)) for lv in ("strong", "medium", "weak"))},

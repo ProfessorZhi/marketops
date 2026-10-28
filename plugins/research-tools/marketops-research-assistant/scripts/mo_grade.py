@@ -500,6 +500,20 @@ def manual(pdir, updates: list[dict]) -> dict:
     the reason (confirm=True on the update: the agent has looked, no mark)."""
     rows = ws.read_contacts(pdir)
     picked, checks = [], []
+    # an address a list printed for this organisation, kept aside when the list was read under
+    # another's name (or under none): the agent who knows whose it is attaches it here - from a
+    # page read in this project, never from nowhere (075: a yearbook's presidents stayed in verdicts)
+    attached, missing = [], []
+    have = {(r.get("org_id"), r.get("value", "").lower()) for r in rows}
+    for u in updates:
+        value, oid = str(u.get("value") or "").strip().lower(), str(u.get("org_id") or "")
+        if value and oid and (oid, value) not in have and any(f in u for f in ("grade", "person", "role")):
+            if ws.attach_from_evidence(pdir, value, oid, str(u.get("page_url") or "")):
+                attached.append(value)
+            else:
+                missing.append(value)
+    if attached:
+        rows = ws.read_contacts(pdir)
     for u in updates:
         value = str(u.get("value") or "").lower()
         for r in rows:
@@ -519,6 +533,12 @@ def manual(pdir, updates: list[dict]) -> dict:
     import mo_evidence
     mo_evidence.rescore(pdir)
     out: dict = {"updated": changed}
+    if attached:
+        out["attached"] = attached
+    if missing:
+        out["not_on_a_page"] = missing
+        out["how"] = ("no page read in this project prints these addresses: fetch the page that does (pass "
+                      "page_url=... with the update if it is a long list), then set them again")
     if checks:
         table = rubric(pdir)
         out["check"] = checks

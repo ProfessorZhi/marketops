@@ -640,6 +640,60 @@ def download(url: str, max_bytes: int = 60_000_000) -> dict:
                 "bytes": b"".join(chunks)}
 
 
+def pdf_text(url: str, max_pages: int = 120) -> dict:
+    """A PDF read here, with no provider: downloaded once and its text taken out locally (pypdf).
+    075: a yearbook PDF took 240 s through a remote reader and one directory was dropped for want
+    of one. Raises when pypdf is missing or the file holds no text (a scan) - the remote readers
+    take over then."""
+    import io
+    pypdf = _pypdf()
+    if pypdf is None:
+        raise ProviderError("pypdf is not installed and could not be installed here (run the installer again)")
+    got = download(url)
+    reader = pypdf.PdfReader(io.BytesIO(got["bytes"]))
+    pages = []
+    for page in reader.pages[:max_pages]:
+        try:
+            pages.append(page.extract_text() or "")
+        except Exception:  # noqa: BLE001 - one broken page does not lose the rest
+            continue
+    text = "\n".join(pages)
+    out = {"final_url": got["final_url"], "text": text, "bytes": got["bytes"]}
+    if len(text.strip()) < 200:
+        err = ProviderError("no text layer (a scanned PDF): a remote reader, or an agent that reads PDFs, has to read it")
+        err.pdf = out   # the file itself is still kept for the agent
+        raise err
+    return out
+
+
+_PYPDF: list = []
+
+
+def _pypdf():
+    """pypdf, installed into the plugin's own environment the first time a PDF needs it (an
+    install from before 0.7.7 does not have it). Once per process; MARKETOPS_NO_AUTO_INSTALL=1
+    turns it off."""
+    if _PYPDF:
+        return _PYPDF[0]
+    try:
+        import pypdf
+    except ImportError:
+        pypdf = None
+        if os.environ.get("MARKETOPS_NO_AUTO_INSTALL") != "1":
+            import subprocess
+            import sys
+            try:
+                subprocess.run([sys.executable, "-m", "pip", "install", "-q", "pypdf>=4,<7"], timeout=180,
+                               check=True, capture_output=True)
+                import importlib
+                importlib.invalidate_caches()
+                import pypdf
+            except Exception:  # noqa: BLE001 - offline, no pip: the remote readers stay
+                pypdf = None
+    _PYPDF.append(pypdf)
+    return pypdf
+
+
 def _read_http(url):
     """The last resort: a plain GET, no JavaScript. Static pages read fine; script-built ones
     come back thin."""
@@ -684,6 +738,11 @@ def capabilities() -> dict:
     if not jev:
         missing.append("jev")
         effects.append("grading: rules grade what they can, agents grade the rest with grade(set=...) - slower, more agent tokens")
+    import importlib.util
+    if importlib.util.find_spec("pypdf") is None:
+        missing.append("pypdf")
+        effects.append("pypdf is not installed yet: the first PDF installs it into the plugin's environment "
+                       "(remote readers meanwhile; MARKETOPS_NO_AUTO_INSTALL=1 turns that off)")
     if not mo_config.key("tinyfish"):
         missing.append("tinyfish")
     if not mo_config.key("deepseek"):

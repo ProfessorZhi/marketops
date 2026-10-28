@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import os
 import re
@@ -550,6 +551,39 @@ def split_attribution(contacts: list[dict], org: str, org_site: str, on_org: str
 _unattributed_seen: dict[str, set] = {}
 
 
+def attach_from_evidence(pdir: Path, value: str, org_id: str, page_url: str = "") -> bool:
+    """Give an organisation an address that a page read in this project prints: one kept aside
+    from a list (unattributed.csv), one already on another organisation, or one on the saved page
+    the agent names. The row keeps that page and its quote; nothing is attached that no read page
+    shows."""
+    value = value.strip().lower()
+    org = str(_org_rows(pdir).get(str(org_id), {}).get("name") or "")
+    if not org:
+        return False
+    found = next((r for r in reversed(read_csv(pdir / "unattributed.csv")) if (r.get("value") or "").lower() == value),
+                 None) or next((c for c in read_contacts(pdir) if (c.get("value") or "").lower() == value), None)
+    if found is None and page_url:
+        for row in _pages(pdir).get(page_url, []):
+            try:
+                parsed = _parse_saved(pdir, row)
+            except OSError:
+                continue
+            hit = next((c for c in mo_pages.contacts(parsed["lines"], page_url, "", parsed.get("blocks"),
+                                                     parsed.get("mailtos")) if c["value"].lower() == value), None)
+            if hit:
+                found = hit
+                break
+    if found is None:
+        return False
+    row = {"kind": "email", "value": value, "quote": found.get("quote", ""), "page_url": found.get("page_url", ""),
+           "quote_from": found.get("quote_from") or "lines", "found_by": (found.get("found_by") or "") + "+agent",
+           "email_site": mo_pages.site_of("http://" + value.split("@")[1]),
+           "mailbox": found.get("mailbox") or ("generic" if re.split(r"[._-]", value.split("@")[0])[0] in mo_pages.GENERIC
+                                              else "named_or_role")}
+    merge_contacts(pdir, [row], org_id, org, "attached")
+    return True
+
+
 def save_unattributed(pdir: Path, contacts: list[dict], org_id: str, org: str, via: str) -> int:
     """Keep addresses seen on someone else's page for this organisation, without claiming them.
 
@@ -583,6 +617,16 @@ def save_unattributed(pdir: Path, contacts: list[dict], org_id: str, org: str, v
     return new
 
 
+def _keep_pdf(pdir: Path, url: str, body: bytes) -> str:
+    """The PDF as downloaded, in the project's pages folder: its path is in fetch's answer."""
+    if not body:
+        return ""
+    path = pdir / "pages" / (hashlib.sha256(url.encode()).hexdigest()[:16] + ".pdf")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(body)
+    return str(path)
+
+
 def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
           org_site: str = "", refresh: bool = False, via: str = "fetch", links: bool = False) -> dict:
     """Read a page with every chosen reader at once; save each version; collect contacts.
@@ -604,6 +648,7 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
         return _download(pdir, url, org_id)
     if readers is None and mo_providers.FACEBOOK.match(url) and mo_config.key("serpapi"):
         readers = ["facebook"]   # Facebook shows a logged-out reader nothing; SerpApi reads the public profile
+    local_pdf = readers is None and bool(PDF.search(url))
     if readers is None and PDF.search(url):
         readers = [r for r in ("tinyfish", "deepseek") if mo_config.key(r)] or ["crawl4ai"]
     report, parsed_by = {}, {}
@@ -708,6 +753,21 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
             if parsed:
                 parsed_by[reader] = parsed
 
+    pdf_file = ""
+    if not parsed_by and local_pdf:
+        # a PDF's text is read here first: free, and seconds instead of minutes; the file itself is
+        # kept too, for an agent whose host reads PDFs (a scan, a table the text mangles)
+        try:
+            got = mo_providers.pdf_text(url)
+            pdf_file = _keep_pdf(pdir, url, got.pop("bytes", b""))
+            parsed = take("pdf", got)
+            if parsed:
+                parsed_by["pdf"] = parsed
+                _note_read(pdir, url, True)
+        except Exception as exc:  # noqa: BLE001 - the remote readers below take over
+            report["pdf"] = {"error": str(exc)[:160]}
+            if getattr(exc, "pdf", None):
+                pdf_file = _keep_pdf(pdir, url, exc.pdf.get("bytes", b""))
     if not parsed_by:
         if readers is None:
             now, held = mo_providers.pick(url, mo_providers.available_readers(), weights(pdir, "fetch"),
@@ -781,7 +841,7 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
         if mo_health.enabled():
             mo_health.HEALTH.record_yield(url, emails_seen)
     title = next((p.get("title") for p in parsed_by.values() if p.get("title")), "")
-    extra = {}
+    extra = {"pdf_file": pdf_file} if pdf_file else {}
     if listing:
         extra["list_page"] = {
             "addresses_of_others": listing, "given_to_this_organisation": added, "kept_aside": len(held),
