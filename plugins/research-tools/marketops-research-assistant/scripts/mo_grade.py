@@ -424,10 +424,35 @@ def fill_people(pdir, only: set | None = None, batch: int = 6, workers: int = 8)
     return len(filled)
 
 
+def conflicts(pdir, row: dict) -> list[str]:
+    """Where an agent's A or B disagrees with the grade table or the brief: kept, but marked for
+    review. (073 smoke: a worker on a small model set accueil@, contact@ and info@ to B - D in the
+    table, and info@ X by the brief's address_rules - and nothing showed it.)"""
+    import re as _re
+    import mo_pages
+    g, value = row.get("grade"), str(row.get("value") or "")
+    if g not in ("A", "B") or row.get("kind", "email") != "email":
+        return []
+    out = []
+    head = _re.split(r"[._-]", value.split("@")[0].lower())[0]
+    rule = ws.address_rule(pdir, value)
+    if rule and rule not in ("A", "B"):
+        out.append(f"the brief's address_rules grade this address {rule}")
+    elif head in mo_pages.GENERIC:
+        out.append(f"{head}@ is a general inbox: D in the grade table (C if it is the venue/function's own)")
+    if g == "A" and not str(row.get("person") or "").strip():
+        out.append("A needs the named person (person)")
+    if not str(row.get("role") or "").strip():
+        out.append(f"{g} needs the role the page gives (role)")
+    return out
+
+
 def manual(pdir, updates: list[dict]) -> dict:
-    """The agent sets grade/person/role/note on rows, matched by value (+ org_id if given)."""
+    """The agent sets grade/person/role/note on rows, matched by value (+ org_id if given).
+    An A or B that disagrees with the grade table or the brief is kept and marked review with
+    the reason (confirm=True on the update: the agent has looked, no mark)."""
     rows = ws.read_contacts(pdir)
-    picked = []
+    picked, checks = [], []
     for u in updates:
         value = str(u.get("value") or "").lower()
         for r in rows:
@@ -436,13 +461,24 @@ def manual(pdir, updates: list[dict]) -> dict:
                     if f in u:
                         r[f] = str(u[f])
                 if any(f in u for f in ("grade", "person", "role")):   # a spot check alone changes nothing else
-                    r["graded_by"], r["review"] = "agent", ""
+                    r["graded_by"], r["review"], r["review_reason"] = "agent", "", ""
+                    why = [] if u.get("confirm") else conflicts(pdir, r)
+                    if why:
+                        r["review"], r["review_reason"] = "yes", "agent grade: " + "; ".join(why)
+                        checks.append({"value": r["value"], "org_id": r.get("org_id"), "grade": r["grade"], "why": why})
                 picked.append(r)
     changed = ws.update_contacts(pdir, picked, ["grade", "person", "role", "note", "grade_reason", "graded_by",
-                                                "review", "checked"])
+                                                "review", "review_reason", "checked"])
     import mo_evidence
     mo_evidence.rescore(pdir)
-    return {"updated": changed}
+    out: dict = {"updated": changed}
+    if checks:
+        table = rubric(pdir)
+        out["check"] = checks
+        out["grade_table"] = {g: table[g] for g in sorted({c["grade"] for c in checks} | {"C", "D"})}
+        out["note"] = ("these A/B rows disagree with the grade table or the brief and are marked review: correct "
+                       "them, or set them again with confirm=true if the page really says so")
+    return out
 
 
 def judge(pdir, file: str, question: str, options: dict, column: str, fields: list | None = None,

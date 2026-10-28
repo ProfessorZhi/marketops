@@ -25,4 +25,13 @@ marketops-knowledge (who to find, grades, pages that pay), `references/projects/
    {"paths": [...], "queries": ['"{name}" {city} <title>'], "roles": [...], "notes": "..."}})`.
 6. `tasks(action="done", task_id, note)`; next package.
 
+Grades in one breath (the full table: marketops-knowledge, or the brief's own `grades`):
+**A** a named person + their role + an address tied to them on an official page; **B** a role
+for the function the product serves (venue / facilities / operations manager, club secretary)
+with its real work address, a name not needed; **C** that function's or venue's own inbox
+(`sport@`, `piscine-x@`); **D** a general inbox (`info@`, `contact@`, `accueil@`, `office@`) -
+never B, whatever page it is on; **X** other functions, other organisations, guesses. The
+brief's `address_rules` win (`info` -> X). `grade(set=...)` marks for review an A/B the table
+contradicts and tells you why.
+
 A missing route is better than a wrong one.

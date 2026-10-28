@@ -120,12 +120,13 @@ class SourcesTakeTurns(Patched):
         def work(task):
             ids = [i for i in task["items"].split("|") if i]
             sets = [{"value": c["value"], "org_id": c["org_id"], "grade": "A" if "president" in c["value"] else "C",
-                     "person": "Jean" if "president" in c["value"] else ""}
+                     "person": "Jean" if "president" in c["value"] else "",
+                     "role": "Président" if "president" in c["value"] else ""}
                     for c in ws.read_contacts(pdir) if c["org_id"] in ids]
             for i in ids:
                 if orgs[i].get("website"):
                     ws.fetch(pdir, orgs[i]["website"], org_id=i, org=orgs[i]["name"])
-                    sets += [{"value": c["value"], "org_id": i, "grade": "A", "person": "Jean"}
+                    sets += [{"value": c["value"], "org_id": i, "grade": "A", "person": "Jean", "role": "Président"}
                              for c in ws.contacts_of(pdir, i)]
             if sets:
                 server.grade(p, set=sets)
@@ -269,6 +270,26 @@ class TheRest(Patched):
         self.assertEqual("pooled", next(r for r in mo_flow.source_pool(pdir) if r["source"] == "maps-11e")["status"])
         again = server.tasks(p, action="claim", kind="sweep", agent="r1")
         self.assertNotIn("role_guide", again)                       # once is enough
+
+    def test_an_agent_b_on_a_general_inbox_is_kept_but_marked_for_review(self):
+        p = "grade-073"
+        server.project(p, brief={"goal": "x", "address_rules": {"info": "X"}})
+        pdir = ws.project_dir(p)
+        ws.merge_contacts(pdir, [{"kind": "email", "value": v, "quote": "q"} for v in
+                                 ("accueil@turn.test", "info@turn.test", "marc.dupont@turn.test")], "o1", "Gym")
+        out = server.grade(p, set=[{"value": "accueil@turn.test", "grade": "B"},
+                                   {"value": "info@turn.test", "grade": "B", "role": "accueil"},
+                                   {"value": "marc.dupont@turn.test", "grade": "A", "person": "Marc Dupont",
+                                    "role": "gérant"}])
+        rows = {r["value"]: r for r in ws.read_contacts(pdir)}
+        self.assertEqual(("B", "yes"), (rows["accueil@turn.test"]["grade"], rows["accueil@turn.test"]["review"]))
+        self.assertIn("general inbox", rows["accueil@turn.test"]["review_reason"])
+        self.assertIn("address_rules", rows["info@turn.test"]["review_reason"])
+        self.assertEqual("", rows["marc.dupont@turn.test"]["review"])          # a real A passes
+        self.assertEqual(2, len(out["check"]))
+        self.assertIn("D", out["grade_table"])
+        server.grade(p, set=[{"value": "accueil@turn.test", "grade": "B", "role": "responsable", "confirm": True}])
+        self.assertEqual("", {r["value"]: r for r in ws.read_contacts(pdir)}["accueil@turn.test"]["review"])
 
     def test_every_tool_call_is_logged_with_its_agent_and_no_addresses(self):
         p = "calls-073"

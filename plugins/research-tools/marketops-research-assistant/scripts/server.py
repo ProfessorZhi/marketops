@@ -284,7 +284,10 @@ def grade(project: str, set: list[dict] | None = None, regrade: bool = False, li
     (any language), all of them unless limit. A/B rows that need a look (low confidence,
     address shared with other organisations, page on another site) get review=yes. With
     set: your own judgement, a list of {"value": email, "org_id"?, "grade"?, "person"?,
-    "role"?, "note"?}; rows you set are never regraded by Jev. Spot check: {"value", "org_id",
+    "role"?, "note"?, "confirm"?}; rows you set are never regraded by Jev. An A or B that the
+    grade table or the brief contradicts (a general inbox like info@ or accueil@, an A without
+    the person, no role) is kept but marked review, and the answer quotes the table - correct
+    it, or confirm=true when the page really supports it. Spot check: {"value", "org_id",
     "checked": "ok"|"wrong", "note"?} records that you opened the page and the row holds (or
     not) - the workbook's 抽检 sheet lists the sample and the precision. orgs=[ids]: grade only
     these organisations' rows - pass your package, so you never wait on other agents' rows.
