@@ -354,7 +354,61 @@ def _download(pdir: Path, url: str, org_id: str) -> dict:
         report["download"] = {"file": "pages/" + local.name, "bytes": len(got["bytes"]), "type": got["content_type"]}
     except Exception as exc:  # noqa: BLE001
         report["download"] = {"error": f"{type(exc).__name__}: {exc}"[:160]}
-    return {"url": url, "readers": report, "contacts": [], "links": [], "text": ""}
+    return _no_page(url, report)
+
+
+def _no_page(url: str, report: dict) -> dict:
+    """What fetch returns when it has no page to parse (a data file, a URL known to fail): every
+    key a normal read has, so a caller never meets a missing one (071: 5 KeyErrors)."""
+    return {"url": url, "title": "", "readers": report, "contacts": [], "contacts_added": 0,
+            "contacts_unattributed": 0, "links": [], "scored_links": [], "links_total": 0,
+            "content_links": [], "page_links": [], "email_buttons_without_address": 0, "text": ""}
+
+
+# ------------------------------------------------------------------ URLs that keep failing
+# 071: 74.5% of 16,093 failed reads were URLs that had failed before, one of them 206 times.
+# A URL every reader failed on BAD_URL_FAILS times within BAD_URL_HOURS is not read again until
+# the window passes; one success clears it. Shared by every process of the project (a file).
+BAD_URL_FAILS, BAD_URL_HOURS = 2, 12
+_bad_cache: dict[str, tuple] = {}
+
+
+def _bad_urls(pdir: Path) -> dict[str, list[float]]:
+    f = pdir / "bad_urls.jsonl"
+    # size as well as mtime: two appends inside one filesystem timestamp tick would otherwise
+    # leave the same signature and the cache would keep a stale failure count
+    sig = (f.stat().st_mtime_ns, f.stat().st_size) if f.exists() else (0, 0)
+    cached = _bad_cache.get(str(pdir))
+    if not cached or cached[0] != sig:
+        fails: dict[str, list[float]] = {}
+        if f.exists():
+            for line in f.read_text(encoding="utf-8").splitlines():
+                try:
+                    r = json.loads(line)
+                except ValueError:
+                    continue
+                if r.get("ok"):
+                    fails.pop(r.get("url", ""), None)
+                else:
+                    fails.setdefault(r.get("url", ""), []).append(float(r.get("t") or 0))
+        _bad_cache[str(pdir)] = cached = (sig, fails)
+    return cached[1]
+
+
+def known_bad(pdir: Path, url: str) -> int:
+    """How many times every reader failed on this URL in the window (0: worth reading)."""
+    import time
+    since = time.time() - BAD_URL_HOURS * 3600
+    n = sum(t >= since for t in _bad_urls(pdir).get(url, []))
+    return n if n >= BAD_URL_FAILS else 0
+
+
+def _note_read(pdir: Path, url: str, ok: bool) -> None:
+    import time
+    if ok and url not in _bad_urls(pdir):
+        return   # the usual case: nothing to clear, nothing written
+    append_jsonl(pdir / "bad_urls.jsonl", {"url": url, "ok": ok, "t": round(time.time(), 1)})
+    _bad_cache.pop(str(pdir), None)   # this process just changed the file; do not wait for a new mtime
 
 
 def _parse_saved(pdir: Path, row: dict) -> dict:
@@ -362,6 +416,93 @@ def _parse_saved(pdir: Path, row: dict) -> dict:
     if row["file"].endswith(".html"):
         return mo_pages.from_html(body, row["final_url"] or row["url"])
     return mo_pages.from_markdown(body, row["final_url"] or row["url"])
+
+
+UNATTRIBUTED_COLS = ["org_id", "org", "kind", "value", "page_url", "quote", "found_by", "why", "added"]
+_NEXT = re.compile(r"\s*\[next: .*\]\s*$", re.S)
+_counts_cache: dict[str, tuple] = {}
+
+
+def name_counts(pdir: Path) -> dict[str, int]:
+    """How many of the pool's organisation names carry each word (mo_pool.common_words): with
+    it, a quote names an organisation only when the name's rarest word is in it - "Gymnase
+    Paris 15" is not named by every quote with "gymnase" and "paris"."""
+    import mo_pool
+    f = pdir / "orgs.csv"
+    sig = f.stat().st_mtime_ns if f.exists() else 0
+    cached = _counts_cache.get(str(pdir))
+    if not cached or cached[0] != sig:
+        cached = (sig, mo_pool.common_words([str(o.get("name") or "") for o in read_csv(f)]))
+        _counts_cache[str(pdir)] = cached
+    return cached[1]
+
+
+def attributable(contact: dict, org: str, org_site: str, on_org: str, counts: dict | None = None) -> bool:
+    """Does this page tie this address to this organisation?
+
+    True when the page is the organisation's own (on_org yes/likely), when the address is on
+    the organisation's own domain, or when the address's own quote names the organisation
+    (the same-block test: a federation or district page that lists the club with its people).
+    A page that merely mentions the organisation somewhere - a directory, a city portal - does
+    not hand it every other organisation's addresses; those stay unattributed. The quote's
+    "[next: ...]" tail is the following entry of a list, so it never names the owner.
+    """
+    if on_org in ("yes", "likely"):
+        return True
+    if org_site and (contact.get("email_site") or "") == org_site:
+        return True
+    if contact.get("email_on_org") in ("yes", "likely"):
+        return True
+    quote = _NEXT.sub("", contact.get("quote") or "")
+    if org and quote:
+        import mo_pool
+        return mo_pool.mentions(org, quote, counts)
+    return False
+
+
+def split_attribution(contacts: list[dict], org: str, org_site: str, on_org: str,
+                      counts: dict | None = None) -> tuple[list[dict], list[dict]]:
+    """(addresses this organisation may own, addresses to hold for attribution)."""
+    keep, held = [], []
+    for c in contacts:
+        (keep if attributable(c, org, org_site, on_org, counts) else held).append(c)
+    return keep, held
+
+
+_unattributed_seen: dict[str, set] = {}
+
+
+def save_unattributed(pdir: Path, contacts: list[dict], org_id: str, org: str, via: str) -> int:
+    """Keep addresses seen on someone else's page for this organisation, without claiming them.
+
+    They stay evidence for a later same-block binding; one row per organisation and address,
+    appended (never rewritten: tens of thousands of rows and many writers)."""
+    if not contacts or not org_id:
+        return 0
+    path = pdir / "unattributed.csv"
+    with _lock(path):
+        seen = _unattributed_seen.get(str(pdir))
+        if seen is None:
+            seen = {(r.get("org_id"), (r.get("value") or "").lower()) for r in read_csv(path)}
+            _unattributed_seen[str(pdir)] = seen
+        new = 0
+        for c in contacts:
+            key = (org_id, (c.get("value") or "").lower())
+            if key in seen:
+                continue
+            seen.add(key)
+            fresh = not path.exists()
+            with open(path, "a", newline="", encoding="utf-8") as fh:
+                w = csv.DictWriter(fh, fieldnames=UNATTRIBUTED_COLS, extrasaction="ignore")
+                if fresh:
+                    w.writeheader()
+                w.writerow({"org_id": org_id, "org": org, "kind": c.get("kind", ""),
+                            "value": c.get("value", ""), "page_url": c.get("page_url", ""),
+                            "quote": (c.get("quote") or "")[:500], "found_by": c.get("found_by", ""),
+                            "why": f"page not this organisation's and its quote does not name it ({via})",
+                            "added": _now()})
+            new += 1
+    return new
 
 
 def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
@@ -383,6 +524,11 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
         readers = [r for r in ("tinyfish", "deepseek") if mo_config.key(r)] or ["crawl4ai"]
     report, parsed_by = {}, {}
     saved = [] if refresh else [r for r in _pages(pdir).get(url, []) if r["reader"] != "download"]
+    if not saved and not refresh:
+        fails = known_bad(pdir, url)
+        if fails:
+            return _no_page(url, {"skipped": {"error": f"known bad URL: every reader failed on it {fails} times "
+                                                        f"in the last {BAD_URL_HOURS} h (refresh=True to try again)"}})
     if not saved and not refresh:
         import mo_library
         for r in mo_library.get_pages(url):   # read before, by any project: reuse, no new call
@@ -489,6 +635,7 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
             read_with(held)
         if not parsed_by and readers is None and "http" not in now + held:
             read_with(["http"])   # every reader failed or none is set up: a plain GET before giving up
+        _note_read(pdir, url, bool(parsed_by))
     links: list = []
     content_links: list = []
     buttons = 0
@@ -507,7 +654,12 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
         import mo_pool
         page_text = " ".join(" ".join(p["lines"]) for p in parsed_by.values())
         generic = not mo_pool.mentions(org, page_text)
-    added = merge_contacts(pdir, contacts, org_id, org, via) if (org_id or org) and not generic else 0
+    held: list[dict] = []
+    added = 0
+    if (org_id or org) and not generic:
+        keep, held = split_attribution(contacts, org, org_site, on_org, name_counts(pdir))
+        added = merge_contacts(pdir, keep, org_id, org, via)
+        save_unattributed(pdir, held, org_id, org, via)
     best = max((p["lines"] for p in parsed_by.values()), key=lambda ls: sum(map(len, ls)), default=[])
     emails_seen = sum(c["kind"] == "email" for c in contacts)
     if parsed_by and not saved:   # a fresh read: how much this site's pages bring (site health)
@@ -516,6 +668,7 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
             mo_health.HEALTH.record_yield(url, emails_seen)
     title = next((p.get("title") for p in parsed_by.values() if p.get("title")), "")
     return {"url": url, "title": title, "readers": report, "contacts": contacts, "contacts_added": added,
+            "contacts_unattributed": len(held),
             "links": mo_pages.contact_links(links, url, limit=25),
             "scored_links": mo_pages.contact_links(links, url, limit=25, scores=True),
             "links_total": len(links), "content_links": content_links[:800], "page_links": links[:3000],

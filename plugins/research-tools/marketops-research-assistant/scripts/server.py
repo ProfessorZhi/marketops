@@ -13,8 +13,8 @@ fetch    read one page with Crawl4AI + TinyFish + DeepSeek at once; data files d
 browse   background: TinyFish Agent for pages that need clicks
 judge    Jev answers one multiple-choice question per row of any pool (in scope? own site?)
 grade    Jev grades contacts A/B/C/D/X from the brief; or set grades yourself
-run      the pipeline in background processes: discover sources and organisations, read their
-         sites, grade, dig the gaps, corroborate - all at once - then export
+run      the agents' bulk reader: read a package's (or the pool's) sites in the background and grade
+         them - paced by the agents, never digging or building pools on its own
 tasks    shared work queue: the coordinator plans packages, worker agents claim and finish them
 export   one Excel workbook (+ Bruce's 18-column routes CSV) for the salesperson
 
@@ -29,6 +29,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 os.environ.setdefault("CRAWL4AI_NO_CLOUD_NOTICE", "1")  # its banner would corrupt the stdio channel
+
+import mo_logsafe  # noqa: E402,F401 - no provider key may reach a log line (issue #86)
 
 import mo_budget  # noqa: E402
 import mo_config  # noqa: E402
@@ -130,6 +132,8 @@ def needs_you(pdir, status: dict) -> list[str]:
             if y.get("turns") == 0:
                 items.append(f"Source '{src}' gave A/B for {y['with_ab']} of {y['done']} organisations (<5%): "
                              "keep it at the back of the queue, or drop the rest of it?")
+        if st.get("waiting_for_agents"):
+            items.append(st["waiting_for_agents"]["note"] + ".")
         if st.get("stage") == "failed" or (st.get("restarts") or 0) >= mo_run.MAX_RESTARTS:
             items.append(f"Run shard {st.get('shard')} stopped: {st.get('error') or 'restarted too often'}.")
     sat = ws.source_saturation(pdir)
@@ -284,34 +288,37 @@ def judge(project: str, file: str, question: str, options: dict, column: str,
         return _err(exc)
 
 
-def run(project: str, rounds: int = 6, max_pages: int = 15, goal_ab_org_share: float | None = None,
-        agent: bool = False, stop: bool = False, workers: int = 24, shards: int = 1,
-        follow: bool = False, pool_done: bool = False, orgs: list[str] | None = None, again: bool = False) -> dict:
-    """Long research as a pipeline in its own background process(es) (survives this session).
+def run(project: str, rounds: int = 0, max_pages: int = 15, goal_ab_org_share: float | None = None,
+        agent: bool = False, stop: bool = False, workers: int = 8, shards: int = 1,
+        follow: bool = False, pool_done: bool = False, orgs: list[str] | None = None, again: bool = False,
+        discover: bool = False) -> dict:
+    """The agents' bulk reader, in background processes (survives this session). Agents lead
+    the research; this reads organisations' own sites for them, many at once.
 
-    Each organisation in orgs.csv flows on its own, many at once: its site is read, a
-    background grader grades the new addresses, then - while it has no confirmed A/B - up to
-    `rounds` dig rounds, each a different way (brief.focus.search_terms, inside the site and
-    its PDFs, focus.directory_terms directories, maps, broad searches), then the evidence for
-    its A/B addresses is corroborated. follow=True keeps taking organisations appended to
-    orgs.csv while agents still build the pool, until run(pool_done=True). Ends when every
-    organisation is done, at goal_ab_org_share (% of organisations with A/B) or on stop; the
-    workbook is refreshed every half hour and at the end. agent=True lets the TinyFish Agent
-    open pages whose email buttons hide the address (paid per step). stop=True ends a run
-    gracefully (it exports what it has). Resumable. project(name).run shows stage, round,
-    progress (organisations per minute, minutes left, cost per organisation) and results.
-    workers: organisations worked at the same time per process (each read by several providers
-    at once); shards: split orgs.csv between that many processes running in parallel.
-    orgs=[ids]: a batch for an agent - read just these organisations in the background (with
-    rounds=0: their sites only - finding the site, high-value pages, PDFs, extraction, grading -
-    and no template digging, which the agent does itself); again=True reads them anew with the
-    playbook as it is now; then read each one's result with orgs(project, ids=[...]). max_pages is a floor: a site keeps being read
-    while its pages bring new addresses (up to 40).
+    orgs=[ids] (the usual call, from a researcher's package): read just these organisations -
+    find a missing site, read the high-value pages and PDFs, extract, grade - and come back;
+    read the result with orgs(project, ids=[...], wait=600), then judge, dig with search/fetch
+    and write a verdict yourself. rounds (0-2, default 0) adds template dig rounds for this
+    package only, stopping at the first round that finds nothing; again=True reads anew with
+    the playbook as it is now.
+
+    Without orgs: the whole pool's sites are read ahead of the researchers. It never digs, and
+    it paces itself on the agents: once 30 organisations are read and wait for a researcher it
+    starts no more (project(name).run shows waiting_for_agents), and after 60 minutes with no
+    agent taking work it ends - the tools never research alone. follow=True keeps taking rows
+    agents append to orgs.csv, until run(pool_done=True). discover=True also lets the tools look
+    for new organisations from brief.focus (maps, list pages) - only when a finder agent wants
+    that; building the pools is the finders' and miners' work. agent=True lets the TinyFish Agent
+    open pages whose email buttons hide the address (paid per step). stop=True ends it
+    gracefully (it exports what it has). Resumable. workers: organisations at once per process,
+    shards: processes - both capped to what the machine's threads and memory hold.
+    max_pages is a floor: a site keeps being read while its pages bring new addresses (up to 40).
     """
     try:
         return mo_run.run(ws.project_dir(project), rounds=rounds, max_pages=max_pages,
                           goal_ab_org_share=goal_ab_org_share, agent=agent, stop=stop, workers=workers,
-                          shards=shards, follow=follow, pool_done=pool_done, orgs=orgs, again=again)
+                          shards=shards, follow=follow, pool_done=pool_done, orgs=orgs, again=again,
+                          discover=discover)
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
 
@@ -544,19 +551,20 @@ def headless(argv: list[str]) -> int:
     import argparse
     ap = argparse.ArgumentParser(prog="server.py run")
     ap.add_argument("project")
-    ap.add_argument("--rounds", type=int, default=6)
+    ap.add_argument("--rounds", type=int, default=0)
     ap.add_argument("--max-pages", type=int, default=15)
     ap.add_argument("--goal", type=float, default=None, help="%% of organisations with A/B")
     ap.add_argument("--agent", action="store_true")
-    ap.add_argument("--workers", type=int, default=24)
+    ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--shard", default="0/1")
     ap.add_argument("--follow", action="store_true")
+    ap.add_argument("--discover", action="store_true")
     a = ap.parse_args(argv)
     pdir = ws.project_dir(a.project)
     try:
         state = mo_run.run_sync(pdir, rounds=a.rounds, max_pages=a.max_pages,
                                 goal_ab_org_share=a.goal, agent=a.agent, workers=a.workers, shard=a.shard,
-                                follow=a.follow)
+                                follow=a.follow, discover=a.discover)
     except Exception as exc:  # noqa: BLE001
         k, n = a.shard.split("/")
         st = {"file": "run.json" if n == "1" else f"run.{k}.json", "shard": a.shard}

@@ -33,7 +33,7 @@ Several keys per provider (`NAME`, `NAME_2`..`_9`): a used-up key hands over by 
 | sources | `sources(add / set)` register and move lists; `search` to find them; `fetch` one page or an export (data files download to `pages/`) |
 | pages | `harvest(source, start, follow, next, sitemap, urls)` - page through a listing (or take its sitemap), read entry pages in bulk, one row per entry, Jev picks the own website; call again until nothing is queued |
 | venues, organisations | `pool(file, into, filters, map, group_by, source)` - every source into the same pools, merged on name + place; `judge(file, question, options, column)` - one Jev decision per row; `orgs(set / add)` |
-| contacts | `run(orgs=[...], rounds=0)` reads a package's sites in the background; `orgs(ids=...)` summaries; `fetch(url, org_id)` for digging; `grade()` (Jev) and `grade(set=...)` (you); `browse` for click-hidden contacts (paid) |
+| contacts | `run(orgs=[...])` reads a package's sites in the background (rounds 0-2, default 0: digging is yours); `orgs(ids=...)` summaries; `fetch(url, org_id)` for digging; `grade()` (Jev) and `grade(set=...)` (you); `browse` for click-hidden contacts (paid) |
 | all | `project(name)` - brief, `flow` (pools, waiting work, lanes), `needs_you`, costs; `tasks(plan / claim / done / add / verdict)` - the lanes; `export` - the workbook |
 
 ## Using them well

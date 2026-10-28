@@ -202,9 +202,51 @@ class _Gate(_Rate):
 
 
 GATE = _Gate()
+
+
+def _memory_gb() -> float:
+    """Memory this process may use: the cgroup's soft limit (memory.high, else memory.max) when
+    there is one - a service unit's limit, not the machine's - else the machine's RAM."""
+    limits = []
+    try:
+        with open("/proc/self/cgroup", encoding="utf-8") as fh:
+            rel = fh.read().strip().split("::")[-1]
+        for name in ("memory.high", "memory.max"):
+            try:
+                with open(f"/sys/fs/cgroup{rel}/{name}", encoding="utf-8") as fh:
+                    v = fh.read().strip()
+                if v.isdigit():
+                    limits.append(int(v) / 1e9)
+            except OSError:
+                continue
+    except (OSError, IndexError):
+        pass
+    try:
+        limits.append(os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 1e9)
+    except (ValueError, OSError, AttributeError):
+        limits.append(8.0)
+    return min(limits)
+
+
+def machine_budget() -> dict:
+    """What this machine holds at once (Paris 071: 24 organisations x 4 pages, 32 threads per
+    reader and 12 browser tabs reached 4,094 of 4,096 threads, then memory.high stalled every
+    process). A browser tab takes ~1.2 GB with its renderer; an organisation in flight with its
+    page threads ~1 GB; every run process starts its own browser."""
+    cpus = os.cpu_count() or 2
+    mem = _memory_gb()
+    return {"cpus": cpus, "memory_gb": round(mem, 1),
+            "browser_tabs": max(2, min(12, cpus, int(mem / 1.2))),
+            "orgs_in_flight": max(2, min(24, cpus * 2, int(mem))),
+            "reader_threads": max(4, min(16, cpus * 2))}
+
+
+_BUDGET = machine_budget()
 HOST_CAP = int(os.environ.get("MARKETOPS_PER_HOST", "4"))           # requests in flight per web host
 HOST_INTERVAL = float(os.environ.get("MARKETOPS_HOST_INTERVAL", "0.25"))
-BROWSER_TABS = int(os.environ.get("MARKETOPS_BROWSER_TABS", "12"))  # browser tabs on the whole machine
+BROWSER_TABS = int(os.environ.get("MARKETOPS_BROWSER_TABS") or _BUDGET["browser_tabs"])  # tabs on the whole machine
+MAX_ORGS_IN_FLIGHT = int(os.environ.get("MARKETOPS_MAX_ORGS") or _BUDGET["orgs_in_flight"])   # all run processes
+READER_THREADS = int(os.environ.get("MARKETOPS_READER_THREADS") or _BUDGET["reader_threads"])  # per reader / engine
 BUSY = re.compile(r"HTTP (429|503)\b(?:.*?retry-after=(\d+))?", re.I)
 
 
@@ -726,7 +768,7 @@ def _pool(name: str) -> ThreadPoolExecutor:
     """One worker pool per reader / engine: a slow one piling up never holds back the others."""
     with _POOLS_LOCK:
         if name not in _POOLS:
-            _POOLS[name] = ThreadPoolExecutor(max_workers=32, thread_name_prefix=name)
+            _POOLS[name] = ThreadPoolExecutor(max_workers=READER_THREADS, thread_name_prefix=name)
         return _POOLS[name]
 
 

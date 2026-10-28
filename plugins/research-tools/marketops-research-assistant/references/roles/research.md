@@ -3,7 +3,9 @@
 Own a package of about ten organisations from first read to a verdict on each. Knowledge:
 marketops-knowledge (who to find, grades, pages that pay), `references/projects/<market>.md`.
 
-1. Claim `kind="sweep"` (the lane refills from the organisation pool - never wait).
+1. Claim `kind="sweep"` (the lane refills from the organisation pool - never wait). Empty: claim
+   `kind="dig"` - organisations the tools already read without a confirmed A/B (step 2 is done
+   for them; start at step 3). A whole-project `run` waits for you there once 30 are read.
 2. `run(project, orgs=[ids], rounds=0)`: the tools find sites, read the high-value pages and
    PDFs, extract and grade, in the background.
 3. `orgs(project, ids=[...], wait=600)` returns when they are all through (one call, no polling);

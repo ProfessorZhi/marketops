@@ -27,6 +27,13 @@ Other knowledge, read when needed: **marketops-tools** (the six providers and th
 ## What makes the work good
 
 Five things decide a run; each has a reason and a place where the plugin holds it for you.
+Under all five: **agents lead, tools follow.** The agents choose the lists, mine them, judge
+whose an address is, dig, drop a source; the tools do the bulk work an agent asks for in one
+call (read ten sites, page through a list, grade a batch) and hand it back. A tool never
+researches alone: `run` without `orgs` only reads sites ahead of the researchers, stops
+starting new ones once 30 wait for an agent (`waiting_for_agents`), and ends after an hour
+with no agent taking work. Paris 071 let a script dig six rounds alone for six hours: 15
+organisations with A/B for 105 organisation-hours, most addresses wrongly shared.
 
 - **Pipeline - stages hand over through pools, never through messages.** A stage takes what is
   on disk in the pool before it and writes to the pool after it, so no stage waits for another to
@@ -75,7 +82,8 @@ before anything else:
    references/roles/<role>.md of the marketops plugin and work until your lane is empty.`
    (Claude Code: `marketops-worker` subagents in the background; Codex / WorkBuddy: their
    multi-agent mode, else one session per worker; no multi-agent: work the lanes in turn.)
-4. **Lanes feed themselves.** `source`, `site` and `sweep` refill from the pools when claimed;
+4. **Lanes feed themselves.** `source`, `site`, `sweep` and `dig` refill from the pools when
+   claimed (`dig`: organisations the tools read without a confirmed A/B);
    you add `find` lanes for gaps (`tasks(action="add", kind="find", title="find: <layer>,
    <region>")`), `dig` packages for a second look, `review` for rows to check.
 5. **Steer every 10-15 minutes** from `project(name)["flow"]`: where work waits between pools,
