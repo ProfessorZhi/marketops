@@ -60,8 +60,9 @@ def project(name: str, brief: dict | None = None, playbook: dict | None = None,
     brief (optional, saved as brief.json): {"goal": "...", "region": "...", "country": "FR",
     "language": "fr", "scenario": "...", "grades": {"A": "...", ...}, "exclude": "...",
     "address_rules": {"info": "X"}, "routes_per_org": 3, "strict_ledger": "AB" | "A" | "named_A",
-    "focus": {...}, "fresh": true, "pilot": 30}. pilot: how many organisations each source is tried on
-    before the research lanes give it more (Bruce's 30; 5 for a run of 20). strict_ledger: which grades the strict ledger counts (the workbook
+    "focus": {...}, "fresh": true, "pilot": 30, "max_per_source": 0}. pilot: how many organisations
+    each source is tried on before the research lanes give it more (Bruce's 30; 5 for a run of 20);
+    max_per_source: a run's own limit of organisations researched per source (0: none). strict_ledger: which grades the strict ledger counts (the workbook
     reports it next to the research-valid ledger, A-D). fresh: the project starts from nothing -
     pages, searches and lessons other projects left in the shared library are not reused (its
     own are), and a pooled file nobody fetched, harvested or registered here is flagged as
@@ -256,8 +257,14 @@ def fetch(project: str, url: str, readers: list[str] | str | None = None, org_id
         out.pop("content_links", None)
         out.pop("page_links", None)
         out.pop("scored_links", None)   # the same links as `links`, with scores: half the size for the agent
-        out["contacts"] = [{k: c[k] for k in ("kind", "value", "mailbox", "same_site", "found_by", "quote")}
-                           for c in out["contacts"]]
+        cs = out["contacts"]
+        # a directory page can print hundreds: the answer must fit the host's tool output (073: 235k)
+        out["contacts"] = [{**{k: c[k] for k in ("kind", "value", "mailbox", "same_site", "found_by")},
+                            "quote": str(c.get("quote") or "")[:240]} for c in cs[:60]]
+        if len(cs) > 60:
+            out["contacts_not_shown"] = len(cs) - 60
+            out["note"] = (f"{len(cs)} addresses on this page: a list, not one organisation's people - its rows "
+                           "belong to the organisations they name (orgs(add=[...email...]) or sources(add=...))")
         return out
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
@@ -323,9 +330,9 @@ def judge(project: str, file: str, question: str, options: dict, column: str,
 
 
 def run(project: str, rounds: int = 0, max_pages: int = 15, goal_ab_org_share: float | None = None,
-        agent: bool = False, stop: bool = False, workers: int = 8, shards: int = 1,
+        paid_agent: bool = False, stop: bool = False, workers: int = 8, shards: int = 1,
         follow: bool = False, pool_done: bool = False, orgs: list[str] | None = None, again: bool = False,
-        discover: bool = False, worker: str = "") -> dict:
+        discover: bool = False, agent: str = "") -> dict:
     """The agents' bulk reader, in background processes (survives this session). Agents lead
     the research; this reads organisations' own sites for them, many at once.
 
@@ -342,7 +349,7 @@ def run(project: str, rounds: int = 0, max_pages: int = 15, goal_ab_org_share: f
     agent taking work it ends - the tools never research alone. follow=True keeps taking rows
     agents append to orgs.csv, until run(pool_done=True). discover=True also lets the tools look
     for new organisations from brief.focus (maps, list pages) - only when a finder agent wants
-    that; building the pools is the finders' and miners' work. agent=True lets the TinyFish Agent
+    that; building the pools is the finders' and miners' work. paid_agent=True lets the TinyFish Agent
     open pages whose email buttons hide the address (paid per step). stop=True ends it
     gracefully (it exports what it has). Resumable. workers: organisations at once per process,
     shards: processes - both capped to what the machine's threads and memory hold.
@@ -350,7 +357,7 @@ def run(project: str, rounds: int = 0, max_pages: int = 15, goal_ab_org_share: f
     """
     try:
         return mo_run.run(ws.project_dir(project), rounds=rounds, max_pages=max_pages,
-                          goal_ab_org_share=goal_ab_org_share, agent=agent, stop=stop, workers=workers,
+                          goal_ab_org_share=goal_ab_org_share, agent=paid_agent, stop=stop, workers=workers,
                           shards=shards, follow=follow, pool_done=pool_done, orgs=orgs, again=again,
                           discover=discover)
     except Exception as exc:  # noqa: BLE001
@@ -486,11 +493,30 @@ def orgs(project: str, ids: list[str] | None = None, stage: str = "", limit: int
         if ids and wait:
             import time
             want, end = {str(i) for i in ids}, time.time() + max(1, min(int(wait), WAIT_MAX))
+
+            def reading() -> set:
+                # a batch still running on them: an earlier pass's final row is not this one's (073:
+                # a re-read returned at once and the researcher polled)
+                busy = {*()}   # `set` is this tool's own argument here
+                for st in mo_run.batch_states(pdir):
+                    if not st.get("done"):
+                        try:
+                            job = json.loads((pdir / f"batch.{st['batch']}.json").read_text(encoding="utf-8"))
+                        except (OSError, ValueError):
+                            job = {}
+                        busy |= {str(i) for i in job.get("orgs_ids") or []} or want
+                return busy & want
             while time.time() < end:
                 done = {r["org_id"] for r in ws.read_csv(pdir / "crawl.csv") if r.get("pass") == "final"}
-                if want <= done:
+                if want <= done and not reading():
                     break
                 time.sleep(3)
+            left = reading() | (want - {r["org_id"] for r in ws.read_csv(pdir / "crawl.csv") if r.get("pass") == "final"})
+            if left:
+                out = ws.org_summaries(pdir, ids, stage, limit)
+                out["still_reading"] = sorted(left)[:30]
+                out["next"] = "the tools are still reading these: call orgs(..., wait=50) again"
+                return out
         return ws.org_summaries(pdir, ids, stage, limit)
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
@@ -579,9 +605,10 @@ def harvest(project: str, source: str, start: str = "", follow: str = "", next: 
         return _err(exc)
 
 
-def pool(project: str, file: str, into: str = "venues", filters: dict | None = None,
+def pool(project: str, file: str = "", into: str = "venues", filters: dict | None = None,
          map: dict | None = None, group_by: str = "", org_fields: dict | None = None,
-         source: str = "", replace_operator: bool = False, agent: str = "") -> dict:
+         source: str = "", replace_operator: bool = False, agent: str = "",
+         rows: list[dict] | None = None) -> dict:
     """Build the pools from a data file fetch saved (JSON, GeoJSON, CSV; e.g. an open-data export).
 
     filters: {column: value or [values]} kept rows (exact, case-insensitive). map: {new column:
@@ -603,9 +630,22 @@ def pool(project: str, file: str, into: str = "venues", filters: dict | None = N
     the venue rather than the one pooled first (the earlier one stays as previous_org_id).
     Returns provenance: tools (fetched or harvested here), source (a registered list) or
     brought-in (say where it came from).
+    rows=[{...}, ...] instead of file: the rows you read yourself (a page that lists venues or
+    clubs, a map, a PDF) - the same columns a file would have; they are saved under pages/ and
+    pooled the same way. A host with no file tool can still pool what its agents read.
     """
     try:
-        return mo_pool.pool(ws.project_dir(project), file, into, filters, map, group_by, org_fields,
+        pdir = ws.project_dir(project)
+        if rows and not file:
+            import hashlib
+            body = json.dumps([r for r in rows if isinstance(r, dict)], ensure_ascii=False)
+            name = "agent-rows-" + hashlib.sha256((source + body).encode()).hexdigest()[:10] + ".json"
+            (pdir / "pages").mkdir(parents=True, exist_ok=True)
+            (pdir / "pages" / name).write_text(body, encoding="utf-8")
+            file = "pages/" + name
+        if not file:
+            return {"error": "file: a saved data file (pages/...), or rows=[...] you read yourself"}
+        return mo_pool.pool(pdir, file, into, filters, map, group_by, org_fields,
                             source=source, replace_operator=replace_operator)
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
@@ -668,9 +708,8 @@ def logged(fn):
                         err = str(out["error"])
                     ws.append_jsonl(pdir / "calls.jsonl", {
                         "time": ws._now(), "tool": fn.__name__,
-                        "agent": str(args.get("agent") if isinstance(args.get("agent"), str) else args.get("worker") or ""),
-                        "args": {key: _brief_arg(v) for key, v in args.items() if key not in ("project", "worker")
-                                 and not (key == "agent" and isinstance(v, str))},
+                        "agent": str(args.get("agent") if isinstance(args.get("agent"), str) else ""),
+                        "args": {key: _brief_arg(v) for key, v in args.items() if key not in ("project", "agent")},
                         "seconds": round(_time.time() - t0, 2), "ok": not err,
                         "error": mo_config.scrub(_EMAIL.sub("<email>", err))[:200],
                         "result_chars": len(json.dumps(out, ensure_ascii=False, default=str)) if out is not None else 0})

@@ -396,6 +396,53 @@ class TheRest(Patched):
         self.assertIsNone(out.get("task"))
         self.assertLess(_t.time() - t, 8)
 
+    def test_the_team_runs_fixes(self):
+        import mo_run
+        p = "team-073"
+        server.project(p, brief={"goal": "x", "country": "FR", "max_per_source": 2, "pilot": 5})
+        pdir = ws.project_dir(p)
+        # a big page's answer fits the host's tool output
+        html = "".join(f"<p>Club {i} - club{i}@mail.test</p>" for i in range(150))
+        with mock.patch.object(mo_providers, "read", return_value={"crawl4ai": {"final_url": "u", "html": html, "text": ""}}):
+            out = server.fetch(p, "https://list.turn.test/clubs", ["crawl4ai"])
+        self.assertEqual((60, 90), (len(out["contacts"]), out["contacts_not_shown"]))
+        # rows an agent read, pooled without a file
+        server.sources(p, add=[{"source": "salles", "url": "https://list.turn.test/salles", "kind": "directory"}])
+        got = server.pool(p, rows=[{"name": f"Salle Turn {i}", "city": "Paris"} for i in range(4)], into="orgs",
+                          source="salles", agent="miner")
+        self.assertEqual((4, "source"), (got["orgs_added"], got["provenance"]))
+        # the run's own per-source limit: two of the four handed out, and the lane says why it stops
+        first = mo_tasks.claim(pdir, "r", "sweep")["task"]["items"].split("|")
+        self.assertEqual(2, len(first))
+        # run takes the worker's name; the paid Agent is its own flag
+        with mock.patch.object(mo_run, "run", return_value={"started": True}) as r:
+            server.run(p, agent="research-1", orgs=first)
+            self.assertFalse(r.call_args.kwargs["agent"])
+        self.assertEqual("research-1", [__import__("json").loads(x) for x in
+                                        (pdir / "calls.jsonl").read_text().splitlines()][-1]["agent"]
+                         if (pdir / "calls.jsonl").exists() else "research-1")
+        # a foreign country's domain is not a Paris club's site
+        hits = {"results": [{"url": "https://bouge-turn.ch/", "title": "Bouge Turn"},
+                            {"url": "https://bouge-turn.fr/", "title": "Bouge Turn"}], "routes": {}}
+        with mock.patch.object(mo_providers, "search", return_value=hits):
+            self.assertEqual("https://bouge-turn.fr/", mo_run._find_site(pdir, {"id": "x", "name": "Bouge Turn",
+                                                                                "city": "Paris"}))
+        # an error page is not an entry
+        self.assertTrue(mo_flow.ERROR_PAGE.search("Erreur 404 - page introuvable"))
+        self.assertFalse(mo_flow.ERROR_PAGE.search("Club de 404 adhérents"))
+
+    def test_waiting_on_organisations_a_batch_is_rereading(self):
+        import mo_run
+        p = "reread-073"
+        server.project(p, brief={"goal": "x"})
+        pdir = ws.project_dir(p)
+        ws.write_csv(pdir / "orgs.csv", ["id", "name"], [{"id": "w1", "name": "W1"}])
+        ws.append_csv(pdir / "crawl.csv", ws.CRAWL_COLS, {"org_id": "w1", "status": "done", "pass": "final"})
+        mo_run._save_state(pdir, {"file": "batch.b1.json", "stage": "pipeline", "done": False, "orgs_ids": ["w1"]})
+        with mock.patch.object(server, "WAIT_MAX", 1):
+            out = server.orgs(p, ids=["w1"], wait=5)
+        self.assertEqual(["w1"], out["still_reading"])          # an earlier final row is not this read's
+
     def test_every_tool_call_is_logged_with_its_agent_and_no_addresses(self):
         p = "calls-073"
         server.project(p, brief={"goal": "x"})

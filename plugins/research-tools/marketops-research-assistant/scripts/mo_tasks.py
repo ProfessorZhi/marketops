@@ -151,11 +151,14 @@ def _mix(pdir, items: list[str], rows: list[dict]) -> list[str]:
     for i in items:
         queues.setdefault(source_of(orgs.get(i, {})), []).append(i)
     room, size = {}, pilot(pdir)
+    cap = int(ws.brief(pdir).get("max_per_source") or 0)   # a run's own limit per source, if it set one
     for src in queues:
         y = yields.get(src, {"state": "pilot", "worked": 0})
         room[src] = (0 if y["state"] in ("dropped", "waiting") else
                      max(0, size - y["worked"] - inflight.get(src, 0)) if y["state"] == "pilot"
                      else len(queues[src]))
+        if cap:
+            room[src] = min(room[src], max(0, cap - y["worked"] - inflight.get(src, 0)))
     out = []
     while any(queues[s] and room[s] > 0 for s in queues):
         for s in queues:
@@ -292,6 +295,16 @@ def claim(pdir, agent: str, kind: str = "") -> dict:
     if got.get("task") is None and kind in AUTO_PLAN:
         plan(pdir, kind, AUTO_PLAN[kind])
         got = _claim(pdir, agent, kind)
+    if got.get("task") is None and kind in ("sweep", "dig", "site"):
+        # say why the lane is empty: pilots full and sources waiting look like "nothing to do" (073)
+        ys = source_yield(pdir)
+        waiting = {s: y["orgs"] - y["worked"] for s, y in ys.items() if y["state"] == "waiting"}
+        piloting = [s for s, y in ys.items() if y["state"] == "pilot"]
+        if waiting or piloting:
+            got["why_empty"] = (f"{len(piloting)} source(s) are on their pilot (their next organisations come when "
+                                "the pilot's verdicts are in); " if piloting else "") + (
+                f"{sum(waiting.values())} organisations wait behind sources whose pilot found no A/B: "
+                + ", ".join(list(waiting)[:5]) + " - the lead scales or drops them" if waiting else "")
     if got.get("task") and got["task"]["kind"] == "source":
         import mo_flow
         for i in got["task"]["items"].split("|"):

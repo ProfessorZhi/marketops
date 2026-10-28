@@ -44,6 +44,9 @@ PLATFORMS = ("facebook.", "instagram.", "twitter.", "x.com", "linkedin.", "youtu
 # a postcode and a town on a short address line: "75002 Paris", "1 rue X, 8004 Zürich" - not a
 # year ("2026 Prize") and not a sentence
 POSTCODE = re.compile(r"(?:^|,\s*|\s)(?:[A-Z]{1,2}-)?(?!(?:19|20)\d\d\b)(\d{4,5})\s+([A-ZÀ-Ý][\w'’-]+(?:[ -][\w'’-]+){0,2})\s*$")
+# a detail page that is the site's error page is not an entry (073: a 404 page pooled as a venue)
+ERROR_PAGE = re.compile(r"\b(?:erreur|error)\s*404\b|\b404\b.{0,30}(?:not found|introuvable|non trouv)|"
+                        r"page (?:not found|introuvable|non trouv[ée]e)|seite nicht gefunden", re.I)
 KINDS = {
     "venue": "a place: a sports ground, pitch, hall, pool, course or other facility",
     "club_or_association": "a club, association or society that plays or organises an activity",
@@ -410,6 +413,8 @@ def harvest(pdir: Path, source: str, start: str = "", follow: str = "", next: st
                                              "website": f"{urllib.parse.urlsplit(href).scheme}://{urllib.parse.urlsplit(href).netloc}",
                                              "lines": f"listed on {item['url']}"})
                 done[item["url"]] = ("read", f"{len(details)} entries, {len(pages)} pages")
+            elif ERROR_PAGE.search(" ".join([str(page.get("title") or "")] + (page.get("text") or "").split("\n")[:3])):
+                done[item["url"]] = ("failed", "an error page (404 / not found), not an entry")
             else:
                 row = _row_from_page(page, src_host)
                 row["source"] = source

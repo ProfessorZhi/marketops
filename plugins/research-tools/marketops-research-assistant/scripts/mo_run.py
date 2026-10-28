@@ -176,6 +176,7 @@ def _find_site(pdir, org: dict, replace: bool = False) -> str:
     words = [w for w in _name_words(name) if len(w) > 3]
     if not name or not words:
         return ""
+    country = str(ws.brief(pdir).get("country") or "").strip()
     try:
         res = mo_providers.search(" ".join(x for x in (f'"{name}"', city) if x), None, n=8, project_dir=pdir,
                                   weights=ws.weights(pdir, "search"))
@@ -186,6 +187,9 @@ def _find_site(pdir, org: dict, replace: bool = False) -> str:
         site = mo_pages.site_of(url)
         if not url.startswith("http") or any(p in url for p in mo_discover.PLATFORMS) or site in ws.shared_sites(pdir):
             continue
+        tld = site.rsplit(".", 1)[-1]
+        if country and len(tld) == 2 and tld != country.lower() and tld not in ("eu", "io", "co", "me", "tv"):
+            continue   # a Swiss .ch for a Paris club with a common word in its name (073)
         squashed = re.sub(r"[^a-z0-9]", "", site)
         home_page = urllib.parse.urlsplit(url).path.strip("/").count("/") == 0 and len(urllib.parse.urlsplit(url).path) < 30
         # its name in the domain, or (clubs often use initials) a home page titled with its name
@@ -778,7 +782,8 @@ def run(pdir, rounds: int = 0, max_pages: int = 15, goal_ab_org_share: float | N
         ids = list(dict.fromkeys(str(i) for i in orgs if str(i).strip()))[:200]
         jid = hashlib.sha256(("|".join(ids) + ws._now()).encode()).hexdigest()[:8]
         job = {"id": jid, "orgs": ids, "again": bool(again)}
-        _save_state(pdir, {"file": f"batch.{jid}.json", "stage": "starting", "done": False, "orgs": len(ids)})
+        _save_state(pdir, {"file": f"batch.{jid}.json", "stage": "starting", "done": False, "orgs": len(ids),
+                           "orgs_ids": ids})
         opts = {"rounds": rounds, "max_pages": max_pages, "workers": min(workers, max(4, len(ids))), "agent": agent}
         server = Path(__file__).resolve().parent / "server.py"
         env = dict(os.environ, MARKETOPS_PROJECTS=str(pdir.parent))
