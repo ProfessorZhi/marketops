@@ -327,8 +327,35 @@ def _phones(line: str) -> list[str]:
         digits = re.sub(r"\D", "", s)
         if not 9 <= len(digits) <= 15 or DATEISH.search(s) or s.count(".") > 3:
             continue
+        # one unbroken run of digits that starts with neither 0 nor + is a number of record (a
+        # SIREN's 9, a SIRET's 14), not a telephone (077: 1,778 of them on one directory's pages)
+        if s.isdigit() and not s.startswith("0"):
+            continue
         found.append(s)
     return found
+
+
+# national numbering, where a country is known: (trunk-prefixed length, country code, digits after it)
+PHONE_PLANS = {"FR": (10, "33", 9), "BE": (9, "32", 8), "CH": (10, "41", 9), "GB": (11, "44", 10),
+               "IT": (0, "39", 0), "ES": (9, "34", 9), "NL": (10, "31", 9), "US": (10, "1", 10)}
+
+
+def phone_fits(value: str, country: str) -> bool:
+    """Is this a telephone number of the brief's country (or an international one)? Without a
+    plan for the country every number the extractor kept is kept."""
+    plan = PHONE_PLANS.get((country or "").upper())
+    digits = re.sub(r"\D", "", value)
+    if not plan:
+        return True
+    trunk, cc, rest = plan
+    if value.strip().startswith("+") or digits.startswith("00"):
+        d = digits[2:] if digits.startswith("00") else digits
+        return not d.startswith(cc) or not rest or len(d) == len(cc) + rest or (
+            cc in ("33", "41", "32") and len(d) == len(cc) + rest + 1 and d[len(cc)] == "0")
+    if (country or "").upper() == "US":
+        return len(digits) in (10, 11)
+    return not trunk or (digits.startswith("0") and len(digits) == trunk) or (
+        (country or "").upper() == "BE" and digits.startswith("0") and len(digits) in (9, 10))
 
 
 def _unglue(e: str, before: str, known: set[str]) -> str:

@@ -145,7 +145,9 @@ def source_yield(pdir) -> dict[str, dict]:
         st = states.get(src.casefold()) or states.get(src.rsplit("/", 1)[-1].casefold(), "")
         rate = y["with_ab"] / y["worked"] if y["worked"] else 0.0
         y["ab_rate"] = round(rate, 3)
-        y["state"] = ("dropped" if st == "dropped" else "scale" if st == "scale"
+        # dropped stops new handouts; a source that already gave organisations is "stopped", and what
+        # it gave still counts (077: the richest source read "dropped" beside 28 organisations with A/B)
+        y["state"] = (("stopped" if y["orgs"] else "dropped") if st == "dropped" else "scale" if st == "scale"
                       else "pilot" if y["worked"] < min(size, y["orgs"])
                       else "scaling" if rate >= STOP
                       else "pilot" if y["worked"] < min(PAUSE_MIN, y["orgs"])   # too few to judge yet
@@ -172,7 +174,7 @@ def _mix(pdir, items: list[str], rows: list[dict]) -> list[str]:
     cap = int(ws.brief(pdir).get("max_per_source") or 0)   # a run's own limit per source, if it set one
     for src in queues:
         y = yields.get(src, {"state": "pilot", "worked": 0})
-        room[src] = (0 if y["state"] in ("dropped", "waiting") else
+        room[src] = (0 if y["state"] in ("dropped", "stopped", "waiting") else
                      max(0, max(size, PAUSE_MIN if y["worked"] >= size else 0) - y["worked"] - inflight.get(src, 0))
                      if y["state"] == "pilot" else len(queues[src]))
         if cap:
@@ -456,6 +458,7 @@ def _payload(pdir, task: dict) -> list[dict]:
 # lanes that refill themselves from the pools: a researcher claiming `dig` takes the organisations
 # the tools have read and left without a confirmed A/B - the run waits for exactly this
 AUTO_PLAN = {"sweep": 10, "source": 1, "site": 15, "dig": 10}
+RESEARCH_LANES = {"sweep": ("dig",), "dig": ("sweep",)}
 
 
 def claim(pdir, agent: str, kind: str = "") -> dict:
@@ -466,6 +469,16 @@ def claim(pdir, agent: str, kind: str = "") -> dict:
     if got.get("task") is None and kind in AUTO_PLAN:
         plan(pdir, kind, AUTO_PLAN[kind])
         got = _claim(pdir, agent, kind)
+    # a researcher's lanes are one job: an empty sweep hands out dig (organisations the tools have
+    # read - a whole-project run takes them out of sweep), and an empty dig hands out sweep (077:
+    # 14 empty sweep claims while 50 read organisations waited in a dig lane nobody had planned)
+    for other in RESEARCH_LANES.get(kind, ()):
+        if got.get("task") is not None:
+            break
+        got = _claim(pdir, agent, other)
+        if got.get("task") is None:
+            plan(pdir, other, AUTO_PLAN[other])
+            got = _claim(pdir, agent, other)
     if got.get("task") is None:
         got.update(outlook(pdir, kind, agent))
     if got.get("task") and got["task"]["kind"] == "source":
@@ -504,7 +517,7 @@ def outlook(pdir, kind: str = "", agent: str = "") -> dict:
     piloting = [s for s, y in ys.items() if y["state"] == "pilot" and y["orgs"] > y["worked"]]
     cap = int(ws.brief(pdir).get("max_per_source") or 0)
     capped = {s: y["orgs"] - y["worked"] for s, y in ys.items()
-              if cap and y["worked"] >= cap and y["orgs"] > y["worked"] and y["state"] not in ("dropped", "waiting")}
+              if cap and y["worked"] >= cap and y["orgs"] > y["worked"] and y["state"] not in ("dropped", "stopped", "waiting")}
     quiet = _quiet_for(pdir) >= QUIET_S
     if piloting and not quiet:
         waits = True

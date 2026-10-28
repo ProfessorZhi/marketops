@@ -574,6 +574,8 @@ def flow(pdir: Path) -> dict:
     by_state = {s: 0 for s in SOURCE_STATES}
     for r in spool:
         st = "pooled" if r["source"] in pooled_names and r.get("status") != "dropped" else (r.get("status") or "found")
+        if st == "dropped" and r["source"] in pooled_names:
+            st = "stopped"   # dropped after it pooled: no more handouts, its organisations still count
         by_state[st] = by_state.get(st, 0) + 1
     sat = ws.source_saturation(pdir)
     frontier = ws.read_csv(pdir / "frontier.csv")

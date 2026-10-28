@@ -499,6 +499,18 @@ def manual(pdir, updates: list[dict]) -> dict:
     An A or B that disagrees with the grade table or the brief is kept and marked review with
     the reason (confirm=True on the update: the agent has looked, no mark)."""
     rows = ws.read_contacts(pdir)
+    # {org_id, all: grade}: every address of that organisation an agent has not set itself, at once
+    # (077: a dojo's 13 instructor mailboxes, one by one or not at all)
+    bulk = []
+    for u in updates:
+        if isinstance(u, dict) and u.get("all") and u.get("org_id") and not u.get("value"):
+            g = str(u["all"]).upper()
+            if g in GRADES:
+                bulk += [{"value": r["value"], "org_id": r["org_id"], "grade": g, "confirm": True,
+                          "note": str(u.get("note") or "set for the whole organisation")}
+                         for r in rows if r.get("org_id") == str(u["org_id"]) and r.get("kind", "email") == "email"
+                         and not str(r.get("graded_by", "")).startswith("agent")]
+    updates = [u for u in updates if not (isinstance(u, dict) and u.get("all") and not u.get("value"))] + bulk
     picked, checks = [], []
     # an address a list printed for this organisation, kept aside when the list was read under
     # another's name (or under none): the agent who knows whose it is attaches it here - from a
