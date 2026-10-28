@@ -1,4 +1,4 @@
-# MarketOps Research Assistant 0.7.5
+# MarketOps Research Assistant 0.7.6
 
 调研插件：从公开数据集到场地池、机构池，再到带证据、已评级的联系人，最后交付一张 Excel。
 给 Claude Code 用。插件只提供能力，流程由 agent 自己掌握。
@@ -45,6 +45,10 @@
 
 项目文件夹就是普通文件（`~/MarketOps/<项目>/`）：`brief.json`、`venues.csv`、`orgs.csv`、
 `contacts/`、`crawl.csv`、`trace.jsonl`、`costs.jsonl`；网页原件在共享资料库 `~/.marketops/library`。agent 和人都可以直接打开、修改，断了接着跑。
+
+## 0.7.6 更新：密钥槽位不再有上限
+
+- **槽位不设上限**：`SERPER_API_KEY`、`SERPER_API_KEY_2` … `_N`，设了多少个编号就认多少个槽，`_10`、`_25` 都算，编号按数值排序（`_10` 在 `_9` 之后）。一个值里用逗号分隔多把仍然可以。之前写死到 `_9`，第 10 把静默不生效。
 
 ## 0.7.5 更新：名录采集不再造假机构、重复机构自动找出、交付前必须抽检（巴黎 11 区 0.7.4 复盘）
 

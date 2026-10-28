@@ -6,8 +6,9 @@ Keys come from the environment, ``~/.marketops/keys.env`` (KEY=value lines, writ
 installer, readable only by the user) and ``MARKETOPS_KEYS_FILE`` if set (e.g. a vault file).
 A key is never returned to the agent.
 
-Several keys per provider (slots): ``TYPESAFE_API_KEY``, ``TYPESAFE_API_KEY_2`` ... ``_9``, or
-several in one value separated by commas. The first slot that is not used up is used; a slot
+Several keys per provider (slots): ``TYPESAFE_API_KEY``, ``TYPESAFE_API_KEY_2`` ... ``_N`` for
+any N, or several in one value separated by commas. There is no cap on the number of slots.
+The first slot that is not used up is used; a slot
 the provider refuses for money, quota or an invalid key is set aside for SLOT_RETRY_H hours and
 the next one takes over in the same run. The key files are read again when they change, so a
 new or topped-up key works without restarting anything.
@@ -78,15 +79,23 @@ def _file_keys() -> dict[str, str]:
 
 def slots(provider: str) -> list[str]:
     """Every key configured for a provider, in order: the key files first (they can be changed
-    while running), then the environment."""
+    while running), then the environment.
+
+    The names are ``<NAME>``, ``<NAME>_2`` ... ``<NAME>_N`` with no upper bound - every numbered
+    name that is set is a slot - and one value may hold several keys separated by commas."""
     name = KEYS.get(provider)
     if not name:   # crawl4ai, plain http, downloads: nothing to configure
         return []
-    names = [name] + [f"{name}_{n}" for n in range(2, 10)]
+    pattern = re.compile(rf"^{re.escape(name)}(?:_(\d+))?$")
     out: list[str] = []
     for source in (_file_keys(), os.environ):
-        for n in names:
-            for k in re.split(r"[,\s]+", str(source.get(n) or "")):
+        numbered: list[tuple[int, str]] = []
+        for slot_name, value in source.items():
+            m = pattern.match(str(slot_name))
+            if m:   # _2 before _10, and a bare name first
+                numbered.append((int(m.group(1) or 1), str(value or "")))
+        for _, value in sorted(numbered, key=lambda slot: slot[0]):
+            for k in re.split(r"[,\s]+", value):
                 if k.strip() and k.strip() not in out:
                     out.append(k.strip())
     return out
