@@ -13,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-import mo_logsafe  # noqa: E402
+import mo_logsafe  # noqa: E402,F401 - installs the filter
 
 SENTINEL = "SENTINEL_SECRET_abcdef123456"
 
