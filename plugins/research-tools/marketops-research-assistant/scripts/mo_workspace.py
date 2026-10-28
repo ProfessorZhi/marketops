@@ -375,7 +375,9 @@ _bad_cache: dict[str, tuple] = {}
 
 def _bad_urls(pdir: Path) -> dict[str, list[float]]:
     f = pdir / "bad_urls.jsonl"
-    sig = f.stat().st_mtime_ns if f.exists() else 0
+    # size as well as mtime: two appends inside one filesystem timestamp tick would otherwise
+    # leave the same signature and the cache would keep a stale failure count
+    sig = (f.stat().st_mtime_ns, f.stat().st_size) if f.exists() else (0, 0)
     cached = _bad_cache.get(str(pdir))
     if not cached or cached[0] != sig:
         fails: dict[str, list[float]] = {}
@@ -406,6 +408,7 @@ def _note_read(pdir: Path, url: str, ok: bool) -> None:
     if ok and url not in _bad_urls(pdir):
         return   # the usual case: nothing to clear, nothing written
     append_jsonl(pdir / "bad_urls.jsonl", {"url": url, "ok": ok, "t": round(time.time(), 1)})
+    _bad_cache.pop(str(pdir), None)   # this process just changed the file; do not wait for a new mtime
 
 
 def _parse_saved(pdir: Path, row: dict) -> dict:
