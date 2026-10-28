@@ -48,6 +48,12 @@ that has none).
 
 ## Smoke baseline
 
+A run whose brief differs from the smoke brief above (another cap, `max_per_source`, other
+worker counts) does not get a row here: its record goes to the private session repository
+(`docs/runs/` and `runs/`). Compare A/B with Bruce on his own denominator - organisations
+with any A-D route (the workbook's "Bruce 同口径" line; his 71/249 = 28.5%) - and among the
+organisations researched; A/B over the whole pool also counts what nobody read yet.
+
 | version (commit) | date | model | minutes | sources found / pooled / researched | orgs | site reads past home | orgs with A/B | rows A/B/C/D/X | tool calls / errors | provider spend | lead turns | journal | notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | 0.7.3 (3622ca3), team of 7, 11e + 12e | 2026-10-28 | Haiku | ~20 (stopped) | 13 / 7 / 7 | 279 (cap 60 not kept) | 89 verdicts | 14 strict (16% of researched), 31 more A/B in review | 38/37/3/127/571 | 394 / 2 | ~$0.2 | ~970 model turns, all agents | every worker + lead retro | 8 agents active at once, all pools growing together; 390 directory addresses held from Jev; fixes in 24c6df9 |

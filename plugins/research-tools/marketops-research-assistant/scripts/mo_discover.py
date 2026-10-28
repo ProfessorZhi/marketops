@@ -28,7 +28,11 @@ NAV_WORDS = {"accueil", "home", "contact", "contacts", "mentions legales", "ment
              "en savoir plus", "voir", "plus", "read more", "more", "facebook", "instagram"}
 MIN_LIST_LINKS = 5
 PLATFORMS = ("facebook.", "instagram.", "twitter.", "x.com", "linkedin.", "youtube.", "google.", "wikipedia.",
-             "tripadvisor.", "yelp.", "apple.com", "pagesjaunes.", "mappy.", "waze.", "booking.com")
+             "tripadvisor.", "yelp.", "apple.com", "pagesjaunes.", "mappy.", "waze.", "booking.com",
+             # listings and company registers: a page about the organisation, never its own site (073:
+             # a fencing club got sortiraparis.com and 15 pages were read for nothing)
+             "sortiraparis.", "petitfute.", "societe.com", "pappers.", "verif.com", "annuaire-mairie.",
+             "net1901.", "journal-officiel.", "infogreffe.", "manageo.", "kompass.")
 
 
 def combos(pdir) -> list[tuple[str, str]]:

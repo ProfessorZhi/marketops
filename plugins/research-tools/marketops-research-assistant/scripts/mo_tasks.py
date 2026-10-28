@@ -118,7 +118,7 @@ def source_yield(pdir) -> dict[str, dict]:
     out: dict[str, dict] = {}
     size = pilot(pdir)
     for o in ws.read_csv(pdir / "orgs.csv"):
-        if o.get("scope") == "out" or o.get("part_of"):
+        if o.get("scope") == "out" or not ws.counted(o):
             continue
         src, oid = source_of(o), str(o.get("id") or "")
         y = out.setdefault(src, {"orgs": 0, "worked": 0, "with_ab": 0})
@@ -147,7 +147,7 @@ def _mix(pdir, items: list[str], rows: list[dict]) -> list[str]:
                 if i in orgs:
                     inflight[source_of(orgs[i])] = inflight.get(source_of(orgs[i]), 0) + 1
     queues: dict[str, list[str]] = {}
-    items = [i for i in items if not orgs.get(i, {}).get("part_of")]   # its chain is researched instead
+    items = [i for i in items if ws.counted(orgs.get(i, {}))]   # its chain / the row it duplicates is researched instead
     for i in items:
         queues.setdefault(source_of(orgs.get(i, {})), []).append(i)
     room, size = {}, pilot(pdir)
@@ -168,19 +168,60 @@ def _mix(pdir, items: list[str], rows: list[dict]) -> list[str]:
     return out
 
 
+def possible_duplicates(pdir) -> list[dict]:
+    """One organisation pooled twice (two lists, two spellings - 073: six clubs, each counted
+    twice in the strict ledger): the same name words, the same registry number, or the same
+    personal or role address (not a generic inbox) found for both. The lead merges them with
+    orgs(merge=[{keep, drop}]); they are not a chain."""
+    import mo_pool
+    orgs = [o for o in ws.read_csv(pdir / "orgs.csv") if ws.counted(o) and o.get("scope") != "out"]
+    names = {str(o.get("id") or ""): str(o.get("name") or "") for o in orgs}
+    groups: dict[str, set] = {}
+
+    def link(key: str, oid: str) -> None:
+        groups.setdefault(key, set()).add(oid)
+    for o in orgs:
+        oid = str(o.get("id") or "")
+        words = sorted(set(mo_pool.name_words(names[oid])))
+        if len(words) >= 2:   # one word ("football") names a kind of club, not one club: add its town
+            link("name:" + " ".join(words), oid)
+        elif words and o.get("city"):   # and every short word too: "Foot 11" is not "So Foot Club"
+            whole = " ".join(w for w in mo_pool.norm(names[oid]).split() if w not in mo_pool.NAME_FILLER)
+            link("name:" + whole + "@" + mo_pool.norm(o.get("city")), oid)
+        rid = mo_pool.registry_id(o)
+        if rid:
+            link("id:" + rid, oid)
+    for c in ws.read_contacts(pdir):
+        if c.get("kind", "email") == "email" and c.get("mailbox") != "generic" and c.get("org_id") in names \
+                and c.get("grade") in ("A", "B", "C") and c.get("graded_by") != "held":
+            link("email:" + str(c.get("value") or "").lower(), c["org_id"])
+    seen, out = set(), []
+    for key, ids in groups.items():
+        ids = frozenset(ids)
+        if len(ids) < 2 or ids in seen or len(ids) > 4:   # one address on five clubs is a shared inbox
+            continue
+        seen.add(ids)
+        out.append({"ids": sorted(ids), "names": [names[i][:40] for i in sorted(ids)],
+                    "why": {"name": "the same name", "id": "the same registry number",
+                            "email": "the same address " + key.split(":", 1)[1]}[key.split(":", 1)[0]]})
+    return out[:30]
+
+
 def possible_chains(pdir) -> list[dict]:
     """Organisations that look like stores of one chain: two or more in scope on one website
-    domain, with a name word in common. A hint for the lead - the chain's head office is the
+    domain, with a name word in common (duplicates of one organisation are not a chain). A hint for the lead - the chain's head office is the
     organisation to research (orgs(add=...) it, then orgs(set=[{org_id, part_of}]) its stores)."""
     import mo_pages
     import mo_pool
     by: dict[str, list[dict]] = {}
     for o in ws.read_csv(pdir / "orgs.csv"):
         site = mo_pages.site_of(str(o.get("website") or ""))
-        if site and o.get("scope") != "out" and not o.get("part_of"):
+        if site and o.get("scope") != "out" and ws.counted(o):
             by.setdefault(site, []).append(o)
+    dup = {i for d in possible_duplicates(pdir) for i in d["ids"]}
     out = []
     for site, group in by.items():
+        group = [o for o in group if str(o.get("id") or "") not in dup]
         if len(group) < 2:
             continue
         words = [set(mo_pool.name_words(str(o.get("name") or ""))) for o in group]
@@ -295,22 +336,77 @@ def claim(pdir, agent: str, kind: str = "") -> dict:
     if got.get("task") is None and kind in AUTO_PLAN:
         plan(pdir, kind, AUTO_PLAN[kind])
         got = _claim(pdir, agent, kind)
-    if got.get("task") is None and kind in ("sweep", "dig", "site"):
-        # say why the lane is empty: pilots full and sources waiting look like "nothing to do" (073)
-        ys = source_yield(pdir)
-        waiting = {s: y["orgs"] - y["worked"] for s, y in ys.items() if y["state"] == "waiting"}
-        piloting = [s for s, y in ys.items() if y["state"] == "pilot"]
-        if waiting or piloting:
-            got["why_empty"] = (f"{len(piloting)} source(s) are on their pilot (their next organisations come when "
-                                "the pilot's verdicts are in); " if piloting else "") + (
-                f"{sum(waiting.values())} organisations wait behind sources whose pilot found no A/B: "
-                + ", ".join(list(waiting)[:5]) + " - the lead scales or drops them" if waiting else "")
+    if got.get("task") is None:
+        got.update(outlook(pdir, kind, agent))
     if got.get("task") and got["task"]["kind"] == "source":
         import mo_flow
         for i in got["task"]["items"].split("|"):
             if i:
                 mo_flow.mark_source(pdir, i, "mining", agent)
     return got
+
+
+def outlook(pdir, kind: str = "", agent: str = "") -> dict:
+    """An empty lane, explained: is the work over, or does it wait - on a pilot, on a run's own
+    limit per source, on pools still filling, on the lead? 073: three workers read `open: 0`,
+    went home at 14:12 with 310 organisations unread, and the lead found out 13 minutes later.
+    `lane_finished` is true only when nothing anywhere can refill this lane; otherwise
+    `keep_waiting` says why, `other_lanes` where work is open now, and the lead hears of it
+    (needs_you)."""
+    why, waits = [], False
+    ys = source_yield(pdir)
+    waiting = {s: y["orgs"] - y["worked"] for s, y in ys.items() if y["state"] == "waiting"}
+    piloting = [s for s, y in ys.items() if y["state"] == "pilot" and y["orgs"] > y["worked"]]
+    cap = int(ws.brief(pdir).get("max_per_source") or 0)
+    capped = {s: y["orgs"] - y["worked"] for s, y in ys.items()
+              if cap and y["worked"] >= cap and y["orgs"] > y["worked"] and y["state"] not in ("dropped", "waiting")}
+    if piloting:
+        waits = True
+        why.append(f"{len(piloting)} source(s) are on their pilot: their next organisations come as the pilot's "
+                   "verdicts come in")
+    if waiting:
+        why.append(f"{sum(waiting.values())} organisations wait behind sources whose pilot found no A/B ("
+                   + ", ".join(list(waiting)[:5]) + "): the lead scales or drops them")
+    if capped:
+        why.append(f"{sum(capped.values())} organisations are unread because the brief's max_per_source={cap} is "
+                   "reached for " + ", ".join(list(capped)[:5]) + ": the lead raises it "
+                   "(project(name, brief={\"max_per_source\": 0})) or stops here")
+    import mo_flow
+    import mo_run
+    found = [r["source"] for r in mo_flow.source_pool(pdir) if r.get("status") in ("found", "mining")]
+    if found and kind in ("sweep", "site", "dig", "source", ""):
+        waits = True
+        why.append(f"{len(found)} source(s) are still being found or mined: their organisations come next")
+    running = [b for b in mo_run.batch_states(pdir) if not b.get("done")]
+    rows = ws.read_csv(_path(pdir))
+    if kind == "dig" and (running or any(r["kind"] == "sweep" and r["status"] != "done" for r in rows)):
+        waits = True
+        why.append("reads and research packages are still going: what they leave without A/B comes to dig")
+    others = {}
+    for r in rows:
+        if r["status"] == "open" and r["kind"] != kind:
+            others[r["kind"]] = others.get(r["kind"], 0) + 1
+    out: dict = {}
+    if others:
+        out["other_lanes"] = others
+    if why:
+        out["why_empty"] = "; ".join(why)
+    unread = sum(1 for o in ws.read_csv(pdir / "orgs.csv") if ws.counted(o) and o.get("scope") != "out") \
+        - len(taken_orgs(pdir))
+    if waits:
+        out["keep_waiting"] = True
+        out["next"] = "the lane refills: claim again with wait=50 (or take one of other_lanes) - do not stop"
+    elif others:
+        out["next"] = "this lane is empty for now: take one of other_lanes, then come back"
+    else:
+        out["lane_finished"] = not (waiting or capped)
+        out["next"] = ("nothing can refill it: tell the lead and stop" if out["lane_finished"] else
+                       "only the lead can refill it (see why_empty): tell the lead, then claim again with wait=50")
+    if kind and not waits and (waiting or capped or unread > 0) and why:
+        import mo_journal
+        mo_journal.auto(pdir, f"lane-empty:{kind}", f"lane {kind} empty for {agent or 'a worker'} while work is left: "
+                        + "; ".join(why), "tasks", every_s=300)
+    return out
 
 
 def _claim(pdir, agent: str, kind: str = "") -> dict:

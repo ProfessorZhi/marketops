@@ -13,9 +13,11 @@ Every lane runs at the same time; several workers can share a role, each on its 
 | [finish](finish.md) | `review`, 抽检 sheet | contacts | checked grades, the user's list |
 
 Every role: claim with `tasks(project, action="claim", agent="<name>", kind=<lane>)`, work only
-what you claimed, hand it back with `tasks(action="done", task_id, note)`. An empty lane while the
-pools before it still fill: claim again with `wait=50` (one call that returns with the next
-package), or move to where `project(name)["flow"]["waiting_between_pools"]` is highest. Feed other pools
+what you claimed, hand it back with `tasks(action="done", task_id, note)`. An empty claim is a
+pause, not the end - read what it says: `keep_waiting` (the pools before you still fill): claim
+again with `wait=50`; `other_lanes`: take one of those, then come back; `why_empty` names a pilot,
+a waiting source or the brief's `max_per_source` - tell the lead (it is in `needs_you` too) and
+claim again. Stop only when a claim says `lane_finished`. Feed other pools
 as you go: a new list -> `sources(add)`, a venue's real operator -> `orgs(add)`. Every address
 comes from a page read with the tools; never guess one. Pass `agent="<your name>"` on every tool
 call that takes it, and journal what blocks you or works well as it happens

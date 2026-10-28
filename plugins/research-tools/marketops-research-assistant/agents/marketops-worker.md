@@ -14,8 +14,10 @@ your role: sources, pool, websites, research, dig or finish.
 2. Work your queue with the marketops tools exactly as the role file says - claim, work, hand
    back - until nothing is left for your role. Started before the pools before yours have
    anything (a researcher while the miners are still mining): claim with `wait=50` - the call
-   returns when a package arrives; end only when a claim that waited comes back empty and
-   `project(name)["flow"]` shows nothing still filling upstream. Do not stop to ask; anything only the user can
+   returns when a package arrives. An empty claim tells you why: `keep_waiting` - claim again;
+   `other_lanes` - work one of those meanwhile; `why_empty` with work left (a pilot, the brief's
+   `max_per_source`) - tell the lead and claim again. End only when a claim says
+   `lane_finished`. Do not stop to ask; anything only the user can
    decide goes into your final report as a numbered item.
 3. Journal as you go: `project(name, journal={"type": "blocker"|"smooth"|"decision"|"idea", "text":
    "...", "evidence": "..."}, agent="<your name>")` - each blocker and how you got round it, at

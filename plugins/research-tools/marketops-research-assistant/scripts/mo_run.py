@@ -190,6 +190,8 @@ def _find_site(pdir, org: dict, replace: bool = False) -> str:
         tld = site.rsplit(".", 1)[-1]
         if country and len(tld) == 2 and tld != country.lower() and tld not in ("eu", "io", "co", "me", "tv"):
             continue   # a Swiss .ch for a Paris club with a common word in its name (073)
+        if _elsewhere(pdir, org, f"{hit.get('title') or ''} {hit.get('snippet') or ''}"):
+            continue   # the namesake town in another département (fr41: Verdigny got the Cher one)
         squashed = re.sub(r"[^a-z0-9]", "", site)
         home_page = urllib.parse.urlsplit(url).path.strip("/").count("/") == 0 and len(urllib.parse.urlsplit(url).path) < 30
         # its name in the domain, or (clubs often use initials) a home page titled with its name
@@ -208,6 +210,27 @@ def _find_site(pdir, org: dict, replace: bool = False) -> str:
                 ws.write_csv(pdir / "orgs.csv", cols, rows)
             return home
     return ""
+
+
+def _area(pdir, org: dict) -> str:
+    """The organisation's département (French postcodes: its first two digits) - from its own
+    postcode, else the brief's region "(41)" - or "" when unknown."""
+    for v in (org.get("postcode"), org.get("zip"), org.get("city"), org.get("address")):
+        m = re.search(r"\b(\d{5})\b", str(v or ""))
+        if m:
+            return m.group(1)[:2]
+    m = re.search(r"\((\d{2}|2[AB])\)|\b(\d{5})\b", str(ws.brief(pdir).get("region") or ""))
+    return (m.group(1) or m.group(2)[:2]) if m else ""
+
+
+def _elsewhere(pdir, org: dict, text: str) -> bool:
+    """A search result that shows postcodes, none of them in the organisation's département: it is
+    about a namesake somewhere else."""
+    if str(ws.brief(pdir).get("country") or "").upper() not in ("FR", ""):
+        return False
+    area = _area(pdir, org)
+    codes = {m[:2] for m in re.findall(r"\b(\d{5})\b", text)}
+    return bool(area and codes and area not in codes)
 
 
 def _button_pages(pdir, org_ids: set[str]) -> list[tuple[str, str]]:
