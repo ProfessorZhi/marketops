@@ -56,13 +56,6 @@ that has none).
 | 0.7.3 (3df6854) | 2026-10-28 | Haiku | ~10 | 4 / 3 / 3 | 17 | 12 of 17 | 5 as graded, **0 strict** (the 7 B were accueil@ / contact@ / info@ set by the worker, and two venue inboxes Jev sent to review; flagged since 170664e) | 0/7/3/12/1 | 55 / 0 | ~$0.13 | 12 | none (guidance came in af50018) | 38 of 55 calls without an agent name |
 | 0.7.3 (921fe0f) | 2026-10-28 | Sonnet | ~8 | 3 / 3 / 1 | 15 | 0 of 15 | 0 | 0/0/0/11/5 | 49 / 0 | ~$0.03 | 15 | none | site reads stopped at the home page (fixed in 3df6854); maps rows filed under the agent |
 
-A run whose brief is **not the one above** is not a row of this table, however well it went: its
-numbers measure a different experiment. It is written up under `docs/benchmarks/<name>/` with the
-deviation stated first, and the write-up says which baseline rows it may and may not be compared
-with. `paris11-073-20261028` is one: its brief carried `max_per_source: 8`, so every source stopped
-at eight organisations and the sweep lane ended with 299 organisations pooled but unread - by the
-brief, not by the planner.
-
 # Two standing tests
 
 Every plugin version runs both. Report the version (`project()` shows it) with every number.
