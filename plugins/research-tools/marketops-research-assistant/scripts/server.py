@@ -438,7 +438,7 @@ def orgs(project: str, ids: list[str] | None = None, stage: str = "", limit: int
     grade, its confirmed A/B (address, person, role, page), rows to review with the reason,
     the playbook entries for its segment, and agent verdicts so far.
     set=[{org_id, website?, segment?, scope?, city?, note?, part_of?}]: correct organisations - a website
-    you found or fixed (the sweep reads it next; re-sweep with run(orgs=[...], again=True)),
+    you found or fixed (website: "" clears a wrong one) (the sweep reads it next; re-sweep with run(orgs=[...], again=True)),
     the segment the playbook keys on, scope in/out/unsure, part_of: the id of the organisation
     that decides for this one (a chain's head office for its store) - the lanes then research
     the chain, not the store, and the headline counts the chain once.

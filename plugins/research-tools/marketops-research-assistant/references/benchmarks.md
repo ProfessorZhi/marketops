@@ -50,6 +50,7 @@ that has none).
 
 | version (commit) | date | model | minutes | sources found / pooled / researched | orgs | site reads past home | orgs with A/B | rows A/B/C/D/X | tool calls / errors | provider spend | lead turns | journal | notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0.7.3 (7bb8bc8), associations, 3+ sources | 2026-10-28 | Haiku | ~15 | 3 / 3 / 3 | 13 | 10 researched | 2 strict (15%; 20% of researched) | 1/1/0/6/7 | 76 / 0 | ~$0.06 | 18 | every worker + lead retro | every source researched on its pilot; no flood; waits <= 51 s; 3 organisations got a website late and were not swept; a wrong website the worker did not know how to clear |
 | 0.7.3 (5b881a3), associations | 2026-10-28 | Haiku | ~25 | 4 / 1 / 1 | 20 | 15 of 18 read | **4 strict (20%)**, 5 named A | 5/0/2/18/134 | 70 / 0 | ~$0.10 | 20 | every worker + lead retro | one source filled the cap of 20; 123 X from one club fiche on its federation's site (fixed after); a 300 s wait outlived the host's 60 s tool timeout |
 | 0.7.3 (3df6854) | 2026-10-28 | Haiku | ~10 | 4 / 3 / 3 | 17 | 12 of 17 | 5 as graded, **0 strict** (the 7 B were accueil@ / contact@ / info@ set by the worker, and two venue inboxes Jev sent to review; flagged since 170664e) | 0/7/3/12/1 | 55 / 0 | ~$0.13 | 12 | none (guidance came in af50018) | 38 of 55 calls without an agent name |
 | 0.7.3 (921fe0f) | 2026-10-28 | Sonnet | ~8 | 3 / 3 / 1 | 15 | 0 of 15 | 0 | 0/0/0/11/5 | 49 / 0 | ~$0.03 | 15 | none | site reads stopped at the home page (fixed in 3df6854); maps rows filed under the agent |
