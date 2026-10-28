@@ -30,7 +30,8 @@ import mo_pages
 import mo_workspace as ws
 
 SOURCE_POOL_COLS = ["source", "url", "kind", "row_is", "expect", "status", "found_by", "miner", "note", "time"]
-SOURCE_STATES = ("found", "mining", "harvested", "pooled", "dropped")
+# scale: an agent's call that a source gets all its organisations whatever its pilot gave
+SOURCE_STATES = ("found", "mining", "harvested", "pooled", "scale", "dropped")
 FRONTIER_COLS = ["url", "kind", "source", "status", "found_by", "time", "note"]
 HARVEST_COLS = ["page_url", "source", "name", "title", "kind", "website", "website_candidates", "emails",
                 "phones", "address", "city", "postcode", "lines"]
@@ -112,7 +113,7 @@ def add_sources(pdir: Path, items: list[dict], agent: str = "") -> dict:
 
 
 def set_sources(pdir: Path, items: list[dict]) -> int:
-    """Change a source's state or note: status found|mining|harvested|pooled|dropped."""
+    """Change a source's state or note: status found|mining|harvested|pooled|scale|dropped."""
     path = pdir / "source_pool.csv"
     n = 0
     with ws._lock(path):
@@ -250,6 +251,14 @@ def _row_from_page(page: dict, source_host: str) -> dict:
             cands.append((site, " ".join(str(label).split())[:60]))
     title = re.split(r"\s+[|–—-]\s+", page.get("title") or "")[0].strip()
     lines = [x for x in (page.get("text") or "").split("\n") if x.strip()]
+    if not title:
+        # no <title> (a script-built page): its first short heading-like line, else the URL's last
+        # segment - a row with no name never reaches the pools (072: 173 of 176 rows lost)
+        title = next((x.strip("# ").strip() for x in lines[:15] if 3 <= len(x.strip("# ").strip()) <= 80
+                      and not mo_pages.EMAIL.search(x)), "")
+        if not title:
+            slug = urllib.parse.unquote(urllib.parse.urlsplit(page["url"]).path.rstrip("/").rsplit("/", 1)[-1])
+            title = re.sub(r"[-_]+", " ", re.sub(r"\.\w{2,5}$", "", slug)).strip().title()
     pc = next((m for m in (POSTCODE.search(x) for x in lines[:200] if len(x) <= 90) if m), None)
     emails = [c["value"] for c in page.get("contacts") or [] if c.get("kind") == "email"]
     phones = [c["value"] for c in page.get("contacts") or [] if c.get("kind") == "phone"]
@@ -435,6 +444,8 @@ def harvest(pdir: Path, source: str, start: str = "", follow: str = "", next: st
         with ws._lock(out_path):
             old = ws.read_csv(out_path)
             ws.write_csv(out_path, HARVEST_COLS, old + rows)
+        if not old:
+            ws.note_made(pdir, f"pages/{out_path.name}")
     left = sum(1 for r in ws.read_csv(pdir / "frontier.csv") if r.get("source") == source and r.get("status") in ("queued", "reading"))
     if not left:
         mark_source(pdir, source, "harvested")
@@ -515,7 +526,12 @@ def flow(pdir: Path) -> dict:
         "contacts -> delivery": pools["contacts"]["to_review"],
     }
     unlogged = sat["orgs_without_logged_source"]
+    import mo_tasks
+    turns = mo_tasks.source_yield(pdir)
     return {"pools": pools, "waiting_between_pools": waiting, "lanes": lanes,
+            # each source's pilot and yield, as the research lanes hand them out (scale / drop:
+            # sources(set=[{source, status}]))
+            "sources_take_turns": dict(sorted(turns.items(), key=lambda kv: -kv[1]["orgs"])[:40]),
             "reconcile": {"organisations": len(ids), "added_by_logged_sources": from_sources,
                           "without_logged_source": unlogged,
                           "adds_up": len(ids) == from_sources + unlogged}}

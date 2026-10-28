@@ -11,8 +11,15 @@ Turn one source after another into rows in the page, venue and organisation pool
    mapping, not rows one by one.
 4. `pool(project, file, into="venues"|"orgs", map=..., filters=..., group_by=..., source=...)`.
    Venues: decide who runs them and group under that organisation - a venue with no
-   organisation gets no contacts. Keep `page_url` for harvest files (their addresses join at no
-   cost). Look at unclear merges and note what you decided.
+   organisation gets no contacts; when a later source knows the real operator better than the
+   one pooled first, `replace_operator=True`. Keep `page_url` for harvest files (their addresses
+   join at no cost). Map what the rows carry: `email`, `person`, `role` (a list's mailbox becomes
+   the organisation's contact, quoted from its row), and a registry number - `uai`, `siret`,
+   `rna`, `siren` - so the same organisation from two lists is one row. Look at unclear merges
+   and note what you decided.
+   A list of names only (no website, mailbox or phone column) still pools, but expect its
+   pilot to say so: say in the task note what would make it worth more (a join to a list
+   that has sites).
 5. Another directory seen on the way -> `sources(add)`; an operator or contractor named ->
    `orgs(add)`. Not worth it -> `sources(set=[{source, status: "dropped", note}])`.
 6. `tasks(action="done", task_id, note="rows read / kept / new / merged")`; next source.

@@ -27,13 +27,15 @@ Other knowledge, read when needed: **marketops-tools** (the six providers and th
 ## What makes the work good
 
 Five things decide a run; each has a reason and a place where the plugin holds it for you.
-Under all five: **agents lead, tools follow.** The agents choose the lists, mine them, judge
-whose an address is, dig, drop a source; the tools do the bulk work an agent asks for in one
-call (read ten sites, page through a list, grade a batch) and hand it back. A tool never
-researches alone: `run` without `orgs` only reads sites ahead of the researchers, stops
-starting new ones once 30 wait for an agent (`waiting_for_agents`), and ends after an hour
-with no agent taking work. Paris 071 let a script dig six rounds alone for six hours: 15
-organisations with A/B for 105 organisation-hours, most addresses wrongly shared.
+Under all five: **the plugin makes agents stronger; it does not script them.** The agents
+choose the lists, mine them, judge whose an address is, dig, scale or drop a source; the tools
+do the bulk work an agent asks for in one call (read ten sites, page through a list, grade a
+batch) and hand back what they saw, with advice. A tool never researches alone: `run` without
+`orgs` only reads sites ahead of the researchers, stops starting new ones once 30 wait for an
+agent (`waiting_for_agents`), and ends after an hour with no agent taking work. Paris 071 let a
+script dig six rounds alone for six hours: 15 organisations with A/B for 105
+organisation-hours, most addresses wrongly shared. "What the tools give you" below lists each
+default and how you overrule it.
 
 - **Pipeline - stages hand over through pools, never through messages.** A stage takes what is
   on disk in the pool before it and writes to the pool after it, so no stage waits for another to
@@ -46,7 +48,9 @@ organisations with A/B for 105 organisation-hours, most addresses wrongly shared
   cost); more claims in parallel made them faster.
 - **Many sources - coverage comes from the union of lists, not from one good list.** Each source
   knows a part of the market and one kind of entity; saturation (the last sources mostly repeat
-  what is pooled) is the only honest sign the pool is complete.
+  what is pooled) is the only honest sign the pool is complete. And every pooled source must be
+  *researched*, not only pooled: the research lanes give each one a turn (Paris 072 pooled 27
+  sources, then four researchers spent forty minutes on the first one; 26 were never read).
 - **Speed - more organisations in flight, cheap tools before expensive ones.** Throughput is
   agents x claims, not pages per site; the tools race providers, batch requests, cache every page
   and search for every project, and the lightest tool goes first (search -> fetch -> Agent). Never
@@ -62,11 +66,24 @@ The source pool is a pool. A job built on one list - even a good one, even a poo
 from an earlier project - finds only what that list knew, and only the kind of entity it lists:
 an organisation list gives no venues, a facility census gives no clubs that rent pitches. So,
 before anything else:
-- register the client's own lists and any inherited list as sources (`sources(add=...)`);
+- register the client's own lists as sources (`sources(add=...)`); an earlier project's pool
+  is reused only when the user asks for it (a fresh project flags anything brought in);
 - open `find` lanes for every layer the brief needs: **a venue census** (when the product is
   used on venues), **organisation lists** (federations, registers, city portals), **operators
   and contractors** (tenders) - `references/projects/<line>.md` lists each market's sources;
 - keep the finders running beside everyone else until the pool is saturated.
+
+## What the tools give you (and what stays yours)
+
+| The tools, by default | Why | Your call |
+|---|---|---|
+| Research lanes (`sweep`, `dig`, `site`) hand out organisations source by source in turns; each source gets a pilot of 30, then more only while it yields A/B (>= 5%) | Bruce: test a source on 30, scale at >= 10%, stop under 5%; 072 researched one source of 27 | `sources(set=[{source, status: "scale"}])` gives a source everything, `"dropped"` nothing; `flow.sources_take_turns` shows each pilot. You may claim or `tasks(action="add")` any package |
+| A list row that prints an address gives it to that row's organisation as a contact, quoted from the row | school, club and timetable lists carry mailboxes; 072 threw away 1,658+ of them | map `email` / `person` / `role`; grade or correct as always |
+| Organisations match on their registry number (UAI, SIRET, RNA) before name and town | one club became two when one list wrote `75011` and another `Paris` | map the number when the file has one; merge or split by hand with `orgs(set=...)` |
+| `run` without `orgs` reads sites ahead of researchers, never digs, waits once 30 are waiting | 071 | dig rounds for your own package: `run(orgs=[...], rounds=1-2)` |
+| `browse` (the paid TinyFish Agent) is off; a call records the page and the user is asked once for all of them | it costs per step | the user allows it in the brief (`paid_agent: true`) |
+| A fresh project (`brief.fresh`) reuses nothing other projects read or learned, and flags files nobody fetched or registered here | a test must start from zero; 072b began from a 0.6.6 pool | without `fresh` the shared library makes reruns cheap |
+| Every tool call goes to the project's `calls.jsonl` (agent, tool, arguments in brief, seconds, errors) | the whole chain is reviewable without transcripts | read it in the retrospective |
 
 ## Running the job
 

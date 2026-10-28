@@ -1,4 +1,27 @@
 
+# The quick test: one Paris district from zero
+
+For every plugin change, before the long tests. Small enough to run in about an hour for a few
+euros, real enough to exercise the whole chain.
+
+- **Brief**: `{"goal": "people who run, manage or decide on indoor sports venues - venue and
+  facilities managers, sports department heads, club presidents", "country": "FR", "language":
+  "fr", "region": "Paris 11e arrondissement (75011)", "scenario": "indoor sports venues of one
+  district", "address_rules": {"info": "X", "admin": "X", "book": "X"}, "strict_ledger": "AB",
+  "fresh": true}`. Nothing else: no sources, no pool, no playbook - the finders find them.
+- **Start from zero**: a new project name per run (`bench-paris11-<version>-<date>`) and an empty
+  `MARKETOPS_HOME` (no shared pages, searches or lessons). `project()` must show no brought-in
+  source; one is a failed test, not a result.
+- **Team**: the lead plus a finder, a miner, a websites worker and two researchers, all at once.
+  Record the model every worker really ran on.
+- **Limits**: 90 minutes, about 30 EUR of provider spend, paid TinyFish Agent off.
+- **Report**: sources found / pooled / piloted / scaled / dropped; organisations (and the share
+  out of scope); organisations researched per source; organisations with A/B and A/B per 30
+  minutes; X share; spend per provider; agent turns; the slowest stage and the most frequent
+  error from `calls.jsonl`.
+- **Pass**: at least 3 sources each researched on its pilot; no source's organisations left
+  unread while another's are past their pilot; every contact quoted; spot check of 30 rows >= 90%.
+
 # Two standing tests
 
 Every plugin version runs both. Report the version (`project()` shows it) with every number.

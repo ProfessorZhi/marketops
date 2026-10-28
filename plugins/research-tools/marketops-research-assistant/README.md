@@ -1,4 +1,4 @@
-# MarketOps Research Assistant 0.7.2
+# MarketOps Research Assistant 0.7.3
 
 调研插件：从公开数据集到场地池、机构池，再到带证据、已评级的联系人，最后交付一张 Excel。
 给 Claude Code 用。插件只提供能力，流程由 agent 自己掌握。
@@ -45,6 +45,17 @@
 
 项目文件夹就是普通文件（`~/MarketOps/<项目>/`）：`brief.json`、`venues.csv`、`orgs.csv`、
 `contacts/`、`crawl.csv`、`trace.jsonl`、`costs.jsonl`；网页原件在共享资料库 `~/.marketops/library`。agent 和人都可以直接打开、修改，断了接着跑。
+
+## 0.7.3 更新：每个来源都轮到、名单里的邮箱不再丢（巴黎 072 复盘）
+
+插件增强 agent，不替 agent 做决定：下面每一条都是默认行为，agent 都能改。
+- **来源轮流 + 试点**：`sweep` / `dig` / `site` 三条队列按来源轮流派活，每个来源先给 30 家试点，A/B ≥5% 才继续给；低于 5% 的来源暂停，并在 `needs_you` 里说明。主 agent 用 `sources(set=[{source, status: "scale"}])` 放量、`"dropped"` 停掉。072 入池 27 个来源，40 分钟里 4 个调研 agent 只做了第一个。
+- **名单里的邮箱直接成为联系人**：学校名录、俱乐部名单、场地时段表这类每行带邮箱的文件，入池时邮箱就挂到这一行的机构上，引文是这一行，照常评级。072 丢了 1,658 个以上。可以映射 `email` / `person` / `role`。
+- **登记号识别机构**：UAI、SIRET、RNA、SIREN 优先于名字+城市；城市只有邮编时不当城市用（072 里 744 组重名）。法国开放数据的 `;` 分隔 CSV 按表头识别。`harvest` 采到没有标题的页面也会补上名字（072 一份文件 176 行只剩 3 行）。`replace_operator=True`：后来的来源更清楚谁在运营场馆时，可以改写运营方。
+- **从零模式**：brief 写 `"fresh": true` 后，不复用别的项目读过的页面、搜索和经验；不是本项目抓取、采集或登记过的文件入池时，会标成"外部带入"。产品默认仍然复用，更省钱。
+- **TinyFish 付费 Agent 默认关闭**：`browse` 先记下页面，`needs_you` 一次性问用户；brief 里写 `paid_agent: true` 才执行。
+- **工具调用日志**：每次工具调用都记进 `calls.jsonl`（哪个 agent、哪个工具、参数摘要、耗时、错误），不看对话原文也能复盘完整链路。
+- **快速测试题**：巴黎 11 区，从零开始，约 1 小时（`references/benchmarks.md`）。
 
 ## 0.7.2 更新：agent 主导，工具跟随（巴黎 071 审计修复）
 

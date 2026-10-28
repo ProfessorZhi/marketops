@@ -60,8 +60,12 @@ def project(name: str, brief: dict | None = None, playbook: dict | None = None,
     brief (optional, saved as brief.json): {"goal": "...", "region": "...", "country": "FR",
     "language": "fr", "scenario": "...", "grades": {"A": "...", ...}, "exclude": "...",
     "address_rules": {"info": "X"}, "routes_per_org": 3, "strict_ledger": "AB" | "A" | "named_A",
-    "focus": {...}}. strict_ledger: which grades the strict ledger counts (the workbook reports it
-    next to the research-valid ledger, A-D).
+    "focus": {...}, "fresh": true}. strict_ledger: which grades the strict ledger counts (the workbook
+    reports it next to the research-valid ledger, A-D). fresh: the project starts from nothing -
+    pages, searches and lessons other projects left in the shared library are not reused (its
+    own are), and a pooled file nobody fetched, harvested or registered here is flagged as
+    brought in. For tests and for any user who wants a clean start; without it a project
+    reuses what earlier work read, which is cheaper.
     Grades describe, in plain words and the market's own job titles, what counts as each
     grade; leave any out to use Bruce's default. Returns pools, contacts by grade, run and
     agent progress, costs, account balances with their red lines, and `needs_you`: the numbered
@@ -82,6 +86,9 @@ def project(name: str, brief: dict | None = None, playbook: dict | None = None,
     try:
         pdir = ws.project_dir(name)
         if brief:
+            if brief.get("fresh") and not brief.get("fresh_since"):
+                # from this moment on: nothing read or learned before it, by any project, is reused
+                brief = {**brief, "fresh_since": (ws.brief(pdir).get("fresh_since") or ws._now())}
             (pdir / "brief.json").write_text(json.dumps(brief, ensure_ascii=False, indent=1), encoding="utf-8")
         if playbook:
             ws.update_playbook(pdir, playbook)
@@ -124,6 +131,17 @@ def needs_you(pdir, status: dict) -> list[str]:
         split = ", ".join(f"{k} {n}" for k, n in sorted(kinds.items(), key=lambda kv: -kv[1]))
         items.append(f"{len(review)} A/B rows are marked review ({split}): accept or correct them with "
                      "grade(set=[...]); unanswered, they are delivered marked as review.")
+    import mo_tasks
+    for src, y in mo_tasks.source_yield(pdir).items():
+        if y["state"] == "waiting":
+            items.append(f"Source '{src}': A/B for {y['with_ab']} of the {y['worked']} organisations worked (pilot, "
+                         f"under {int(mo_tasks.STOP * 100)}%); its other {y['orgs'] - y['worked']} wait. The lead scales "
+                         "it (sources(set=[{source, status: 'scale'}])) or drops it - or say which.")
+    wanted = ws.read_csv(pdir / "browse_wanted.csv")
+    if wanted and not ws.paid_agent_allowed(pdir):
+        items.append(f"Agents want the paid TinyFish Agent on {len(wanted)} page(s) whose contacts sit behind clicks "
+                     f"(about $0.016 a step, up to 40 steps each - at most ${len(wanted) * 0.64:.2f}); see "
+                     "browse_wanted.csv. Allow it with project(name, brief={..., \"paid_agent\": true}), or leave it off.")
     unsure = sum(o.get("scope") == "unsure" for o in ws.read_csv(pdir / "orgs.csv"))
     if unsure:
         items.append(f"{unsure} organisations could not be placed in or out of scope (orgs.csv scope=unsure).")
@@ -236,10 +254,14 @@ def fetch(project: str, url: str, readers: list[str] | str | None = None, org_id
         return _err(exc)
 
 
-def browse(project: str, url: str, goal: str = "", org_id: str = "", org: str = "", stealth: bool = False) -> dict:
+def browse(project: str, url: str, goal: str = "", org_id: str = "", org: str = "", stealth: bool = False,
+           why: str = "", agent: str = "") -> dict:
     """TinyFish Agent opens the page in a real browser (clicks tabs, 'show more') in the background.
 
-    Paid per step (about $0.016), capped at 40 steps and 5 minutes a run. Use it when readers
+    Paid per step (about $0.016), capped at 40 steps and 5 minutes a run, and OFF until the user
+    allows it (brief.paid_agent: true): until then a call records the page (with why: what you
+    expect behind the clicks) and needs_you asks the user about all such pages at once - keep
+    working with the free tools meanwhile. Use it when readers
     return no text or the contacts sit behind clicks - on pages that carry several people, not a
     single inbox. One site per run; it exits from the brief's country when TinyFish supports it
     (US, GB, CA, DE, FR, JP, AU - regional blocks); stealth=True for bot-protected pages. Each URL
@@ -248,7 +270,7 @@ def browse(project: str, url: str, goal: str = "", org_id: str = "", org: str = 
     what not to do and the edge cases.
     """
     try:
-        return ws.browse(ws.project_dir(project), url, goal, org_id, org, stealth)
+        return ws.browse(ws.project_dir(project), url, goal, org_id, org, stealth, why, agent)
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
 
@@ -413,9 +435,12 @@ def sources(project: str, add: list[dict] | None = None, set: list[dict] | None 
     add=[{source: short name, url, kind: register|federation|open_data|maps|directory|client|other,
     row_is: what one row really is (venue, club, operator...), expect: rows / yield you expect,
     note}]: register lists you found (the same url or name twice is one source).
-    set=[{source, status: found|mining|harvested|pooled|dropped, note}]: move or drop a source
-    (say why in note). Returns the pool with each source's state, what the pooled ones brought,
-    saturation and the flow between all pools.
+    set=[{source, status: found|mining|harvested|pooled|scale|dropped, note}]: move or drop a
+    source (say why in note). The research lanes give every pooled source a pilot of 30
+    organisations and hand out more only while it yields A/B (>= 5%); `scale` gives a source all
+    its organisations whatever its pilot said, `dropped` none - your call, the pilot only
+    advises. Returns the pool with each source's state, what the pooled ones brought, its pilot
+    (flow.sources_take_turns), saturation and the flow between all pools.
     """
     try:
         import mo_flow
@@ -486,7 +511,7 @@ def harvest(project: str, source: str, start: str = "", follow: str = "", next: 
 
 def pool(project: str, file: str, into: str = "venues", filters: dict | None = None,
          map: dict | None = None, group_by: str = "", org_fields: dict | None = None,
-         source: str = "") -> dict:
+         source: str = "", replace_operator: bool = False) -> dict:
     """Build the pools from a data file fetch saved (JSON, GeoJSON, CSV; e.g. an open-data export).
 
     filters: {column: value or [values]} kept rows (exact, case-insensitive). map: {new column:
@@ -500,10 +525,18 @@ def pool(project: str, file: str, into: str = "venues", filters: dict | None = N
     of both. Returns the file's columns so you can map them. source: the list's name in the
     source pool (logged under it, moved to pooled). A page_url column (harvest files have one):
     addresses on those saved pages join the organisations at once.
+    Addresses printed on a row (an email / courriel column, or any address in the row) join that
+    row's organisation as contacts with the row as their quote - map "email", "person" and
+    "role" when the file has them. Registry numbers - map "uai", "siret", "rna" or "siren" -
+    identify an organisation across sources whatever its spelling or town; a bare postcode as
+    city is not a town. replace_operator=True (with group_by): this source's organisation runs
+    the venue rather than the one pooled first (the earlier one stays as previous_org_id).
+    Returns provenance: tools (fetched or harvested here), source (a registered list) or
+    brought-in (say where it came from).
     """
     try:
         return mo_pool.pool(ws.project_dir(project), file, into, filters, map, group_by, org_fields,
-                            source=source)
+                            source=source, replace_operator=replace_operator)
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
 
@@ -519,6 +552,59 @@ def export(project: str) -> dict:
 
 
 TOOLS = (project, sources, harvest, search, pool, fetch, browse, judge, grade, run, tasks, orgs, export)
+
+_EMAIL = __import__("re").compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+
+
+def _brief_arg(v):
+    """An argument as the call log keeps it: short text (addresses masked), sizes of the rest."""
+    if isinstance(v, str):
+        return mo_config.scrub(_EMAIL.sub("<email>", v))[:120]
+    if isinstance(v, (int, float, bool)) or v is None:
+        return v
+    if isinstance(v, dict):
+        return {"keys": sorted(map(str, v))[:12]}
+    if isinstance(v, (list, tuple)):
+        return {"items": len(v)}
+    return type(v).__name__
+
+
+def logged(fn):
+    """Every tool call, written to the project's calls.jsonl: which agent, which tool, the
+    arguments in brief, how long, what came back (size, error). With it the whole chain of a
+    run - who did what, where it waited, what failed - is on disk, with no transcript."""
+    import functools
+    import inspect
+    import time as _time
+    sig = inspect.signature(fn)
+
+    @functools.wraps(fn)
+    def call(*a, **k):
+        t0 = _time.time()
+        out, err = None, ""
+        try:
+            out = fn(*a, **k)
+            return out
+        except Exception as exc:  # noqa: BLE001
+            err = f"{type(exc).__name__}: {exc}"
+            raise
+        finally:
+            try:
+                args = sig.bind_partial(*a, **k).arguments
+                name = args.get("project") or (args.get("name") if fn.__name__ == "project" else "")
+                if name:
+                    pdir = ws.project_dir(str(name))
+                    if isinstance(out, dict) and out.get("error"):
+                        err = str(out["error"])
+                    ws.append_jsonl(pdir / "calls.jsonl", {
+                        "time": ws._now(), "tool": fn.__name__, "agent": str(args.get("agent") or ""),
+                        "args": {key: _brief_arg(v) for key, v in args.items() if key not in ("project", "agent")},
+                        "seconds": round(_time.time() - t0, 2), "ok": not err,
+                        "error": mo_config.scrub(_EMAIL.sub("<email>", err))[:200],
+                        "result_chars": len(json.dumps(out, ensure_ascii=False, default=str)) if out is not None else 0})
+            except Exception:  # noqa: BLE001 - the log never breaks a tool
+                pass
+    return call
 
 
 def check() -> int:
@@ -609,7 +695,7 @@ def main() -> None:
     from mcp.server import MCPServer
     server = MCPServer("MarketOps Research", version=VERSION)
     for fn in TOOLS:
-        server.tool()(fn)
+        server.tool()(logged(fn))
     server.run(transport="stdio")
 
 

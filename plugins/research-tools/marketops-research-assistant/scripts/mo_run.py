@@ -522,7 +522,8 @@ def run_sync(pdir, rounds: int = 0, max_pages: int = 15, deep_pages: int = 10, g
         dry = 0
         seg = ws.segment_of(org)
         learn = mo_knowledge.enabled()
-        order = mo_knowledge.KNOWLEDGE.dig_order(country, seg) if learn else list(mo_knowledge.DIG_KINDS)
+        order = mo_knowledge.KNOWLEDGE.dig_order(country, seg) if learn and not ws.fresh(pdir) \
+            else list(mo_knowledge.DIG_KINDS)
         for rnd in range(1, 0 if "dig" in off else rounds + 1):
             have = _ab_count(pdir, oid)
             if stopping() or have >= target:
@@ -547,7 +548,7 @@ def run_sync(pdir, rounds: int = 0, max_pages: int = 15, deep_pages: int = 10, g
                 break
         if learn and (hints["paths"] or hints["queries"]):   # did the playbook lead somewhere
             mo_knowledge.KNOWLEDGE.record_use(country, seg, _has_ab(pdir, oid))
-        if agent and not _has_ab(pdir, oid) and mo_config.key("tinyfish"):
+        if agent and not _has_ab(pdir, oid) and mo_config.key("tinyfish") and ws.paid_agent_allowed(pdir):
             for _oid_, url in _button_pages(pdir, {oid}):
                 if agent_budget[0] <= 0:
                     break

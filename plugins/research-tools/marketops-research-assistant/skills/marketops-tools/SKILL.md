@@ -19,9 +19,15 @@ Every provider is optional. Official details per provider, read when needed:
 | Serper (Google) | search, maps | fast, exact phrases, `site:`, `filetype:pdf`; maps places with website and phone | SerpApi takes over; with neither, no maps and digging leans on DeepSeek / TinyFish |
 | SerpApi (Google / Bing) | search, maps, Facebook pages | the same; maps by page and by map centre; the public fields of a Facebook page | as above; Facebook-only organisations need the host's browsing |
 | DeepSeek | search, read | broad search with `site:`, `"..."`, `lang:`; reads PDFs and awkward pages as Markdown | other engines and readers |
-| TinyFish | search, read, Agent | free search (30/min); real-browser reading, PDFs, ten pages per request; the paid Agent clicks through hidden contacts (`browse`), exiting from the site's country | other engines and readers; no clicking |
+| TinyFish | search, read, Agent | free search (30/min) and real-browser reading (PDFs, ten pages per request) - free, use them freely; the paid Agent clicks through hidden contacts (`browse`), exiting from the site's country - **off until the user allows it** (`brief.paid_agent`): a `browse` call meanwhile queues the page and `needs_you` asks once for all | other engines and readers; no clicking |
 | Crawl4AI | read (local browser) | JavaScript pages, keeps `mailto:` and encoded addresses; slowest | TinyFish, DeepSeek, plain HTTP; script-built pages read thin |
 | Jev | judge, grade | cheap typed judgments on many rows: what a row is, which link is the own site, what kind of route an address is | rules take the obvious rows, agents judge the rest (`grade(set=...)`) |
+
+The working set is DeepSeek (search and read), Serper (Google search and maps), TinyFish's free
+search and reading, Crawl4AI and Jev; SerpApi is a backup when its account has credit. With
+DeepSeek, TinyFish, Crawl4AI and Jev alone the whole chain runs - without Serper there are no
+maps (places with their website), which matters most for private venues and for finding
+websites.
 
 Set `country` and `language` in the brief: every engine answers as US / English without them.
 Several keys per provider (`NAME`, `NAME_2`..`_9`): a used-up key hands over by itself.

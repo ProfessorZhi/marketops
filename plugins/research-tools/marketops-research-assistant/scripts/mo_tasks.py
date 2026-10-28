@@ -84,6 +84,75 @@ def taken_orgs(pdir) -> set[str]:
     return taken | {r["org_id"] for r in ws.read_csv(pdir / "verdicts.csv")}
 
 
+# ------------------------------------------------------------------ sources take turns
+# Bruce's rule, in the lanes agents claim from: a source is tried on PILOT organisations before
+# it gets more; at SCALE (10%) with A/B it gets all it has, under STOP (5%) its other
+# organisations wait. In 072 the sweep lane took organisations in pool order: the first list
+# pooled got every researcher for forty minutes and 26 other sources were never read.
+# Agents decide over it: sources(set=[{source, status: "scale"}]) gives a waiting source all
+# its organisations, status "dropped" none; a researcher may still claim any package.
+PILOT, SCALE, STOP = 30, 0.10, 0.05
+
+
+def source_of(org: dict) -> str:
+    return (str(org.get("sources") or org.get("source") or "").split("|")[0].strip()) or "-"
+
+
+def source_yield(pdir) -> dict[str, dict]:
+    """Per source (an organisation's first source): organisations in scope, how many agents
+    worked (verdict or confirmed A/B), how many have A/B, and its state - pilot, scaling,
+    waiting (pilot done under STOP), scale (an agent's call) or dropped."""
+    import mo_flow
+    states = {r["source"].casefold(): r.get("status", "") for r in mo_flow.source_pool(pdir)}
+    judged = {r["org_id"] for r in ws.read_csv(pdir / "verdicts.csv")}
+    ab = {c["org_id"] for c in ws.read_contacts(pdir) if c.get("grade") in ("A", "B") and c.get("review") != "yes"}
+    out: dict[str, dict] = {}
+    for o in ws.read_csv(pdir / "orgs.csv"):
+        if o.get("scope") == "out":
+            continue
+        src, oid = source_of(o), str(o.get("id") or "")
+        y = out.setdefault(src, {"orgs": 0, "worked": 0, "with_ab": 0})
+        y["orgs"] += 1
+        y["worked"] += oid in judged or oid in ab
+        y["with_ab"] += oid in ab
+    for src, y in out.items():
+        st = states.get(src.casefold()) or states.get(src.rsplit("/", 1)[-1].casefold(), "")
+        rate = y["with_ab"] / y["worked"] if y["worked"] else 0.0
+        y["ab_rate"] = round(rate, 3)
+        y["state"] = ("dropped" if st == "dropped" else "scale" if st == "scale"
+                      else "pilot" if y["worked"] < min(PILOT, y["orgs"])
+                      else "scaling" if rate >= STOP else "waiting")
+    return out
+
+
+def _mix(pdir, items: list[str], rows: list[dict]) -> list[str]:
+    """Order a lane's organisations so every source takes turns, each within what its state
+    allows (a pilot its first PILOT, a waiting or dropped source nothing)."""
+    orgs = {str(o.get("id") or ""): o for o in ws.read_csv(pdir / "orgs.csv")}
+    yields = source_yield(pdir)
+    inflight: dict[str, int] = {}
+    for r in rows:
+        if r["kind"] in ("sweep", "dig") and r["status"] != "done":
+            for i in r["items"].split("|"):
+                if i in orgs:
+                    inflight[source_of(orgs[i])] = inflight.get(source_of(orgs[i]), 0) + 1
+    queues: dict[str, list[str]] = {}
+    for i in items:
+        queues.setdefault(source_of(orgs.get(i, {})), []).append(i)
+    room = {}
+    for src in queues:
+        y = yields.get(src, {"state": "pilot", "worked": 0})
+        room[src] = (0 if y["state"] in ("dropped", "waiting") else
+                     max(0, PILOT - y["worked"] - inflight.get(src, 0)) if y["state"] == "pilot" else len(queues[src]))
+    out = []
+    while any(queues[s] and room[s] > 0 for s in queues):
+        for s in queues:
+            if queues[s] and room[s] > 0:
+                out.append(queues[s].pop(0))
+                room[s] -= 1
+    return out
+
+
 def plan(pdir, kind: str, size: int = 15) -> dict:
     """Cut the current work of one kind into packages of `size` and add them to tasks.csv."""
     with ws._lock(_path(pdir)):
@@ -112,7 +181,9 @@ def plan(pdir, kind: str, size: int = 15) -> dict:
             held = held_orgs(pdir)
             items = [str(o.get("id") or o.get("org_id") or "") for o in ws.read_csv(pdir / "orgs.csv")
                      if o.get("scope") != "out"]
-            items = [i for i in items if i and i not in started and i not in held]
+            # nor one an agent already took or judged (it may have read it with fetch, not run)
+            taken = taken_orgs(pdir)
+            items = [i for i in items if i and i not in started and i not in held and i not in taken]
         elif kind == "source":
             import mo_flow
             items = [r["source"] for r in mo_flow.source_pool(pdir) if r.get("status") == "found"]
@@ -128,6 +199,8 @@ def plan(pdir, kind: str, size: int = 15) -> dict:
         else:
             return {"error": "kind: sweep, source, site, dig, review, evidence or browse (find and custom tasks: action='add')"}
         items = [i for i in dict.fromkeys(items) if i not in busy]
+        if kind in ("sweep", "dig", "site"):
+            items = _mix(pdir, items, rows)   # every source takes turns, each piloted first
         new = []
         for k in range(0, len(items), max(1, size)):
             chunk = items[k:k + size]

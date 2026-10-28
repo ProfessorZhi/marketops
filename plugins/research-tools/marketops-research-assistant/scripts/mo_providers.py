@@ -434,12 +434,16 @@ def search(query: str, engines=None, country: str = "", lang: str = "", n: int =
     else:
         wanted, held = pick(query, available, weights)
     routes, merged = {}, {}
+    fresh = ""
+    if project_dir is not None:
+        import mo_workspace
+        fresh = mo_workspace.fresh_since(project_dir)
 
     def one(engine):
         import mo_library
         key = [engine, query, country, lang, n, maps] + ([page, near] if page > 1 or near else [])
-        cached = mo_library.get_search(key)
-        if cached is not None:   # asked before by any project: free
+        cached = mo_library.get_search(key, newer_than=fresh)
+        if cached is not None:   # asked before by any project (a fresh one: by itself): free
             return engine, cached, ""
         ok, why = mo_budget.allowed(engine, "search")
         if not ok:

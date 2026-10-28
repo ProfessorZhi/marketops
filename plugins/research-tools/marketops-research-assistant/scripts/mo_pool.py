@@ -8,9 +8,13 @@ reads the file `fetch` saved (JSON list, {"results": [...]}, GeoJSON or CSV), ke
 that match the filters, and adds them to venues.csv with the mapped column names; with
 group_by, one organisation per distinct value of that column goes to orgs.csv (venues linked
 by org_id). Every source is added to the same pools - the pools are the union of all sources:
-the same venue (name + postcode/city) or organisation (website, else name + city) seen in
-another source becomes one row, its empty fields filled from the new source, all sources
-listed in `sources`. Nothing is dropped.
+the same venue (name + postcode/city) or organisation (its registry number - UAI, SIRET, RNA -
+else name + town) seen in another source becomes one row, its empty fields filled from the new
+source, all sources listed in `sources`. Nothing is dropped.
+
+A list that prints an address on an organisation's own row (a school directory's mailbox, a
+federation's club list, a timetable with each club's contact) hands it to that organisation as
+a contact at once: the row is the record that ties them, and it is graded like any other.
 """
 from __future__ import annotations
 
@@ -29,9 +33,11 @@ import mo_workspace as ws
 def _rows(path: Path) -> list[dict]:
     text = path.read_text(encoding="utf-8-sig", errors="replace")
     if path.suffix.lower() == ".csv" or not text.lstrip().startswith(("[", "{")):
-        sample = text[:5000]
-        delim = ";" if sample.count(";") > sample.count(",") else ","
-        return list(csv.DictReader(io.StringIO(text), delimiter=delim))
+        # the header decides the delimiter: French open data is ';'-separated and its text fields
+        # are full of ',' (and the other way round) - counting the whole sample guessed wrong (072)
+        header = text.lstrip().split("\n", 1)[0]
+        delim = max((";", ",", "\t", "|"), key=header.count)
+        return list(csv.DictReader(io.StringIO(text), delimiter=delim if header.count(delim) else ","))
     data = json.loads(text)
     if isinstance(data, dict):
         if isinstance(data.get("features"), list):
@@ -105,6 +111,26 @@ def mentions(name: str, text: str, counts: dict | None = None) -> bool:
     return sum(has(w) for w in words) >= max(1, round(len(words) * 0.6))
 
 
+#: registry numbers that name one organisation or establishment, strongest first: two rows with
+#: the same number are one organisation whatever their names; two different numbers never merge
+REGISTRY = ("uai", "siret", "rna", "siren", "registry_id")
+
+
+def registry_id(r: dict) -> str:
+    for col in REGISTRY:
+        v = re.sub(r"\s", "", str(r.get(col) or "")).upper()
+        if v:
+            return f"{col}:{v}"
+    return ""
+
+
+def place(r: dict) -> str:
+    """The town for matching; a bare postcode is not one ("75011" and "Paris" are the same
+    town: 744 clubs became two organisations each in 072)."""
+    city = norm(r.get("city"))
+    return "" if re.fullmatch(r"\d{4,5}", city or "x") else city
+
+
 def venue_key(r: dict) -> str:
     name = norm(r.get("name"))
     place = norm(r.get("postcode") or r.get("zip") or r.get("city") or r.get("address", "")[:24])
@@ -112,9 +138,10 @@ def venue_key(r: dict) -> str:
 
 
 def org_key(r: dict) -> str:
-    """An organisation is its name in its place (Bruce's rule: never the domain - one domain
-    once merged 40 venues into 12, a shared portal or club platform would merge hundreds)."""
-    return f"n:{norm(r.get('name'))}|{norm(r.get('city'))}"
+    """An organisation is its registry number when it has one, else its name in its town
+    (Bruce's rule: never the domain - one domain once merged 40 venues into 12, a shared portal
+    or club platform would merge hundreds)."""
+    return registry_id(r) or f"n:{norm(r.get('name'))}|{place(r)}"
 
 
 def site_signal(r: dict) -> str:
@@ -156,11 +183,16 @@ def _merge_into(existing: list[dict], incoming: list[dict], key, source: str,
     index, names, sites = {}, {}, {}
     for r in existing:
         index.setdefault(key(r), r)
+        if key is org_key and registry_id(r):   # also findable by name: a source without the number
+            index.setdefault(f"n:{norm(r.get('name'))}|{place(r)}", r)
         names.setdefault(norm(r.get("name")), []).append(r)
         if signal and signal(r):
             sites.setdefault(signal(r).partition("/")[0], []).append(r)
 
     def clash(a: dict, b: dict) -> bool:
+        ra, rb = registry_id(a), registry_id(b)
+        if ra and rb:
+            return ra != rb
         return bool(signal) and sites_differ(signal(a), signal(b))
     added = merged = 0
     for r in incoming:
@@ -171,8 +203,7 @@ def _merge_into(existing: list[dict], incoming: list[dict], key, source: str,
             hit = index.get(k)
         if hit is None and by_name:
             same = [x for x in names.get(norm(r.get("name")), []) if not clash(x, r)]
-            if len(same) == 1 and (not r.get("city") or not same[0].get("city")
-                                   or norm(r.get("city")) == norm(same[0].get("city"))):
+            if len(same) == 1 and (not place(r) or not place(same[0]) or place(r) == place(same[0])):
                 hit = same[0]
         if hit is None and signal and signal(r):
             host = signal(r).partition("/")[0]
@@ -201,7 +232,7 @@ def _merge_into(existing: list[dict], incoming: list[dict], key, source: str,
 
 
 SOURCE_COLS = ["time", "source", "kind", "query", "read", "kept", "venues_added", "venues_merged",
-               "orgs_added", "orgs_merged"]
+               "orgs_added", "orgs_merged", "contacts_from_rows", "provenance"]
 
 
 def log_source(pdir: Path, source: str, kind: str, out: dict, query: str = "") -> None:
@@ -210,18 +241,37 @@ def log_source(pdir: Path, source: str, kind: str, out: dict, query: str = "") -
         "time": ws._now(), "source": source, "kind": kind, "query": query, "read": out.get("read", ""),
         "kept": out.get("kept", ""), "venues_added": out.get("added", ""),
         "venues_merged": out.get("merged_with_existing", ""), "orgs_added": out.get("orgs_added", ""),
-        "orgs_merged": out.get("orgs_merged", "")})
+        "orgs_merged": out.get("orgs_merged", ""), "contacts_from_rows": out.get("contacts_from_rows", ""),
+        "provenance": out.get("provenance", "")})
+
+
+def provenance(pdir: Path, file: str, source: str) -> str:
+    """Where a pooled file came from: `tools` (downloaded or harvested in this project), `source`
+    (an agent's own file for a list registered with its URL), else `brought-in` - a file from
+    elsewhere, such as an earlier project's pool. Shown, never refused: the report says what a
+    project started from."""
+    if ws.made_here(pdir, file):
+        return "tools"
+    import mo_flow
+    reg = next((r for r in mo_flow.source_pool(pdir) if r["source"].casefold() == (source or file).casefold()), None)
+    return "source" if reg and reg.get("url") else "brought-in"
 
 
 def pool(pdir: Path, file: str, into: str = "venues", filters: dict | None = None,
          map: dict | None = None, group_by: str = "", org_fields: dict | None = None,
-         kind: str = "file", source: str = "") -> dict:
+         kind: str = "file", source: str = "", replace_operator: bool = False) -> dict:
     """source: the name of the list in the source pool (sources(...) / harvest(...)); the
     pooling is logged under it and the source moves to `pooled`."""
     # several agents may build pools at once: one writer per project for the pool files
     with ws._lock(pdir / "pools"):
-        out = _pool(pdir, file, into, filters, map, group_by, org_fields)
+        out = _pool(pdir, file, into, filters, map, group_by, org_fields, replace_operator, tag=source or file)
     if "error" not in out:
+        out["provenance"] = provenance(pdir, file, source)
+        if out["provenance"] == "brought-in":
+            out["warning"] = ("this file was neither fetched nor harvested in this project, nor is its source "
+                              "registered with a URL: register where it comes from (sources(add=[...])) - "
+                              + ("this project is fresh (brief.fresh), so the report flags it as inherited"
+                                 if ws.fresh(pdir) else "the report lists it as brought in"))
         log_source(pdir, source or file, kind, out, query=file if source else "")
         import mo_flow
         mo_flow.mark_source(pdir, source or file, "pooled")
@@ -258,8 +308,42 @@ def add_orgs(pdir: Path, rows: list[dict], source: str, kind: str, query: str = 
     return out
 
 
+EMAIL_COLS = ("email", "emails", "mail", "courriel", "e_mail")
+
+
+def _row_contacts(orig: dict, mapped: dict, org: dict, where: str) -> list[dict]:
+    """The addresses a list prints on this organisation's own row, as contacts: the row is the
+    record that ties them to it (quote = the row). Graded later like any address."""
+    import mo_pages
+    text = " ".join(str(v) for v in orig.values() if isinstance(v, (str, int, float)))
+    found = [str(mapped.get(c) or "") for c in EMAIL_COLS] + mo_pages.EMAIL.findall(text)
+    values = list(dict.fromkeys(e.strip().strip(".;,").lower() for f in found
+                                for e in mo_pages.EMAIL.findall(f)))
+    if not values:
+        return []
+    quote = " / ".join(dict.fromkeys(str(v).strip() for v in list(mapped.values()) + list(orig.values())
+                                     if isinstance(v, (str, int, float)) and str(v).strip()
+                                     and len(str(v)) < 200))[:500]
+    own = mo_pages.site_of(str(org.get("website") or ""))
+    out = []
+    for e in values:
+        dom = mo_pages.site_of("http://" + e.split("@")[1])
+        local = e.split("@")[0]
+        out.append({"kind": "email", "value": e, "quote": quote, "quote_from": "block",
+                    "page_url": str(mapped.get("page_url") or where), "page_site": "", "page_on_org_site": "no",
+                    "email_site": dom, "same_site": "yes" if own and dom == own else "no",
+                    "email_on_org": ("yes" if own and dom == own else "no") if own else "unknown",
+                    "person": str(mapped.get("person") or ""), "role": str(mapped.get("role") or ""),
+                    "mailbox": "generic" if re.split(r"[._-]", local)[0] in mo_pages.GENERIC else "named_or_role",
+                    "found_by": "list"})
+    return out
+
+
 def _pool(pdir: Path, file: str, into: str, filters: dict | None, map: dict | None, group_by: str,
-          org_fields: dict | None) -> dict:
+          org_fields: dict | None, replace_operator: bool = False, tag: str = "") -> dict:
+    # rows carry the source's name from the source pool (not the saved file's name), so its
+    # pilot, its scale or drop and the report all speak of the same source
+    tag = tag or file
     src = (pdir / file).resolve()
     if pdir.resolve() not in src.parents:
         return {"error": "file: a path inside the project folder (e.g. pages/<file>.json)"}
@@ -278,18 +362,26 @@ def _pool(pdir: Path, file: str, into: str, filters: dict | None, map: dict | No
     if into == "orgs":
         for r in rows:
             r.setdefault("id", "")
-        o_added, o_merged, index = _merge_into(orgs, rows, org_key, file, by_name=True, signal=site_signal)
+        o_added, o_merged, index = _merge_into(orgs, rows, org_key, tag, by_name=True, signal=site_signal)
         for o in orgs:
             if not o.get("id"):
                 o["id"] = new_oid(o)
         _write(pdir / "orgs.csv", orgs, ["id", "name", "website", "city"])
-        bind = []
-        for r in rows:
+        bind, listed = [], 0
+        saved = ws._pages(pdir)
+        for r, orig in zip(rows, kept):
             hit = index.get(org_key(r)) or index.get(org_key(r) + "|" + site_signal(r))
-            if r.get("page_url") and hit is not None:
-                bind.append((hit["id"], hit.get("name", ""), r["page_url"]))
+            if hit is None:
+                continue
+            if r.get("page_url") and r["page_url"] in saved:
+                bind.append((hit["id"], hit.get("name", ""), r["page_url"]))   # read from the saved page
+                continue
+            found = _row_contacts(orig, r, hit, f"list:{file}")
+            if found:
+                listed += ws.merge_contacts(pdir, found, hit["id"], hit.get("name", ""), via="list")
         return {"read": len(raw), "kept": len(kept), "skipped_no_name": no_name, "orgs_added": o_added,
-                "orgs_merged": o_merged, "columns_in_file": list(raw[0].keys())[:60] if raw else [], "_bind": bind}
+                "orgs_merged": o_merged, "contacts_from_rows": listed,
+                "columns_in_file": list(raw[0].keys())[:60] if raw else [], "_bind": bind}
     # venues, and with group_by the organisations behind them
     if group_by:
         groups = []
@@ -303,7 +395,7 @@ def _pool(pdir: Path, file: str, into: str, filters: dict | None, map: dict | No
                     g[target_col] = orig[source_col]
             r["_org"] = org_key(g)
             groups.append(g)
-        o_added, o_merged, index = _merge_into(orgs, groups, org_key, file, by_name=True, signal=site_signal)
+        o_added, o_merged, index = _merge_into(orgs, groups, org_key, tag, by_name=True, signal=site_signal)
         for o in orgs:
             if not o.get("id"):
                 o["id"] = new_oid(o)
@@ -311,7 +403,18 @@ def _pool(pdir: Path, file: str, into: str, filters: dict | None, map: dict | No
             if r.get("_org"):
                 r["org_id"] = index[r.pop("_org")]["id"]
     venues = ws.read_csv(pdir / "venues.csv")
-    v_added, v_merged, _ = _merge_into(venues, rows, venue_key, file)
+    v_added, v_merged, v_index = _merge_into(venues, rows, venue_key, tag)
+    replaced = 0
+    if group_by and replace_operator:
+        # this source knows who runs the venue better than the one that pooled it first (an
+        # owner's name, a council, where the operator is a contractor): its organisation wins,
+        # the earlier one is kept as previous_org_id
+        for r in rows:
+            v = v_index.get(venue_key(r))
+            if v is not None and r.get("org_id") and v.get("org_id") != r["org_id"]:
+                v["previous_org_id"], v["org_id"] = v.get("org_id", ""), r["org_id"]
+                replaced += 1
+    emails_seen = sum(1 for o in kept if any(mo_pages_email(str(x)) for x in o.values()))
     counts: dict[str, int] = {}
     for v in venues:
         if v.get("org_id"):
@@ -323,11 +426,20 @@ def _pool(pdir: Path, file: str, into: str, filters: dict | None, map: dict | No
     if group_by:
         _write(pdir / "orgs.csv", orgs, ["id", "name", "website", "city", "venues"])
     return {"read": len(raw), "kept": len(kept), "skipped_no_name": no_name, "added": v_added,
-            "merged_with_existing": v_merged,
+            "merged_with_existing": v_merged, "operators_replaced": replaced,
             "orgs_added": o_added, "orgs_merged": o_merged,
+            **({"rows_with_addresses": emails_seen,
+                "addresses_note": "these rows print addresses; venues hold no contacts - pool the same file "
+                                  "into='orgs' (name = the organisation the address belongs to) to give them to it"}
+               if emails_seen else {}),
             "columns_in_file": list(raw[0].keys())[:60] if raw else [],
             "next": "every source goes into the same pools (union); duplicates across sources are merged "
                     "on name+place / website. Near-duplicates the names cannot catch: judge(...) them."}
+
+
+def mo_pages_email(text: str) -> bool:
+    import mo_pages
+    return bool(mo_pages.EMAIL.search(text))
 
 
 def _write(path: Path, rows: list[dict], first: list[str]) -> None:

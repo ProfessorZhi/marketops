@@ -148,6 +148,27 @@ def brief(pdir: Path) -> dict:
         return {}
 
 
+def fresh(pdir: Path) -> bool:
+    return bool(brief(pdir).get("fresh"))
+
+
+def fresh_since(pdir: Path) -> str:
+    """In a fresh project, the moment it started: shared pages, searches and lessons older than
+    this are not reused ("" = not fresh: everything in the library is fair game)."""
+    b = brief(pdir)
+    return str(b.get("fresh_since") or "9999") if b.get("fresh") else ""
+
+
+def note_made(pdir: Path, rel: str) -> None:
+    """A file the tools wrote into this project (a download, a harvest): its provenance."""
+    append_csv(pdir / "made.csv", ["file", "time"], {"file": rel.replace("\\", "/"), "time": _now()})
+
+
+def made_here(pdir: Path, rel: str) -> bool:
+    rel = rel.replace("\\", "/").lstrip("./")
+    return any(r.get("file", "").lstrip("./") == rel for r in read_csv(pdir / "made.csv"))
+
+
 def locale(pdir: Path) -> dict:
     """Where and in what language to search (brief.country ISO-2, brief.language), and the goal
     as the search intent. Engines default to US / English without them."""
@@ -350,6 +371,7 @@ def _download(pdir: Path, url: str, org_id: str) -> dict:
         f = _save(pdir, url, "download", got["bytes"], ext, got["final_url"], org_id)
         local = pdir / "pages" / Path(f).name   # data files also in the project, for pool(...)
         local.write_bytes(got["bytes"])
+        note_made(pdir, "pages/" + local.name)
         mo_budget.record(pdir, "download", "fetch", True, url[:120])
         report["download"] = {"file": "pages/" + local.name, "bytes": len(got["bytes"]), "type": got["content_type"]}
     except Exception as exc:  # noqa: BLE001
@@ -531,7 +553,10 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
                                                         f"in the last {BAD_URL_HOURS} h (refresh=True to try again)"}})
     if not saved and not refresh:
         import mo_library
+        since = fresh_since(pdir)
         for r in mo_library.get_pages(url):   # read before, by any project: reuse, no new call
+            if since and str(r.get("time") or "") <= since:
+                continue   # a fresh project reuses only what it read itself
             row = {**r, "org_id": org_id}
             _index_page(pdir, row)
             saved.append({**row, "library": True})
@@ -726,7 +751,7 @@ def playbook_for(pdir: Path, org: dict) -> dict:
     import mo_knowledge
     pb, seg = playbook(pdir), segment_of(org)
     learned = mo_knowledge.KNOWLEDGE.playbook(str(brief(pdir).get("country") or ""), seg) \
-        if seg and mo_knowledge.enabled() else {}
+        if seg and mo_knowledge.enabled() and not fresh(pdir) else {}
     out: dict = {"paths": [], "queries": [], "roles": []}
     for e in (pb.get("*"), pb.get(seg) if seg else None, learned):
         if isinstance(e, dict):
@@ -1132,8 +1157,29 @@ Edge cases: an address shown as an image or behind a form only - skip it. No add
 """
 
 
-def browse(pdir: Path, url: str, goal: str = "", org_id: str = "", org: str = "", stealth: bool = False) -> dict:
+WANTED_COLS = ["url", "org_id", "org", "goal", "why", "agent", "time"]
+
+
+def paid_agent_allowed(pdir: Path) -> bool:
+    """The paid TinyFish Agent runs only after the user said yes (brief.paid_agent: true)."""
+    return bool(brief(pdir).get("paid_agent"))
+
+
+def browse(pdir: Path, url: str, goal: str = "", org_id: str = "", org: str = "", stealth: bool = False,
+           why: str = "", agent: str = "") -> dict:
     url = mo_providers.public_url(url)
+    if not paid_agent_allowed(pdir):
+        # off by default: the page is kept as a request and asked about once, with the others,
+        # in needs_you - the agent goes on with free tools meanwhile
+        with _lock(pdir / "browse_wanted"):   # append_csv locks the file itself
+            if not any(r["url"] == url for r in read_csv(pdir / "browse_wanted.csv")):
+                append_csv(pdir / "browse_wanted.csv", WANTED_COLS, {
+                    "url": url, "org_id": org_id, "org": org, "goal": goal[:200], "why": why[:200],
+                    "agent": agent, "time": _now()})
+        return {"status": "WAITING_FOR_USER",
+                "note": "the paid TinyFish Agent (about $0.016 a step, up to 40 steps a page) is off until the user "
+                        "allows it; this page is on the list project(name)['needs_you'] asks about. Carry on with "
+                        "the free tools (fetch with other readers, search the people's names, the site's PDFs)."}
     for r in read_csv(pdir / "agent.csv"):
         if r["url"] == url and r["status"] not in ("FAILED", "CANCELLED", "error"):
             return {"run_id": r["run_id"], "status": r["status"], "note": "already submitted for this URL"}

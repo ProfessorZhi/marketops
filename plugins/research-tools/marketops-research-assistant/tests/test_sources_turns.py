@@ -1,0 +1,242 @@
+"""Every source gets researched, and lists give what they print (0.7.3, from the Paris 072 run).
+
+072 pooled 27 sources; the research lane handed out organisations in pool order, so four
+researchers spent forty minutes on the first source and 26 were never read. Lists that printed
+mailboxes (schools, clubs, timetables) lost them at pooling. These tests hold the fixes and
+simulate the chain offline with three sources of different worth.
+
+Run: python -m unittest tests.test_sources_turns -v
+"""
+from __future__ import annotations
+
+import json
+import os
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+if "MARKETOPS_PROJECTS" not in os.environ:   # alone; under discover test_core set these already
+    TMP = tempfile.mkdtemp()
+    os.environ.update(MARKETOPS_HOME=TMP + "/home", MARKETOPS_PROJECTS=TMP + "/projects",
+                      MARKETOPS_HEALTH="0", MARKETOPS_KNOWLEDGE="0")
+for k in ("SERPER_API_KEY", "SERPAPI_API_KEY", "DEEPSEEK_API_KEY", "TINYFISH_API_KEY", "TYPESAFE_API_KEY"):
+    os.environ.pop(k, None)
+
+import mo_flow  # noqa: E402
+import mo_pool  # noqa: E402
+import mo_providers  # noqa: E402
+import mo_tasks  # noqa: E402
+import mo_workspace as ws  # noqa: E402
+import server  # noqa: E402
+
+ws._dns_ok[:] = [False]
+
+REGISTER = "name;city\n" + "".join(f"Association Sportive Numero {i};75011\n" for i in range(1, 41))
+SCHOOLS = "uai;nom;ville;courriel\n" + "".join(
+    f"07500{i}A;Lycée Turn {chr(64 + i)};Paris;ce.07500{i}a@ac-turn.test\n" for i in range(1, 6))
+SCHOOLS_AGAIN = "uai,name,city\n" + "".join(f"07500{i}A,Lycee Turn {chr(64 + i)} (cité scolaire),75011\n"
+                                            for i in range(1, 6))
+CLUBS = "name;website;city\n" + "".join(f"Escalade Club {c};https://turn-club-{c.lower()}.test/;Paris\n"
+                                        for c in "PQRSTU")
+
+
+def fake_download(url, max_bytes=0):
+    body = {"https://data.turn.test/register.csv": REGISTER, "https://data.turn.test/schools.csv": SCHOOLS,
+            "https://data.turn.test/clubs.csv": CLUBS}.get(url)
+    if body is None:
+        raise mo_providers.ProviderError("HTTP 404")
+    return {"final_url": url, "content_type": "text/csv", "bytes": body.encode("utf-8")}
+
+
+def fake_read(url, readers=None, project_dir=None, **kw):
+    for c in "PQRSTU":
+        if url.startswith(f"https://turn-club-{c.lower()}.test"):
+            html = (f'<div class="card"><p>Escalade Club {c}</p><p>Président</p><p>Jean Turn{c}</p>'
+                    f"<p>president@turn-club-{c.lower()}.test</p></div>")
+            return {"crawl4ai": {"final_url": url, "html": html, "text": ""}}
+    return {"crawl4ai": {"error": "HTTP 404"}}
+
+
+class Patched(unittest.TestCase):
+    def setUp(self):
+        self.patches = [mock.patch.object(mo_providers, "download", side_effect=fake_download),
+                        mock.patch.object(mo_providers, "read", side_effect=fake_read),
+                        mock.patch.object(mo_providers, "read_race", side_effect=fake_read),
+                        mock.patch.object(mo_providers, "public_url", side_effect=lambda u: u),
+                        mock.patch.object(mo_providers, "search", return_value={"results": [], "routes": {}}),
+                        mock.patch.object(mo_tasks, "PILOT", 4)]
+        for p in self.patches:
+            p.start()
+
+    def tearDown(self):
+        for p in reversed(self.patches):
+            p.stop()
+
+    def mine(self, p, name, url, **pool_args):
+        server.sources(p, add=[{"source": name, "url": url, "kind": "open_data"}], agent="finder")
+        got = server.fetch(p, url)
+        return server.pool(p, got["readers"]["download"]["file"], source=name, **pool_args)
+
+
+class SourcesTakeTurns(Patched):
+    def test_three_sources_are_all_researched_and_a_list_of_names_waits_after_its_pilot(self):
+        p = "turns-073"
+        server.project(p, brief={"goal": "people who run sports venues", "country": "FR", "language": "fr",
+                                 "fresh": True})
+        pdir = ws.project_dir(p)
+        # the biggest, emptiest source is pooled first - as in 072
+        reg = self.mine(p, "register", "https://data.turn.test/register.csv", into="orgs")
+        self.assertEqual(40, reg["orgs_added"])
+        sch = self.mine(p, "schools", "https://data.turn.test/schools.csv", into="orgs",
+                        map={"uai": "uai", "name": "nom", "city": "ville", "email": "courriel"})
+        self.assertEqual(5, sch["contacts_from_rows"])           # the list's mailboxes are contacts now
+        self.assertEqual("tools", sch["provenance"])
+        clubs = self.mine(p, "clubs", "https://data.turn.test/clubs.csv", into="orgs")
+        self.assertEqual(6, clubs["orgs_added"])
+
+        # the same schools from another list, spelled differently, town as a postcode: one row each
+        (pdir / "pages" / "schools-again.csv").write_text(SCHOOLS_AGAIN, encoding="utf-8")
+        again = server.pool(p, "pages/schools-again.csv", into="orgs", source="schools-again")
+        self.assertEqual((0, 5), (again["orgs_added"], again["orgs_merged"]))
+        self.assertEqual("brought-in", again["provenance"])     # nobody fetched or registered it here
+        self.assertIn("fresh", again["warning"])
+
+        # the first packages a researcher claims hold every source, not the first one pooled
+        first = mo_tasks.claim(pdir, "r1", "sweep")["task"]
+        orgs = {o["id"]: o for o in ws.read_csv(pdir / "orgs.csv")}
+        srcs = {mo_tasks.source_of(orgs[i]) for i in first["items"].split("|")}
+        self.assertEqual(3, len(srcs), srcs)
+        # the register has its pilot (4 here) planned and no more, while it is unproven
+        planned = [i for t in ws.read_csv(pdir / "tasks.csv") for i in t["items"].split("|")]
+        self.assertEqual(4, sum(mo_tasks.source_of(orgs[i]).endswith("register.csv") or
+                                mo_tasks.source_of(orgs[i]) == "register" for i in planned if i in orgs))
+
+        # researchers work everything handed out: clubs give A, schools C, the register nothing
+        def work(task):
+            ids = [i for i in task["items"].split("|") if i]
+            sets = [{"value": c["value"], "org_id": c["org_id"], "grade": "A" if "president" in c["value"] else "C",
+                     "person": "Jean" if "president" in c["value"] else ""}
+                    for c in ws.read_contacts(pdir) if c["org_id"] in ids]
+            for i in ids:
+                if orgs[i].get("website"):
+                    ws.fetch(pdir, orgs[i]["website"], org_id=i, org=orgs[i]["name"])
+                    sets += [{"value": c["value"], "org_id": i, "grade": "A", "person": "Jean"}
+                             for c in ws.contacts_of(pdir, i)]
+            if sets:
+                server.grade(p, set=sets)
+            have = {c["org_id"] for c in ws.read_contacts(pdir) if c.get("grade") == "A"}
+            server.tasks(p, action="verdict", agent="r", verdicts=[
+                {"org_id": i, "verdict": "routes" if i in have else "none"} for i in ids])
+            mo_tasks.done(pdir, task["task_id"], note="done")
+        work(first)
+        while True:
+            t = mo_tasks.claim(pdir, "r1", "sweep").get("task")
+            if not t:
+                break
+            work(t)
+        turns = mo_tasks.source_yield(pdir)
+        reg_key = next(k for k in turns if "register" in k)
+        self.assertEqual("waiting", turns[reg_key]["state"], turns)   # 0 of 4: its other 36 wait
+        self.assertEqual(4, turns[reg_key]["worked"])
+        self.assertEqual(("scaling", 6), (turns["clubs"]["state"], turns["clubs"]["worked"]))   # A/B: all of it
+        self.assertEqual(("waiting", 4), (turns["schools"]["state"], turns["schools"]["worked"]))  # C only: pilot
+        listed = [c for c in ws.read_contacts(pdir) if c.get("found_in") == "list"]
+        self.assertEqual((5, 4), (len(listed), sum(c.get("grade") == "C" for c in listed)))  # kept; 4 worked
+        self.assertTrue(all("Lycée Turn" in c["quote"] for c in listed))   # quoted from their own row
+        flags = " ".join(server.needs_you(pdir, server.project(p)))
+        self.assertIn("register", flags)
+        self.assertIn("scale", flags)
+
+        # the lead's call: give the register its turn anyway
+        server.sources(p, set=[{"source": reg_key if reg_key in {r["source"] for r in mo_flow.source_pool(pdir)}
+                                else "register", "status": "scale"}])
+        more = mo_tasks.claim(pdir, "r1", "sweep").get("task")
+        self.assertIsNotNone(more)
+        self.assertTrue(all("Association" in orgs[i]["name"] for i in more["items"].split("|")))
+
+        # every call of the chain is on disk, without a transcript
+        calls = [json.loads(x) for x in (pdir / "calls.jsonl").read_text().splitlines()] \
+            if (pdir / "calls.jsonl").exists() else []
+        self.assertEqual([], calls)   # the tool log is written by the MCP wrapper, tested below
+
+
+class TheRest(Patched):
+    def test_a_semicolon_file_whose_text_has_commas_is_read_by_its_header(self):
+        pdir = ws.project_dir("delim-073")
+        (pdir / "pages").mkdir(parents=True, exist_ok=True)
+        (pdir / "pages" / "x.csv").write_text("nom;adresse;ville\nClub A;1, rue X, bât. 2;Paris\n", encoding="utf-8")
+        rows = mo_pool._rows(pdir / "pages" / "x.csv")
+        self.assertEqual("1, rue X, bât. 2", rows[0]["adresse"])
+
+    def test_a_later_source_can_name_the_real_operator(self):
+        p = "operator-073"
+        pdir = ws.project_dir(p)
+        (pdir / "pages").mkdir(parents=True, exist_ok=True)
+        (pdir / "pages" / "owner.csv").write_text("venue;cp;owner\nGymnase Turn;75011;Ville de Paris\n", encoding="utf-8")
+        (pdir / "pages" / "op.csv").write_text("venue;cp;operator\nGymnase Turn;75011;UCPA Turn\n", encoding="utf-8")
+        m = {"name": "venue", "postcode": "cp"}
+        server.pool(p, "pages/owner.csv", map=m, group_by="owner", source="owners")
+        kept = server.pool(p, "pages/op.csv", map=m, group_by="operator", source="operators")
+        self.assertEqual(0, kept["operators_replaced"])           # first writer kept unless asked
+        won = server.pool(p, "pages/op.csv", map=m, group_by="operator", source="operators", replace_operator=True)
+        self.assertEqual(1, won["operators_replaced"])
+        venue = ws.read_csv(pdir / "venues.csv")[0]
+        names = {o["id"]: o["name"] for o in ws.read_csv(pdir / "orgs.csv")}
+        self.assertEqual("UCPA Turn", names[venue["org_id"]])
+        self.assertEqual("Ville de Paris", names[venue["previous_org_id"]])
+
+    def test_a_harvested_page_without_a_title_still_has_a_name(self):
+        row = mo_flow._row_from_page({"url": "https://x.test/clubs/salle-du-turn", "title": "", "text": "",
+                                      "contacts": []}, "x.test")
+        self.assertEqual("Salle Du Turn", row["name"])
+
+    def test_the_paid_agent_waits_for_the_user(self):
+        p = "browse-073"
+        server.project(p, brief={"goal": "x"})
+        with mock.patch.object(mo_providers, "agent_submit", return_value="run-1") as submit:
+            out = server.browse(p, "https://turn-club-p.test/team", why="names behind tabs")
+            self.assertEqual("WAITING_FOR_USER", out["status"])
+            submit.assert_not_called()
+            flags = " ".join(server.needs_you(ws.project_dir(p), server.project(p)))
+            self.assertIn("paid TinyFish Agent on 1 page", flags)
+            server.project(p, brief={"goal": "x", "paid_agent": True})
+            self.assertEqual("RUNNING", server.browse(p, "https://turn-club-p.test/team")["status"])
+            submit.assert_called_once()
+
+    def test_a_fresh_project_does_not_reuse_what_another_read(self):
+        url = "https://turn-club-q.test/"
+        server.project("reuse-a", brief={"goal": "x"})
+        ws.fetch(ws.project_dir("reuse-a"), url)
+        calls = []
+
+        def count(u, *a, **k):
+            calls.append(u)
+            return fake_read(u)
+        with mock.patch.object(mo_providers, "read", side_effect=count), \
+                mock.patch.object(mo_providers, "read_race", side_effect=count):
+            server.project("reuse-b", brief={"goal": "x"})
+            ws.fetch(ws.project_dir("reuse-b"), url)
+            self.assertEqual([], calls)                       # the shared library answered
+            server.project("fresh-c", brief={"goal": "x", "fresh": True})
+            ws.fetch(ws.project_dir("fresh-c"), url)
+            self.assertEqual(1, len(calls))                   # a fresh project reads it itself
+            ws.fetch(ws.project_dir("fresh-c"), url)
+            self.assertEqual(1, len(calls))                   # and then reuses its own copy
+
+    def test_every_tool_call_is_logged_with_its_agent_and_no_addresses(self):
+        p = "calls-073"
+        server.project(p, brief={"goal": "x"})
+        server.logged(server.tasks)(p, action="status", agent="r9")
+        server.logged(server.grade)(p, set=[{"value": "someone@turn.test", "grade": "A"}])
+        rows = [json.loads(x) for x in (ws.project_dir(p) / "calls.jsonl").read_text().splitlines()]
+        self.assertEqual(["tasks", "grade"], [r["tool"] for r in rows])
+        self.assertEqual("r9", rows[0]["agent"])
+        self.assertNotIn("someone@", json.dumps(rows))
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

@@ -11,7 +11,11 @@ you do not mine. Knowledge: marketops-knowledge ("Where whole lists come from"),
 3. Open each candidate and read 20 rows: what is one row really? Worth mining?
 4. Register at once, so a miner starts while you keep looking: `sources(project, add=[{source,
    url, kind, row_is, expect, note: export link / entry and paging pattern / filters}],
-   agent="<name>")`. Rejected lists too, then `sources(set=[{source, status: "dropped", note}])`.
+   agent="<name>")` - with its URL, so the report can say where every pooled row came from.
+   Rejected lists too, then `sources(set=[{source, status: "dropped", note}])`.
+5. Prefer lists that carry a route to people (a website, a mailbox, a registry number) over
+   lists of names: each pooled source is piloted on 30 organisations, and a list of names alone
+   rarely survives its pilot.
 
 Never done after one list. Done when `sources(project)["saturation"]["saturated"]` (3+ sources,
 the last three each under 5% new organisations) or the brief's coverage is reached; then mine

@@ -106,10 +106,18 @@ def _search_path(key: list) -> Path:
     return root() / "search" / (hashlib.sha256(json.dumps(key, ensure_ascii=False).encode()).hexdigest()[:24] + ".json")
 
 
-def get_search(key: list, days: float = SEARCH_DAYS):
+def get_search(key: list, days: float = SEARCH_DAYS, newer_than: str = ""):
+    """A search asked before within `days` (newer_than: an ISO time - only answers saved after it)."""
     path = _search_path(key)
     try:
-        if time.time() - path.stat().st_mtime < days * 86400:
+        floor = 0.0
+        if newer_than:
+            try:
+                floor = datetime.fromisoformat(newer_than.replace("Z", "+00:00")).timestamp()
+            except ValueError:
+                floor = float("inf")
+        # newer_than is to the second: an answer saved in that same second may predate it
+        if time.time() - path.stat().st_mtime < days * 86400 and path.stat().st_mtime >= floor + 1:
             return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         pass
