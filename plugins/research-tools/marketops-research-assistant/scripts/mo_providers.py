@@ -776,10 +776,18 @@ def _pool(name: str) -> ThreadPoolExecutor:
         return _POOLS[name]
 
 
-def read_race(url: str, readers=None, project_dir=None, grace: float = 3.0, on_late=None, force: bool = False) -> dict:
+LINKS = re.compile(r"<a\s[^>]*href=|\]\((?:https?:)?/", re.I)
+PATIENCE_S = 20.0   # how much longer to wait for a version of the page that keeps its links
+
+
+def read_race(url: str, readers=None, project_dir=None, grace: float = 3.0, on_late=None, force: bool = False,
+              links: bool = False) -> dict:
     """Every reader at once; return when the first one has the page (plus `grace` seconds for
     the rest), so a page is as fast as its fastest reader. Readers still running finish in
-    the background and hand their result to on_late(reader, result): nothing is lost."""
+    the background and hand their result to on_late(reader, result): nothing is lost.
+    links=True: the caller follows the page's links (a site being read), so a version without
+    any (TinyFish's and DeepSeek's text often has none) is waited past for up to PATIENCE_S -
+    in the 073 test the fastest reader's text made every site read stop at its home page."""
     import time
     from concurrent.futures import FIRST_COMPLETED, wait
     extra = {"force": True} if force else {}
@@ -790,15 +798,21 @@ def read_race(url: str, readers=None, project_dir=None, grace: float = 3.0, on_l
             return f.result().get(reader) or {"error": "no result"}
         except Exception as exc:  # noqa: BLE001
             return {"error": mo_config.scrub(f"{type(exc).__name__}: {exc}")[:160]}
-    out, first_ok, pending = {}, None, set(futs)
+    out, first_ok, first_any, pending = {}, None, None, set(futs)
     while pending:
-        left = None if first_ok is None else first_ok + grace - time.time()
+        deadline = [t for t in ((first_ok + grace) if first_ok else None,
+                                (first_any + PATIENCE_S) if first_any and not first_ok else None) if t]
+        left = min(deadline) - time.time() if deadline else None
         if left is not None and left <= 0:
             break
         done, pending = wait(pending, timeout=left, return_when=FIRST_COMPLETED)
         for f in done:
             res = out[futs[f]] = result(f, futs[f])
-            if first_ok is None and "error" not in res and len(res.get("html") or res.get("text") or "") > 200:
+            body = res.get("html") or res.get("text") or ""
+            if "error" in res or len(body) <= 200:
+                continue
+            first_any = first_any or time.time()
+            if first_ok is None and (not links or LINKS.search(body)):
                 first_ok = time.time()
     for f in pending:
         if on_late:

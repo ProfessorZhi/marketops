@@ -99,6 +99,7 @@ def project(name: str, brief: dict | None = None, playbook: dict | None = None,
         import mo_flow
         out["flow"] = mo_flow.flow(pdir)
         out["version"] = VERSION
+        out["plugin_root"] = str(Path(__file__).resolve().parents[1])   # references/roles/<role>.md live here
         out["providers"] = mo_config.configured() + ["crawl4ai"]
         out["accounts"] = mo_budget.accounts()
         out["capabilities"] = mo_providers.capabilities()
@@ -345,9 +346,23 @@ def run(project: str, rounds: int = 0, max_pages: int = 15, goal_ab_org_share: f
         return _err(exc)
 
 
+ROLE_FOR_KIND = {"sweep": "research", "dig": "dig", "source": "pool", "site": "websites", "find": "sources",
+                 "review": "finish", "evidence": "finish"}
+ROLES = Path(__file__).resolve().parents[1] / "references" / "roles"
+
+
+def role_guide(kind: str) -> str:
+    """The role file for a lane, handed to the worker with its package: a worker whose host
+    cannot open plugin files still gets its instructions (073: a worker could not read them)."""
+    try:
+        return (ROLES / f"{ROLE_FOR_KIND.get(kind, kind)}.md").read_text(encoding="utf-8")[:4000]
+    except OSError:
+        return ""
+
+
 def tasks(project: str, action: str = "status", kind: str = "", size: int = 15, agent: str = "",
           task_id: str = "", note: str = "", title: str = "", release: bool = False,
-          verdicts: list[dict] | None = None) -> dict:
+          verdicts: list[dict] | None = None, wait: int = 0) -> dict:
     """Shared work queue so several agents work one project in parallel.
 
     Coordinator: action="plan", kind="dig" (organisations still without a confirmed A/B),
@@ -358,6 +373,11 @@ def tasks(project: str, action: str = "status", kind: str = "", size: int = 15, 
     (optionally kind) returns one package with its organisations or rows and how to do it;
     work it with the other tools, then action="done", task_id, note="what you found/tried"
     (release=True hands it back undone). A claim untouched for 40 minutes is offered again.
+    The first claim of a lane also returns your role's guide (role_guide). wait=seconds (at most
+    900) with claim: when the lane is empty because the pools before it are still filling (a
+    researcher starting before the miners pooled anything), the call waits for a package
+    instead of returning empty - one call, no polling; an empty answer after waiting is the
+    real end of the lane.
     While an agent holds a package, the pipeline leaves its organisations alone.
     action="verdict", verdicts=[{org_id, verdict: routes|partial|none|user, found, where, why}]:
     one line per organisation you finished - what you found, on which kind of page, why that
@@ -370,7 +390,19 @@ def tasks(project: str, action: str = "status", kind: str = "", size: int = 15, 
         if action == "add":
             return mo_tasks.add(pdir, title, note, kind or "custom")
         if action == "claim":
-            return mo_tasks.claim(pdir, agent or "worker", kind)
+            import time as _time
+            end = _time.time() + max(0, min(int(wait or 0), 900))
+            while True:
+                got = mo_tasks.claim(pdir, agent or "worker", kind)
+                if got.get("task") or _time.time() >= end:
+                    break
+                _time.sleep(5)
+            k = (got.get("task") or {}).get("kind") or kind
+            seen = {t.get("agent") for t in ws.read_csv(pdir / "tasks.csv")
+                    if t.get("kind") == k and t.get("task_id") != (got.get("task") or {}).get("task_id")}
+            if k and (agent or "worker") not in seen:
+                got["role_guide"] = role_guide(k)
+            return got
         if action == "done":
             return mo_tasks.done(pdir, task_id, note, release)
         if action == "verdict":
@@ -382,7 +414,7 @@ def tasks(project: str, action: str = "status", kind: str = "", size: int = 15, 
 
 def orgs(project: str, ids: list[str] | None = None, stage: str = "", limit: int = 30,
          set: list[dict] | None = None, add: list[dict] | None = None, agent: str = "",
-         wait: int = 0) -> dict:
+         wait: int = 0, source: str = "") -> dict:
     """One summary per organisation, for an agent deciding what to do next with it.
 
     ids: these organisations; or stage: "no_ab" (pipeline done, no confirmed A/B, no agent
@@ -393,9 +425,12 @@ def orgs(project: str, ids: list[str] | None = None, stage: str = "", limit: int
     set=[{org_id, website?, segment?, scope?, city?, note?}]: correct organisations - a website
     you found or fixed (the sweep reads it next; re-sweep with run(orgs=[...], again=True)),
     the segment the playbook keys on, scope in/out/unsure.
-    add=[{name, city, website?, segment?, note?}]: organisations you found while researching (the
-    council department or contractor that really runs a venue, a club found on a federation
-    page) - merged into the pool on name + place like any source; plan sweep packages for them.
+    add=[{name, city, website?, segment?, note?, source?}]: organisations you found (the council
+    department or contractor that really runs a venue, a club found on a federation page, the
+    places a maps search returned) - merged into the pool like any source. source: the
+    registered source they came from (sources(add=...) first), per row or for all with the
+    `source` argument - without it they are filed under your name, and the lanes cannot give
+    each source its turn.
     wait=seconds (with ids): return once every one of them is through the tools' read (after
     run(orgs=...)), or after that many seconds (at most 900) - one call instead of asking again
     and again.
@@ -404,9 +439,21 @@ def orgs(project: str, ids: list[str] | None = None, stage: str = "", limit: int
         pdir = ws.project_dir(project)
         if add:
             import mo_pool
-            rows = [{k: str(v) for k, v in r.items() if k in ("name", "city", "website", "segment", "note", "type")}
-                    for r in add if isinstance(r, dict) and str(r.get("name") or "").strip()]
-            out = mo_pool.add_orgs(pdir, rows, f"agent:{agent or 'agent'}", "agent")
+            import mo_flow
+            keep = ("name", "city", "website", "segment", "note", "type", "uai", "siret", "rna", "siren")
+            groups: dict[str, list] = {}
+            for r in add:
+                if isinstance(r, dict) and str(r.get("name") or "").strip():
+                    src = str(r.get("source") or source or "").strip() or f"agent:{agent or 'agent'}"
+                    groups.setdefault(src, []).append({k: str(v) for k, v in r.items() if k in keep})
+            out = {"orgs_added": 0, "orgs_merged": 0, "sources": {}}
+            for src, rows in groups.items():
+                got = mo_pool.add_orgs(pdir, rows, src, "agent")
+                out["orgs_added"] += got["orgs_added"]
+                out["orgs_merged"] += got["orgs_merged"]
+                out["sources"][src] = got["orgs_added"] + got["orgs_merged"]
+                if not src.startswith("agent:"):
+                    mo_flow.mark_source(pdir, src, "pooled", agent)
             if not ids and not stage and not set:
                 return out
         if set:

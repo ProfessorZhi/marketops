@@ -646,7 +646,7 @@ class AgentParts(unittest.TestCase):
         pdir = ws.project_dir("t49")
         order = []
 
-        def fetch(pdir_, url, readers, oid, org, site, via="site"):
+        def fetch(pdir_, url, readers, oid, org, site, via="site", **kw):
             order.append(url)
             n = len(order)
             links = [(f"https://club.fr/bureau?page={n}", 10)]   # a directory over many pages

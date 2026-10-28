@@ -34,6 +34,7 @@ import mo_workspace as ws  # noqa: E402
 import server  # noqa: E402
 
 ws._dns_ok[:] = [False]
+REAL_RACE = mo_providers.read_race
 
 REGISTER = "name;city\n" + "".join(f"Association Sportive Numero {i};75011\n" for i in range(1, 41))
 SCHOOLS = "uai;nom;ville;courriel\n" + "".join(
@@ -226,6 +227,48 @@ class TheRest(Patched):
             self.assertEqual(1, len(calls))                   # a fresh project reads it itself
             ws.fetch(ws.project_dir("fresh-c"), url)
             self.assertEqual(1, len(calls))                   # and then reuses its own copy
+
+    def test_a_site_read_waits_for_a_version_of_the_page_that_keeps_its_links(self):
+        import threading
+        import time as _t
+        gate = threading.Event()
+
+        def read(url, readers=None, project_dir=None, **kw):
+            r = readers[0]
+            if r == "tinyfish":   # fast, text without links
+                return {"tinyfish": {"final_url": url, "html": "", "text": "Bienvenue " * 40}}
+            gate.wait(2)
+            return {"crawl4ai": {"final_url": url, "html": "<p>x</p>" * 40 + '<a href="/contact">Contact</a>', "text": ""}}
+        with mock.patch.object(mo_providers, "read", side_effect=read), \
+                mock.patch.object(mo_providers, "available_readers", side_effect=lambda r=None: list(r or [])):
+            t = _t.time()
+            fast = REAL_RACE("https://x.turn.test/", ["tinyfish", "crawl4ai"], grace=0.1)
+            self.assertNotIn("crawl4ai", fast)                       # a plain read: fastest wins
+            self.assertLess(_t.time() - t, 1.5)
+            full = REAL_RACE("https://x.turn.test/", ["tinyfish", "crawl4ai"], grace=0.1, links=True)
+            self.assertIn("href", full["crawl4ai"]["html"])          # a site read: the version with links
+
+    def test_a_researcher_who_starts_first_waits_for_work_and_gets_its_guide(self):
+        import threading
+        p = "wait-073"
+        server.project(p, brief={"goal": "x"})
+        pdir = ws.project_dir(p)
+        got = {}
+        t = threading.Thread(target=lambda: got.update(server.tasks(p, action="claim", kind="sweep",
+                                                                    agent="r1", wait=30)))
+        t.start()
+        server.sources(p, add=[{"source": "maps-11e", "url": "https://maps.turn.test/?q=gym", "kind": "maps"}])
+        out = server.orgs(p, add=[{"name": "Gym Turn A", "city": "Paris"}, {"name": "Gym Turn B", "city": "Paris"}],
+                          source="maps-11e", agent="miner")
+        self.assertEqual({"maps-11e": 2}, out["sources"])
+        t.join(40)
+        self.assertIsNotNone(got.get("task"), got)                 # waited, then got the package
+        self.assertIn("Role: research", got.get("role_guide", ""))
+        orgs = ws.read_csv(pdir / "orgs.csv")
+        self.assertEqual({"maps-11e"}, {o["sources"] for o in orgs})    # filed under its source
+        self.assertEqual("pooled", next(r for r in mo_flow.source_pool(pdir) if r["source"] == "maps-11e")["status"])
+        again = server.tasks(p, action="claim", kind="sweep", agent="r1")
+        self.assertNotIn("role_guide", again)                       # once is enough
 
     def test_every_tool_call_is_logged_with_its_agent_and_no_addresses(self):
         p = "calls-073"

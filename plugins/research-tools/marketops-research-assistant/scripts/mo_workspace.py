@@ -528,7 +528,7 @@ def save_unattributed(pdir: Path, contacts: list[dict], org_id: str, org: str, v
 
 
 def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
-          org_site: str = "", refresh: bool = False, via: str = "fetch") -> dict:
+          org_site: str = "", refresh: bool = False, via: str = "fetch", links: bool = False) -> dict:
     """Read a page with every chosen reader at once; save each version; collect contacts.
 
     A URL already read in this project is parsed from its saved copies (no new calls)
@@ -638,7 +638,7 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
 
     def read_with(chosen, race: bool = False):
         forced = {"force": True} if refresh else {}   # only a forced re-read passes it on
-        got = mo_providers.read_race(url, chosen, project_dir=pdir, on_late=late, **forced) if race \
+        got = mo_providers.read_race(url, chosen, project_dir=pdir, on_late=late, links=links, **forced) if race \
             else mo_providers.read(url, chosen, project_dir=pdir, **forced)
         for reader, res in got.items():
             parsed = take(reader, res)
@@ -1083,7 +1083,8 @@ def _crawl_one(pdir: Path, t: dict, max_pages: int, readers, extra: list[str] | 
 
     def get(url):
         try:
-            return url, fetch(pdir, url, readers, org_id, org, org_site, via=label), None
+            # a site read follows links: wait for a reader whose version keeps them
+            return url, fetch(pdir, url, readers, org_id, org, org_site, via=label, links=True), None
         except Exception as exc:  # noqa: BLE001
             return url, None, exc
 

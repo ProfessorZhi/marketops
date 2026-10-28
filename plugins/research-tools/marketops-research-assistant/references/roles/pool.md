@@ -21,5 +21,8 @@ Turn one source after another into rows in the page, venue and organisation pool
    pilot to say so: say in the task note what would make it worth more (a join to a list
    that has sites).
 5. Another directory seen on the way -> `sources(add)`; an operator or contractor named ->
-   `orgs(add)`. Not worth it -> `sources(set=[{source, status: "dropped", note}])`.
+   `orgs(add)`. Organisations you collect by hand (a maps search, a listing you read yourself)
+   go in with their source: register it first (`sources(add=[{source, url, kind}])`), then
+   `orgs(add=[...], source="<that name>")` - the research lanes give every source its turn and
+   its pilot by that name. Not worth it -> `sources(set=[{source, status: "dropped", note}])`.
 6. `tasks(action="done", task_id, note="rows read / kept / new / merged")`; next source.
