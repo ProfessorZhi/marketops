@@ -899,6 +899,18 @@ class Slots(unittest.TestCase):
         os.environ["TYPESAFE_API_KEY"] = "k-aaaaaaaa, k-bbbbbbbb"
         self.assertEqual(["k-aaaaaaaa", "k-bbbbbbbb"], mo_config.slots("jev"))
 
+    def test_slots_have_no_upper_bound(self):
+        import mo_config
+        names = ["TYPESAFE_API_KEY"] + [f"TYPESAFE_API_KEY_{n}" for n in range(2, 26)]
+        for n, name in enumerate(names, start=1):
+            os.environ[name] = f"k-{n:08d}"
+        try:
+            got = mo_config.slots("jev")
+        finally:
+            for name in names:
+                os.environ.pop(name, None)
+        self.assertEqual([f"k-{n:08d}" for n in range(1, 26)], got)   # _10 comes after _9
+
     def test_a_generic_page_read_for_many_is_not_credited_to_one_it_does_not_name(self):
         pdir = ws.project_dir("t57")
         html = "<p>Réserver un créneau</p><p>reservation@paris.fr</p>" + " " * 300
