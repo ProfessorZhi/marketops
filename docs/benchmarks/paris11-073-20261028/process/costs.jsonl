@@ -1,0 +1,557 @@
+{"time": "2026-10-28T05:53:18+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "FFHandball annuaire des clubs trouver un club code postal 75011"}
+{"time": "2026-10-28T05:53:20+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "FFHandball annuaire des clubs trouver un club code postal 75011"}
+{"time": "2026-10-28T05:53:20+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "annuaire des associations mairie du 11e arrondissement Paris sport"}
+{"time": "2026-10-28T05:53:22+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "annuaire des associations mairie du 11e arrondissement Paris sport"}
+{"time": "2026-10-28T05:53:29+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "http://www.oms-paris11.org/"}
+{"time": "2026-10-28T05:53:34+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "http://www.oms-paris11.org/"}
+{"time": "2026-10-28T05:53:35+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://mairie11.paris.fr/pages/le-sport-dans-le-11e-tous-les-creneaux-associatifs-18447"}
+{"time": "2026-10-28T05:53:35+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://mairie11.paris.fr/pages/le-sport-dans-le-11e-tous-les-creneaux-associatifs-18447"}
+{"time": "2026-10-28T05:53:39+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://mairie11.paris.fr/pages/le-sport-dans-le-11e-tous-les-creneaux-associatifs-18447"}
+{"time": "2026-10-28T05:53:47+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "http://www.oms-paris11.org/documents/OMS-2025-2026.pdf"}
+{"time": "2026-10-28T05:53:50+00:00", "provider": "deepseek", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: no text (DeepSeek fetch 404) | http://www.oms-paris11.org/documents/OMS-2025-2026.pdf"}
+{"time": "2026-10-28T05:53:53+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://mvac11.mailchimpsites.com/"}
+{"time": "2026-10-28T05:53:53+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://mvac11.mailchimpsites.com/"}
+{"time": "2026-10-28T05:53:57+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://mvac11.mailchimpsites.com/"}
+{"time": "2026-10-28T05:53:58+00:00", "provider": "crawl4ai", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: Unexpected error in _crawl_web at line 779 in _crawl_web (toolcha | http://www.oms-paris11.org/"}
+{"time": "2026-10-28T05:54:15+00:00", "provider": "tinyfish", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: target_http_error | http://associations-v2beta.paris.fr/searchasso/jsp/site/Portal.jsp?page=searchas"}
+{"time": "2026-10-28T05:54:28+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://kiaikidoassociation.org/"}
+{"time": "2026-10-28T05:54:28+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "http://www.aikido-paris-cap.org/"}
+{"time": "2026-10-28T05:54:29+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.vothuat.com/"}
+{"time": "2026-10-28T05:54:30+00:00", "provider": "crawl4ai", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: Unexpected error in _crawl_web at line 779 in _crawl_web (toolcha | http://associations-v2beta.paris.fr/searchasso/jsp/site/Portal.jsp?page=searchas"}
+{"time": "2026-10-28T05:54:31+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "http://www.aikido-paris-cap.org/"}
+{"time": "2026-10-28T05:54:31+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.kiranbo.fr/"}
+{"time": "2026-10-28T05:54:32+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://kiaikidoassociation.org/"}
+{"time": "2026-10-28T05:54:33+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://kiaikidoassociation.org/"}
+{"time": "2026-10-28T05:54:33+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.kiranbo.fr/"}
+{"time": "2026-10-28T05:54:35+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.kiranbo.fr/"}
+{"time": "2026-10-28T05:54:35+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "http://www.aikido-paris-cap.org/"}
+{"time": "2026-10-28T05:54:35+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://kiaikidoassociation.org/fr/mentions-legales/mentions-legales"}
+{"time": "2026-10-28T05:54:35+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://kiaikidoassociation.org/fr/mentions-legales/politique-de-confidentialite"}
+{"time": "2026-10-28T05:54:35+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://kiaikidoassociation.org/fr/mentions-legales"}
+{"time": "2026-10-28T05:54:36+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "http://www.aikido-paris-cap.org/contact"}
+{"time": "2026-10-28T05:54:37+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "http://www.aikido-paris-cap.org/actu/stage-dete-en-hommage-a-chiba-sensei-les-preparatifs-0"}
+{"time": "2026-10-28T05:54:37+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://kiaikidoassociation.org/fr/mentions-legales/conditions-generales-dutilisation"}
+{"time": "2026-10-28T05:54:37+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://kiaikidoassociation.org/fr/mentions-legales/conditions-generales-dutilisation"}
+{"time": "2026-10-28T05:54:37+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "http://www.aikido-paris-cap.org/mentions-legales-cap.pdf"}
+{"time": "2026-10-28T05:54:37+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://kiaikidoassociation.org/fr/mentions-legales/politique-de-confidentialite"}
+{"time": "2026-10-28T05:54:38+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "http://www.aikido-paris-cap.org/actu/stage-dete-en-hommage-a-chiba-sensei-les-preparatifs-0"}
+{"time": "2026-10-28T05:54:38+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://kiaikidoassociation.org/fr/mentions-legales/mentions-legales"}
+{"time": "2026-10-28T05:54:39+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://kiaikidoassociation.org/fr/mentions-legales/politique-de-confidentialite"}
+{"time": "2026-10-28T05:54:39+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "http://www.aikido-paris-cap.org/contact"}
+{"time": "2026-10-28T05:54:39+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://kiaikidoassociation.org/fr/mentions-legales"}
+{"time": "2026-10-28T05:54:39+00:00", "provider": "deepseek", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: no text (DeepSeek fetch 404) | http://www.aikido-paris-cap.org/mentions-legales-cap.pdf"}
+{"time": "2026-10-28T05:54:40+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "3 candidates"}
+{"time": "2026-10-28T05:54:40+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "people x1"}
+{"time": "2026-10-28T05:54:41+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "http://www.aikido-paris-cap.org/actu/stage-dete-en-hommage-a-chiba-sensei-les-preparatifs-0"}
+{"time": "2026-10-28T05:54:41+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.vothuat.com/"}
+{"time": "2026-10-28T05:54:41+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://kiaikidoassociation.org/fr/mentions-legales/mentions-legales"}
+{"time": "2026-10-28T05:54:42+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://kiaikidoassociation.org/fr/contact"}
+{"time": "2026-10-28T05:54:42+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://kiaikidoassociation.org/fr/mentions-legales/conditions-generales-dutilisation"}
+{"time": "2026-10-28T05:54:43+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://kiaikidoassociation.org/fr"}
+{"time": "2026-10-28T05:54:43+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://kiaikidoassociation.org/fr/contact"}
+{"time": "2026-10-28T05:54:44+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://kiaikidoassociation.org/fr"}
+{"time": "2026-10-28T05:54:44+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "http://www.aikido-paris-cap.org/contact"}
+{"time": "2026-10-28T05:54:45+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.vothuat.com/"}
+{"time": "2026-10-28T05:54:45+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://kiaikidoassociation.org/fr/mentions-legales"}
+{"time": "2026-10-28T05:54:46+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.vothuat.com/contact/"}
+{"time": "2026-10-28T05:54:46+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://kiaikidoassociation.org/fr/contact"}
+{"time": "2026-10-28T05:54:47+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://kiaikidoassociation.org/fr"}
+{"time": "2026-10-28T05:54:55+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.vothuat.com/vo-thuat-sport-amitie-et-respect/vocotruyen/"}
+{"time": "2026-10-28T05:54:56+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.vothuat.com/contact/"}
+{"time": "2026-10-28T05:54:57+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.vothuat.com/vo-thuat-sport-amitie-et-respect/vocotruyen/"}
+{"time": "2026-10-28T05:54:59+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "4 candidates"}
+{"time": "2026-10-28T05:54:59+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "people x1"}
+{"time": "2026-10-28T05:54:59+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.vothuat.com/vo-thuat-sport-amitie-et-respect/vocotruyen/"}
+{"time": "2026-10-28T05:55:00+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.vothuat.com/contact/"}
+{"time": "2026-10-28T05:55:04+00:00", "provider": "deepseek", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: HTTP 504 | http://associations-v2beta.paris.fr/searchasso/jsp/site/Portal.jsp?page=searchas"}
+{"time": "2026-10-28T05:55:07+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "\"ASC 11\" club sportif Paris 11e association"}
+{"time": "2026-10-28T05:55:09+00:00", "provider": "tinyfish", "action": "search", "ok": true, "usd": 0.0, "note": "\"ASC 11\" club sportif Paris 11e association"}
+{"time": "2026-10-28T05:55:10+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "\"ASC 11\" club sportif Paris 11e association"}
+{"time": "2026-10-28T05:55:11+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://mailchi.mp/36c1f10b4687/4z2b7s26q7"}
+{"time": "2026-10-28T05:55:11+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://mailchi.mp/36c1f10b4687/4z2b7s26q7"}
+{"time": "2026-10-28T05:55:13+00:00", "provider": "crawl4ai", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: Unexpected error in _crawl_web at line 779 in _crawl_web (toolcha | http://aikido-asc11.fr/"}
+{"time": "2026-10-28T05:55:14+00:00", "provider": "tinyfish", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: invalid_url | http://aikido-asc11.fr/"}
+{"time": "2026-10-28T05:55:15+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://mailchi.mp/36c1f10b4687/4z2b7s26q7"}
+{"time": "2026-10-28T05:55:16+00:00", "provider": "crawl4ai", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: Blocked by anti-bot protection: Cloudflare JS challenge | https://assofinder.fr/associations-paris-11/"}
+{"time": "2026-10-28T05:55:17+00:00", "provider": "tinyfish", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: target_http_error | https://assofinder.fr/associations-paris-11/"}
+{"time": "2026-10-28T05:55:17+00:00", "provider": "deepseek", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: no text (DeepSeek fetch 404) | http://aikido-asc11.fr/"}
+{"time": "2026-10-28T05:55:20+00:00", "provider": "http", "action": "fetch", "ok": false, "usd": 0.0, "note": "ConnectError: [Errno -2] Name or service not known | http://aikido-asc11.fr/"}
+{"time": "2026-10-28T05:55:22+00:00", "provider": "deepseek", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: no text (DeepSeek fetch 404) | https://assofinder.fr/associations-paris-11/"}
+{"time": "2026-10-28T05:55:22+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "\"annuaire des clubs\" fédération Paris 75011 badminton tennis de table escrime gy"}
+{"time": "2026-10-28T05:55:22+00:00", "provider": "serper", "action": "search", "ok": false, "usd": 0.0, "note": "ProviderError: HTTP 400"}
+{"time": "2026-10-28T05:55:28+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "\"Kiranbo\" aïkido Paris 11 président bureau contact"}
+{"time": "2026-10-28T05:55:30+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "\"Kiranbo\" aïkido Paris 11 président bureau contact"}
+{"time": "2026-10-28T05:55:31+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "data.paris.fr équipements sportifs dataset opendata arrondissement"}
+{"time": "2026-10-28T05:55:31+00:00", "provider": "tinyfish", "action": "search", "ok": true, "usd": 0.0, "note": "\"Kiranbo\" aïkido Paris 11 président bureau contact"}
+{"time": "2026-10-28T05:55:31+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "\"Association Sportive et Culturelle du 11\" aikido Paris contact email"}
+{"time": "2026-10-28T05:55:32+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "data.paris.fr équipements sportifs dataset opendata arrondissement"}
+{"time": "2026-10-28T05:55:33+00:00", "provider": "tinyfish", "action": "search", "ok": true, "usd": 0.0, "note": "\"Association Sportive et Culturelle du 11\" aikido Paris contact email"}
+{"time": "2026-10-28T05:55:33+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "\"Association Sportive et Culturelle du 11\" aikido Paris contact email"}
+{"time": "2026-10-28T05:55:35+00:00", "provider": "tinyfish", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: page_not_found | https://www.kiranbo.fr/infos/"}
+{"time": "2026-10-28T05:55:37+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.kiranbo.fr/infos/"}
+{"time": "2026-10-28T05:55:38+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://mailchi.mp/c679f28ad6fd/9d0e4locin"}
+{"time": "2026-10-28T05:55:40+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://mailchi.mp/c679f28ad6fd/9d0e4locin"}
+{"time": "2026-10-28T05:55:41+00:00", "provider": "deepseek", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: no text (DeepSeek fetch 404) | https://www.kiranbo.fr/infos/"}
+{"time": "2026-10-28T05:55:43+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://mailchi.mp/c679f28ad6fd/9d0e4locin"}
+{"time": "2026-10-28T05:55:44+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.data.gouv.fr/datasets/recensement-des-equipements-sportifs-a-paris-idf"}
+{"time": "2026-10-28T05:55:46+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.data.gouv.fr/datasets/recensement-des-equipements-sportifs-a-paris-idf"}
+{"time": "2026-10-28T05:55:48+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "http://www.oms-paris11.org/documents/BROCHURE_OMS_2026.pdf"}
+{"time": "2026-10-28T05:55:51+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.data.gouv.fr/datasets/recensement-des-equipements-sportifs-a-paris-idf"}
+{"time": "2026-10-28T05:55:52+00:00", "provider": "deepseek", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: no text (DeepSeek fetch 404) | http://www.oms-paris11.org/documents/BROCHURE_OMS_2026.pdf"}
+{"time": "2026-10-28T05:55:59+00:00", "provider": "download", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.data.gouv.fr/api/1/datasets/recensement-des-equipements-sportifs-a-paris-idf/"}
+{"time": "2026-10-28T05:56:09+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "\"ASC 11\" OR \"aikido-asc11\" aïkido Paris 11e correspondant fédération"}
+{"time": "2026-10-28T05:56:10+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "\"ASC 11\" OR \"aikido-asc11\" aïkido Paris 11e correspondant fédération"}
+{"time": "2026-10-28T05:56:14+00:00", "provider": "tinyfish", "action": "search", "ok": true, "usd": 0.0, "note": "\"ASC 11\" OR \"aikido-asc11\" aïkido Paris 11e correspondant fédération"}
+{"time": "2026-10-28T05:56:19+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.aikido-gcercce.fr/single-post/2020/10/07/nouveau-report"}
+{"time": "2026-10-28T05:56:20+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.aikido-gcercce.fr/single-post/2020/10/07/nouveau-report"}
+{"time": "2026-10-28T05:56:22+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "\"ASC 11\" aïkido gymnasium Japy Paris contact téléphone inscription"}
+{"time": "2026-10-28T05:56:23+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.aikido-gcercce.fr/single-post/2020/10/07/nouveau-report"}
+{"time": "2026-10-28T05:56:24+00:00", "provider": "tinyfish", "action": "search", "ok": true, "usd": 0.0, "note": "\"ASC 11\" aïkido gymnasium Japy Paris contact téléphone inscription"}
+{"time": "2026-10-28T05:56:27+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "\"ASC 11\" aïkido gymnasium Japy Paris contact téléphone inscription"}
+{"time": "2026-10-28T05:56:31+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/activites/activite-aikido-par-l-association-association-sportive-et-culturelle-du-xieme-arrondissem"}
+{"time": "2026-10-28T05:56:33+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/activites/activite-aikido-par-l-association-association-sportive-et-culturelle-du-xieme-arrondissem"}
+{"time": "2026-10-28T05:56:34+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.paris.fr/activites/activite-aikido-par-l-association-association-sportive-et-culturelle-du-xieme-arrondissem"}
+{"time": "2026-10-28T06:08:35+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "12 candidates"}
+{"time": "2026-10-28T06:08:35+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "\"ASSOCIATION SPORTIVE CANNE D'ARME PARIS\" Paris 75011"}
+{"time": "2026-10-28T06:08:35+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "\"AMICALE BOULISTE du père lachaise (ABPL)\" Paris 75011"}
+{"time": "2026-10-28T06:08:35+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "\"AÏKIDO CLUB du 11ème\" Paris 75006"}
+{"time": "2026-10-28T06:08:35+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "\"ASSOCIATION SPORTIVE ET CULTURELLE DES POLICIERS DU ONZIEME\" Paris 75011"}
+{"time": "2026-10-28T06:08:35+00:00", "provider": "tinyfish", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: target_unreachable | http://www.csm20.com/documents/BROCHURE_OMS_2026.pdf"}
+{"time": "2026-10-28T06:08:36+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "http://asbouvines.fr/"}
+{"time": "2026-10-28T06:08:36+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.apsapvp.fr/"}
+{"time": "2026-10-28T06:08:36+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "\"ASSOCIATION SPORTIVE ET CULTURELLE DES POLICIERS DU ONZIEME\" Paris 75011"}
+{"time": "2026-10-28T06:08:37+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "\"AMICALE BOULISTE du père lachaise (ABPL)\" Paris 75011"}
+{"time": "2026-10-28T06:08:37+00:00", "provider": "tinyfish", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: page_not_found | http://www.csm20.com/mentions-legales"}
+{"time": "2026-10-28T06:08:37+00:00", "provider": "tinyfish", "action": "search", "ok": true, "usd": 0.0, "note": "\"ASSOCIATION SPORTIVE CANNE D'ARME PARIS\" Paris 75011"}
+{"time": "2026-10-28T06:08:37+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.apsapvp.fr/"}
+{"time": "2026-10-28T06:08:37+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "http://www.csm20.com/"}
+{"time": "2026-10-28T06:08:37+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "http://asbouvines.fr/"}
+{"time": "2026-10-28T06:08:38+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "\"AÏKIDO CLUB du 11ème\" Paris 75006"}
+{"time": "2026-10-28T06:08:40+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "\"ASSOCIATION SPORTIVE CANNE D'ARME PARIS\" Paris 75011"}
+{"time": "2026-10-28T06:08:40+00:00", "provider": "deepseek", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: no text (DeepSeek fetch 404) | http://www.csm20.com/documents/BROCHURE_OMS_2026.pdf"}
+{"time": "2026-10-28T06:08:41+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "\"ASSOCIATION YI QUAN YVELINES ET OXALIS\" Paris 75011"}
+{"time": "2026-10-28T06:08:41+00:00", "provider": "tinyfish", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: page_not_found | https://www.sport-seniors-paris.com/2020/07/programme-2020-2021.html"}
+{"time": "2026-10-28T06:08:42+00:00", "provider": "tinyfish", "action": "search", "ok": true, "usd": 0.0, "note": "\"AÏKIDO CLUB du 11ème\" Paris 75006"}
+{"time": "2026-10-28T06:08:42+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "http://asbouvines.fr/"}
+{"time": "2026-10-28T06:08:42+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "http://www.csm20.com/"}
+{"time": "2026-10-28T06:08:43+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.appl-lachaise.net/"}
+{"time": "2026-10-28T06:08:43+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.apsapvp.fr/"}
+{"time": "2026-10-28T06:08:43+00:00", "provider": "deepseek", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: no text (DeepSeek fetch 404) | http://www.csm20.com/FR-17-132.html"}
+{"time": "2026-10-28T06:08:43+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.asbouvines.fr/contacts"}
+{"time": "2026-10-28T06:08:43+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.apsapvp.fr/nos-centres-sportifs-1"}
+{"time": "2026-10-28T06:08:43+00:00", "provider": "tinyfish", "action": "search", "ok": true, "usd": 0.0, "note": "\"ASSOCIATION SPORTIVE ET CULTURELLE DES POLICIERS DU ONZIEME\" Paris 75011"}
+{"time": "2026-10-28T06:08:43+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "\"ASSOCIATION YI QUAN YVELINES ET OXALIS\" Paris 75011"}
+{"time": "2026-10-28T06:08:43+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/"}
+{"time": "2026-10-28T06:08:43+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.asbouvines.fr/contacts"}
+{"time": "2026-10-28T06:08:43+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.apsapvp.fr/le-comite-directeur"}
+{"time": "2026-10-28T06:08:43+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.appl-lachaise.net/"}
+{"time": "2026-10-28T06:08:43+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.asbouvines.fr/equipe"}
+{"time": "2026-10-28T06:08:43+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://sports.asbouvines.fr/extranet/index.php"}
+{"time": "2026-10-28T06:08:44+00:00", "provider": "tinyfish", "action": "search", "ok": true, "usd": 0.0, "note": "\"AMICALE BOULISTE du père lachaise (ABPL)\" Paris 75011"}
+{"time": "2026-10-28T06:08:44+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.apsapvp.fr/nos-centres-sportifs-1"}
+{"time": "2026-10-28T06:08:44+00:00", "provider": "deepseek", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: no text (DeepSeek fetch 404) | http://www.csm20.com/mentions-legales"}
+{"time": "2026-10-28T06:08:45+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://sports.asbouvines.fr/extranet/index.php"}
+{"time": "2026-10-28T06:08:45+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.apsapvp.fr/contact"}
+{"time": "2026-10-28T06:08:45+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "http://www.csm20.com/"}
+{"time": "2026-10-28T06:08:45+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "http://www.csm20.com/FR-17-132.html"}
+{"time": "2026-10-28T06:08:45+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.asbouvines.fr/equipe"}
+{"time": "2026-10-28T06:08:45+00:00", "provider": "tinyfish", "action": "search", "ok": true, "usd": 0.0, "note": "\"ASSOCIATION YI QUAN YVELINES ET OXALIS\" Paris 75011"}
+{"time": "2026-10-28T06:08:46+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.apsapvp.fr/le-comite-directeur"}
+{"time": "2026-10-28T06:08:46+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "http://www.parisaikidoclub.com/"}
+{"time": "2026-10-28T06:08:47+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/"}
+{"time": "2026-10-28T06:08:47+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.apsapvp.fr/lassociation"}
+{"time": "2026-10-28T06:08:47+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.asbouvines.fr/le-club"}
+{"time": "2026-10-28T06:08:47+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "http://www.parisaikidoclub.com/"}
+{"time": "2026-10-28T06:08:47+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "http://www.csm20.com/mentions-legales"}
+{"time": "2026-10-28T06:08:47+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "1 candidates"}
+{"time": "2026-10-28T06:08:48+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.apsapvp.fr/le-comite-directeur"}
+{"time": "2026-10-28T06:08:48+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "http://yiquan78.org/"}
+{"time": "2026-10-28T06:08:48+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.asbouvines.fr/le-club"}
+{"time": "2026-10-28T06:08:49+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "http://yiquan78.org/"}
+{"time": "2026-10-28T06:08:49+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "http://www.parisaikidoclub.com/"}
+{"time": "2026-10-28T06:08:49+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "\"ASSOCIATION SPORTIVE DES P.V.P. DU 11ème (AS PVP 11ème)\" Paris 75011"}
+{"time": "2026-10-28T06:08:49+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.asbouvines.fr/equipe"}
+{"time": "2026-10-28T06:08:49+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.asbouvines.fr/le-club"}
+{"time": "2026-10-28T06:08:49+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/faq"}
+{"time": "2026-10-28T06:08:49+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://sports.asbouvines.fr/extranet/index.php"}
+{"time": "2026-10-28T06:08:49+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.apsapvp.fr/contact"}
+{"time": "2026-10-28T06:08:50+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.appl-lachaise.net/"}
+{"time": "2026-10-28T06:08:50+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.asbouvines.fr/contacts"}
+{"time": "2026-10-28T06:08:50+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/faq"}
+{"time": "2026-10-28T06:08:51+00:00", "provider": "tinyfish", "action": "search", "ok": true, "usd": 0.0, "note": "\"ASSOCIATION SPORTIVE DES P.V.P. DU 11ème (AS PVP 11ème)\" Paris 75011"}
+{"time": "2026-10-28T06:08:51+00:00", "provider": "tinyfish", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: page_not_found | http://www.csm20.com/contact"}
+{"time": "2026-10-28T06:08:52+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/hotel-restaurant/restaurant/guides/332808-ou-manger-restaurant-avant-apres-seance-salles-ci"}
+{"time": "2026-10-28T06:08:52+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "http://www.csm20.com/nous-contacter"}
+{"time": "2026-10-28T06:08:52+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "http://www.csm20.com/contact"}
+{"time": "2026-10-28T06:08:52+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.apsapvp.fr/lassociation"}
+{"time": "2026-10-28T06:08:52+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://parisaikidoclub.com/spip/spip.php?rubrique13"}
+{"time": "2026-10-28T06:08:52+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.apsapvp.fr/contact"}
+{"time": "2026-10-28T06:08:52+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/hotel-restaurant/tendances-food/articles/355864-thanksgiving-2026-au-lordy-s-paris-club-un-"}
+{"time": "2026-10-28T06:08:53+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "\"ASSOCIATION SPORTIVE DES P.V.P. DU 11ème (AS PVP 11ème)\" Paris 75011"}
+{"time": "2026-10-28T06:08:53+00:00", "provider": "tinyfish", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: page_not_found | http://www.csm20.com/nous-contacter"}
+{"time": "2026-10-28T06:08:53+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://parisaikidoclub.com/spip/spip.php?rubrique43"}
+{"time": "2026-10-28T06:08:53+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://parisaikidoclub.com/spip/spip.php?rubrique13"}
+{"time": "2026-10-28T06:08:53+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.apsapvp.fr/nos-centres-sportifs-1"}
+{"time": "2026-10-28T06:08:54+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/hotel-restaurant/tendances-food/articles/355864-thanksgiving-2026-au-lordy-s-paris-club-un-"}
+{"time": "2026-10-28T06:08:54+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://parisaikidoclub.com/spip/spip.php?article433"}
+{"time": "2026-10-28T06:08:54+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/infos-legales/tou"}
+{"time": "2026-10-28T06:08:54+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.csm20.com/le-club/les-sports"}
+{"time": "2026-10-28T06:08:55+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://parisaikidoclub.com/spip/spip.php?page=contact"}
+{"time": "2026-10-28T06:08:55+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.csm20.com/le-club/nous-contacter"}
+{"time": "2026-10-28T06:08:55+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "http://yiquan78.org/"}
+{"time": "2026-10-28T06:08:56+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.csm20.com/le-club/nous-contacter"}
+{"time": "2026-10-28T06:08:56+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "13 candidates"}
+{"time": "2026-10-28T06:08:56+00:00", "provider": "tinyfish", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: page_not_found | http://www.csm20.com/FR-17-132.html"}
+{"time": "2026-10-28T06:08:57+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.sortiraparis.com/"}
+{"time": "2026-10-28T06:08:57+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://parisaikidoclub.com/spip/spip.php?article433"}
+{"time": "2026-10-28T06:08:57+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.apsapvp.fr/sport-sante"}
+{"time": "2026-10-28T06:08:58+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.csm20.com/le-club/les-sports"}
+{"time": "2026-10-28T06:08:58+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://parisaikidoclub.com/spip/spip.php?rubrique43"}
+{"time": "2026-10-28T06:08:58+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://parisaikidoclub.com/spip/spip.php?article433"}
+{"time": "2026-10-28T06:08:58+00:00", "provider": "deepseek", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: no text (DeepSeek fetch 404) | https://parisaikidoclub.com/spip/spip.php?page=contact"}
+{"time": "2026-10-28T06:08:58+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.csm20.com/le-club/nous-contacter"}
+{"time": "2026-10-28T06:08:58+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.apsapvp.fr/nouveau-menu-droulant"}
+{"time": "2026-10-28T06:08:59+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.apsapvp.fr/nouveau-menu-droulant"}
+{"time": "2026-10-28T06:08:59+00:00", "provider": "deepseek", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: no text (DeepSeek fetch 404) | http://www.csm20.com/contact"}
+{"time": "2026-10-28T06:09:00+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.apsapvp.fr/sport-sante"}
+{"time": "2026-10-28T06:09:00+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://parisaikidoclub.com/spip/spip.php?auteur90"}
+{"time": "2026-10-28T06:09:00+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://parisaikidoclub.com/spip/spip.php?rubrique43"}
+{"time": "2026-10-28T06:09:00+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://parisaikidoclub.com/spip/spip.php?article792"}
+{"time": "2026-10-28T06:09:00+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.csm20.com/le-club/historique"}
+{"time": "2026-10-28T06:09:01+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.csm20.com/le-club"}
+{"time": "2026-10-28T06:09:01+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "6 candidates"}
+{"time": "2026-10-28T06:09:02+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://badminton.csm20.com/contact"}
+{"time": "2026-10-28T06:09:02+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.csm20.com/le-club/historique"}
+{"time": "2026-10-28T06:09:03+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://parisaikidoclub.com/spip/spip.php?auteur90"}
+{"time": "2026-10-28T06:09:03+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.csm20.com/le-club/les-sports"}
+{"time": "2026-10-28T06:09:03+00:00", "provider": "deepseek", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: no text (DeepSeek fetch 404) | http://www.csm20.com/nous-contacter"}
+{"time": "2026-10-28T06:09:03+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.sortiraparis.com/faq"}
+{"time": "2026-10-28T06:09:04+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.sortiraparis.com/infos-legales/tou"}
+{"time": "2026-10-28T06:09:04+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://badminton.csm20.com/contact"}
+{"time": "2026-10-28T06:09:04+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.csm20.com/le-club/quelques-chiffres"}
+{"time": "2026-10-28T06:09:04+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://parisaikidoclub.com/spip/spip.php?rubrique33"}
+{"time": "2026-10-28T06:09:05+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.csm20.com/le-club/historique"}
+{"time": "2026-10-28T06:09:05+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.csm20.com/le-club"}
+{"time": "2026-10-28T06:09:05+00:00", "provider": "crawl4ai", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: Unexpected error in _crawl_web at line 779 in _crawl_web (toolcha | https://www.sport-seniors-paris.com/2020/07/programme-2020-2021.html"}
+{"time": "2026-10-28T06:09:06+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://parisaikidoclub.com/spip/spip.php?article792"}
+{"time": "2026-10-28T06:09:06+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.csm20.com/le-club/quelques-chiffres"}
+{"time": "2026-10-28T06:09:06+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/infos-legales/tou"}
+{"time": "2026-10-28T06:09:06+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://parisaikidoclub.com/spip/spip.php?article792"}
+{"time": "2026-10-28T06:09:07+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.csm20.com/le-club"}
+{"time": "2026-10-28T06:09:07+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://parisaikidoclub.com/spip/spip.php?article894"}
+{"time": "2026-10-28T06:09:07+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.apsapvp.fr/lassociation"}
+{"time": "2026-10-28T06:09:07+00:00", "provider": "tinyfish", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: page_not_found | https://parisaikidoclub.com/spip/spip.php?page=contact"}
+{"time": "2026-10-28T06:09:09+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://parisaikidoclub.com/spip/spip.php?rubrique13"}
+{"time": "2026-10-28T06:09:09+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/hotel-restaurant/restaurant/articles/352013-yangguofu-organise-sa-premiere-conference-europ"}
+{"time": "2026-10-28T06:09:09+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.csm20.com/le-club/règlement-intérieur"}
+{"time": "2026-10-28T06:09:09+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.csm20.com/le-club/règlement-intérieur"}
+{"time": "2026-10-28T06:09:09+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://parisaikidoclub.com/spip/spip.php?rubrique33"}
+{"time": "2026-10-28T06:09:10+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "2 candidates"}
+{"time": "2026-10-28T06:09:10+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "people x1"}
+{"time": "2026-10-28T06:09:11+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://parisaikidoclub.com/spip/spip.php?rubrique33"}
+{"time": "2026-10-28T06:09:11+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://badminton.csm20.com/contact"}
+{"time": "2026-10-28T06:09:11+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://parisaikidoclub.com/spip/spip.php?article894"}
+{"time": "2026-10-28T06:09:11+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/hotel-restaurant/tendances-food/articles/352628-japan-fes-paris-2026-des-marches-nocturnes-"}
+{"time": "2026-10-28T06:09:11+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/hotel-restaurant/restaurant/guides/332808-ou-manger-restaurant-avant-apres-seance-salles-ci"}
+{"time": "2026-10-28T06:09:11+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.csm20.com/le-club/quelques-chiffres"}
+{"time": "2026-10-28T06:09:11+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.sortiraparis.com/hotel-restaurant/tendances-food/articles/355864-thanksgiving-2026-au-lordy-s-paris-club-un-"}
+{"time": "2026-10-28T06:09:11+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.apsapvp.fr/nouveau-menu-droulant"}
+{"time": "2026-10-28T06:09:12+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.csm20.com/le-club/règlement-intérieur"}
+{"time": "2026-10-28T06:09:12+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://parisaikidoclub.com/spip/spip.php?auteur90"}
+{"time": "2026-10-28T06:09:13+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.apsapvp.fr/sport-sante"}
+{"time": "2026-10-28T06:09:13+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://parisaikidoclub.com/spip/spip.php?article894"}
+{"time": "2026-10-28T06:09:13+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/loisirs/sport"}
+{"time": "2026-10-28T06:09:15+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://parisaikidoclub.com/spip/spip.php?rubrique42"}
+{"time": "2026-10-28T06:09:16+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/loisirs/sport"}
+{"time": "2026-10-28T06:09:16+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://parisaikidoclub.com/spip/spip.php?rubrique42"}
+{"time": "2026-10-28T06:09:17+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://parisaikidoclub.com/spip/spip.php?rubrique40"}
+{"time": "2026-10-28T06:09:17+00:00", "provider": "tinyfish", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: page_not_found | https://parisaikidoclub.com/spip/spip.php?article582"}
+{"time": "2026-10-28T06:09:18+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/loisirs/sport/articles/274359-climb-up-aubervilliers-la-salle-d-escalade-sur-voies-et-blocs"}
+{"time": "2026-10-28T06:09:18+00:00", "provider": "crawl4ai", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: Blocked by anti-bot protection: Structural: minimal_text, no_cont | https://parisaikidoclub.com/spip/spip.php?article582"}
+{"time": "2026-10-28T06:09:19+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.sortiraparis.com/hotel-restaurant/restaurant/guides/332808-ou-manger-restaurant-avant-apres-seance-salles-ci"}
+{"time": "2026-10-28T06:09:19+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://parisaikidoclub.com/spip/spip.php?article22"}
+{"time": "2026-10-28T06:09:20+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://parisaikidoclub.com/spip/spip.php?rubrique42"}
+{"time": "2026-10-28T06:09:20+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://parisaikidoclub.com/spip/spip.php?article22"}
+{"time": "2026-10-28T06:09:20+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/loisirs/sport/articles/274359-climb-up-aubervilliers-la-salle-d-escalade-sur-voies-et-blocs"}
+{"time": "2026-10-28T06:09:22+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://parisaikidoclub.com/spip/spip.php?rubrique40"}
+{"time": "2026-10-28T06:09:23+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.sortiraparis.com/hotel-restaurant/restaurant/articles/352013-yangguofu-organise-sa-premiere-conference-europ"}
+{"time": "2026-10-28T06:09:24+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/hotel-restaurant/restaurant/articles/352013-yangguofu-organise-sa-premiere-conference-europ"}
+{"time": "2026-10-28T06:09:25+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/hotel-restaurant/tendances-food/articles/352628-japan-fes-paris-2026-des-marches-nocturnes-"}
+{"time": "2026-10-28T06:09:26+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.sortiraparis.com/loisirs/sport"}
+{"time": "2026-10-28T06:09:27+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://parisaikidoclub.com/spip/spip.php?rubrique40"}
+{"time": "2026-10-28T06:09:28+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://parisaikidoclub.com/spip/spip.php?article22"}
+{"time": "2026-10-28T06:09:31+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/loisirs/sport/articles/333493-nba-sur-prime-video-comment-suivre-la-saison-2026-2027-en-fra"}
+{"time": "2026-10-28T06:09:32+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/loisirs/sport/articles/333493-nba-sur-prime-video-comment-suivre-la-saison-2026-2027-en-fra"}
+{"time": "2026-10-28T06:09:32+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.sortiraparis.com/loisirs/sport/articles/274359-climb-up-aubervilliers-la-salle-d-escalade-sur-voies-et-blocs"}
+{"time": "2026-10-28T06:09:33+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/loisirs/sport/articles/76789-ekiden-de-paris-2026-le-marathon-en-equipe-ou-se-passer-le-rel"}
+{"time": "2026-10-28T06:09:34+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/loisirs/sport/articles/76789-ekiden-de-paris-2026-le-marathon-en-equipe-ou-se-passer-le-rel"}
+{"time": "2026-10-28T06:09:34+00:00", "provider": "deepseek", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: no text (DeepSeek fetch 404) | https://parisaikidoclub.com/spip/spip.php?article582"}
+{"time": "2026-10-28T06:09:36+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/loisirs/sport/articles/284353-la-sans-raison-2026-les-trois-trails-solidaires-du-22-novembr"}
+{"time": "2026-10-28T06:09:37+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://parisaikidoclub.com/spip/spip.php?article222"}
+{"time": "2026-10-28T06:09:37+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://parisaikidoclub.com/spip/spip.php?article221"}
+{"time": "2026-10-28T06:09:37+00:00", "provider": "tinyfish", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: page_not_found | https://parisaikidoclub.com/spip/spip.php?article222"}
+{"time": "2026-10-28T06:09:38+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://parisaikidoclub.com/spip/spip.php?article215"}
+{"time": "2026-10-28T06:09:38+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.sortiraparis.com/hotel-restaurant/tendances-food/articles/352628-japan-fes-paris-2026-des-marches-nocturnes-"}
+{"time": "2026-10-28T06:09:38+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://parisaikidoclub.com/spip/spip.php?article221"}
+{"time": "2026-10-28T06:09:38+00:00", "provider": "deepseek", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: HTTP 504 | https://www.sport-seniors-paris.com/2020/07/programme-2020-2021.html"}
+{"time": "2026-10-28T06:09:38+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/loisirs/sport/articles/284259-championnat-du-monde-du-cheval-arabe-2026-les-plus-beaux-chev"}
+{"time": "2026-10-28T06:09:39+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://parisaikidoclub.com/spip/spip.php?article215"}
+{"time": "2026-10-28T06:09:40+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/loisirs/sport/articles/284353-la-sans-raison-2026-les-trois-trails-solidaires-du-22-novembr"}
+{"time": "2026-10-28T06:09:43+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.sortiraparis.com/loisirs/sport/articles/333493-nba-sur-prime-video-comment-suivre-la-saison-2026-2027-en-fra"}
+{"time": "2026-10-28T06:09:43+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://parisaikidoclub.com/spip/spip.php?article215"}
+{"time": "2026-10-28T06:09:44+00:00", "provider": "deepseek", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: no text (DeepSeek fetch 404) | https://parisaikidoclub.com/spip/spip.php?article222"}
+{"time": "2026-10-28T06:09:45+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.sortiraparis.com/loisirs/sport/articles/284259-championnat-du-monde-du-cheval-arabe-2026-les-plus-beaux-chev"}
+{"time": "2026-10-28T06:09:45+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://parisaikidoclub.com/spip/spip.php?article221"}
+{"time": "2026-10-28T06:09:46+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/loisirs/sport/articles/284259-championnat-du-monde-du-cheval-arabe-2026-les-plus-beaux-chev"}
+{"time": "2026-10-28T06:09:47+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/loisirs/sport/articles/43598-paris-masters-2026-le-programme-et-un-hommage-a-gael-monfils-l"}
+{"time": "2026-10-28T06:09:48+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/loisirs/sport/articles/43598-paris-masters-2026-le-programme-et-un-hommage-a-gael-monfils-l"}
+{"time": "2026-10-28T06:09:50+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/loisirs/sport/articles/41017-evasion-verte-l-accrobranche-du-parc-floral-de-paris-des-3-ans"}
+{"time": "2026-10-28T06:09:51+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.sortiraparis.com/loisirs/sport/articles/284353-la-sans-raison-2026-les-trois-trails-solidaires-du-22-novembr"}
+{"time": "2026-10-28T06:09:54+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sortiraparis.com/loisirs/sport/articles/41017-evasion-verte-l-accrobranche-du-parc-floral-de-paris-des-3-ans"}
+{"time": "2026-10-28T06:10:01+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.sortiraparis.com/loisirs/sport/articles/43598-paris-masters-2026-le-programme-et-un-hommage-a-gael-monfils-l"}
+{"time": "2026-10-28T06:10:04+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.sortiraparis.com/loisirs/sport/articles/76789-ekiden-de-paris-2026-le-marathon-en-equipe-ou-se-passer-le-rel"}
+{"time": "2026-10-28T06:10:22+00:00", "provider": "http", "action": "fetch", "ok": false, "usd": 0.0, "note": "ConnectTimeout: timed out | https://www.sport-seniors-paris.com/2020/07/programme-2020-2021.html"}
+{"time": "2026-10-28T06:10:35+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.sortiraparis.com/loisirs/sport/articles/41017-evasion-verte-l-accrobranche-du-parc-floral-de-paris-des-3-ans"}
+{"time": "2026-10-28T06:10:37+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.batoncanne.com/contact/"}
+{"time": "2026-10-28T06:10:40+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.batoncanne.com/contact/"}
+{"time": "2026-10-28T06:10:46+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.batoncanne.com/contact/"}
+{"time": "2026-10-28T06:11:09+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "2 candidates"}
+{"time": "2026-10-28T06:11:10+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "\"ASSOCIATION FRANÇAISE DE SHUAI JIO\" Paris 75011"}
+{"time": "2026-10-28T06:11:10+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "\"ECOLE DE KARATE SHOTOKAN PARIS 11\" Paris 75011"}
+{"time": "2026-10-28T06:11:10+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "\"ASSOCIATION SPORTIVE et CULTURELLE des POLICIERS du XIe (A.S.C.P XI)\" Paris 750"}
+{"time": "2026-10-28T06:11:11+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "\"ASSOCIATION FRANÇAISE DE SHUAI JIO\" Paris 75011"}
+{"time": "2026-10-28T06:11:11+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "\"ECOLE DE KARATE SHOTOKAN PARIS 11\" Paris 75011"}
+{"time": "2026-10-28T06:11:15+00:00", "provider": "tinyfish", "action": "search", "ok": true, "usd": 0.0, "note": "\"ASSOCIATION FRANÇAISE DE SHUAI JIO\" Paris 75011"}
+{"time": "2026-10-28T06:11:15+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "\"ASSOCIATION SPORTIVE et CULTURELLE des POLICIERS du XIe (A.S.C.P XI)\" Paris 750"}
+{"time": "2026-10-28T06:11:15+00:00", "provider": "tinyfish", "action": "search", "ok": true, "usd": 0.0, "note": "\"ASSOCIATION SPORTIVE et CULTURELLE des POLICIERS du XIe (A.S.C.P XI)\" Paris 750"}
+{"time": "2026-10-28T06:11:17+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.eks-paris.com/"}
+{"time": "2026-10-28T06:11:20+00:00", "provider": "tinyfish", "action": "search", "ok": true, "usd": 0.0, "note": "\"ECOLE DE KARATE SHOTOKAN PARIS 11\" Paris 75011"}
+{"time": "2026-10-28T06:11:21+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.eks-paris.com/"}
+{"time": "2026-10-28T06:11:25+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.eks-paris.com/"}
+{"time": "2026-10-28T06:11:26+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.eks-paris.com/informations-legales"}
+{"time": "2026-10-28T06:11:27+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.eks-paris.com/en-savoir-plus/le-club-18450"}
+{"time": "2026-10-28T06:11:28+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.eks-paris.com/en-savoir-plus/le-club-18450"}
+{"time": "2026-10-28T06:11:29+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.eks-paris.com/organigramme-du-club"}
+{"time": "2026-10-28T06:11:30+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.eks-paris.com/contactez-nous"}
+{"time": "2026-10-28T06:11:30+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.eks-paris.com/contactez-nous"}
+{"time": "2026-10-28T06:11:30+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.eks-paris.com/informations-legales"}
+{"time": "2026-10-28T06:11:31+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.eks-paris.com/organigramme-du-club"}
+{"time": "2026-10-28T06:11:34+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "1 candidates"}
+{"time": "2026-10-28T06:11:34+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.eks-paris.com/en-savoir-plus/le-club-18450"}
+{"time": "2026-10-28T06:11:35+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sportsregions.fr/informations-legales"}
+{"time": "2026-10-28T06:11:37+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.eks-paris.com/equipes"}
+{"time": "2026-10-28T06:11:39+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sportsregions.fr/contactez-nous"}
+{"time": "2026-10-28T06:11:40+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.eks-paris.com/organigramme-du-club"}
+{"time": "2026-10-28T06:11:41+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sportsregions.fr/informations-legales"}
+{"time": "2026-10-28T06:11:41+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sportsregions.fr/contactez-nous"}
+{"time": "2026-10-28T06:11:41+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.eks-paris.com/informations-legales"}
+{"time": "2026-10-28T06:11:41+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.eks-paris.com/contactez-nous"}
+{"time": "2026-10-28T06:11:42+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.eks-paris.com/membres/olivier-clef-160629"}
+{"time": "2026-10-28T06:11:43+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.eks-paris.com/membres/olivier-clef-160629"}
+{"time": "2026-10-28T06:11:44+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.eks-paris.com/equipes"}
+{"time": "2026-10-28T06:11:45+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.sportsregions.fr/contactez-nous"}
+{"time": "2026-10-28T06:11:46+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.sportsregions.fr/informations-legales"}
+{"time": "2026-10-28T06:11:47+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sportsregions.fr/inscription"}
+{"time": "2026-10-28T06:11:48+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.sportsregions.fr/inscription"}
+{"time": "2026-10-28T06:11:48+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.eks-paris.com/membres/olivier-clef-160629"}
+{"time": "2026-10-28T06:11:49+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.eks-paris.com/photos-du-club"}
+{"time": "2026-10-28T06:11:50+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.eks-paris.com/saison-2025-2026/photos-du-club/stage-karate-ile-de-buthiers-20-et-21-juin-2026-466293"}
+{"time": "2026-10-28T06:11:50+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.eks-paris.com/saison-2025-2026/photos-du-club/stage-karate-ile-de-buthiers-20-et-21-juin-2026-466293"}
+{"time": "2026-10-28T06:11:51+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.eks-paris.com/photos-du-club"}
+{"time": "2026-10-28T06:11:51+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.eks-paris.com/videos-du-club"}
+{"time": "2026-10-28T06:11:54+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.sportsregions.fr/inscription"}
+{"time": "2026-10-28T06:11:58+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.eks-paris.com/photos-du-club"}
+{"time": "2026-10-28T06:11:58+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.eks-paris.com/videos-du-club"}
+{"time": "2026-10-28T06:11:59+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.eks-paris.com/videos-du-club"}
+{"time": "2026-10-28T06:12:00+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.eks-paris.com/saison-2025-2026/photos-du-club"}
+{"time": "2026-10-28T06:12:01+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.eks-paris.com/equipes/adherent-saison-2016-2017-14535"}
+{"time": "2026-10-28T06:12:03+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.eks-paris.com/equipes/adherent-saison-2016-2017-14535"}
+{"time": "2026-10-28T06:12:08+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.eks-paris.com/saison-2025-2026/photos-du-club/stage-karate-ile-de-buthiers-20-et-21-juin-2026-466293"}
+{"time": "2026-10-28T06:12:08+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.eks-paris.com/equipes/adherent-saison-2016-2017-14535"}
+{"time": "2026-10-28T06:12:09+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.eks-paris.com/saison-2025-2026/photos-du-club"}
+{"time": "2026-10-28T06:12:10+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.eks-paris.com/equipes"}
+{"time": "2026-10-28T06:12:11+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.eks-paris.com/saison-2025-2026/photos-du-club"}
+{"time": "2026-10-28T06:25:34+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "\"ASSOCIATION FRANCAISE DE SHUAI JIAO LUTTE CHINOISE\" Paris 75011"}
+{"time": "2026-10-28T06:25:34+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "\"TENNIS CLUB DU 11EME ASSOCIATION SPORTIVE SAINT BERNARD\" Paris 75011"}
+{"time": "2026-10-28T06:25:34+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "\"COMITE DEPARTEMENTAL de la RETRAITE SPORTIVE de Paris (CODERS 75)\" Paris 75013"}
+{"time": "2026-10-28T06:25:34+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "\"ENTENTE SPORTIVE ET CULTURELLE DU XIEME (ESC XIE)\" Paris 75011"}
+{"time": "2026-10-28T06:25:34+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "\"ASSOCIATION AIKIDO CLUB DU 11EME\" Paris 75011"}
+{"time": "2026-10-28T06:25:34+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "\"UNION SPORTIVE DE CHARONNE\" Paris 75011"}
+{"time": "2026-10-28T06:25:34+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "\"CLUB PETANQUE des 3 BORNES\" Paris 75011"}
+{"time": "2026-10-28T06:25:34+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "15 candidates"}
+{"time": "2026-10-28T06:25:35+00:00", "provider": "tinyfish", "action": "search", "ok": true, "usd": 0.0, "note": "\"CLUB PETANQUE des 3 BORNES\" Paris 75011"}
+{"time": "2026-10-28T06:25:35+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "\"COMITE DEPARTEMENTAL de la RETRAITE SPORTIVE de Paris (CODERS 75)\" Paris 75013"}
+{"time": "2026-10-28T06:25:35+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "\"TENNIS CLUB DU 11EME ASSOCIATION SPORTIVE SAINT BERNARD\" Paris 75011"}
+{"time": "2026-10-28T06:25:36+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "\"ENTENTE SPORTIVE ET CULTURELLE DU XIEME (ESC XIE)\" Paris 75011"}
+{"time": "2026-10-28T06:25:36+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.clubvoltaire.org/"}
+{"time": "2026-10-28T06:25:36+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "\"ASSOCIATION AIKIDO CLUB DU 11EME\" Paris 75011"}
+{"time": "2026-10-28T06:25:36+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "\"CLUB PETANQUE des 3 BORNES\" Paris 75011"}
+{"time": "2026-10-28T06:25:37+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "\"ASSOCIATION FRANCAISE DE SHUAI JIAO LUTTE CHINOISE\" Paris 75011"}
+{"time": "2026-10-28T06:25:38+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "\"UNION SPORTIVE DE CHARONNE\" Paris 75011"}
+{"time": "2026-10-28T06:25:38+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.clubvoltaire.org/"}
+{"time": "2026-10-28T06:25:39+00:00", "provider": "tinyfish", "action": "search", "ok": true, "usd": 0.0, "note": "\"UNION SPORTIVE DE CHARONNE\" Paris 75011"}
+{"time": "2026-10-28T06:25:39+00:00", "provider": "tinyfish", "action": "search", "ok": true, "usd": 0.0, "note": "\"TENNIS CLUB DU 11EME ASSOCIATION SPORTIVE SAINT BERNARD\" Paris 75011"}
+{"time": "2026-10-28T06:25:39+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.clubvoltaire.org/"}
+{"time": "2026-10-28T06:25:41+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.clubvoltaire.org/contacts"}
+{"time": "2026-10-28T06:25:43+00:00", "provider": "tinyfish", "action": "search", "ok": true, "usd": 0.0, "note": "\"ASSOCIATION FRANCAISE DE SHUAI JIAO LUTTE CHINOISE\" Paris 75011"}
+{"time": "2026-10-28T06:25:43+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.clubvoltaire.org/contacts"}
+{"time": "2026-10-28T06:25:43+00:00", "provider": "tinyfish", "action": "search", "ok": true, "usd": 0.0, "note": "\"COMITE DEPARTEMENTAL de la RETRAITE SPORTIVE de Paris (CODERS 75)\" Paris 75013"}
+{"time": "2026-10-28T06:25:43+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.ffrs-retraite-sportive.org/"}
+{"time": "2026-10-28T06:25:43+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.ffrs-retraite-sportive.org/"}
+{"time": "2026-10-28T06:25:45+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://tennis-idf.fr/"}
+{"time": "2026-10-28T06:25:45+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://tennis-idf.fr/"}
+{"time": "2026-10-28T06:25:45+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.ffrs-retraite-sportive.org/"}
+{"time": "2026-10-28T06:25:47+00:00", "provider": "tinyfish", "action": "search", "ok": true, "usd": 0.0, "note": "\"ENTENTE SPORTIVE ET CULTURELLE DU XIEME (ESC XIE)\" Paris 75011"}
+{"time": "2026-10-28T06:25:47+00:00", "provider": "tinyfish", "action": "search", "ok": true, "usd": 0.0, "note": "\"ASSOCIATION AIKIDO CLUB DU 11EME\" Paris 75011"}
+{"time": "2026-10-28T06:25:47+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.ffrs-retraite-sportive.org/Contactez-la-FFRS_a79.html"}
+{"time": "2026-10-28T06:25:49+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.ffrs-retraite-sportive.org/Contactez-la-FFRS_a79.html"}
+{"time": "2026-10-28T06:25:49+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.ffrs-retraite-sportive.org/Mentions-legales_a71.html"}
+{"time": "2026-10-28T06:25:50+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://tennis-idf.fr/"}
+{"time": "2026-10-28T06:25:50+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.ffrs-retraite-sportive.org/Mentions-legales_a71.html"}
+{"time": "2026-10-28T06:25:51+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.ffrs-retraite-sportive.org/Mentions-legales_a71.html"}
+{"time": "2026-10-28T06:25:52+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.ffrs-retraite-sportive.org/Contactez-la-FFRS_a79.html"}
+{"time": "2026-10-28T06:25:52+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://tennis-idf.fr/comiteparistennis/"}
+{"time": "2026-10-28T06:25:53+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "http://www.ffrs-retraite-sportive.org/Contactez-la-FFRS_a79.html"}
+{"time": "2026-10-28T06:25:53+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://tennis-idf.fr/comiteparistennis/"}
+{"time": "2026-10-28T06:25:53+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.ffrs-retraite-sportive.org/BIENVENUE-AUX-NOUVEAUX-CLUBS_a1833.html"}
+{"time": "2026-10-28T06:25:54+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "http://www.ffrs-retraite-sportive.org/Contactez-la-FFRS_a79.html"}
+{"time": "2026-10-28T06:25:54+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.ffrs-retraite-sportive.org/BIENVENUE-AUX-NOUVEAUX-CLUBS_a1833.html"}
+{"time": "2026-10-28T06:25:57+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "http://www.ffrs-retraite-sportive.org/Contactez-la-FFRS_a79.html"}
+{"time": "2026-10-28T06:25:57+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.clubvoltaire.org/contacts"}
+{"time": "2026-10-28T06:25:58+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.ffrs-retraite-sportive.org/Adherer-a-un-club-FFRS_a1350.html"}
+{"time": "2026-10-28T06:25:58+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "http://clubs.ffrs-retraite-sportive.org/"}
+{"time": "2026-10-28T06:25:59+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.ffrs-retraite-sportive.org/Adherer-a-un-club-FFRS_a1350.html"}
+{"time": "2026-10-28T06:25:59+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://tennis-idf.fr/comiteparistennis/"}
+{"time": "2026-10-28T06:26:00+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.ffrs-retraite-sportive.org/BIENVENUE-AUX-NOUVEAUX-CLUBS_a1833.html"}
+{"time": "2026-10-28T06:26:04+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.ffrs-retraite-sportive.org/forms/Contact-Protection-des-donnees-personnelles_f17.html"}
+{"time": "2026-10-28T06:26:05+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.ffrs-retraite-sportive.org/Adherer-a-un-club-FFRS_a1350.html"}
+{"time": "2026-10-28T06:26:06+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.ffrs-retraite-sportive.org/forms/Contact-Protection-des-donnees-personnelles_f17.html"}
+{"time": "2026-10-28T06:26:08+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.ffrs-retraite-sportive.org/forms/Contact-Protection-des-donnees-personnelles_f17.html"}
+{"time": "2026-10-28T06:26:13+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "http://clubs.ffrs-retraite-sportive.org/"}
+{"time": "2026-10-28T06:26:20+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "http://clubs.ffrs-retraite-sportive.org/"}
+{"time": "2026-10-28T06:26:22+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "\"Union Sportive de Charonne\" Paris 11 président contact"}
+{"time": "2026-10-28T06:26:23+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.ffrs-retraite-sportive.org/Clubs_a52.html"}
+{"time": "2026-10-28T06:26:23+00:00", "provider": "tinyfish", "action": "search", "ok": true, "usd": 0.0, "note": "\"Union Sportive de Charonne\" Paris 11 président contact"}
+{"time": "2026-10-28T06:26:24+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.ffrs-retraite-sportive.org/Clubs_a52.html"}
+{"time": "2026-10-28T06:26:24+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "\"Union Sportive de Charonne\" Paris 11 président contact"}
+{"time": "2026-10-28T06:26:25+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "\"Entente Sportive et Culturelle du 11\" OR \"ESC XI\" Paris association sportive pr"}
+{"time": "2026-10-28T06:26:25+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.ffrs-retraite-sportive.org/Clubs_a52.html"}
+{"time": "2026-10-28T06:26:26+00:00", "provider": "tinyfish", "action": "search", "ok": true, "usd": 0.0, "note": "\"Entente Sportive et Culturelle du 11\" OR \"ESC XI\" Paris association sportive pr"}
+{"time": "2026-10-28T06:26:30+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "\"Entente Sportive et Culturelle du 11\" OR \"ESC XI\" Paris association sportive pr"}
+{"time": "2026-10-28T06:26:30+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "12 candidates"}
+{"time": "2026-10-28T06:26:30+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "16 candidates"}
+{"time": "2026-10-28T06:26:30+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "16 candidates"}
+{"time": "2026-10-28T06:26:30+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "16 candidates"}
+{"time": "2026-10-28T06:26:31+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://clubs.ffrs-retraite-sportive.org/annuaire/comite-local-dentraide/"}
+{"time": "2026-10-28T06:26:32+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://clubs.ffrs-retraite-sportive.org/annuaire/comite-local-dentraide/"}
+{"time": "2026-10-28T06:26:32+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://clubs.ffrs-retraite-sportive.org/annuaire/association-sportive-inter-retraite-club-d-amiens/"}
+{"time": "2026-10-28T06:26:33+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://clubs.ffrs-retraite-sportive.org/extranet/responsables-comite-club/foire-aux-questions-faq/"}
+{"time": "2026-10-28T06:26:34+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://clubs.ffrs-retraite-sportive.org/extranet/responsables-comite-club/foire-aux-questions-faq/"}
+{"time": "2026-10-28T06:26:34+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://clubs.ffrs-retraite-sportive.org/annuaire/comite-d-animation-de-montaigut-le-blanc/"}
+{"time": "2026-10-28T06:26:34+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://clubs.ffrs-retraite-sportive.org/annuaire/comite-d-animation-de-montaigut-le-blanc/"}
+{"time": "2026-10-28T06:26:35+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://clubs.ffrs-retraite-sportive.org/annuaire/association-sportive-inter-retraite-club-d-amiens/"}
+{"time": "2026-10-28T06:26:38+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "1 candidates"}
+{"time": "2026-10-28T06:26:39+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "http://www.oms-paris11.org/FR-17-29.html"}
+{"time": "2026-10-28T06:26:42+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://clubs.ffrs-retraite-sportive.org/annuaire/association-sportive-inter-retraite-club-d-amiens/"}
+{"time": "2026-10-28T06:26:42+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://clubs.ffrs-retraite-sportive.org/annuaire/comite-d-animation-de-montaigut-le-blanc/"}
+{"time": "2026-10-28T06:26:43+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "http://www.oms-paris11.org/FR-17-29.html"}
+{"time": "2026-10-28T06:26:44+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://clubs.ffrs-retraite-sportive.org/annuaire/abrs-association-bourcaine-de-la-retraite-sportive/"}
+{"time": "2026-10-28T06:26:44+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://clubs.ffrs-retraite-sportive.org/annuaire/a3sg-association-sport-senior-sante-givrandaise/"}
+{"time": "2026-10-28T06:26:46+00:00", "provider": "tinyfish", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: page_not_found | https://esc11.fr/contact"}
+{"time": "2026-10-28T06:26:48+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://esc11.fr/contact"}
+{"time": "2026-10-28T06:26:50+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://clubs.ffrs-retraite-sportive.org/extranet/responsables-comite-club/foire-aux-questions-faq/"}
+{"time": "2026-10-28T06:26:50+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://clubs.ffrs-retraite-sportive.org/annuaire/comite-local-dentraide/"}
+{"time": "2026-10-28T06:26:50+00:00", "provider": "deepseek", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: no text (DeepSeek fetch 404) | https://esc11.fr/contact"}
+{"time": "2026-10-28T06:26:50+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://clubs.ffrs-retraite-sportive.org/annuaire/a3sg-association-sport-senior-sante-givrandaise/"}
+{"time": "2026-10-28T06:26:51+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://clubs.ffrs-retraite-sportive.org/annuaire/abrs-association-bourcaine-de-la-retraite-sportive/"}
+{"time": "2026-10-28T06:26:51+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://clubs.ffrs-retraite-sportive.org/annuaire/abrs-association-bourcaine-de-la-retraite-sportive/"}
+{"time": "2026-10-28T06:26:55+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://esc11.fr/inscriptions-contacts"}
+{"time": "2026-10-28T06:26:56+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://clubs.ffrs-retraite-sportive.org/annuaire/a3sg-association-sport-senior-sante-givrandaise/"}
+{"time": "2026-10-28T06:26:56+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://esc11.fr/inscriptions-contacts"}
+{"time": "2026-10-28T06:27:00+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://esc11.fr/inscriptions-contacts"}
+{"time": "2026-10-28T06:27:08+00:00", "provider": "crawl4ai", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: Unexpected error in _crawl_web at line 779 in _crawl_web (toolcha | http://www.oms-paris11.org/FR-17-29.html"}
+{"time": "2026-10-28T06:27:14+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "3 candidates"}
+{"time": "2026-10-28T06:27:14+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "\"ASSOCIATION SPORTIVE DU COLLEGE ANNE FRANCK\" Paris 75011"}
+{"time": "2026-10-28T06:27:14+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "\"KI AIKIDO ASSOCIATION (K2A)\" Paris 75011"}
+{"time": "2026-10-28T06:27:14+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "\"GYMNASTIQUE RYTHMIQUE SPORTIVE PARIS XI GRS PARIS XI\" Paris 75011"}
+{"time": "2026-10-28T06:27:15+00:00", "provider": "tinyfish", "action": "search", "ok": true, "usd": 0.0, "note": "\"KI AIKIDO ASSOCIATION (K2A)\" Paris 75011"}
+{"time": "2026-10-28T06:27:16+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "\"ASSOCIATION SPORTIVE DU COLLEGE ANNE FRANCK\" Paris 75011"}
+{"time": "2026-10-28T06:27:16+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "\"GYMNASTIQUE RYTHMIQUE SPORTIVE PARIS XI GRS PARIS XI\" Paris 75011"}
+{"time": "2026-10-28T06:27:19+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "\"KI AIKIDO ASSOCIATION (K2A)\" Paris 75011"}
+{"time": "2026-10-28T06:27:19+00:00", "provider": "tinyfish", "action": "search", "ok": true, "usd": 0.0, "note": "\"ASSOCIATION SPORTIVE DU COLLEGE ANNE FRANCK\" Paris 75011"}
+{"time": "2026-10-28T06:27:20+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "1 candidates"}
+{"time": "2026-10-28T06:27:20+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "people x1"}
+{"time": "2026-10-28T06:27:21+00:00", "provider": "tinyfish", "action": "search", "ok": true, "usd": 0.0, "note": "\"GYMNASTIQUE RYTHMIQUE SPORTIVE PARIS XI GRS PARIS XI\" Paris 75011"}
+{"time": "2026-10-28T06:27:22+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/"}
+{"time": "2026-10-28T06:27:23+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/"}
+{"time": "2026-10-28T06:27:24+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.paris.fr/"}
+{"time": "2026-10-28T06:27:26+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/le-conseil-de-paris"}
+{"time": "2026-10-28T06:27:26+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/pages/evenements-dans-l-espace-public-33659"}
+{"time": "2026-10-28T06:27:27+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/le-conseil-de-paris"}
+{"time": "2026-10-28T06:27:28+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/pages/evenements-dans-l-espace-public-33659"}
+{"time": "2026-10-28T06:27:28+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "1 candidates"}
+{"time": "2026-10-28T06:27:29+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/pages/le-depistage-du-cancer-du-sein-c-est-organise-simple-et-primordial-30729"}
+{"time": "2026-10-28T06:27:29+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/mentions-legales"}
+{"time": "2026-10-28T06:27:30+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/pages/le-depistage-du-cancer-du-sein-c-est-organise-simple-et-primordial-30729"}
+{"time": "2026-10-28T06:27:31+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/mentions-legales"}
+{"time": "2026-10-28T06:27:32+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.paris.fr/pages/evenements-dans-l-espace-public-33659"}
+{"time": "2026-10-28T06:27:33+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.paris.fr/le-conseil-de-paris"}
+{"time": "2026-10-28T06:27:36+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.paris.fr/mentions-legales"}
+{"time": "2026-10-28T06:27:36+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/contact"}
+{"time": "2026-10-28T06:27:36+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/pages/organisateurs-d-evenements-adoptez-la-nouvelle-charte-ecoresponsable-parisienne-4005"}
+{"time": "2026-10-28T06:27:37+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "10 candidates"}
+{"time": "2026-10-28T06:27:37+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/pages/comptes-rendus-et-debats-et-deliberations-du-conseil-224"}
+{"time": "2026-10-28T06:27:38+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/pages/organisateurs-d-evenements-adoptez-la-nouvelle-charte-ecoresponsable-parisienne-4005"}
+{"time": "2026-10-28T06:27:39+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/evenements/octobre-rose-un-mois-pour-promouvoir-le-depistage-du-cancer-du-sein-43275"}
+{"time": "2026-10-28T06:27:40+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/contact"}
+{"time": "2026-10-28T06:27:41+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.paris.fr/contact"}
+{"time": "2026-10-28T06:27:43+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/evenements/octobre-rose-un-mois-pour-promouvoir-le-depistage-du-cancer-du-sein-43275"}
+{"time": "2026-10-28T06:27:44+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.paris.fr/pages/comptes-rendus-et-debats-et-deliberations-du-conseil-224"}
+{"time": "2026-10-28T06:27:44+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/pages/comptes-rendus-et-debats-et-deliberations-du-conseil-224"}
+{"time": "2026-10-28T06:27:45+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "4 candidates"}
+{"time": "2026-10-28T06:27:45+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/pages/la-commission-de-deontologie-des-elu-e-s-du-conseil-de-paris-3167"}
+{"time": "2026-10-28T06:27:46+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.paris.fr/pages/le-depistage-du-cancer-du-sein-c-est-organise-simple-et-primordial-30729"}
+{"time": "2026-10-28T06:27:47+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/pages/la-commission-de-deontologie-des-elu-e-s-du-conseil-de-paris-3167"}
+{"time": "2026-10-28T06:27:48+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/pages/fonctionnement-du-conseil-de-paris-216"}
+{"time": "2026-10-28T06:27:49+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/pages/municipales-2026-tous-les-elus-du-conseil-de-paris-et-de-la-metropole-du-grand-paris-34290"}
+{"time": "2026-10-28T06:27:49+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.paris.fr/evenements/octobre-rose-un-mois-pour-promouvoir-le-depistage-du-cancer-du-sein-43275"}
+{"time": "2026-10-28T06:27:50+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/pages/ordre-du-jour-du-conseil-de-paris-228"}
+{"time": "2026-10-28T06:27:50+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/pages/fonctionnement-du-conseil-de-paris-216"}
+{"time": "2026-10-28T06:27:51+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.paris.fr/pages/fonctionnement-du-conseil-de-paris-216"}
+{"time": "2026-10-28T06:27:51+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.paris.fr/pages/organisateurs-d-evenements-adoptez-la-nouvelle-charte-ecoresponsable-parisienne-4005"}
+{"time": "2026-10-28T06:27:52+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/pages/municipales-2026-tous-les-elus-du-conseil-de-paris-et-de-la-metropole-du-grand-paris-34290"}
+{"time": "2026-10-28T06:27:52+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/pages/ordre-du-jour-du-conseil-de-paris-228"}
+{"time": "2026-10-28T06:27:53+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "2 candidates"}
+{"time": "2026-10-28T06:27:55+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.paris.fr/pages/ordre-du-jour-du-conseil-de-paris-228"}
+{"time": "2026-10-28T06:27:56+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.paris.fr/pages/municipales-2026-tous-les-elus-du-conseil-de-paris-et-de-la-metropole-du-grand-paris-34290"}
+{"time": "2026-10-28T06:27:56+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "http://www.oms-paris11.org/documents/tableau.pdf"}
+{"time": "2026-10-28T06:27:57+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/pages/seances-du-conseil-de-paris-184"}
+{"time": "2026-10-28T06:27:57+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/pages/seances-du-conseil-de-paris-184"}
+{"time": "2026-10-28T06:27:57+00:00", "provider": "crawl4ai", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/pages/tous-les-temps-forts-du-conseil-de-paris-30011"}
+{"time": "2026-10-28T06:27:57+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.paris.fr/pages/la-commission-de-deontologie-des-elu-e-s-du-conseil-de-paris-3167"}
+{"time": "2026-10-28T06:27:58+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.paris.fr/pages/tous-les-temps-forts-du-conseil-de-paris-30011"}
+{"time": "2026-10-28T06:27:58+00:00", "provider": "deepseek", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: no text (DeepSeek fetch 404) | http://www.oms-paris11.org/documents/tableau.pdf"}
+{"time": "2026-10-28T06:28:00+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "8 candidates"}
+{"time": "2026-10-28T06:28:01+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.paris.fr/pages/tous-les-temps-forts-du-conseil-de-paris-30011"}
+{"time": "2026-10-28T06:28:02+00:00", "provider": "deepseek", "action": "fetch", "ok": true, "usd": 0.00075, "note": "https://www.paris.fr/pages/seances-du-conseil-de-paris-184"}
+{"time": "2026-10-28T06:28:18+00:00", "provider": "deepseek", "action": "search", "ok": true, "usd": 0.00075, "note": "\"<email>\""}
+{"time": "2026-10-28T06:28:21+00:00", "provider": "tinyfish", "action": "search", "ok": true, "usd": 0.0, "note": "\"<email>\""}
+{"time": "2026-10-28T06:28:22+00:00", "provider": "serper", "action": "search", "ok": true, "usd": 0.001, "note": "\"<email>\""}
+{"time": "2026-10-28T06:28:24+00:00", "provider": "tinyfish", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: target_unreachable | http://coders03.fr/wa_files/TENNIS_20DE_20TABLE_202_20avril_202019.pdf"}
+{"time": "2026-10-28T06:28:30+00:00", "provider": "deepseek", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: no text (DeepSeek fetch 404) | http://coders03.fr/wa_files/TENNIS_20DE_20TABLE_202_20avril_202019.pdf"}
+{"time": "2026-10-28T06:28:32+00:00", "provider": "deepseek", "action": "fetch", "ok": false, "usd": 0.0, "note": "ProviderError: no text (DeepSeek fetch 404) | https://www.rs-ytrac.com/_files/ugd/38c419_243deeda30f843c1b833632d3ceb6ff7.pdf"}
+{"time": "2026-10-28T06:28:33+00:00", "provider": "tinyfish", "action": "fetch", "ok": true, "usd": 0.0, "note": "https://www.rs-ytrac.com/_files/ugd/38c419_243deeda30f843c1b833632d3ceb6ff7.pdf"}
+{"time": "2026-10-28T06:37:18+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "16 candidates"}
+{"time": "2026-10-28T06:37:18+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "16 candidates"}
+{"time": "2026-10-28T06:37:18+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "16 candidates"}
+{"time": "2026-10-28T06:37:18+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "16 candidates"}
+{"time": "2026-10-28T06:37:18+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "16 candidates"}
+{"time": "2026-10-28T06:37:18+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "16 candidates"}
+{"time": "2026-10-28T06:37:18+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "16 candidates"}
+{"time": "2026-10-28T06:37:18+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "14 candidates"}
+{"time": "2026-10-28T06:37:18+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "16 candidates"}
+{"time": "2026-10-28T06:37:18+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "16 candidates"}
+{"time": "2026-10-28T06:37:18+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "16 candidates"}
+{"time": "2026-10-28T06:37:18+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "16 candidates"}
+{"time": "2026-10-28T06:37:18+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "people x4"}
+{"time": "2026-10-28T06:37:18+00:00", "provider": "jev", "action": "grade", "ok": true, "usd": 0.0005, "note": "people x6"}
