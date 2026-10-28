@@ -532,6 +532,8 @@ def flow(pdir: Path) -> dict:
             # each source's pilot and yield, as the research lanes hand them out (scale / drop:
             # sources(set=[{source, status}]))
             "sources_take_turns": dict(sorted(turns.items(), key=lambda kv: -kv[1]["orgs"])[:40]),
+            # stores of one chain: research the head office once (orgs(set=[{org_id, part_of}]))
+            "possible_chains": mo_tasks.possible_chains(pdir),
             "reconcile": {"organisations": len(ids), "added_by_logged_sources": from_sources,
                           "without_logged_source": unlogged,
                           "adds_up": len(ids) == from_sources + unlogged}}

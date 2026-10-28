@@ -291,6 +291,41 @@ class TheRest(Patched):
         server.grade(p, set=[{"value": "accueil@turn.test", "grade": "B", "role": "responsable", "confirm": True}])
         self.assertEqual("", {r["value"]: r for r in ws.read_contacts(pdir)}["accueil@turn.test"]["review"])
 
+    def test_stores_of_a_chain_are_hinted_and_once_filed_the_chain_is_researched(self):
+        p = "chain-073"
+        server.project(p, brief={"goal": "x"})
+        pdir = ws.project_dir(p)
+        server.sources(p, add=[{"source": "maps", "url": "https://maps.turn.test/?q=gym", "kind": "maps"}])
+        server.orgs(p, source="maps", add=[
+            {"name": "Neo Turn Bastille", "city": "Paris", "website": "https://www.neoturn.test/clubs/bastille"},
+            {"name": "Neo Turn Republique", "city": "Paris", "website": "https://www.neoturn.test/clubs/republique"},
+            {"name": "Gym Solo", "city": "Paris", "website": "https://gymsolo.test/"}])
+        chains = mo_tasks.possible_chains(pdir)
+        self.assertEqual(["neoturn.test"], [c["site"] for c in chains])
+        self.assertIn("chain", " ".join(server.needs_you(pdir, server.project(p))))
+        hq = server.orgs(p, source="maps", add=[{"name": "Neo Turn (siège)", "city": "Paris",
+                                                  "website": "https://www.neoturn.test/"}])
+        self.assertEqual(1, hq["orgs_added"])
+        ids = {o["name"]: o["id"] for o in ws.read_csv(pdir / "orgs.csv")}
+        server.orgs(p, set=[{"org_id": ids[n], "part_of": ids["Neo Turn (siège)"]}
+                            for n in ("Neo Turn Bastille", "Neo Turn Republique")])
+        got = mo_tasks.claim(pdir, "r1", "sweep")["task"]["items"].split("|")
+        self.assertEqual({ids["Gym Solo"], ids["Neo Turn (siège)"]}, set(got))   # not the stores
+        self.assertEqual([], mo_tasks.possible_chains(pdir))
+
+    def test_a_directory_of_addresses_on_one_organisation_is_not_all_sent_to_jev(self):
+        import mo_grade
+        p = "flood-073"
+        server.project(p, brief={"goal": "x", "region": "Paris 75011"})
+        pdir = ws.project_dir(p)
+        rows = [{"kind": "email", "value": f"club{i}@chain.test", "quote": f"Club {i} - {'75011 Paris' if i < 5 else '69002 Lyon'}"}
+                for i in range(120)]
+        ws.merge_contacts(pdir, rows, "o1", "Chain")
+        keep, held = mo_grade._flood(pdir, ws.read_contacts(pdir))
+        self.assertEqual(mo_grade.FLOOD, len(keep))
+        self.assertEqual({"o1": 120 - mo_grade.FLOOD}, held)
+        self.assertTrue(all(f"club{i}@chain.test" in {r["value"] for r in keep} for i in range(5)))   # the district first
+
     def test_every_tool_call_is_logged_with_its_agent_and_no_addresses(self):
         p = "calls-073"
         server.project(p, brief={"goal": "x"})

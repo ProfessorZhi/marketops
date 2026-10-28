@@ -19,6 +19,13 @@ marketops-knowledge (who to find, grades, pages that pay), `references/projects/
    - No website: find it, `orgs(set=[{org_id, website}])`, `run(orgs=[it], rounds=0, again=True)`.
    - The venue is run by someone else -> `orgs(add=[...])`; a page listing many organisations
      -> `sources(add=[...])`.
+   - A store of a chain or franchise (one domain, many branches; `flow.possible_chains` lists
+     them): the store page names its front desk at most. The chain decides - add its head
+     office (`orgs(add=[{name, website}], source=...)`), file the stores under it
+     (`orgs(set=[{org_id, part_of: <head office id>}])`) and research the head office: operations
+     director, works / maintenance / facilities manager, network or franchise development,
+     the legal page's managing director. An independent store's own manager or owner is still
+     an A for that store.
    - Verdict: `tasks(action="verdict", verdicts=[{org_id, verdict: routes|partial|none|user,
      found, where, why}])`.
 5. After a handful of one segment, write how it is found: `project(name, playbook={"<segment>":

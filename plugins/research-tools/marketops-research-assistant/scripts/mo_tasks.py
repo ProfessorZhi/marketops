@@ -108,7 +108,7 @@ def source_yield(pdir) -> dict[str, dict]:
     ab = {c["org_id"] for c in ws.read_contacts(pdir) if c.get("grade") in ("A", "B") and c.get("review") != "yes"}
     out: dict[str, dict] = {}
     for o in ws.read_csv(pdir / "orgs.csv"):
-        if o.get("scope") == "out":
+        if o.get("scope") == "out" or o.get("part_of"):
             continue
         src, oid = source_of(o), str(o.get("id") or "")
         y = out.setdefault(src, {"orgs": 0, "worked": 0, "with_ab": 0})
@@ -137,6 +137,7 @@ def _mix(pdir, items: list[str], rows: list[dict]) -> list[str]:
                 if i in orgs:
                     inflight[source_of(orgs[i])] = inflight.get(source_of(orgs[i]), 0) + 1
     queues: dict[str, list[str]] = {}
+    items = [i for i in items if not orgs.get(i, {}).get("part_of")]   # its chain is researched instead
     for i in items:
         queues.setdefault(source_of(orgs.get(i, {})), []).append(i)
     room = {}
@@ -151,6 +152,28 @@ def _mix(pdir, items: list[str], rows: list[dict]) -> list[str]:
                 out.append(queues[s].pop(0))
                 room[s] -= 1
     return out
+
+
+def possible_chains(pdir) -> list[dict]:
+    """Organisations that look like stores of one chain: two or more in scope on one website
+    domain, with a name word in common. A hint for the lead - the chain's head office is the
+    organisation to research (orgs(add=...) it, then orgs(set=[{org_id, part_of}]) its stores)."""
+    import mo_pages
+    import mo_pool
+    by: dict[str, list[dict]] = {}
+    for o in ws.read_csv(pdir / "orgs.csv"):
+        site = mo_pages.site_of(str(o.get("website") or ""))
+        if site and o.get("scope") != "out" and not o.get("part_of"):
+            by.setdefault(site, []).append(o)
+    out = []
+    for site, group in by.items():
+        if len(group) < 2:
+            continue
+        words = [set(mo_pool.name_words(str(o.get("name") or ""))) for o in group]
+        if set.intersection(*words):
+            out.append({"site": site, "organisations": len(group), "ids": [o["id"] for o in group][:12],
+                        "names": [str(o.get("name") or "")[:40] for o in group][:5]})
+    return sorted(out, key=lambda x: -x["organisations"])[:20]
 
 
 def plan(pdir, kind: str, size: int = 15) -> dict:

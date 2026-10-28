@@ -115,6 +115,40 @@ def _address_words(email: str) -> str:
     return " ".join(w for w in re.split(r"[._\-+0-9]+", local) if len(w) > 1)
 
 
+FLOOD = 60   # more new addresses than this on one organisation: a list, not its people
+
+
+def _flood(pdir, todo: list[dict]) -> tuple[list[dict], dict[str, int]]:
+    """An organisation whose pages printed a whole directory (a chain's every store, a
+    federation's every club - 073: 1,167 on one fitness chain) does not send it all to Jev:
+    rows whose quote names the brief's region or postcode go first, up to FLOOD; the rest wait
+    ungraded for an agent who decides which belong (they are kept, nothing is dropped)."""
+    import re as _re
+    per: dict[str, list[dict]] = {}
+    for r in todo:
+        per.setdefault(str(r.get("org_id") or ""), []).append(r)
+    b = ws.brief(pdir)
+    place = " ".join(str(b.get(k) or "") for k in ("region", "scenario")).lower()
+    marks = [w for w in _re.findall(r"[a-zà-ÿ]{4,}|\d{4,5}", place) if w not in ("paris",) or len(place) < 12]
+    keep, held = [], {}
+    for oid, rows in per.items():
+        if len(rows) <= FLOOD:
+            keep += rows
+            continue
+        near = [r for r in rows if marks and any(m in str(r.get("quote") or "").lower() for m in marks)]
+        rest = [r for r in rows if r not in near]
+        chosen = (near + rest)[:FLOOD]
+        keep += chosen
+        held[oid] = len(rows) - len(chosen)
+    if held:
+        import mo_journal
+        for oid, n in held.items():
+            mo_journal.auto(pdir, f"flood:{oid}", f"organisation {oid}: {n} more addresses than the {FLOOD} graded - its "
+                            "pages list a whole directory; an agent decides which belong (they wait ungraded)",
+                            "contacts", every_s=10 ** 9)
+    return keep, held
+
+
 def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: int = 8,
          orgs: set | list | None = None) -> dict:
     """Grade the email candidates that have no grade yet (or all, with regrade). limit 0 = all.
@@ -165,9 +199,11 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: 
         else:
             first[_same(r)] = r
     todo = list(first.values())
+    todo, held = _flood(pdir, todo)
     if not jev:   # no Jev: the rules' grades stand, the rest waits for an agent
         ws.update_contacts(pdir, by_rule + reused, fields, guard=lambda cur: not cur.get("graded_by", "").startswith("agent"))
-        return {"graded": 0, "by_rule": len(by_rule), "reused": len(reused), "waiting_for_an_agent": len(todo) + len(copies),
+        return {"graded": 0, "by_rule": len(by_rule), "reused": len(reused), "held_for_an_agent": held,
+                "waiting_for_an_agent": len(todo) + len(copies),
                 "note": "no usable Jev key: the rules graded what they can; agents grade the rest with grade(set=[...])"}
     import typesafe_sdk as sdk
     from concurrent.futures import ThreadPoolExecutor
@@ -282,7 +318,12 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: 
     after = ws.read_contacts(pdir)
     left = sum(1 for r in after if r.get("kind") == "email" and not r.get("grade"))
     review = sum(1 for r in after if r.get("review") == "yes")
-    return {**counts, "people_filled": named, "evidence": evidence, "still_ungraded": left, "to_review": review}
+    out = {**counts, "people_filled": named, "evidence": evidence, "still_ungraded": left, "to_review": review}
+    if held:
+        out["held_for_an_agent"] = {**held, "why": f"over {FLOOD} new addresses on one organisation: a list of other "
+                                               "places or clubs, not its people - pick the ones that belong with "
+                                               "grade(set=...), or file its stores under it (orgs set part_of)"}
+    return out
 
 
 GRADES = ("A", "B", "C", "D", "X")

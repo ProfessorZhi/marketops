@@ -138,6 +138,12 @@ def needs_you(pdir, status: dict) -> list[str]:
             items.append(f"Source '{src}': A/B for {y['with_ab']} of the {y['worked']} organisations worked (pilot, "
                          f"under {int(mo_tasks.STOP * 100)}%); its other {y['orgs'] - y['worked']} wait. The lead scales "
                          "it (sources(set=[{source, status: 'scale'}])) or drops it - or say which.")
+    chains = (status.get("flow") or {}).get("possible_chains") or []
+    if chains:
+        items.append("Stores of one chain are researched one by one: " + "; ".join(
+            f"{c['site']} ({c['organisations']})" for c in chains[:5]) + ". The lead files them under the chain's "
+            "head office (orgs(add=...) it, orgs(set=[{org_id, part_of}]) the stores) - a store page rarely names "
+            "more than its front desk.")
     wanted = ws.read_csv(pdir / "browse_wanted.csv")
     if wanted and not ws.paid_agent_allowed(pdir):
         items.append(f"Agents want the paid TinyFish Agent on {len(wanted)} page(s) whose contacts sit behind clicks "
@@ -425,9 +431,11 @@ def orgs(project: str, ids: list[str] | None = None, stage: str = "", limit: int
     has it). Each: name, segment, website, pages read and how the site pass went, addresses by
     grade, its confirmed A/B (address, person, role, page), rows to review with the reason,
     the playbook entries for its segment, and agent verdicts so far.
-    set=[{org_id, website?, segment?, scope?, city?, note?}]: correct organisations - a website
+    set=[{org_id, website?, segment?, scope?, city?, note?, part_of?}]: correct organisations - a website
     you found or fixed (the sweep reads it next; re-sweep with run(orgs=[...], again=True)),
-    the segment the playbook keys on, scope in/out/unsure.
+    the segment the playbook keys on, scope in/out/unsure, part_of: the id of the organisation
+    that decides for this one (a chain's head office for its store) - the lanes then research
+    the chain, not the store, and the headline counts the chain once.
     add=[{name, city, website?, segment?, note?, source?}]: organisations you found (the council
     department or contractor that really runs a venue, a club found on a federation page, the
     places a maps search returned) - merged into the pool like any source. source: the

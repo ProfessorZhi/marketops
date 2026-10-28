@@ -872,12 +872,14 @@ def stages(pdir: Path) -> dict:
     }
 
 
-ORG_SETTABLE = ("website", "segment", "scope", "city", "note")
+ORG_SETTABLE = ("website", "segment", "scope", "city", "note", "part_of")
 
 
 def update_orgs(pdir: Path, items: list[dict]) -> int:
     """An agent corrects organisations: website (found or fixed), segment (for the playbook),
-    scope (in / out / unsure), city, note. Matched by org_id; other fields are left alone."""
+    scope (in / out / unsure), city, note, part_of (the id of the organisation that really
+    decides for it - a chain's head office for one of its stores). Matched by org_id; other
+    fields are left alone."""
     path = pdir / "orgs.csv"
     with _lock(path):
         rows = read_csv(path)
