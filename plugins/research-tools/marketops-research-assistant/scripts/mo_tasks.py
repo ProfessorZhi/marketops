@@ -76,11 +76,24 @@ def held_orgs(pdir) -> set[str]:
 
 
 def taken_orgs(pdir) -> set[str]:
-    """Organisations an agent owns or has worked: in a research package (sweep or dig, in any
-    state) or with a verdict. The tools leave them to their agent; the dig lane never hands them
-    out again."""
-    taken = {i.split("::", 1)[0] for r in ws.read_csv(_path(pdir)) if r.get("kind") in ("sweep", "dig")
-             for i in r.get("items", "").split("|") if i}
+    """Organisations an agent owns or has worked: in an open or claimed research package, with a
+    verdict, or already handed out twice (a sweep and a dig) - the lanes never hand those out
+    again. One swept without a verdict goes on to the dig lane once (075: such organisations kept
+    a source "on its pilot" for good, and a worker waited for a pilot that could not end)."""
+    done: dict[str, int] = {}
+    taken: set[str] = set()
+    for r in ws.read_csv(_path(pdir)):
+        if r.get("kind") not in ("sweep", "dig"):
+            continue
+        for i in r.get("items", "").split("|"):
+            oid = i.split("::", 1)[0]
+            if not oid:
+                continue
+            if r.get("status") != "done" or r.get("kind") == "dig":
+                taken.add(oid)
+            else:
+                done[oid] = done.get(oid, 0) + 1
+    taken |= {o for o, n in done.items() if n >= 2}
     return taken | {r["org_id"] for r in ws.read_csv(pdir / "verdicts.csv")}
 
 
@@ -92,6 +105,9 @@ def taken_orgs(pdir) -> set[str]:
 # Agents decide over it: sources(set=[{source, status: "scale"}]) gives a waiting source all
 # its organisations, status "dropped" none; a researcher may still claim any package.
 PILOT, SCALE, STOP = 30, 0.10, 0.05
+# a source is never paused on fewer: 0 of 5 says nothing about a 5% bar (075: a list paused at 0/5
+# gave 9 A/B from 62 once scaled) - a small run's pilot is extended to this before the pause
+PAUSE_MIN = 10
 
 
 def source_of(org: dict) -> str:
@@ -131,7 +147,9 @@ def source_yield(pdir) -> dict[str, dict]:
         y["ab_rate"] = round(rate, 3)
         y["state"] = ("dropped" if st == "dropped" else "scale" if st == "scale"
                       else "pilot" if y["worked"] < min(size, y["orgs"])
-                      else "scaling" if rate >= STOP else "waiting")
+                      else "scaling" if rate >= STOP
+                      else "pilot" if y["worked"] < min(PAUSE_MIN, y["orgs"])   # too few to judge yet
+                      else "waiting")
     return out
 
 
@@ -155,8 +173,8 @@ def _mix(pdir, items: list[str], rows: list[dict]) -> list[str]:
     for src in queues:
         y = yields.get(src, {"state": "pilot", "worked": 0})
         room[src] = (0 if y["state"] in ("dropped", "waiting") else
-                     max(0, size - y["worked"] - inflight.get(src, 0)) if y["state"] == "pilot"
-                     else len(queues[src]))
+                     max(0, max(size, PAUSE_MIN if y["worked"] >= size else 0) - y["worked"] - inflight.get(src, 0))
+                     if y["state"] == "pilot" else len(queues[src]))
         if cap:
             room[src] = min(room[src], max(0, cap - y["worked"] - inflight.get(src, 0)))
     out = []
@@ -185,7 +203,14 @@ def possible_duplicates(pdir) -> list[dict]:
         rid = mo_pool.registry_id(o)
         if rid:
             link("id:" + rid, oid)
+    import mo_pages
+    site = {str(o.get("id") or ""): mo_pages.site_of(str(o.get("website") or "")) for o in orgs}
+    shared = ws.shared_sites(pdir)
     for a, b in _similar_names(orgs):
+        # two websites of their own, on two domains: two organisations whatever their names say
+        # (075: Paris Vo Thuat Club and AS Vo Thuat) - a registry number or one address still links them
+        if site[a] and site[b] and site[a] != site[b] and not ({site[a], site[b]} & shared):
+            continue
         link("name:" + a + "|" + b, a)
         link("name:" + a + "|" + b, b)
     for c in ws.read_contacts(pdir):
@@ -215,7 +240,8 @@ def possible_duplicates(pdir) -> list[dict]:
         why = sorted({{"name": "one name written two ways", "id": "the same registry number",
                        "email": "the same address"}[k.split(":", 1)[0]] for k, v in whys.items() if v & ids})
         out.append({"ids": sorted(ids), "names": [names[i][:40] for i in sorted(ids)], "why": "; ".join(why)})
-    return sorted(out, key=lambda d: d["names"])[:40]
+    # all of them at once: a list cut at 40 looked like new pairs appearing after each merge (075: 51)
+    return sorted(out, key=lambda d: d["names"])
 
 
 _ROMAN = {"i": "1", "ii": "2", "iii": "3", "iv": "4", "v": "5", "vi": "6", "vii": "7", "viii": "8", "ix": "9",
@@ -388,7 +414,8 @@ def plan(pdir, kind: str, size: int = 15) -> dict:
             tid = f"{kind}-" + hashlib.sha256("|".join(chunk).encode()).hexdigest()[:8]
             new.append({"task_id": tid, "kind": kind, "title": f"{kind} {len(chunk)} items", "items": "|".join(chunk),
                         "status": "open"})
-        ws.write_csv(_path(pdir), TASK_COLS, rows + new)
+        if new:   # an empty plan writes nothing: the queue's age is how long nothing has moved
+            ws.write_csv(_path(pdir), TASK_COLS, rows + new)
     return {"planned": len(new), "items": len(items), "kind": kind, **summary(pdir)}
 
 
@@ -449,6 +476,21 @@ def claim(pdir, agent: str, kind: str = "") -> dict:
     return got
 
 
+QUIET_S = 600   # no pool, queue or verdict file changed for this long: nothing is coming
+
+
+def _quiet_for(pdir) -> float:
+    """Seconds since anything in the project's pools last changed."""
+    import time
+    files = ["tasks.csv", "orgs.csv", "verdicts.csv", "crawl.csv", "source_pool.csv", "sources.csv", "frontier.csv"]
+    stamps = [(pdir / f).stat().st_mtime for f in files if (pdir / f).exists()]
+    stamps += [b.stat().st_mtime for b in pdir.glob("batch.*.json")]
+    cdir = pdir / "contacts"
+    if cdir.exists():
+        stamps.append(cdir.stat().st_mtime)
+    return time.time() - max(stamps) if stamps else 0.0
+
+
 def outlook(pdir, kind: str = "", agent: str = "") -> dict:
     """An empty lane, explained: is the work over, or does it wait - on a pilot, on a run's own
     limit per source, on pools still filling, on the lead? 073: three workers read `open: 0`,
@@ -463,7 +505,8 @@ def outlook(pdir, kind: str = "", agent: str = "") -> dict:
     cap = int(ws.brief(pdir).get("max_per_source") or 0)
     capped = {s: y["orgs"] - y["worked"] for s, y in ys.items()
               if cap and y["worked"] >= cap and y["orgs"] > y["worked"] and y["state"] not in ("dropped", "waiting")}
-    if piloting:
+    quiet = _quiet_for(pdir) >= QUIET_S
+    if piloting and not quiet:
         waits = True
         why.append(f"{len(piloting)} source(s) are on their pilot: their next organisations come as the pilot's "
                    "verdicts come in")
@@ -487,17 +530,20 @@ def outlook(pdir, kind: str = "", agent: str = "") -> dict:
         # told lane_finished at minute 3, before the finders had registered a list)
         waits = True
         why.append("no source is registered and no organisation pooled yet: the finders are starting")
-    if found and kind in ("sweep", "site", "dig", "source", ""):
+    if found and kind in ("sweep", "site", "dig", "source", "") and not quiet:
         waits = True
         why.append(f"{len(found)} source(s) are still being found or mined: their organisations come next")
     upstream = {"sweep": ("source", "find", "site"), "site": ("source", "find"), "dig": ("source", "find", "site", "sweep"),
                 "source": ("find",)}.get(kind, ())
     stale = (_now() - timedelta(minutes=CLAIM_MINUTES)).isoformat(timespec="seconds")
     busy = {r["kind"] for r in rows if r["status"] == "claimed" and r["kind"] in upstream and r.get("claimed", "") >= stale}
-    if busy:
+    if busy and not quiet:
         waits = True
         why.append("agents still hold " + ", ".join(sorted(busy)) + " packages: what they bring comes here")
     running = [b for b in mo_run.batch_states(pdir) if not b.get("done")]
+    if quiet and (piloting or found or busy):
+        why.append(f"nothing has moved in the pools for {QUIET_S // 60} minutes: what still looks unfinished "
+                   "(a pilot, a source marked mining, a claimed package) is not coming - the lead checks it")
     if kind == "dig" and (running or any(r["kind"] == "sweep" and r["status"] != "done" for r in rows)):
         waits = True
         why.append("reads and research packages are still going: what they leave without A/B comes to dig")

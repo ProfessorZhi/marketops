@@ -142,12 +142,12 @@ class SourcesTakeTurns(Patched):
             work(t)
         turns = mo_tasks.source_yield(pdir)
         reg_key = next(k for k in turns if "register" in k)
-        self.assertEqual("waiting", turns[reg_key]["state"], turns)   # 0 of 4: its other 36 wait
-        self.assertEqual(4, turns[reg_key]["worked"])
+        self.assertEqual("waiting", turns[reg_key]["state"], turns)   # 0 A/B: its other 30 wait
+        self.assertEqual(mo_tasks.PAUSE_MIN, turns[reg_key]["worked"])   # a pilot of 4 is stretched to 10 before a pause
         self.assertEqual(("scaling", 6), (turns["clubs"]["state"], turns["clubs"]["worked"]))   # A/B: all of it
-        self.assertEqual(("waiting", 4), (turns["schools"]["state"], turns["schools"]["worked"]))  # C only: pilot
+        self.assertEqual(("waiting", 5), (turns["schools"]["state"], turns["schools"]["worked"]))  # C only: all 5 judged
         listed = [c for c in ws.read_contacts(pdir) if c.get("found_in") == "list"]
-        self.assertEqual((5, 4), (len(listed), sum(c.get("grade") == "C" for c in listed)))  # kept; 4 worked
+        self.assertEqual((5, 5), (len(listed), sum(c.get("grade") == "C" for c in listed)))  # kept, all worked
         self.assertTrue(all("Lycée Turn" in c["quote"] for c in listed))   # quoted from their own row
         flags = " ".join(server.needs_you(pdir, server.project(p)))
         self.assertIn("register", flags)

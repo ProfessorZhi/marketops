@@ -153,8 +153,11 @@ class Lanes(Base):
     def test_a_source_under_the_pilot_bar_is_paused_not_waited_for(self):
         p, pdir = "l075b", ws.project_dir("l075b")
         server.project(p, brief={"goal": "g", "country": "FR", "language": "fr", "pilot": 2})
-        ids = [self.org(p, f"Club Pause {c}") for c in "ABCD"]
+        ids = [self.org(p, f"Club Pause {c}") for c in "ABCDEFGHIJKL"]
         ws.add_verdicts(pdir, [{"org_id": i, "verdict": "none"} for i in ids[:2]], "r")
+        self.assertIn("task", server.tasks(p, action="claim", kind="sweep", agent="r0"))   # 0/2: too few to pause
+        ws.add_verdicts(pdir, [{"org_id": i, "verdict": "none"} for i in ids[2:10]], "r")
+        mo_tasks.done(pdir, ws.read_csv(pdir / "tasks.csv")[-1]["task_id"])
         got = server.tasks(p, action="claim", kind="sweep", agent="r1")
         self.assertTrue(got["lane_finished"])
         self.assertIn("paused by the pilot rule", got["why_empty"])

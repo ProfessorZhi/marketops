@@ -1,4 +1,4 @@
-# MarketOps Research Assistant 0.7.6
+# MarketOps Research Assistant 0.7.7
 
 调研插件：从公开数据集到场地池、机构池，再到带证据、已评级的联系人，最后交付一张 Excel。
 给 Claude Code 用。插件只提供能力，流程由 agent 自己掌握。
@@ -45,6 +45,17 @@
 
 项目文件夹就是普通文件（`~/MarketOps/<项目>/`）：`brief.json`、`venues.csv`、`orgs.csv`、
 `contacts/`、`crawl.csv`、`trace.jsonl`、`costs.jsonl`；网页原件在共享资料库 `~/.marketops/library`。agent 和人都可以直接打开、修改，断了接着跑。
+
+## 0.7.7 更新：名录 PDF 的会长能挂上机构、PDF 本地秒读、不再空等（巴黎 11 区 0.7.5 复盘）
+
+- **名录里放在一边的地址可以认领**：名录页上的地址不会整页挂到一家（0.7.4 起），但 agent 认出某条是哪家的，用 `grade(set=[{value, org_id, grade, person, role}])` 就能挂上——地址必须出现在本项目读过的页面上（名录暂存、别的机构名下，或用 `page_url` 指出那一页），否则返回 `not_on_a_page`，不能凭空造。0.7.5 那轮年鉴 PDF 的会长邮箱就卡在这里。
+- **PDF 本地读取**：先在本机抽文字（pypdf，几秒、免费），抽不出（扫描件）才交给远程读取器；pypdf 没装时第一次读 PDF 会自动装进插件环境（`MARKETOPS_NO_AUTO_INSTALL=1` 关闭）。PDF 原件存进项目 `pages/`，`fetch` 返回 `pdf_file` 路径——宿主能读 PDF 的 agent（Claude Code 的 Read）可以直接打开原件，扫描件和表格也能看。PDF 抽字断开的地址（`name@yahoo .fr`、`name @ gmail.com`）会拼回去。
+- **名录采集外壳阈值**：同一名字或同一行出现在 3 个以上条目页就算外壳（之前是过半）；`duplicate_names` 报重名行数。
+- **ROT13 按页面后缀解**：`.fr`/`.se` 等互为 ROT13 的后缀，按页面自己的后缀解码（paris.fr 页上的 `@cnevf.se` 解成 `@paris.fr`）。
+- **试点至少 10 家才暂停**：小试点（如 5 家）0 命中时延长到 10 家再判；5 家测不出 5%。
+- **队列不再空等**：扫过但没写结论的机构进一次深挖队列（不会卡住试点）；所有池子 10 分钟没变化时，队列判定结束并说明原因。
+- **重复检测**：一次给全（不再截到 40 组），`possible_duplicates_total` 报总数；两家官网是不同域名的不再按名字配成重复。
+- **对账行**：挂到总部的门店两边都不计，`对得上`。
 
 ## 0.7.6 更新：密钥槽位不再有上限
 

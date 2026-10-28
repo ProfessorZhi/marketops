@@ -285,6 +285,10 @@ def fetch(project: str, url: str, readers: list[str] | str | None = None, org_id
     data file (CSV/JSON/XLSX/PDF exports are downloaded automatically).
     A page or site that failed repeatedly is set aside for a while (site health); refresh=True
     reads it anyway, now, and a success restores it.
+    A PDF is read here first (its text, in seconds; pypdf installs itself the first time) and the
+    file itself is kept: `pdf_file` is its path - when your host reads PDFs (Claude Code's Read does,
+    scans and tables included), open it there for what the text loses, then pool what you read
+    (orgs(add=[{name, email, person, role, quote}]) or pool(rows=...)).
     """
     try:
         out = ws.fetch(ws.project_dir(project), url, readers, org_id, org, refresh=refresh)
@@ -341,6 +345,9 @@ def grade(project: str, set: list[dict] | None = None, regrade: bool = False, li
     "checked": "ok"|"wrong", "note"?} records that you opened the page and the row holds (or
     not) - the workbook's 抽检 sheet lists the sample and the precision. orgs=[ids]: grade only
     these organisations' rows - pass your package, so you never wait on other agents' rows.
+    An address set with an org_id that has no row there yet (a list's entry kept aside, one on
+    another organisation, one on the page you name with page_url) is attached to it from that
+    page - `attached`; one no page read here prints comes back in `not_on_a_page`.
     held=[{org_id, held: "X" | "grade"}]: the addresses held back from a flood on that organisation
     (a directory on its pages; they wait outside the totals): "X" marks them all not its own -
     pool the list's entries as organisations instead - "grade" sends them to Jev after all.
