@@ -60,7 +60,8 @@ def project(name: str, brief: dict | None = None, playbook: dict | None = None,
     brief (optional, saved as brief.json): {"goal": "...", "region": "...", "country": "FR",
     "language": "fr", "scenario": "...", "grades": {"A": "...", ...}, "exclude": "...",
     "address_rules": {"info": "X"}, "routes_per_org": 3, "strict_ledger": "AB" | "A" | "named_A",
-    "focus": {...}, "fresh": true}. strict_ledger: which grades the strict ledger counts (the workbook
+    "focus": {...}, "fresh": true, "pilot": 30}. pilot: how many organisations each source is tried on
+    before the research lanes give it more (Bruce's 30; 5 for a run of 20). strict_ledger: which grades the strict ledger counts (the workbook
     reports it next to the research-valid ledger, A-D). fresh: the project starts from nothing -
     pages, searches and lessons other projects left in the shared library are not reused (its
     own are), and a pooled file nobody fetched, harvested or registered here is flagged as
@@ -330,7 +331,7 @@ def run(project: str, rounds: int = 0, max_pages: int = 15, goal_ab_org_share: f
 
     orgs=[ids] (the usual call, from a researcher's package): read just these organisations -
     find a missing site, read the high-value pages and PDFs, extract, grade - and come back;
-    read the result with orgs(project, ids=[...], wait=600), then judge, dig with search/fetch
+    read the result with orgs(project, ids=[...], wait=50), then judge, dig with search/fetch
     and write a verdict yourself. rounds (0-2, default 0) adds template dig rounds for this
     package only, stopping at the first round that finds nothing; again=True reads anew with
     the playbook as it is now.
@@ -355,6 +356,10 @@ def run(project: str, rounds: int = 0, max_pages: int = 15, goal_ab_org_share: f
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
 
+
+# A wait inside one tool call stays under the host's tool timeout (Claude Code's MCP default is
+# 60 s): a call the host gave up on still claimed a package nobody received (073 smoke).
+WAIT_MAX = int(os.environ.get("MARKETOPS_WAIT_MAX", "50"))
 
 ROLE_FOR_KIND = {"sweep": "research", "dig": "dig", "source": "pool", "site": "websites", "find": "sources",
                  "review": "finish", "evidence": "finish"}
@@ -384,7 +389,7 @@ def tasks(project: str, action: str = "status", kind: str = "", size: int = 15, 
     work it with the other tools, then action="done", task_id, note="what you found/tried"
     (release=True hands it back undone). A claim untouched for 40 minutes is offered again.
     The first claim of a lane also returns your role's guide (role_guide). wait=seconds (at most
-    900) with claim: when the lane is empty because the pools before it are still filling (a
+    50, under the host's tool timeout; call again for longer) with claim: when the lane is empty because the pools before it are still filling (a
     researcher starting before the miners pooled anything), the call waits for a package
     instead of returning empty - one call, no polling; an empty answer after waiting is the
     real end of the lane.
@@ -401,7 +406,7 @@ def tasks(project: str, action: str = "status", kind: str = "", size: int = 15, 
             return mo_tasks.add(pdir, title, note, kind or "custom")
         if action == "claim":
             import time as _time
-            end = _time.time() + max(0, min(int(wait or 0), 900))
+            end = _time.time() + max(0, min(int(wait or 0), WAIT_MAX))
             while True:
                 got = mo_tasks.claim(pdir, agent or "worker", kind)
                 if got.get("task") or _time.time() >= end:
@@ -447,7 +452,8 @@ def orgs(project: str, ids: list[str] | None = None, stage: str = "", limit: int
     person and role next to it, the page and the line it is on as quote) gives that address
     to the organisation as a contact at once - no file needed.
     wait=seconds (with ids): return once every one of them is through the tools' read (after
-    run(orgs=...)), or after that many seconds (at most 900) - one call instead of asking again
+    run(orgs=...)), or after that many seconds (at most 50, under the host's tool timeout - call
+    again until they are through) - one call per 50 seconds instead of asking again
     and again.
     """
     try:
@@ -479,7 +485,7 @@ def orgs(project: str, ids: list[str] | None = None, stage: str = "", limit: int
                 return {"updated": changed}
         if ids and wait:
             import time
-            want, end = {str(i) for i in ids}, time.time() + max(1, min(int(wait), 900))
+            want, end = {str(i) for i in ids}, time.time() + max(1, min(int(wait), WAIT_MAX))
             while time.time() < end:
                 done = {r["org_id"] for r in ws.read_csv(pdir / "crawl.csv") if r.get("pass") == "final"}
                 if want <= done:

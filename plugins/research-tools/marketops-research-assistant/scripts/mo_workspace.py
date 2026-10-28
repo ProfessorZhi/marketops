@@ -683,7 +683,17 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
     held: list[dict] = []
     added = 0
     if (org_id or org) and not generic:
-        keep, held = split_attribution(contacts, org, org_site, on_org, name_counts(pdir))
+        if scope:
+            # the portal's own addresses on the organisation's page there (a federation's committees
+            # beside a club's fiche) are the portal's, unless the quote names the organisation
+            mine, portal = [], []
+            for c in contacts:
+                (portal if c.get("email_site") and c.get("email_site") == page_site else mine).append(c)
+            keep, held = split_attribution(mine, org, org_site, on_org, name_counts(pdir))
+            k2, h2 = split_attribution(portal, org, "", "no", name_counts(pdir))
+            keep, held = keep + k2, held + h2
+        else:
+            keep, held = split_attribution(contacts, org, org_site, on_org, name_counts(pdir))
         added = merge_contacts(pdir, keep, org_id, org, via)
         save_unattributed(pdir, held, org_id, org, via)
     best = max((p["lines"] for p in parsed_by.values()), key=lambda ls: sum(map(len, ls)), default=[])

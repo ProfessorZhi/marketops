@@ -361,6 +361,41 @@ class TheRest(Patched):
         self.assertIn("Présidente", c["quote"])
         self.assertNotIn("email", ws.read_csv(ws.project_dir(p) / "orgs.csv")[0])   # the address lives in contacts
 
+    def test_held_addresses_stay_held_and_portal_addresses_are_not_the_clubs(self):
+        import mo_grade
+        p = "held-073"
+        server.project(p, brief={"goal": "x"})
+        pdir = ws.project_dir(p)
+        ws.merge_contacts(pdir, [{"kind": "email", "value": f"c{i}@fed.test", "quote": f"Comité {i}"}
+                                 for i in range(80)], "o1", "Club")
+        mo_grade.auto(pdir)
+        rows = ws.read_contacts(pdir)
+        self.assertEqual(80 - mo_grade.FLOOD, sum(r.get("graded_by") == "held" for r in rows))
+        mo_grade.auto(pdir)                                        # the next round leaves them alone
+        self.assertEqual(80 - mo_grade.FLOOD, sum(r.get("graded_by") == "held" for r in ws.read_contacts(pdir)))
+        # a club's fiche on its federation's site: the federation's addresses are not the club's
+        p2 = "fiche-073"
+        pdir2 = ws.project_dir(p2)
+        pdir2.mkdir(parents=True, exist_ok=True)
+        (pdir2 / "orgs.csv").write_text("id,name,website,city\nk1,Judo Turn,https://www.ffsportnat.test/club-judo-turn-12,Paris\n")
+        html = ('<div><p>Judo Turn</p><p>Président : Paul Turn</p><p>judoturn@mail.test</p></div>'
+                '<div><p>Comité de Paris</p><p>comite75@ffsportnat.test</p></div>' + "<p>x</p>" * 30)
+        with mock.patch.object(mo_providers, "read", return_value={"crawl4ai": {"final_url": "u", "html": html, "text": ""}}):
+            ws.fetch(pdir2, "https://www.ffsportnat.test/club-judo-turn-12", ["crawl4ai"], "k1", "Judo Turn", "ffsportnat.test")
+        mine = {r["value"] for r in ws.read_contacts(pdir2)}
+        self.assertIn("judoturn@mail.test", mine)
+        self.assertNotIn("comite75@ffsportnat.test", mine)
+        self.assertIn("comite75@ffsportnat.test", {r["value"] for r in ws.read_csv(pdir2 / "unattributed.csv")})
+
+    def test_a_wait_stays_under_the_hosts_tool_timeout(self):
+        import time as _t
+        server.project("cap-wait-073", brief={"goal": "x"})
+        with mock.patch.object(server, "WAIT_MAX", 1):
+            t = _t.time()
+            out = server.tasks("cap-wait-073", action="claim", kind="sweep", agent="r", wait=600)
+        self.assertIsNone(out.get("task"))
+        self.assertLess(_t.time() - t, 8)
+
     def test_every_tool_call_is_logged_with_its_agent_and_no_addresses(self):
         p = "calls-073"
         server.project(p, brief={"goal": "x"})

@@ -39,7 +39,7 @@ GUIDE = {
                 "address and the name, fetch the pages that print them with org_id (each page raises the "
                 "evidence score); fix person/role with grade(set=...) if the pages say otherwise.",
     "sweep": "These organisations are yours from start to finish: run(project, orgs=[their ids], rounds=0) reads "
-             "their sites at once (no digging); orgs(project, ids=[...], wait=600) returns when they are through; "
+             "their sites at once (no digging); orgs(project, ids=[...], wait=50) returns when they are through; "
              "then for each: judge what was found, dig where a route is missing, verdict. See references/roles/research.md.",
     "source": "Mine this list (references/roles/pool.md): harvest(project, source, start=url, follow=..., next=...) "
               "until nothing is queued, check 20 rows, then pool(project, file, into=..., map=..., source=...). "
@@ -98,6 +98,15 @@ def source_of(org: dict) -> str:
     return (str(org.get("sources") or org.get("source") or "").split("|")[0].strip()) or "-"
 
 
+def pilot(pdir) -> int:
+    """The pilot size: brief.pilot for a small run (a smoke test of 20 organisations pilots on 5),
+    else Bruce's 30."""
+    try:
+        return max(1, int(ws.brief(pdir).get("pilot") or PILOT))
+    except (TypeError, ValueError):
+        return PILOT
+
+
 def source_yield(pdir) -> dict[str, dict]:
     """Per source (an organisation's first source): organisations in scope, how many agents
     worked (verdict or confirmed A/B), how many have A/B, and its state - pilot, scaling,
@@ -107,6 +116,7 @@ def source_yield(pdir) -> dict[str, dict]:
     judged = {r["org_id"] for r in ws.read_csv(pdir / "verdicts.csv")}
     ab = {c["org_id"] for c in ws.read_contacts(pdir) if c.get("grade") in ("A", "B") and c.get("review") != "yes"}
     out: dict[str, dict] = {}
+    size = pilot(pdir)
     for o in ws.read_csv(pdir / "orgs.csv"):
         if o.get("scope") == "out" or o.get("part_of"):
             continue
@@ -120,7 +130,7 @@ def source_yield(pdir) -> dict[str, dict]:
         rate = y["with_ab"] / y["worked"] if y["worked"] else 0.0
         y["ab_rate"] = round(rate, 3)
         y["state"] = ("dropped" if st == "dropped" else "scale" if st == "scale"
-                      else "pilot" if y["worked"] < min(PILOT, y["orgs"])
+                      else "pilot" if y["worked"] < min(size, y["orgs"])
                       else "scaling" if rate >= STOP else "waiting")
     return out
 
@@ -140,11 +150,12 @@ def _mix(pdir, items: list[str], rows: list[dict]) -> list[str]:
     items = [i for i in items if not orgs.get(i, {}).get("part_of")]   # its chain is researched instead
     for i in items:
         queues.setdefault(source_of(orgs.get(i, {})), []).append(i)
-    room = {}
+    room, size = {}, pilot(pdir)
     for src in queues:
         y = yields.get(src, {"state": "pilot", "worked": 0})
         room[src] = (0 if y["state"] in ("dropped", "waiting") else
-                     max(0, PILOT - y["worked"] - inflight.get(src, 0)) if y["state"] == "pilot" else len(queues[src]))
+                     max(0, size - y["worked"] - inflight.get(src, 0)) if y["state"] == "pilot"
+                     else len(queues[src]))
     out = []
     while any(queues[s] and room[s] > 0 for s in queues):
         for s in queues:

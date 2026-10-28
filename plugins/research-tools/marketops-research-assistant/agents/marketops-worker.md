@@ -13,7 +13,7 @@ your role: sources, pool, websites, research, dig or finish.
    `references/projects/<market>.md`) when you need it.
 2. Work your queue with the marketops tools exactly as the role file says - claim, work, hand
    back - until nothing is left for your role. Started before the pools before yours have
-   anything (a researcher while the miners are still mining): claim with `wait=600` - the call
+   anything (a researcher while the miners are still mining): claim with `wait=50` - the call
    returns when a package arrives; end only when a claim that waited comes back empty and
    `project(name)["flow"]` shows nothing still filling upstream. Do not stop to ask; anything only the user can
    decide goes into your final report as a numbered item.

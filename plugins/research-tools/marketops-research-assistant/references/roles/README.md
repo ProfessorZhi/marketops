@@ -14,7 +14,7 @@ Every lane runs at the same time; several workers can share a role, each on its 
 
 Every role: claim with `tasks(project, action="claim", agent="<name>", kind=<lane>)`, work only
 what you claimed, hand it back with `tasks(action="done", task_id, note)`. An empty lane while the
-pools before it still fill: claim again with `wait=600` (one call that returns with the next
+pools before it still fill: claim again with `wait=50` (one call that returns with the next
 package), or move to where `project(name)["flow"]["waiting_between_pools"]` is highest. Feed other pools
 as you go: a new list -> `sources(add)`, a venue's real operator -> `orgs(add)`. Every address
 comes from a page read with the tools; never guess one. Pass `agent="<your name>"` on every tool

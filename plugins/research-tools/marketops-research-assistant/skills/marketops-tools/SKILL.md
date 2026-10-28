@@ -64,7 +64,7 @@ Several keys per provider (`NAME`, `NAME_2`..`_9`): a used-up key hands over by 
   page is a finding - record it and move on.
 - **Speed**: more organisations in flight, not more pages per site. The machine shares one pace
   per provider and at most 4 requests at once per web host (a 429 pauses that host and lowers its
-  share), so more agents never means a banned portal. Never poll: `orgs(ids, wait=600)` returns
+  share), so more agents never means a banned portal. Never poll: `orgs(ids, wait=50)` returns
   when a package is through, `harvest(background=True)` keeps reading while you check rows; look
   at `project()` every 10-15 minutes.
 - The host's own web search / fetch are for looking; anything worth keeping goes through

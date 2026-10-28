@@ -23,8 +23,10 @@ that has none).
 
 - **Brief**: `{"goal": "people who run, manage or decide on indoor sports venues - venue and
   facilities managers, sports department heads, club presidents", "country": "FR", "language":
-  "fr", "region": "Paris 11e arrondissement (75011)", "scenario": "private gyms and indoor sports
-  venues of one district (fitness, dance, combat sports, squash / padel), at most 20 organisations", "address_rules": {"info": "X", "admin": "X", "book": "X"}, "strict_ledger": "AB",
+  "fr", "region": "Paris 11e arrondissement (75011)", "scenario": "sports associations and clubs of
+  one district (indoor: basketball, handball, volleyball, badminton, table tennis, gymnastics,
+  combat sports, dance, fencing, climbing): presidents, secretaries, facility leads - at most 20
+  organisations from at least 3 sources, no more than 8 from one", "pilot": 5, "address_rules": {"info": "X", "admin": "X", "book": "X"}, "strict_ledger": "AB",
   "fresh": true}`. Nothing else: no sources, no pool, no playbook - the finders find them.
 - **Start from zero**: a new project name per run (`bench-paris11-<version>-<date>`) and an empty
   `MARKETOPS_HOME` (no shared pages, searches or lessons). `project()` must show no brought-in
@@ -48,6 +50,7 @@ that has none).
 
 | version (commit) | date | model | minutes | sources found / pooled / researched | orgs | site reads past home | orgs with A/B | rows A/B/C/D/X | tool calls / errors | provider spend | lead turns | journal | notes |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0.7.3 (5b881a3), associations | 2026-10-28 | Haiku | ~25 | 4 / 1 / 1 | 20 | 15 of 18 read | **4 strict (20%)**, 5 named A | 5/0/2/18/134 | 70 / 0 | ~$0.10 | 20 | every worker + lead retro | one source filled the cap of 20; 123 X from one club fiche on its federation's site (fixed after); a 300 s wait outlived the host's 60 s tool timeout |
 | 0.7.3 (3df6854) | 2026-10-28 | Haiku | ~10 | 4 / 3 / 3 | 17 | 12 of 17 | 5 as graded, **0 strict** (the 7 B were accueil@ / contact@ / info@ set by the worker, and two venue inboxes Jev sent to review; flagged since 170664e) | 0/7/3/12/1 | 55 / 0 | ~$0.13 | 12 | none (guidance came in af50018) | 38 of 55 calls without an agent name |
 | 0.7.3 (921fe0f) | 2026-10-28 | Sonnet | ~8 | 3 / 3 / 1 | 15 | 0 of 15 | 0 | 0/0/0/11/5 | 49 / 0 | ~$0.03 | 15 | none | site reads stopped at the home page (fixed in 3df6854); maps rows filed under the agent |
 

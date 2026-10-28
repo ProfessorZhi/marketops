@@ -140,6 +140,11 @@ def _flood(pdir, todo: list[dict]) -> tuple[list[dict], dict[str, int]]:
         chosen = (near + rest)[:FLOOD]
         keep += chosen
         held[oid] = len(rows) - len(chosen)
+        # held for good: the next grading round must not send the rest after all (073 smoke: 109
+        # of one federation page's 123 addresses reached Jev over several rounds)
+        ws.update_contacts(pdir, [{**r, "graded_by": "held", "grade_reason": f"held: over {FLOOD} new addresses on "
+                                   "this organisation - an agent picks the ones that belong"}
+                                  for r in rows if r not in chosen], ["graded_by", "grade_reason"])
     if held:
         import mo_journal
         for oid, n in held.items():
@@ -174,7 +179,8 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: 
     common = common_words([str(o.get("name") or "") for o in ws.read_csv(pdir / "orgs.csv")])
     only = {str(o) for o in orgs} if orgs else None
     todo = [r for r in rows if r.get("kind") == "email" and not r.get("graded_by", "").startswith("agent")
-            and (regrade or not r.get("grade")) and (only is None or str(r.get("org_id")) in only)]
+            and (regrade or not r.get("grade")) and (only is None or str(r.get("org_id")) in only)
+            and (regrade or r.get("graded_by") != "held")]   # held back from a flood: an agent's to pick
     if limit:
         todo = todo[:limit]
     fields = ["grade", "graded_by", "grade_reason", "review", "review_reason"]
