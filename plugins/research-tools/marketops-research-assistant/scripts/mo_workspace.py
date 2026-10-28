@@ -284,16 +284,25 @@ def snapshot_contacts(pdir: Path) -> None:
     write_csv(pdir / "contacts.csv", CONTACT_COLS, read_contacts(pdir))
 
 
+PHONES_PER_ORG = 20   # more is a directory's list, not one organisation's lines
+
+
 def _merge_phones(pdir: Path, phones: list[dict], org_id: str, org: str) -> None:
     path = pdir / "phones.csv"
+    country = str(brief(pdir).get("country") or "")
+    phones = [c for c in phones if mo_pages.phone_fits(c.get("value", ""), country)]
     with _lock(path):
         seen = _phone_seen.get(str(pdir))
         if seen is None:
             seen = {(r["org_id"], re.sub(r"\D", "", r["value"])) for r in read_csv(path)}
             _phone_seen[str(pdir)] = seen
+        have = sum(1 for o, _ in seen if o == org_id)
         for c in phones:
             key = (org_id, re.sub(r"\D", "", c["value"]))
+            if key not in seen and have >= PHONES_PER_ORG:
+                break
             if key not in seen:
+                have += 1
                 seen.add(key)
                 new = not path.exists()
                 with open(path, "a", newline="", encoding="utf-8") as fh:
@@ -1142,6 +1151,36 @@ def merge_orgs(pdir: Path, items: list[dict]) -> dict:
                         v["org_id"], v["org"] = m["keep"], names.get(m["keep"], v.get("org", ""))
                 write_csv(vpath, VERDICT_COLS, vs)
     return {"merged": merged, "contacts_moved": moved, **({"skipped": skipped} if skipped else {})}
+
+
+def merge_suggested(pdir: Path, skip: list | None = None, rounds: int = 5) -> dict:
+    """Merge every group flow.possible_duplicates lists, again until none is left (a merge can
+    make a new pair - a website moved to the keeper meets another row): the lead reads the list
+    first and names the groups to leave apart in `skip` (any id of the group). The keeper is the
+    row with the most contacts and verdicts, then the one with a website."""
+    import mo_tasks
+    skip = {str(s) for s in (skip or [])}
+    done: list[dict] = []
+    for _ in range(rounds):
+        groups = [g for g in mo_tasks.possible_duplicates(pdir) if not (set(g["ids"]) & skip)]
+        if not groups:
+            break
+        orgs = _org_rows(pdir)
+        weight: dict[str, int] = {}
+        for c in read_contacts(pdir):
+            weight[c.get("org_id", "")] = weight.get(c.get("org_id", ""), 0) + 1
+        for v in read_csv(pdir / "verdicts.csv"):
+            weight[v["org_id"]] = weight.get(v["org_id"], 0) + 1
+        items = []
+        for g in groups:
+            keep = max(g["ids"], key=lambda i: (weight.get(i, 0), bool(orgs.get(i, {}).get("website")), -g["ids"].index(i)))
+            items.append({"keep": keep, "drop": [i for i in g["ids"] if i != keep]})
+        got = merge_orgs(pdir, items)
+        done += got["merged"]
+        if not got["merged"]:
+            break
+    left = [g for g in __import__("mo_tasks").possible_duplicates(pdir) if not (set(g["ids"]) & skip)]
+    return {"merged": done, "groups_left": len(left), "kept_apart": sorted(skip)}
 
 
 def release_held(pdir: Path, items: list[dict]) -> dict:

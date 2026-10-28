@@ -310,7 +310,11 @@ def public_url(url: str) -> str:
 
 # ---------------------------------------------------------------- search
 def _serper(q, country, lang, n, maps, purpose="", page=1, near=""):
+    """google.serper.dev search / places. Places (Google Maps) takes `ll` = "@lat,lon,zoom" to
+    centre the search, as SerpApi does: maps search needs either one."""
     body = {"q": q, "num": n}
+    if maps and near:
+        body["ll"] = near if near.startswith("@") else "@" + near
     if page > 1:
         body["page"] = page
     if country:
@@ -625,9 +629,35 @@ def _read_deepseek(url):
     return {"final_url": url, "html": "", "text": content, "title": r.json().get("title")}
 
 
+# a host that would not even open a connection: asked again only after DEAD_HOST_S (077: three
+# tries on one unreachable host spent 367 s, each one waiting out a 120 s timeout)
+DEAD_HOST_S = 1800
+CONNECT_S = 10
+_DEAD_HOSTS: dict[str, float] = {}
+
+
+def host_unreachable(url: str) -> bool:
+    import time
+    host = (urllib.parse.urlsplit(url).hostname or "").lower()
+    return bool(host) and time.time() - _DEAD_HOSTS.get(host, 0) < DEAD_HOST_S
+
+
 def download(url: str, max_bytes: int = 60_000_000) -> dict:
-    """A plain GET: data exports, PDFs, CSV, JSON. Returns bytes and content type."""
-    with httpx.stream("GET", url, headers={"User-Agent": UA}, timeout=120, follow_redirects=True) as r:
+    """A plain GET: data exports, PDFs, CSV, JSON. Returns bytes and content type. A host that does
+    not answer within CONNECT_S fails fast and is not asked again for DEAD_HOST_S; the transfer
+    itself may take up to two minutes."""
+    import time
+    host = (urllib.parse.urlsplit(url).hostname or "").lower()
+    if host_unreachable(url):
+        raise ProviderError(f"{host} did not answer a connection in the last {DEAD_HOST_S // 60} minutes")
+    try:
+        stream = httpx.stream("GET", url, headers={"User-Agent": UA}, follow_redirects=True,
+                              timeout=httpx.Timeout(120, connect=CONNECT_S))
+        r = stream.__enter__()
+    except (httpx.ConnectTimeout, httpx.ConnectError) as exc:
+        _DEAD_HOSTS[host] = time.time()
+        raise ProviderError(f"{host} does not answer ({type(exc).__name__})") from exc
+    try:
         if r.status_code >= 400:
             raise ProviderError(f"HTTP {r.status_code}")
         chunks, size = [], 0
@@ -638,6 +668,8 @@ def download(url: str, max_bytes: int = 60_000_000) -> dict:
             chunks.append(chunk)
         return {"final_url": str(r.url), "content_type": r.headers.get("content-type", ""),
                 "bytes": b"".join(chunks)}
+    finally:
+        stream.__exit__(None, None, None)
 
 
 def pdf_text(url: str, max_pages: int = 120) -> dict:

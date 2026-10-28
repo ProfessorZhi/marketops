@@ -12,7 +12,10 @@ Turn one source after another into rows in the page, venue and organisation pool
    read as a name, the directory's own mailbox in every footer) and says so in `chrome_removed`;
    a `warning` that a listing gave no entry means the `follow` pattern is wrong, not that the
    source is empty.
-4. `pool(project, file, into="venues"|"orgs", map=..., filters=..., group_by=..., source=...)`.
+4. `pool(project, file, into="venues"|"orgs", map=..., filters=..., group_by=..., source=...)` -
+   `file` may be your own folder's data file (absolute path): it is copied into the project.
+   Mine a list with registry numbers (RNA, SIRET, UAI...) before the others when you can: the
+   later lists then merge on the number, not on a guess at names.
    Venues: decide who runs them and group under that organisation - a venue with no
    organisation gets no contacts; when a later source knows the real operator better than the
    one pooled first, `replace_operator=True`. Keep `page_url` for harvest files (their addresses

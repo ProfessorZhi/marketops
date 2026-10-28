@@ -232,8 +232,12 @@ def needs_you(pdir, status: dict) -> list[str]:
             acc.get("red_line")
         low = isinstance(bal, (int, float)) and (bal <= 0 or (isinstance(line, (int, float)) and bal <= line))
         if acc.get("skipped") or low:
+            other = {"serper": "serpapi", "serpapi": "serper"}.get(name)
+            other_ok = other and other in ((status.get("capabilities") or {}).get("search") or [])
             items.append(f"{name} is out of credit or at its red line (balance {bal}): top it up or leave it off"
-                         + (" - without it there is no maps search and digging leans on DeepSeek and TinyFish." if name in ("serper", "serpapi") else "."))
+                         + ((f" - {other} still searches the web and maps." if other_ok else
+                             " - without it there is no maps search and digging leans on DeepSeek and TinyFish.")
+                            if other else "."))
     return [f"{n}. {t}" for n, t in enumerate(dict.fromkeys(items), 1)]
 
 
@@ -246,7 +250,7 @@ def search(query: str, project: str = "", engines: list[str] | None = None, coun
     weights, brief.providers.search; the held-back engines join when results are thin).
     maps=True: Google Maps places (name, address, phone, website) via Serper and SerpApi, about
     20 a page. To cover a town rather than its top 20: pages (up to 6; Google Maps repeats itself
-    beyond) and near - map centres "@lat,lon,14z" (SerpApi), one search per centre; a grid of
+    beyond) and near - map centres "@lat,lon,14z" (Serper and SerpApi), one search per centre; a grid of
     centres over a city finds what one search never shows.
     country/lang: two-letter codes, e.g. "ch", "de".
     """
@@ -490,7 +494,8 @@ def tasks(project: str, action: str = "status", kind: str = "", size: int = 15, 
 
 def orgs(project: str, ids: list[str] | None = None, stage: str = "", limit: int = 30,
          set: list[dict] | None = None, add: list[dict] | None = None, agent: str = "",
-         wait: int = 0, source: str = "", merge: list[dict] | None = None) -> dict:
+         wait: int = 0, source: str = "", merge: list[dict] | str | None = None,
+         keep_apart: list[str] | None = None) -> dict:
     """One summary per organisation, for an agent deciding what to do next with it.
 
     ids: these organisations; or stage: "no_ab" (pipeline done, no confirmed A/B, no agent
@@ -515,7 +520,9 @@ def orgs(project: str, ids: list[str] | None = None, stage: str = "", limit: int
     merge=[{keep, drop}] (drop: an id or a list): one organisation pooled twice (two lists, two
     spellings; flow.possible_duplicates names them) becomes one - contacts, verdicts and empty
     fields move to `keep`, the dropped row stays only as merged_into for the source counts. A
-    chain's stores are not duplicates: those take part_of.
+    chain's stores are not duplicates: those take part_of. merge="suggested": every group
+    flow.possible_duplicates lists, merged in one call and again until none is left - read the list
+    first and name the groups that are two organisations in keep_apart=[any id of the group].
     wait=seconds (with ids): return once every one of them is through the tools' read (after
     run(orgs=...)), or after that many seconds (at most 50, under the host's tool timeout - call
     again until they are through) - one call per 50 seconds instead of asking again
@@ -545,7 +552,7 @@ def orgs(project: str, ids: list[str] | None = None, stage: str = "", limit: int
             if not ids and not stage and not set:
                 return out
         if merge:
-            merged = ws.merge_orgs(pdir, merge)
+            merged = ws.merge_suggested(pdir, keep_apart) if merge == "suggested" else ws.merge_orgs(pdir, merge)
             if not ids and not stage and not set:
                 return merged
         if set:
@@ -692,6 +699,8 @@ def pool(project: str, file: str = "", into: str = "venues", filters: dict | Non
     the venue rather than the one pooled first (the earlier one stays as previous_org_id).
     Returns provenance: tools (fetched or harvested here), source (a registered list) or
     brought-in (say where it came from).
+    file may also be a data file in your own folder (an absolute path): it is copied into the project
+    (pages/inbox/) and pooled from there.
     rows=[{...}, ...] instead of file: the rows you read yourself (a page that lists venues or
     clubs, a map, a PDF) - the same columns a file would have; they are saved under pages/ and
     pooled the same way. A host with no file tool can still pool what its agents read.
@@ -707,6 +716,19 @@ def pool(project: str, file: str = "", into: str = "venues", filters: dict | Non
             file = "pages/" + name
         if not file:
             return {"error": "file: a saved data file (pages/...), or rows=[...] you read yourself"}
+        outside = Path(file).expanduser()
+        if outside.is_absolute() and outside.is_file() and pdir.resolve() not in outside.resolve().parents:
+            # a worker's own data file (its folder, not the project's): copied in under pages/inbox/
+            # (077: a miner had to paste 103 rows inline because its file was outside the project)
+            if outside.suffix.lower() not in (".csv", ".json", ".geojson", ".xlsx", ".txt", ".tsv"):
+                return {"error": "file: a CSV, JSON, GeoJSON, XLSX, TSV or TXT data file"}
+            if outside.stat().st_size > 50_000_000:
+                return {"error": "file: over 50 MB - pool it in parts"}
+            inbox = pdir / "pages" / "inbox"
+            inbox.mkdir(parents=True, exist_ok=True)
+            target = inbox / outside.name
+            target.write_bytes(outside.read_bytes())
+            file = f"pages/inbox/{outside.name}"
         return mo_pool.pool(pdir, file, into, filters, map, group_by, org_fields,
                             source=source, replace_operator=replace_operator)
     except Exception as exc:  # noqa: BLE001
