@@ -44,6 +44,13 @@ that has none).
   lane ended; a journal entry from each worker; `RETRO.md` written; every contact quoted.
   A/B counts at this size are a baseline to compare, not a pass mark.
 
+## Smoke baseline
+
+| version (commit) | date | model | minutes | sources found / pooled / researched | orgs | site reads past home | orgs with A/B | rows A/B/C/D/X | tool calls / errors | provider spend | lead turns | journal | notes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0.7.3 (3df6854) | 2026-10-28 | Haiku | ~10 | 4 / 3 / 3 | 17 | 12 of 17 | 5 | 0/7/3/12/1 | 55 / 0 | ~$0.13 | 12 | none (guidance came in af50018) | 38 of 55 calls without an agent name |
+| 0.7.3 (921fe0f) | 2026-10-28 | Sonnet | ~8 | 3 / 3 / 1 | 15 | 0 of 15 | 0 | 0/0/0/11/5 | 49 / 0 | ~$0.03 | 15 | none | site reads stopped at the home page (fixed in 3df6854); maps rows filed under the agent |
+
 # Two standing tests
 
 Every plugin version runs both. Report the version (`project()` shows it) with every number.
