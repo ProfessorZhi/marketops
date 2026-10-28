@@ -147,8 +147,9 @@ def needs_you(pdir, status: dict) -> list[str]:
     for src, y in mo_tasks.source_yield(pdir).items():
         if y["state"] == "waiting":
             items.append(f"Source '{src}': A/B for {y['with_ab']} of the {y['worked']} organisations worked (pilot, "
-                         f"under {int(mo_tasks.STOP * 100)}%); its other {y['orgs'] - y['worked']} wait. The lead scales "
-                         "it (sources(set=[{source, status: 'scale'}])) or drops it - or say which.")
+                         f"under {int(mo_tasks.STOP * 100)}%); its other {y['orgs'] - y['worked']} are paused by the pilot "
+                         "rule. Nothing waits on it; resume it with sources(set=[{source, status: 'scale'}]) if it "
+                         "should get them after all.")
     dups = (status.get("flow") or {}).get("possible_duplicates") or []
     if dups:
         items.append(f"{len(dups)} organisations look pooled twice (" + "; ".join(
@@ -168,10 +169,12 @@ def needs_you(pdir, status: dict) -> list[str]:
             f"{k} ({n})" for k, n in list(held_n.items())[:4]) + ": an agent pools the list's entries and clears "
             "them with grade(held=[{org_id, held: 'X'}]) - they stay out of the totals meanwhile.")
     ab_ok = [r for r in rows if r.get("grade") in ("A", "B") and r.get("review") != "yes"]
-    if len(ab_ok) >= 10 and not any(r.get("checked") in ("ok", "wrong") for r in rows):
-        items.append(f"No spot check yet on {len(ab_ok)} confirmed A/B: before delivery the lead opens 20 of the "
-                     "workbook's 抽检 rows and records each with grade(set=[{value, org_id, checked: 'ok'|'wrong'}]) "
-                     "- the precision gate (>= 90%) has no reading without it.")
+    checked = sum(r.get("checked") in ("ok", "wrong") for r in rows)
+    need = min(mo_export.CHECK_MIN, len(ab_ok))
+    if len(ab_ok) >= 10 and checked < need:
+        items.append(f"Spot check {checked} of at least {need} on {len(ab_ok)} confirmed A/B: the workbook is marked "
+                     "not deliverable until the lead (or a finish worker) opens the 抽检 rows' pages and records "
+                     "each with grade(set=[{value, org_id, checked: 'ok'|'wrong'}]) - 20 rows take a few minutes.")
     chains = (status.get("flow") or {}).get("possible_chains") or []
     if chains:
         items.append("Stores of one chain are researched one by one: " + "; ".join(

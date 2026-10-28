@@ -17,6 +17,9 @@ marketops-knowledge (who to find, grades, pages that pay), `references/projects/
      `/annuaire/`, PDFs, who really runs the venue, federation pages, other spellings; read what
      matters with `fetch(project, url, org_id=..., org=...)`, then `grade(project, orgs=[your ids])`.
    - No website: find it, `orgs(set=[{org_id, website}])`, `run(orgs=[it], rounds=0, again=True)`.
+   - `website_check` on its summary: the domain carries no word of its name - make sure it is its
+     own site (not a federation's, a portal's, a namesake's in another town) before trusting
+     what was read there; `orgs(set=[{org_id, website: ""}])` clears a wrong one.
    - The venue is run by someone else -> `orgs(add=[...])`; a page listing many organisations
      (`fetch` returns `list_page`: only the entry naming yours was given to it) -> `sources(add=[...])`,
      and its entries are organisations of their own: `orgs(add=[{name, email, person, role, quote}],

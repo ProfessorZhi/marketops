@@ -103,6 +103,28 @@ def _check_sample(emails: list) -> list[dict]:
             for c in pick]
 
 
+CHECK_MIN = 20
+
+
+def delivery_gate(emails: list) -> dict:
+    """Whether the workbook may go out: at least CHECK_MIN confirmed A/B rows opened and recorded
+    (grade(set=[{value, org_id, checked}])) at >= 90% - 073 and 074 both exported without one
+    check, so the precision bar had no reading. Every export says so on its first line."""
+    ab = [c for c in emails if c.get("grade") in ("A", "B") and c.get("review") != "yes"]
+    done = [c for c in emails if c.get("checked") in ("ok", "wrong")]
+    need = min(CHECK_MIN, len(ab))
+    if not ab:
+        return {"ready": False, "status": "未交付：没有确认的 A/B"}
+    if len(done) < need:
+        return {"ready": False, "status": f"未抽检，不得交付：已核对 {len(done)} / 至少 {need} 条（抽检页逐条打开原页，"
+                                          "用 grade(set=[{value, org_id, checked: 'ok'|'wrong'}]) 记下）",
+                "todo": "spot check: open the 抽检 sheet's rows, record each with grade(set=[{value, org_id, checked}])"}
+    ok = sum(c["checked"] == "ok" for c in done) / len(done)
+    if ok < 0.9:
+        return {"ready": False, "status": f"抽检准确率 {ok:.0%} 低于 90%，不得交付：修正错误行并查同类错误"}
+    return {"ready": True, "status": f"可交付：抽检 {len(done)} 条，准确率 {ok:.0%}"}
+
+
 def _precision(emails: list) -> str:
     done = [c for c in emails if c.get("checked") in ("ok", "wrong")]
     if not done:
@@ -274,7 +296,9 @@ def export(pdir) -> dict:
 
     m = metrics(orgs, emails)
     total = m["orgs"]
+    gate = delivery_gate(emails)
     summary = [
+        {"项目": "交付状态", "值": gate["status"]},
         {"项目": "机构数", "值": total},
         {"项目": "场地数", "值": len(venues)},
         {"项目": "数据源饱和", "值": (lambda st: f"{st['sources']} 个数据源；最近新增占比 "
@@ -371,7 +395,7 @@ def export(pdir) -> dict:
                                   __import__("collections").Counter(v.get("verdict", "") for v in
                                                                     ws.read_csv(pdir / "verdicts.csv")).items())]})
     return {"file": str(out), "routes_csv": str(routes), "retro": str(retro), "contacts": len(route_rows), **m,
-            "to_review": sum(c.get("review") == "yes" for c in emails)}
+            "to_review": sum(c.get("review") == "yes" for c in emails), "delivery": gate}
 
 
 def _sources_and_contribution(pdir, orgs: list, emails: list) -> tuple[list, list]:

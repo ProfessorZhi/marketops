@@ -6,6 +6,7 @@ page and keeps the lines around it as the quote; the grade comes later (Jev or t
 from __future__ import annotations
 
 import html as htmlmod
+import codecs
 import re
 import urllib.parse
 from html.parser import HTMLParser
@@ -241,7 +242,58 @@ def from_markdown(text: str, base: str) -> dict:
 def _deobfuscate(line: str) -> str:
     line = re.sub(r"\s*[\[\(\{<]\s*(?:at|ät|arobase|@)\s*[\]\)\}>]\s*", "@", line, flags=re.I)
     line = re.sub(r"\s*[\[\(\{<]\s*(?:dot|punkt|point|\.)\s*[\]\)\}>]\s*", ".", line, flags=re.I)
+    if "@" in line:
+        line = EMAIL.sub(lambda m: unrot(m.group(0)), line)
     return line
+
+
+# top-level domains an address really ends in; an ending that is none of them while its ROT13 is
+# one is an address a site hid with ROT13 (a reader that does not run the page's script returns it
+# encoded - 074: "...@tznvy.pbz" for gmail.com, graded X as a fake domain)
+TLDS = {"com", "org", "net", "edu", "gov", "int", "info", "biz", "eu", "fr", "de", "ch", "be", "uk", "it", "es", "nl",
+        "at", "lu", "pt", "ie", "dk", "se", "no", "fi", "pl", "cz", "us", "ca", "au", "nz", "jp", "cn", "io", "co",
+        "asso", "paris", "bzh", "alsace", "corsica", "swiss", "berlin", "london", "nyc", "club", "sport"}
+
+
+MAIL_HOSTS = {"gmail.com", "hotmail.com", "hotmail.fr", "outlook.com", "outlook.fr", "yahoo.com", "yahoo.fr",
+              "orange.fr", "wanadoo.fr", "free.fr", "sfr.fr", "laposte.net", "live.fr", "live.com", "icloud.com",
+              "gmx.de", "gmx.net", "web.de", "aol.com", "neuf.fr", "bbox.fr"}
+
+
+def unrot(address: str) -> str:
+    """The address as written, or its ROT13 when that is plainly the real one: the ending is no
+    domain while the decoded one is, or the decoded domain is a well-known mailbox host (.se and
+    .fr are each other's ROT13, so the ending alone cannot tell)."""
+    decoded = codecs.decode(address, "rot13")
+    if decoded.split("@")[-1].lower() in MAIL_HOSTS:
+        return decoded
+    if address.rsplit(".", 1)[-1].lower() in TLDS:
+        return address
+    return decoded if decoded.rsplit(".", 1)[-1].lower() in TLDS else address
+
+
+def person_role(person: str, role: str) -> tuple[str, str]:
+    """A person and a role as fields, not as the line they came from (074: "Président : Daniel
+    DERRIEN, <address>" landed whole in both): addresses, phones and links out; "Role : Name"
+    split; each cut at the next separator and to a field's length."""
+    def strip(x: str) -> str:
+        x = EMAIL.sub(" ", str(x or ""))
+        x = re.sub(r"https?://\S+|www\.\S+", " ", x)
+        x = PHONE.sub(" ", x)
+        return " ".join(x.split()).strip(" ,;:/|-–")
+    p, r = strip(person), strip(role)
+    for text in (p, r):
+        m = re.match(r"^([^:]{2,60}?)\s*:\s*(.+)$", text)
+        if m:
+            left, right = m.group(1).strip(), m.group(2).strip()
+            if text is p or not p:
+                p = right
+            if not r or r == text:
+                r = left
+    p = re.split(r"\s*[,;|/(]\s*|\s+[-–]\s+", p)[0].strip()
+    if p and r and p.lower() == r.lower():
+        r = ""
+    return p[:60], r[:80]
 
 
 def site_of(url: str) -> str:

@@ -252,16 +252,9 @@ def _row_from_page(page: dict, source_host: str) -> dict:
         if site not in seen:
             seen.add(site)
             cands.append((site, " ".join(str(label).split())[:60]))
-    title = re.split(r"\s+[|–—-]\s+", page.get("title") or "")[0].strip()
     lines = [x for x in (page.get("text") or "").split("\n") if x.strip()]
-    if not title:
-        # no <title> (a script-built page): its first short heading-like line, else the URL's last
-        # segment - a row with no name never reaches the pools (072: 173 of 176 rows lost)
-        title = next((x.strip("# ").strip() for x in lines[:15] if 3 <= len(x.strip("# ").strip()) <= 80
-                      and not mo_pages.EMAIL.search(x)), "")
-        if not title:
-            slug = urllib.parse.unquote(urllib.parse.urlsplit(page["url"]).path.rstrip("/").rsplit("/", 1)[-1])
-            title = re.sub(r"[-_]+", " ", re.sub(r"\.\w{2,5}$", "", slug)).strip().title()
+    names = _name_candidates(page, lines)
+    title = names[0] if names else ""
     pc = next((m for m in (POSTCODE.search(x) for x in lines[:200] if len(x) <= 90) if m), None)
     emails = [c["value"] for c in page.get("contacts") or [] if c.get("kind") == "email"]
     phones = [c["value"] for c in page.get("contacts") or [] if c.get("kind") == "phone"]
@@ -270,7 +263,90 @@ def _row_from_page(page: dict, source_host: str) -> dict:
             "_cands": [s for s, _ in cands[:8]], "emails": " ".join(dict.fromkeys(emails))[:400],
             "phones": " ".join(dict.fromkeys(phones))[:200],
             "address": pc.string[:160] if pc else "", "postcode": pc.group(1) if pc else "",
-            "city": pc.group(2).strip()[:40] if pc else "", "lines": " / ".join(lines[:12])[:600]}
+            "city": pc.group(2).strip()[:40] if pc else "", "lines": " / ".join(lines[:12])[:600], "_names": names}
+
+
+# a page's chrome, not an entry's name: back-to-top, menus, breadcrumbs (074: 181 rows named "Haut")
+NAV_WORDS = {"haut", "top", "back to top", "retour", "retour en haut", "menu", "accueil", "home", "skip", "aller au contenu",
+             "recherche", "search", "rechercher", "connexion", "login", "se connecter", "imprimer", "print", "partager",
+             "share", "fermer", "close", "contact", "contactez-nous", "nach oben", "startseite", "suche", "inicio",
+             "buscar", "plan du site", "sitemap", "mentions légales", "cookies", "newsletter", "précédent", "suivant",
+             "previous", "next", "zurück", "weiter"}
+
+
+def _name_candidates(page: dict, lines: list[str]) -> list[str]:
+    """The names a detail page offers for its entry, best first: its <title> (without the site's
+    suffix), its headings, its first short lines that are not navigation, the URL's last segment.
+    harvest() drops a candidate that most entries of the source share (the site's own chrome)."""
+    out = []
+    title = re.split(r"\s+[|–—-]\s+", page.get("title") or "")[0].strip()
+    if title:
+        out.append(title)
+    heads = [x.strip("# ").strip() for x in lines[:80] if x.lstrip().startswith("#")]
+    # the page's lines in order: on a directory every entry page opens with the same menu, and the
+    # first line that is not the menu is the entry's own name (harvest drops the shared ones)
+    shorts = [x.strip("#* ").strip() for x in lines[:80]]
+    for x in heads + shorts:
+        if 3 <= len(x) <= 80 and not mo_pages.EMAIL.search(x) and x.lower().strip(" .:>»↑^") not in NAV_WORDS \
+                and not mo_pages.PHONE.fullmatch(x.strip()):
+            out.append(x)
+    out = list(dict.fromkeys(out))[:40]
+    slug = urllib.parse.unquote(urllib.parse.urlsplit(page["url"]).path.rstrip("/").rsplit("/", 1)[-1])
+    slug = re.sub(r"[-_]+", " ", re.sub(r"\.\w{2,5}$", "", slug)).strip().title()
+    if re.search(r"[^\W\d_]{4,}", slug):
+        out.append(slug)   # the last resort, kept whatever the cap - a code ("FR-17-2") names nothing
+    return out
+
+
+def _drop_chrome(rows: list[dict]) -> dict:
+    """What most entry pages of one source share is the source's own chrome: a name ("Haut", the
+    portal's title) or an address (the directory's office mailbox in its footer - 074: on 181 of
+    188 rows). A shared name gives way to the entry's next candidate; a shared address leaves the
+    rows - it is the source's, not each entry's."""
+    entry = [r for r in rows if "_names" in r]
+    if len(entry) < 4:
+        return {}
+    half = len(entry) / 2
+    nfreq: dict[str, int] = {}
+    efreq: dict[str, int] = {}
+    for r in entry:
+        nfreq[r["name"].lower()] = nfreq.get(r["name"].lower(), 0) + 1
+        for e in set(r.get("emails", "").split()):
+            efreq[e.lower()] = efreq.get(e.lower(), 0) + 1
+    bad_names = {n for n, k in nfreq.items() if k > half}
+    for r in entry:
+        for cand in r["_names"]:
+            seen = sum(1 for x in entry if cand in x["_names"])
+            if cand.lower() not in bad_names and seen <= half:
+                r["name"] = cand
+                break
+        else:
+            r["name"] = r["name"] if r["name"].lower() not in bad_names else ""
+    shared = {e for e, k in efreq.items() if k > half}
+    for r in entry:
+        if shared:
+            r["emails"] = " ".join(e for e in r.get("emails", "").split() if e.lower() not in shared)
+    out = {}
+    nameless = sum(1 for r in entry if not r["name"])
+    if nameless:
+        out["rows_without_name"] = {"rows": nameless, "note": "no name of their own on the page (only the site's "
+                                    "chrome): they stay out of the pools - read one and pool its entries by hand "
+                                    "(orgs(add=...)) if the name is in a picture or a script"}
+    if bad_names or shared:
+        out["chrome_removed"] = {"names": sorted(bad_names)[:5], "addresses": sorted(shared)[:5],
+                                 "note": "on most entry pages of this source: the site's own, not an entry's - "
+                                         "a shared address is the source's own mailbox (pool it on the source's "
+                                         "organisation if it matters), never each entry's"}
+    return out
+
+
+def _empty_listing_note(follow: str, lists: int, rows: list[dict]) -> dict:
+    """A listing read without one entry is a failure to fix, not an empty source (074)."""
+    if lists and not rows:
+        return {"warning": f"{lists} listing page(s) read and no entry found" + (
+            f" - follow={follow!r} matched no link: fetch the listing and look at its links" if follow else
+            " - pass follow= (a regex for the entry links) or urls=")}
+    return {}
 
 
 def _guess_site(row: dict) -> str:
@@ -440,11 +516,13 @@ def harvest(pdir: Path, source: str, start: str = "", follow: str = "", next: st
                 r["_cands"] = [c for c in r["_cands"] if c not in chrome]
                 r["website_candidates"] = " ".join(x for x in r["website_candidates"].split(" ")
                                                    if not any(x.startswith(c) for c in chrome) and x)
+    chrome_note = _drop_chrome(rows)
     judged = _jev_rows(pdir, [r for r in rows if "_cands" in r])
     for r in rows:
         if "_cands" in r and not r.get("website") and judged == 0:
             r["website"] = _guess_site(r)
         r.pop("_cands", None)
+        r.pop("_names", None)
     if rows:
         with ws._lock(out_path):
             old = ws.read_csv(out_path)
@@ -457,7 +535,8 @@ def harvest(pdir: Path, source: str, start: str = "", follow: str = "", next: st
     total = len(ws.read_csv(out_path))
     return {"source": source, "pages_read": read, "list_pages": lists, "queued_now": queued, "still_queued": left,
             "rows_new": len(rows), "rows_total": total, "file": f"pages/{out_path.name}",
-            "judged_by_jev": judged, "sample": [{k: r.get(k, "") for k in ("name", "kind", "website", "emails", "city")}
+            "judged_by_jev": judged, **chrome_note, **_empty_listing_note(follow, lists, rows),
+            "sample": [{k: r.get(k, "") for k in ("name", "kind", "website", "emails", "city")}
                                                 for r in rows[:5]],
             "next": ("call harvest again to continue" if left else "this source's pages are read") +
                     f"; check 20 rows, then pool(project, 'pages/{out_path.name}', into='orgs' or 'venues', "

@@ -181,7 +181,7 @@ class Duplicates(Base):
 
 
 class EmptyLanes(Base):
-    def test_a_lane_capped_by_the_brief_says_so_and_is_not_finished(self):
+    def test_a_lane_capped_by_the_brief_says_so(self):
         p, pdir = "e074", ws.project_dir("e074")
         server.project(p, brief={"goal": "g", "country": "FR", "language": "fr", "pilot": 2, "max_per_source": 2})
         ids = [self.org(p, f"Club Capped {c}") for c in "ABCDE"]
@@ -192,8 +192,8 @@ class EmptyLanes(Base):
         got = server.tasks(p, action="claim", kind="sweep", agent="r1")
         self.assertIsNone(got["task"])
         self.assertIn("max_per_source=2", got["why_empty"])
-        self.assertFalse(got.get("lane_finished"))
-        self.assertIn("tell the lead", got["next"])
+        self.assertTrue(got["lane_finished"])   # the brief's own cap is a decision taken (0.7.5)
+        self.assertIn("raise the cap", got["next"])
         self.assertTrue(any("lane sweep empty" in x for x in server.project(p)["needs_you"]))
         st = server.tasks(p, action="status", kind="sweep")
         self.assertIn("why_empty", st)
@@ -243,9 +243,9 @@ class HeldAndCheck(Base):
         rows = [{"kind": "email", "value": f"p{i}.chk074@club.test", "quote": "Président"} for i in range(10)]
         ws.merge_contacts(pdir, rows, oid, "Club Checktest", "test")
         ws.update_contacts(pdir, [{**r, "org_id": oid, "grade": "A"} for r in rows], ["grade"])
-        self.assertTrue(any("No spot check yet" in x for x in server.project(p)["needs_you"]))
-        server.grade(p, set=[{"value": "p0.chk074@club.test", "org_id": oid, "checked": "ok"}])
-        self.assertFalse(any("No spot check yet" in x for x in server.project(p)["needs_you"]))
+        self.assertTrue(any("Spot check 0 of at least 10" in x for x in server.project(p)["needs_you"]))
+        server.grade(p, set=[{"value": f"p{i}.chk074@club.test", "org_id": oid, "checked": "ok"} for i in range(10)])
+        self.assertFalse(any("Spot check" in x for x in server.project(p)["needs_you"]))
 
 
 class Websites(Base):

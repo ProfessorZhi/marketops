@@ -182,29 +182,132 @@ def possible_duplicates(pdir) -> list[dict]:
         groups.setdefault(key, set()).add(oid)
     for o in orgs:
         oid = str(o.get("id") or "")
-        words = sorted(set(mo_pool.name_words(names[oid])))
-        if len(words) >= 2:   # one word ("football") names a kind of club, not one club: add its town
-            link("name:" + " ".join(words), oid)
-        elif words and o.get("city"):   # and every short word too: "Foot 11" is not "So Foot Club"
-            whole = " ".join(w for w in mo_pool.norm(names[oid]).split() if w not in mo_pool.NAME_FILLER)
-            link("name:" + whole + "@" + mo_pool.norm(o.get("city")), oid)
         rid = mo_pool.registry_id(o)
         if rid:
             link("id:" + rid, oid)
+    for a, b in _similar_names(orgs):
+        link("name:" + a + "|" + b, a)
+        link("name:" + a + "|" + b, b)
     for c in ws.read_contacts(pdir):
         if c.get("kind", "email") == "email" and c.get("mailbox") != "generic" and c.get("org_id") in names \
                 and c.get("grade") in ("A", "B", "C") and c.get("graded_by") != "held":
             link("email:" + str(c.get("value") or "").lower(), c["org_id"])
-    seen, out = set(), []
+    # pairs that overlap are one organisation written three or four ways: one group each
+    parent: dict[str, str] = {}
+
+    def root(x: str) -> str:
+        while parent.get(x, x) != x:
+            x = parent[x]
+        return x
+    whys: dict[str, set] = {}
     for key, ids in groups.items():
-        ids = frozenset(ids)
-        if len(ids) < 2 or ids in seen or len(ids) > 4:   # one address on five clubs is a shared inbox
+        if len(ids) < 2 or len(ids) > 4:   # one address on five clubs is a shared inbox
             continue
-        seen.add(ids)
-        out.append({"ids": sorted(ids), "names": [names[i][:40] for i in sorted(ids)],
-                    "why": {"name": "the same name", "id": "the same registry number",
-                            "email": "the same address " + key.split(":", 1)[1]}[key.split(":", 1)[0]]})
-    return out[:30]
+        ids = sorted(ids)
+        for i in ids[1:]:
+            parent[root(i)] = root(ids[0])
+        whys.setdefault(key, set()).update(ids)
+    merged: dict[str, set] = {}
+    for key, ids in whys.items():
+        merged.setdefault(root(next(iter(ids))), set()).update(ids)
+    out = []
+    for r, ids in merged.items():
+        why = sorted({{"name": "one name written two ways", "id": "the same registry number",
+                       "email": "the same address"}[k.split(":", 1)[0]] for k, v in whys.items() if v & ids})
+        out.append({"ids": sorted(ids), "names": [names[i][:40] for i in sorted(ids)], "why": "; ".join(why)})
+    return sorted(out, key=lambda d: d["names"])[:40]
+
+
+_ROMAN = {"i": "1", "ii": "2", "iii": "3", "iv": "4", "v": "5", "vi": "6", "vii": "7", "viii": "8", "ix": "9",
+          "x": "10", "xi": "11", "xii": "12", "xiii": "13", "xiv": "14", "xv": "15", "xvi": "16", "xvii": "17",
+          "xviii": "18", "xix": "19", "xx": "20"}
+
+
+def name_forms(name: str) -> list[frozenset]:
+    """The ways one organisation's name is written, as word sets: its main name (without the
+    bracketed or trailing acronym), and each bracketed alias. Numbers are numbers however they are
+    written (XI, 11e, 11ème -> 11); filler words and single letters go."""
+    import mo_pool
+    raw = str(name or "")
+    aliases = re.findall(r"\(([^)]*)\)", raw)
+    main = re.sub(r"\([^)]*\)", " ", raw)
+    main = re.split(r"\s[-–]\s*$|\s[-–]\s(?=[A-Z .]{1,20}$)", main)[0]
+
+    def words(text: str) -> frozenset:
+        out = []
+        for w in mo_pool.norm(text).split():
+            w = re.sub(r"^(\d+)(?:e|eme|er|ere|th|st|nd|rd)$", r"\1", w)
+            w = re.sub(r"^([ivx]+)e$", lambda m: _ROMAN.get(m.group(1), m.group(0)), w)
+            w = _ROMAN.get(w, w) if len(w) > 1 or w in ("v", "x") else w
+            if w in mo_pool.NAME_FILLER or (len(w) < 2 and not w.isdigit()):
+                continue
+            out.append(w)
+        return frozenset(out)
+    forms = [words(main)] + [words(a) for a in aliases]
+    acronym = "".join(w[0] for w in mo_pool.norm(main).split() if w not in ("de", "du", "des", "la", "le", "les", "et"))
+    if len(acronym) >= 3:   # matches another's written acronym only, never another initials
+        forms.append(frozenset(["#" + acronym]))
+    return [f for f in dict.fromkeys(forms) if f]
+
+
+def _near(a: str, b: str) -> bool:
+    """One letter apart, for words long enough to carry a typo (Aicart / Aicard)."""
+    if a == b:
+        return True
+    if min(len(a), len(b)) < 5 or abs(len(a) - len(b)) > 1:
+        return False
+    if len(a) == len(b):
+        return sum(x != y for x, y in zip(a, b)) == 1
+    s, t = (a, b) if len(a) < len(b) else (b, a)
+    return any(t[:i] + t[i + 1:] == s for i in range(len(t)))
+
+
+def _similar_names(orgs: list[dict]) -> list[tuple[str, str]]:
+    """Pairs whose names are one organisation written two ways (074: fifteen merged by hand -
+    acronyms in brackets, XI and 11, a letter off, one name inside the other). Compared only
+    within a word they share, so a large pool stays fast; towns must not disagree."""
+    import mo_pool
+    forms = {str(o.get("id") or ""): name_forms(o.get("name")) for o in orgs}
+    town = {str(o.get("id") or ""): (mo_pool.place(o).split() or [""])[0] for o in orgs}
+    count: dict[str, int] = {}
+    for fs in forms.values():
+        for w in set().union(*fs) if fs else ():
+            count[w.lstrip("#")] = count.get(w.lstrip("#"), 0) + 1
+    by_word: dict[str, list[str]] = {}
+    for oid, fs in forms.items():
+        for w in {x.lstrip("#") for x in set().union(*fs)} if fs else ():
+            if count[w] <= 6:   # common words ("paris", "football") do not make pairs
+                by_word.setdefault(w, []).append(oid)
+    pairs: set[tuple[str, str]] = set()
+    for ids in by_word.values():
+        for i, a in enumerate(ids):
+            for b in ids[i + 1:]:
+                if a != b and (not town[a] or not town[b] or town[a] == town[b]) and _same_name(forms[a], forms[b], count):
+                    pairs.add(tuple(sorted((a, b))))
+    return sorted(pairs)
+
+
+def _same_name(fa: list[frozenset], fb: list[frozenset], count: dict) -> bool:
+    for x in fa:
+        for y in fb:
+            ax, ay = any(w.startswith("#") for w in x), any(w.startswith("#") for w in y)
+            if ax or ay:   # initials: against the other's written acronym, alone in its brackets
+                if ax != ay and {w.lstrip("#") for w in (x if ax else y)} == (y if ax else x):
+                    return True
+                continue
+            if x == y and (len(x) >= 2 or all(len(w) >= 4 for w in x)):
+                return True
+            small, big = (x, y) if len(x) <= len(y) else (y, x)
+            # one name inside the other: the smaller carries a word only these two share
+            if small < big and (len(small) >= 2 or len(big) <= 4) and any(count.get(w, 0) <= 2 and len(w) >= 4
+                                                                        for w in small):
+                return True
+            if len(x) == len(y) >= 2:   # the same words, one letter off in one of them
+                left = sorted(x - y)
+                right = sorted(y - x)
+                if len(left) == 1 and len(right) == 1 and _near(left[0], right[0]):
+                    return True
+    return False
 
 
 def possible_chains(pdir) -> list[dict]:
@@ -365,20 +468,36 @@ def outlook(pdir, kind: str = "", agent: str = "") -> dict:
         why.append(f"{len(piloting)} source(s) are on their pilot: their next organisations come as the pilot's "
                    "verdicts come in")
     if waiting:
-        why.append(f"{sum(waiting.values())} organisations wait behind sources whose pilot found no A/B ("
-                   + ", ".join(list(waiting)[:5]) + "): the lead scales or drops them")
+        # Bruce's rule decides by default - under 5% after the pilot, the rest of a source is paused;
+        # nobody waits for a verdict (074: two workers idled seven minutes on one)
+        why.append(f"{sum(waiting.values())} organisations are paused by the pilot rule (their sources gave A/B "
+                   "under 5% on the pilot: " + ", ".join(list(waiting)[:5]) + "); the lead resumes one with "
+                   "sources(set=[{source, status: 'scale'}]) if it thinks otherwise")
     if capped:
         why.append(f"{sum(capped.values())} organisations are unread because the brief's max_per_source={cap} is "
                    "reached for " + ", ".join(list(capped)[:5]) + ": the lead raises it "
                    "(project(name, brief={\"max_per_source\": 0})) or stops here")
     import mo_flow
     import mo_run
-    found = [r["source"] for r in mo_flow.source_pool(pdir) if r.get("status") in ("found", "mining")]
+    spool = mo_flow.source_pool(pdir)
+    found = [r["source"] for r in spool if r.get("status") in ("found", "mining")]
+    rows = ws.read_csv(_path(pdir))
+    if not spool and not ws.read_csv(pdir / "orgs.csv"):
+        # a project just started: nothing found yet is not nothing to do (074: a researcher was
+        # told lane_finished at minute 3, before the finders had registered a list)
+        waits = True
+        why.append("no source is registered and no organisation pooled yet: the finders are starting")
     if found and kind in ("sweep", "site", "dig", "source", ""):
         waits = True
         why.append(f"{len(found)} source(s) are still being found or mined: their organisations come next")
+    upstream = {"sweep": ("source", "find", "site"), "site": ("source", "find"), "dig": ("source", "find", "site", "sweep"),
+                "source": ("find",)}.get(kind, ())
+    stale = (_now() - timedelta(minutes=CLAIM_MINUTES)).isoformat(timespec="seconds")
+    busy = {r["kind"] for r in rows if r["status"] == "claimed" and r["kind"] in upstream and r.get("claimed", "") >= stale}
+    if busy:
+        waits = True
+        why.append("agents still hold " + ", ".join(sorted(busy)) + " packages: what they bring comes here")
     running = [b for b in mo_run.batch_states(pdir) if not b.get("done")]
-    rows = ws.read_csv(_path(pdir))
     if kind == "dig" and (running or any(r["kind"] == "sweep" and r["status"] != "done" for r in rows)):
         waits = True
         why.append("reads and research packages are still going: what they leave without A/B comes to dig")
@@ -399,9 +518,12 @@ def outlook(pdir, kind: str = "", agent: str = "") -> dict:
     elif others:
         out["next"] = "this lane is empty for now: take one of other_lanes, then come back"
     else:
-        out["lane_finished"] = not (waiting or capped)
-        out["next"] = ("nothing can refill it: tell the lead and stop" if out["lane_finished"] else
-                       "only the lead can refill it (see why_empty): tell the lead, then claim again with wait=50")
+        # paused sources and the brief's own cap are decisions already taken: the lane is done unless
+        # the lead changes them (needs_you says so) - workers stop instead of waiting on a verdict
+        out["lane_finished"] = True
+        out["next"] = ("nothing can refill it: report and stop" if not (waiting or capped) else
+                       "done under the current decisions (see why_empty): report and stop - the lead can still "
+                       "resume a paused source or raise the cap, and the lane refills")
     if kind and not waits and (waiting or capped or unread > 0) and why:
         import mo_journal
         mo_journal.auto(pdir, f"lane-empty:{kind}", f"lane {kind} empty for {agent or 'a worker'} while work is left: "

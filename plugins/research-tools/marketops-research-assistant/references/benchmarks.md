@@ -25,14 +25,15 @@ that has none).
   facilities managers, sports department heads, club presidents", "country": "FR", "language":
   "fr", "region": "Paris 11e arrondissement (75011)", "scenario": "sports associations and clubs of
   one district (indoor: basketball, handball, volleyball, badminton, table tennis, gymnastics,
-  combat sports, dance, fencing, climbing): presidents, secretaries, facility leads - at most 20
-  organisations from at least 3 sources, no more than 8 from one", "pilot": 5, "address_rules": {"info": "X", "admin": "X", "book": "X"}, "strict_ledger": "AB",
+  combat sports, dance, fencing, climbing): presidents, secretaries, facility leads, from at
+  least 3 sources", "pilot": 5, "address_rules": {"info": "X", "admin": "X", "book": "X"}, "strict_ledger": "AB",
   "fresh": true}`. Nothing else: no sources, no pool, no playbook - the finders find them.
 - **Start from zero**: a new project name per run (`bench-paris11-<version>-<date>`) and an empty
   `MARKETOPS_HOME` (no shared pages, searches or lessons). `project()` must show no brought-in
   source; one is a failed test, not a result.
-- **Team**: the lead plus two workers started at once in the background - sources+pool and
-  research - all on Haiku (`claude -p --model haiku --plugin-dir <plugin> --max-turns 60`, host
+- **Team**: the lead plus three workers started at once in the background - sources, pool and
+  research (074: one worker doing sources and pool kept the researcher waiting ten minutes for
+  its first package) - all on Haiku (`claude -p --model haiku --plugin-dir <plugin> --max-turns 60`, host
   tools limited to the plugin's, Skill, Read, Glob, Grep and Agent). Record the model every
   worker really ran on.
 - **Limits**: 35 minutes, a few cents of provider spend, paid TinyFish Agent off.

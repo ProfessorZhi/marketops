@@ -181,6 +181,15 @@ def _merge_into(existing: list[dict], incoming: list[dict], key, source: str,
     websites keep same-named rows apart, the same exact website with matching names joins
     them. Returns (added, merged, key -> row)."""
     index, names, sites = {}, {}, {}
+    by_id = {str(r.get("id") or ""): r for r in existing if r.get("id")}
+
+    def live(r: dict) -> dict:
+        """A row merged into another (orgs(merge=...)) answers for its keeper: pooling the same
+        name again must not bring the dropped row back (074: one club, three rows)."""
+        seen = 0
+        while r.get("merged_into") and str(r["merged_into"]) in by_id and seen < 10:
+            r, seen = by_id[str(r["merged_into"])], seen + 1
+        return r
     for r in existing:
         index.setdefault(key(r), r)
         if key is org_key and registry_id(r):   # also findable by name: a source without the number
@@ -198,16 +207,19 @@ def _merge_into(existing: list[dict], incoming: list[dict], key, source: str,
     for r in incoming:
         k = key(r)
         hit = index.get(k)
+        hit = live(hit) if hit is not None else None
         if hit is not None and clash(hit, r):
             hit, k = None, k + "|" + signal(r)
             hit = index.get(k)
         if hit is None and by_name:
-            same = [x for x in names.get(norm(r.get("name")), []) if not clash(x, r)]
+            same = list({id(y): y for y in (live(x) for x in names.get(norm(r.get("name")), []))}.values())
+            same = [x for x in same if not clash(x, r)]
             if len(same) == 1 and (not place(r) or not place(same[0]) or place(r) == place(same[0])):
                 hit = same[0]
         if hit is None and signal and signal(r):
             host = signal(r).partition("/")[0]
-            same_site = [x for x in sites.get(host, []) if not clash(x, r) and _same_org_names(x, r)]
+            same_site = list({id(y): y for y in (live(x) for x in sites.get(host, []))}.values())
+            same_site = [x for x in same_site if not clash(x, r) and _same_org_names(x, r)]
             if len(same_site) == 1:
                 hit = same_site[0]
         if hit is not None:
@@ -228,7 +240,7 @@ def _merge_into(existing: list[dict], incoming: list[dict], key, source: str,
         if source not in srcs:
             hit["sources"] = "|".join(srcs + [source])
         merged += 1
-    return added, merged, index
+    return added, merged, {k: live(v) for k, v in index.items()}
 
 
 SOURCE_COLS = ["time", "source", "kind", "query", "read", "kept", "venues_added", "venues_merged",
@@ -279,18 +291,21 @@ def pool(pdir: Path, file: str, into: str = "venues", filters: dict | None = Non
     return out
 
 
-def _bind_saved_pages(pdir: Path, pairs: list[tuple[str, str, str]]) -> int:
+def _bind_saved_pages(pdir: Path, pairs: list[tuple]) -> int:
     """Rows that came with the page they were found on (a harvested detail page): that page is
-    already saved, so its addresses join the organisation now, read from the copy - no new call.
-    Pages not saved in this project are left for the researchers."""
+    already saved, so its addresses join the organisation now, read from the copy - no new call;
+    then the row's own addresses (an address the row printed that the page did not). Pages not
+    saved in this project are left for the researchers."""
     saved = ws._pages(pdir)
     n = 0
-    for oid, name, url in pairs:
+    for oid, name, url, *rest in pairs:
         if url in saved:
             try:
                 n += ws.fetch(pdir, url, org_id=oid, org=name, via="source").get("contacts_added", 0)
             except Exception:  # noqa: BLE001
-                continue
+                pass
+        if rest and rest[0]:
+            ws.merge_contacts(pdir, rest[0], oid, name, via="list")
     return n
 
 
@@ -338,6 +353,11 @@ def _row_contacts(orig: dict, mapped: dict, org: dict, where: str) -> list[dict]
     quote = str(mapped.get("quote") or "").strip()[:500] or " / ".join(dict.fromkeys(
         str(v).strip() for v in list(mapped.values()) + list(orig.values())
         if isinstance(v, (str, int, float)) and str(v).strip() and len(str(v)) < 200))[:500]
+    name = str(org.get("name") or mapped.get("name") or "").strip()
+    if name and not mentions(name, quote):
+        # the grader reads the quote: a row's "label / address" alone names nobody (074: Jev gave X
+        # to presidents' addresses until a worker re-graded them by hand)
+        quote = f"{name} / {quote}"[:500]
     own = mo_pages.site_of(str(org.get("website") or ""))
     out = []
     for e in values:
@@ -374,8 +394,15 @@ def _pool(pdir: Path, file: str, into: str, filters: dict | None, map: dict | No
     orgs = ws.read_csv(pdir / "orgs.csv")
     o_added = o_merged = 0
     if into == "orgs":
+        import mo_pages
         for r in rows:
             r.setdefault("id", "")
+            # the list's own site is not its entry's website (074: a federation's club fiche pointing
+            # home made the federation's whole site the club's - and its officers the club's A)
+            w, pu = str(r.get("website") or ""), str(r.get("page_url") or "")
+            root = lambda u: not urllib.parse.urlsplit(u if "://" in u else "https://" + u).path.strip("/")  # noqa: E731
+            if w and pu and mo_pages.site_of(w) == mo_pages.site_of(pu) and root(w) and not root(pu):
+                r["website"] = ""   # a fiche deep in a directory pointing at the directory's home
         o_added, o_merged, index = _merge_into(orgs, rows, org_key, tag, by_name=True, signal=site_signal)
         for o in orgs:
             if not o.get("id"):
@@ -383,15 +410,22 @@ def _pool(pdir: Path, file: str, into: str, filters: dict | None, map: dict | No
         _write(pdir / "orgs.csv", orgs, ["id", "name", "website", "city"])
         bind, listed = [], 0
         saved = ws._pages(pdir)
+        # a page several rows came from is a list: its addresses are its rows', each on its own row
+        # (074: a PDF of nine clubs, pooled as rows, gave two of them all nine mailboxes)
+        per_page: dict[str, int] = {}
+        for r in rows:
+            if r.get("page_url"):
+                per_page[r["page_url"]] = per_page.get(r["page_url"], 0) + 1
         for r, orig in zip(rows, kept):
             hit = index.get(org_key(r)) or index.get(org_key(r) + "|" + site_signal(r))
             if hit is None:
                 continue
-            if r.get("page_url") and r["page_url"] in saved:
-                bind.append((hit["id"], hit.get("name", ""), r["page_url"]))   # read from the saved page
-                continue
+            # the row's own addresses always reach it (074: a saved page made pooling skip them); its
+            # own detail page, already read, is bound first - its quotes are the page's blocks
             found = _row_contacts(orig, r, hit, f"list:{file}")
-            if found:
+            if r.get("page_url") and r["page_url"] in saved and per_page.get(r["page_url"], 0) == 1:
+                bind.append((hit["id"], hit.get("name", ""), r["page_url"], found))
+            elif found:
                 listed += ws.merge_contacts(pdir, found, hit["id"], hit.get("name", ""), via="list")
         return {"read": len(raw), "kept": len(kept), "skipped_no_name": no_name, "orgs_added": o_added,
                 "orgs_merged": o_merged, "contacts_from_rows": listed,

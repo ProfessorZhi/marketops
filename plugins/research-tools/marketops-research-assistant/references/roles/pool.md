@@ -8,7 +8,10 @@ Turn one source after another into rows in the page, venue and organisation pool
    regex>")`, or `sitemap=True`, or `urls=[...]`; with `background=True` the rest of the source keeps
    reading while you check the first rows (call again until `still_queued` is 0).
 3. Read 20 rows: is a row what the finder said, is the website theirs? Fix the pattern or the
-   mapping, not rows one by one.
+   mapping, not rows one by one. `harvest` drops what most entries share (a "back to top" link
+   read as a name, the directory's own mailbox in every footer) and says so in `chrome_removed`;
+   a `warning` that a listing gave no entry means the `follow` pattern is wrong, not that the
+   source is empty.
 4. `pool(project, file, into="venues"|"orgs", map=..., filters=..., group_by=..., source=...)`.
    Venues: decide who runs them and group under that organisation - a venue with no
    organisation gets no contacts; when a later source knows the real operator better than the
@@ -26,5 +29,8 @@ Turn one source after another into rows in the page, venue and organisation pool
    `orgs(add=[...], source="<that name>")` - the research lanes give every source its turn and
    its pilot by that name. When the list prints an address for the row, put it on the row
    (`email`, `person`, `role`, `page_url`, `quote` = the line as printed): it reaches the
-   contact pool at once, quoted - no file needed. Not worth it -> `sources(set=[{source, status: "dropped", note}])`.
+   contact pool at once, quoted - no file needed (the row's organisation name is added to a quote
+   that lacks it: the grader judges an address by its quote).
+   Rows from one page that lists several organisations each keep only their own address; the
+   page's other addresses are never spread over them. Not worth it -> `sources(set=[{source, status: "dropped", note}])`.
 6. `tasks(action="done", task_id, note="rows read / kept / new / merged")`; next source.
