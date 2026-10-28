@@ -38,7 +38,7 @@ import mo_providers
 import mo_knowledge
 import mo_tasks
 import mo_workspace as ws
-from mo_pool import mentions as _mentions, name_words as _name_words
+from mo_pool import mentions as _mentions, name_words as _name_words, norm as _norm, place as _place
 
 MAX_ROUNDS = 2       # code dig rounds an agent may ask for; later rounds found almost nothing (071)
 AHEAD = 30           # organisations read and waiting for researchers before a whole-project run pauses
@@ -194,8 +194,16 @@ def _find_site(pdir, org: dict, replace: bool = False) -> str:
             continue   # the namesake town in another département (fr41: Verdigny got the Cher one)
         squashed = re.sub(r"[^a-z0-9]", "", site)
         home_page = urllib.parse.urlsplit(url).path.strip("/").count("/") == 0 and len(urllib.parse.urlsplit(url).path) < 30
-        # its name in the domain, or (clubs often use initials) a home page titled with its name
-        if any(w in squashed for w in words) or (home_page and _mentions(name, hit.get("title") or "")):
+        text = f"{hit.get('title') or ''} {hit.get('snippet') or ''} {url}"
+        # its name in the domain - most of its words, or one word only it carries with its town in
+        # the result (074: "Bien Être Sport Santé Travail" in Paris got brest-sport-sante.fr) - or
+        # (clubs often use initials) a home page titled with its name
+        in_domain = [w for w in words if w in squashed]
+        town = (_place(org).split() or [""])[0]
+        named = len(in_domain) * 2 >= len(words) or (
+            in_domain and any(len(w) >= 5 and _rare(pdir, w) for w in in_domain)
+            and (not town or town in _norm(text)))
+        if named or (home_page and _mentions(name, hit.get("title") or "")):
             home = urllib.parse.urlsplit(url)._replace(path="/", query="", fragment="").geturl()
             oid = _oid(org)
             with ws._lock(pdir / "pools"):
@@ -210,6 +218,11 @@ def _find_site(pdir, org: dict, replace: bool = False) -> str:
                 ws.write_csv(pdir / "orgs.csv", cols, rows)
             return home
     return ""
+
+
+def _rare(pdir, word: str) -> bool:
+    """A word at most two organisations of the pool carry in their names."""
+    return ws.name_counts(pdir).get(word, 0) <= 2
 
 
 def _area(pdir, org: dict) -> str:

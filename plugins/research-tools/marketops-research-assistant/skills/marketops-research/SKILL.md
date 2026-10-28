@@ -85,7 +85,7 @@ before anything else:
 | `run` without `orgs` reads sites ahead of researchers, never digs, waits once 30 are waiting | 071 | dig rounds for your own package: `run(orgs=[...], rounds=1-2)` |
 | Stores of one chain (one domain, a shared name word) show in `flow.possible_chains` and `needs_you`; a store filed `part_of` its head office leaves the lanes and the headline | a store page gives a front desk, the head office decides (073 smoke: 0 A/B on 4 stores of one chain) | add the head office, `orgs(set=[{org_id, part_of}])` the stores - or leave them, for an independent store |
 | Over 60 new addresses on one organisation (a chain's every store, a federation's every club) are not all sent to Jev: those naming the brief's region first, the rest are held - outside every total, on their own workbook sheet | 073: 1,167 on one chain; paris11: 274 held rows were 41% of the workbook | pool the list's entries, then `grade(held=[{org_id, held: "X"}])`; or `"grade"` to send them to Jev |
-| An empty lane says why (`keep_waiting`, `other_lanes`, `lane_finished`, `why_empty` - a pilot, the brief's `max_per_source`, sources still mined); a worker stops only on `lane_finished`, and an empty lane with work left reaches `needs_you` | paris11-073: three workers read `open: 0` and stopped with 310 organisations unread, 13 minutes before the lead noticed | raise or drop `max_per_source`, scale or drop a waiting source |
+| An empty lane says why (`keep_waiting`, `other_lanes`, `lane_finished`, `why_empty` - a pilot, the brief's `max_per_source`, sources still mined, a project with nothing registered yet); a worker stops only on `lane_finished`. A source under 5% A/B after its pilot is paused by default - nobody waits for a verdict - and `needs_you` lists it | paris11-073: three workers stopped with 310 organisations unread; paris11-074: two workers idled seven minutes waiting for a lead's call | resume a paused source (`sources(set=[{source, status: "scale"}])`), raise `max_per_source` |
 | `project(brief=...)` merges: send only the keys you change (`null` removes one) | paris11-073: one key wiped the goal, region and fresh | - |
 | A website found by search must not show another département's postcodes; listings and company registers are never a website | fr41: a commune got its namesake's site in the Cher; paris11: a club got sortiraparis.com | `orgs(set=[{org_id, website}])` when you know better |
 | `browse` (the paid TinyFish Agent) is off; a call records the page and the user is asked once for all of them | it costs per step | the user allows it in the brief (`paid_agent: true`) |
@@ -113,12 +113,18 @@ before anything else:
 5. **Steer every 10-15 minutes** from `project(name)["flow"]`: where work waits between pools,
    move agents there. Sources found and nobody mining: another miner. Organisations arriving
    faster than read: more researchers. Pool saturated: finders become miners or researchers.
-   A source under 5% A/B after 30 organisations: drop it (`sources(set=[...])`).
+   A source under 5% A/B after its pilot is paused by the tools (Bruce's rule) - resume it with
+   `sources(set=[{source, status: "scale"}])` if you know better; nobody waits for you on it.
+   **Your own work as the lead, every round**: merge what `flow.possible_duplicates` lists
+   (`orgs(merge=...)`), answer what workers raised, move agents to the pool where work waits.
+   A lead who only watches leaves these to the workers (074: they waited, then decided alone).
 6. **One numbered list for the user**: `project()["needs_you"]` plus what workers raised, in one
    message.
 7. **Deliver** when the lanes are finished (`lane_finished`, not just empty), duplicates are
-   merged, held rows are cleared, the spot check is done and >= 90% (at least 20 of the 抽检
-   rows recorded with `checked`; `needs_you` asks until they are) and the 对账 line adds up:
+   merged, held rows are cleared, the spot check is done and >= 90% and the 对账 line adds up.
+   The spot check is yours if no finish worker runs: open 20 of the 抽检 rows' pages and record
+   each (`grade(set=[{value, org_id, checked: "ok"|"wrong"}])`) - the workbook's first line,
+   交付状态, reads 未抽检，不得交付 until you have (`export()["delivery"]`). Then:
    `export(project)`; then the `learn` command. The workbook's "Bruce 同口径" line (A+B over
    organisations with any A-D route - his 71/249 = 28.5%) and "已研究机构" line are the numbers
    to compare; A+B over the whole pool also counts what nobody read yet.

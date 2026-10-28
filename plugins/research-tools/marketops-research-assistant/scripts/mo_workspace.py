@@ -260,6 +260,10 @@ def update_contacts(pdir: Path, rows: list[dict], fields: list[str], guard=None)
     groups: dict[str, list[dict]] = {}
     for r in rows:
         groups.setdefault(r.get("org_id", ""), []).append(r)
+    if "person" in fields or "role" in fields:   # one way into the person and role fields, kept clean
+        for r in rows:
+            if r.get("person") or r.get("role"):
+                r["person"], r["role"] = mo_pages.person_role(r.get("person", ""), r.get("role", ""))
     changed = 0
     for oid, group in groups.items():
         path = _cfile(pdir, oid)
@@ -333,6 +337,8 @@ def merge_contacts(pdir: Path, found: list[dict], org_id: str = "", org: str = "
                 row = {**{k: "" for k in CONTACT_COLS}, **{k: c.get(k, "") for k in CONTACT_COLS},
                        "org_id": org_id, "org": org, "found_by": c.get("found_by", ""), "added": _now(),
                        "found_in": via or c.get("found_in", "")}
+                if row.get("person") or row.get("role"):
+                    row["person"], row["role"] = mo_pages.person_role(row["person"], row["role"])
                 rule = address_rule(pdir, c["value"]) if c.get("kind") == "email" else ""
                 if rule:
                     row["grade"], row["graded_by"], row["grade_reason"] = rule, "rule", f"address rule: {rule}"
@@ -1143,7 +1149,7 @@ def org_summaries(pdir: Path, ids: list[str] | None = None, stage: str = "", lim
         site_passes = [p for p in passes.get(oid, []) if (p.get("pass") or "site") == "site"]
         out.append({
             "org_id": oid, "name": o.get("name", ""), "segment": segment_of(o), "city": o.get("city", ""),
-            "website": o.get("website", ""),
+            "website": o.get("website", ""), **_website_doubt(o),
             "state": "held by an agent" if oid in held else "pipeline done" if oid in final
                      else "in pipeline" if oid in passes else "not read yet",
             "site_pass": {k: (site_passes[-1] if site_passes else {}).get(k, "") for k in ("status", "pages", "note")},
@@ -1162,6 +1168,23 @@ def org_summaries(pdir: Path, ids: list[str] | None = None, stage: str = "", lim
     return {"total": total, "shown": len(out), "orgs": out,
             "playbook": {seg: e for seg, e in pb.items() if any(e.values())},
             "site_health": {o["org_id"]: site_health(o["website"]) for o in out if o.get("website")}}
+
+
+def _website_doubt(o: dict) -> dict:
+    """A website whose domain carries no word of the name (nor its initials) may be someone
+    else's - a federation's, a namesake's in another town (074: both made false routes). Said, not
+    acted on: the researcher checks before trusting its addresses."""
+    import mo_pool
+    site = str(o.get("website") or "")
+    if not site or page_on_a_portal(site, str(o.get("name") or ""), str(o.get("city") or "")):
+        return {}
+    squashed = re.sub(r"[^a-z0-9]", "", mo_pages.site_of(site))
+    words = mo_pool.name_words(str(o.get("name") or ""))
+    initials = "".join(w[0] for w in words)
+    if not words or any(w in squashed for w in words) or (len(initials) >= 3 and initials in squashed):
+        return {}
+    return {"website_check": "its domain carries no word of its name: confirm it is this organisation's own site "
+                             "(not a federation's, a portal's or a namesake's) before trusting its addresses"}
 
 
 def site_health(url: str) -> dict:
