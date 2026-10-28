@@ -539,6 +539,8 @@ def flow(pdir: Path) -> dict:
             "sources_take_turns": dict(sorted(turns.items(), key=lambda kv: -kv[1]["orgs"])[:40]),
             # stores of one chain: research the head office once (orgs(set=[{org_id, part_of}]))
             "possible_chains": mo_tasks.possible_chains(pdir),
+            # one organisation pooled twice: merge it (orgs(merge=[{keep, drop}])), not a chain
+            "possible_duplicates": mo_tasks.possible_duplicates(pdir),
             "reconcile": {"organisations": len(ids), "added_by_logged_sources": from_sources,
                           "without_logged_source": unlogged,
                           "adds_up": len(ids) == from_sources + unlogged}}

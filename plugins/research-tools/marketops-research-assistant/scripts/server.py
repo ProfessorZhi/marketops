@@ -57,7 +57,8 @@ def project(name: str, brief: dict | None = None, playbook: dict | None = None,
             journal: dict | list | None = None, agent: str = "") -> dict:
     """Open (or create) a project folder and report where it stands.
 
-    brief (optional, saved as brief.json): {"goal": "...", "region": "...", "country": "FR",
+    brief (optional, merged into brief.json - send only the keys you change; a key set to null is
+    removed): {"goal": "...", "region": "...", "country": "FR",
     "language": "fr", "scenario": "...", "grades": {"A": "...", ...}, "exclude": "...",
     "address_rules": {"info": "X"}, "routes_per_org": 3, "strict_ledger": "AB" | "A" | "named_A",
     "focus": {...}, "fresh": true, "pilot": 30, "max_per_source": 0}. pilot: how many organisations
@@ -88,9 +89,12 @@ def project(name: str, brief: dict | None = None, playbook: dict | None = None,
     try:
         pdir = ws.project_dir(name)
         if brief:
+            # merged into the brief, not replacing it: a lead who sends one key keeps the goal,
+            # region and fresh it set before (073: {"max_per_source": 8} wiped them); null removes a key
+            brief = {k: v for k, v in {**ws.brief(pdir), **brief}.items() if v is not None}
             if brief.get("fresh") and not brief.get("fresh_since"):
                 # from this moment on: nothing read or learned before it, by any project, is reused
-                brief = {**brief, "fresh_since": (ws.brief(pdir).get("fresh_since") or ws._now())}
+                brief = {**brief, "fresh_since": ws._now()}
             (pdir / "brief.json").write_text(json.dumps(brief, ensure_ascii=False, indent=1), encoding="utf-8")
         if playbook:
             ws.update_playbook(pdir, playbook)
@@ -111,6 +115,11 @@ def project(name: str, brief: dict | None = None, playbook: dict | None = None,
         return out
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
+
+
+def _minutes_ago(n: int) -> str:
+    import time as _time
+    return _time.strftime("%Y-%m-%dT%H:%M:%S", _time.localtime(_time.time() - 60 * n))
 
 
 def needs_you(pdir, status: dict) -> list[str]:
@@ -140,6 +149,29 @@ def needs_you(pdir, status: dict) -> list[str]:
             items.append(f"Source '{src}': A/B for {y['with_ab']} of the {y['worked']} organisations worked (pilot, "
                          f"under {int(mo_tasks.STOP * 100)}%); its other {y['orgs'] - y['worked']} wait. The lead scales "
                          "it (sources(set=[{source, status: 'scale'}])) or drops it - or say which.")
+    dups = (status.get("flow") or {}).get("possible_duplicates") or []
+    if dups:
+        items.append(f"{len(dups)} organisations look pooled twice (" + "; ".join(
+            " = ".join(d["names"][:2]) + f" ({d['why']})" for d in dups[:4]) + "): the lead merges each pair with "
+            "orgs(merge=[{keep, drop}]) - until then their routes count twice.")
+    import mo_journal
+    recent = [e for e in mo_journal.read(pdir)[-200:] if e.get("type") == "auto"
+              and str(e.get("key", "")).startswith("lane-empty:") and str(e.get("time", "")) >= _minutes_ago(30)]
+    for e in recent[-3:]:
+        items.append(e["text"] + ".")
+    held_n: dict[str, int] = {}
+    for c in rows:
+        if c.get("graded_by") == "held":
+            held_n[c.get("org", "") or c.get("org_id", "")] = held_n.get(c.get("org", "") or c.get("org_id", ""), 0) + 1
+    if held_n:
+        items.append(f"{sum(held_n.values())} addresses are held back from directory pages on " + ", ".join(
+            f"{k} ({n})" for k, n in list(held_n.items())[:4]) + ": an agent pools the list's entries and clears "
+            "them with grade(held=[{org_id, held: 'X'}]) - they stay out of the totals meanwhile.")
+    ab_ok = [r for r in rows if r.get("grade") in ("A", "B") and r.get("review") != "yes"]
+    if len(ab_ok) >= 10 and not any(r.get("checked") in ("ok", "wrong") for r in rows):
+        items.append(f"No spot check yet on {len(ab_ok)} confirmed A/B: before delivery the lead opens 20 of the "
+                     "workbook's 抽检 rows and records each with grade(set=[{value, org_id, checked: 'ok'|'wrong'}]) "
+                     "- the precision gate (>= 90%) has no reading without it.")
     chains = (status.get("flow") or {}).get("possible_chains") or []
     if chains:
         items.append("Stores of one chain are researched one by one: " + "; ".join(
@@ -292,7 +324,7 @@ def browse(project: str, url: str, goal: str = "", org_id: str = "", org: str = 
 
 
 def grade(project: str, set: list[dict] | None = None, regrade: bool = False, limit: int = 0,
-          orgs: list[str] | None = None, agent: str = "") -> dict:
+          orgs: list[str] | None = None, agent: str = "", held: list[dict] | None = None) -> dict:
     """Grade the project's email candidates.
 
     Without set: Jev grades ungraded rows from each row's quote against the brief's grades
@@ -306,9 +338,17 @@ def grade(project: str, set: list[dict] | None = None, regrade: bool = False, li
     "checked": "ok"|"wrong", "note"?} records that you opened the page and the row holds (or
     not) - the workbook's 抽检 sheet lists the sample and the precision. orgs=[ids]: grade only
     these organisations' rows - pass your package, so you never wait on other agents' rows.
+    held=[{org_id, held: "X" | "grade"}]: the addresses held back from a flood on that organisation
+    (a directory on its pages; they wait outside the totals): "X" marks them all not its own -
+    pool the list's entries as organisations instead - "grade" sends them to Jev after all.
     """
     try:
         pdir = ws.project_dir(project)
+        if held:
+            out = ws.release_held(pdir, held)
+            if any(str(h.get("held")) == "grade" for h in held if isinstance(h, dict)):
+                out["graded"] = mo_grade.auto(pdir, limit, False, orgs=[str(h.get("org_id")) for h in held])
+            return out
         return mo_grade.manual(pdir, set) if set else mo_grade.auto(pdir, limit, regrade, orgs=orgs)
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
@@ -399,7 +439,9 @@ def tasks(project: str, action: str = "status", kind: str = "", size: int = 15, 
     50, under the host's tool timeout; call again for longer) with claim: when the lane is empty because the pools before it are still filling (a
     researcher starting before the miners pooled anything), the call waits for a package
     instead of returning empty - one call, no polling; an empty answer after waiting is the
-    real end of the lane.
+    real end of the lane. An empty claim says why: keep_waiting (the lane refills - claim again;
+    never stop on it), other_lanes (open work elsewhere), lane_finished (nothing can refill it).
+    Stop only on lane_finished; until then an empty lane is a pause, and the lead hears of it.
     While an agent holds a package, the pipeline leaves its organisations alone.
     action="verdict", verdicts=[{org_id, verdict: routes|partial|none|user, found, where, why}]:
     one line per organisation you finished - what you found, on which kind of page, why that
@@ -429,14 +471,16 @@ def tasks(project: str, action: str = "status", kind: str = "", size: int = 15, 
             return mo_tasks.done(pdir, task_id, note, release)
         if action == "verdict":
             return {"recorded": ws.add_verdicts(pdir, verdicts or [], agent), **ws.stages(pdir)}
-        return mo_tasks.summary(pdir)
+        # open: 0 is not "the work is over" - the lanes refill as the pools grow (073: three workers
+        # read it as the end at 14:12); outlook says whether it is
+        return {**mo_tasks.summary(pdir), **mo_tasks.outlook(pdir, kind, agent)}
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
 
 
 def orgs(project: str, ids: list[str] | None = None, stage: str = "", limit: int = 30,
          set: list[dict] | None = None, add: list[dict] | None = None, agent: str = "",
-         wait: int = 0, source: str = "") -> dict:
+         wait: int = 0, source: str = "", merge: list[dict] | None = None) -> dict:
     """One summary per organisation, for an agent deciding what to do next with it.
 
     ids: these organisations; or stage: "no_ab" (pipeline done, no confirmed A/B, no agent
@@ -458,6 +502,10 @@ def orgs(project: str, ids: list[str] | None = None, stage: str = "", limit: int
     each source its turn. A row with an email (the address the list prints for it, with the
     person and role next to it, the page and the line it is on as quote) gives that address
     to the organisation as a contact at once - no file needed.
+    merge=[{keep, drop}] (drop: an id or a list): one organisation pooled twice (two lists, two
+    spellings; flow.possible_duplicates names them) becomes one - contacts, verdicts and empty
+    fields move to `keep`, the dropped row stays only as merged_into for the source counts. A
+    chain's stores are not duplicates: those take part_of.
     wait=seconds (with ids): return once every one of them is through the tools' read (after
     run(orgs=...)), or after that many seconds (at most 50, under the host's tool timeout - call
     again until they are through) - one call per 50 seconds instead of asking again
@@ -486,6 +534,10 @@ def orgs(project: str, ids: list[str] | None = None, stage: str = "", limit: int
                     mo_flow.mark_source(pdir, src, "pooled", agent)
             if not ids and not stage and not set:
                 return out
+        if merge:
+            merged = ws.merge_orgs(pdir, merge)
+            if not ids and not stage and not set:
+                return merged
         if set:
             changed = ws.update_orgs(pdir, set)
             if not ids and not stage:

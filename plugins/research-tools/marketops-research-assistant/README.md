@@ -1,4 +1,4 @@
-# MarketOps Research Assistant 0.7.3
+# MarketOps Research Assistant 0.7.4
 
 调研插件：从公开数据集到场地池、机构池，再到带证据、已评级的联系人，最后交付一张 Excel。
 给 Claude Code 用。插件只提供能力，流程由 agent 自己掌握。
@@ -45,6 +45,17 @@
 
 项目文件夹就是普通文件（`~/MarketOps/<项目>/`）：`brief.json`、`venues.csv`、`orgs.csv`、
 `contacts/`、`crawl.csv`、`trace.jsonl`、`costs.jsonl`；网页原件在共享资料库 `~/.marketops/library`。agent 和人都可以直接打开、修改，断了接着跑。
+
+## 0.7.4 更新：不空转、名录不误挂、重复机构可合并（巴黎 11 区与法国 41 省对照复盘）
+
+- **通道空了不等于收工**：认领为空时说明原因——`keep_waiting`（上游还在找源、挖源，继续用 `wait=50` 认领）、`other_lanes`（别的通道有活）、`why_empty`（试点中、来源暂停，或 brief 的 `max_per_source` 已到上限，还有多少家没读）；只有 `lane_finished` 才收工。还有活却空了，会进 `needs_you` 提醒主 agent。`tasks(status)` 也带同样的说明。巴黎 11 区那轮三个 worker 读到 `open: 0` 就停了，310 家没读，主 agent 13 分钟后才发现。
+- **列表页不再整页挂到一家**：一页印着 6 个以上别人的邮箱就是名录（在机构自己的站上，要路径像 `/associations`、`/annuaire`，或超过 25 个）；带 `org_id` 读这种页，只有写着这家名字的那一条和它自己域名的邮箱归它，其余记入 `unattributed.csv`，`fetch` 返回 `list_page`，提示把这页登记成来源、把条目作为新机构入池。41 省一个市镇的 `/associations` 页曾把 76 个协会邮箱挂到市镇名下。俱乐部自己的理事会页照常全给它。
+- **重复机构可合并**：同名词、同登记号、同一个个人邮箱的两家，列在 `flow.possible_duplicates` 和 `needs_you`，不再被当成连锁；`orgs(merge=[{keep, drop}])` 把联系人、结论和空字段并过去，被并的那行留作 `merged_into`，来源对账照样成立。严格账同一个邮箱只算一次。
+- **brief 改为合并更新**：`project(brief=...)` 只改传入的键，`null` 删除一个键。之前只传一个键会把 goal、region、fresh 全抹掉。
+- **暂扣的名录地址不计入总数**：超过 60 条被暂扣的地址单独一张表，不进任何总数；agent 用 `grade(held=[{org_id, held: "X"}])` 清掉（或 `"grade"` 交给 Jev）。
+- **官网核对**：自动找官网时，搜索结果里的邮编都不在本机构所在省份，就不用（41 省的 Verdigny 曾配到 Cher 省的同名市镇）；演出目录、企业名录网站（sortiraparis、societe.com、pappers 等）不再当官网。
+- **抽检进流程**：确认的 A/B 有 10 条以上还没抽检时，`needs_you` 会提醒；交付前至少核对 20 条。
+- **和 Bruce 同口径的指标**：工作簿和复盘里新增"有确认 A+B 的机构 ÷ 有任一 A–D 路线的机构"（Bruce 法国 71/249 = 28.5% 就是这个口径）和"已研究机构中有确认 A+B 的占比"。`stages.dig` 的等待数和 dig 通道一致。
 
 ## 0.7.3 更新：每个来源都轮到、名单里的邮箱不再丢（巴黎 072 复盘）
 

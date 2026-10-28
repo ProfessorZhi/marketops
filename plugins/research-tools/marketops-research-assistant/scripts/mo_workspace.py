@@ -482,6 +482,56 @@ def attributable(contact: dict, org: str, org_site: str, on_org: str, counts: di
     return False
 
 
+LIST_MIN = 6          # addresses of other parties on one page: from here on it is a list
+LIST_MIN_OWN = 25     # on the organisation's own site, a page this full is a list whatever its address
+DIRECTORY_PATH = re.compile(r"(^|/)([^/]*-)?(associations?|annuaires?|repertoires?|vie-associative|clubs-sportifs|"
+                            r"les-clubs|liste-des|partenaires|directory|vereine|vereinsverzeichnis)([-/.]|$)", re.I)
+
+
+def is_list_page(contacts: list[dict], org_site: str, url: str, on_org: str) -> int:
+    """How many addresses of other parties this page prints, when that makes it a list (0 when
+    it does not). An address on the organisation's own domain is its own. Off its site, LIST_MIN
+    other addresses make a list; on its own site (a club's board page prints its members' own
+    mailboxes) only a directory path (/associations, /annuaire...) or LIST_MIN_OWN do."""
+    others = [c for c in contacts if c.get("kind") == "email" and not (org_site and c.get("email_site") == org_site)]
+    if on_org in ("yes", "likely"):
+        # on its own site, a partner body's addresses (the intercommunality running its shared services,
+        # its own other domain) repeat one domain: an organigram, not a list (fr41 replay: Mer's)
+        per: dict[str, int] = {}
+        for c in others:
+            per[c.get("email_site") or ""] = per.get(c.get("email_site") or "", 0) + 1
+        others = [c for c in others if per[c.get("email_site") or ""] < 3 or _free_mail(c.get("email_site") or "")]
+    others = {c["value"].lower() for c in others}
+    if len(others) < LIST_MIN:
+        return 0
+    if on_org in ("yes", "likely"):
+        path = urllib.parse.urlsplit(url).path
+        return len(others) if DIRECTORY_PATH.search(path) or len(others) >= LIST_MIN_OWN else 0
+    return len(others)
+
+
+def _free_mail(site: str) -> bool:
+    import mo_grade
+    return site in mo_grade.FREE_MAIL or site in ("live.fr", "neuf.fr", "bbox.fr", "googlemail.com", "msn.com")
+
+
+def own_entry_names(contact: dict, org: str, counts: dict | None = None, city: str = "") -> bool:
+    """On a list, does this address's own entry name the organisation? The entry is the
+    address's block, or its line and the two before - not the lines further up, which belong
+    to the entries above it. The town is not the name: every club of "Commune de Mer"'s own
+    directory has "41500 Mer" in its entry (fr41 replay) - a commune's entries are the ones on
+    its own domain, kept apart."""
+    import mo_pool
+    place = set(mo_pool.norm(city).split()) | {"commune", "mairie", "ville", "city", "town", "gemeinde", "stadt"}
+    name = " ".join(w for w in mo_pool.norm(org).split() if w not in place)
+    if not mo_pool.name_words(name):
+        return False
+    quote = _NEXT.sub("", contact.get("quote") or "")
+    if contact.get("quote_from") != "block":
+        quote = " / ".join(quote.split(" / ")[-3:])   # a list entry: its name, a role, the address
+    return bool(quote) and mo_pool.mentions(name, quote, counts)
+
+
 def split_attribution(contacts: list[dict], org: str, org_site: str, on_org: str,
                       counts: dict | None = None) -> tuple[list[dict], list[dict]]:
     """(addresses this organisation may own, addresses to hold for attribution)."""
@@ -535,6 +585,12 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
     unless refresh. PDFs go to the readers that can read them (TinyFish, DeepSeek).
     """
     url = mo_providers.public_url(url)
+    if org_id and not (org_site and org):
+        # an agent's fetch names the organisation by id only: its website and name come from the pool
+        # (without them the organisation's own pages and its own domain's addresses go unrecognised)
+        row = _org_rows(pdir).get(str(org_id), {})
+        org = org or str(row.get("name") or "")
+        org_site = org_site or mo_pages.site_of(str(row.get("website") or ""))
     if readers in (None, "auto", "all", []) and DATA_EXT.search(url):
         readers = ["download"]
     readers = readers if isinstance(readers, list) else (None if readers in (None, "auto", "all") else [readers])
@@ -682,7 +738,23 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
         generic = not mo_pool.mentions(org, page_text)
     held: list[dict] = []
     added = 0
-    if (org_id or org) and not generic:
+    # A page that prints many other parties' addresses is a list (a commune's associations page, a
+    # district's club table): on it an address is this organisation's only when its own entry names
+    # it - 073: a district PDF gave one club eight other clubs' addresses; fr41: a commune's
+    # /associations page gave the commune 76 (blood donors, the fêtes committee...).
+    own_site = "" if scope else (known_site or (page_site if on_org in ("yes", "likely") else ""))
+    own_site = "" if own_site in shared_sites(pdir) else own_site
+    listing = is_list_page(contacts, own_site, url, on_org) if (org_id or org) else 0
+    if (org_id or org) and not generic and listing:
+        own = [c for c in contacts if c.get("kind") == "email" and own_site and c.get("email_site") == own_site]
+        rest = [c for c in contacts if c not in own]
+        counts = name_counts(pdir)
+        city = str(_org_rows(pdir).get(str(org_id), {}).get("city") or "")
+        keep = own + [c for c in rest if own_entry_names(c, org, counts, city)]
+        held = [c for c in rest if c not in keep]
+        added = merge_contacts(pdir, keep, org_id, org, via)
+        save_unattributed(pdir, held, org_id, org, via)
+    elif (org_id or org) and not generic:
         if scope:
             # the portal's own addresses on the organisation's page there (a federation's committees
             # beside a club's fiche) are the portal's, unless the quote names the organisation
@@ -703,8 +775,16 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
         if mo_health.enabled():
             mo_health.HEALTH.record_yield(url, emails_seen)
     title = next((p.get("title") for p in parsed_by.values() if p.get("title")), "")
+    extra = {}
+    if listing:
+        extra["list_page"] = {
+            "addresses_of_others": listing, "given_to_this_organisation": added, "kept_aside": len(held),
+            "note": "this page lists other organisations with their addresses: only the entry that names "
+                    "this organisation was given to it. The page is a source - register it (sources(add=[{source, "
+                    "url, kind: 'directory'}])) and pool its entries (orgs(add=[{name, email, person, role, quote}], "
+                    "source=...)): each entry is an organisation of its own, with its address."}
     return {"url": url, "title": title, "readers": report, "contacts": contacts, "contacts_added": added,
-            "contacts_unattributed": len(held),
+            "contacts_unattributed": len(held), **extra,
             "links": mo_pages.contact_links(links, url, limit=25),
             "scored_links": mo_pages.contact_links(links, url, limit=25, scores=True),
             "links_total": len(links), "content_links": content_links[:800], "page_links": links[:3000],
@@ -874,7 +954,7 @@ def source_saturation(pdir: Path) -> dict:
 def stages(pdir: Path) -> dict:
     """How much work waits at each stage of the chain - the lead agent staffs where it piles up."""
     import mo_tasks
-    orgs = read_csv(pdir / "orgs.csv")
+    orgs = [o for o in read_csv(pdir / "orgs.csv") if counted(o)]
     ids = {str(o.get("id") or o.get("org_id") or "") for o in orgs}
     crawl = read_csv(pdir / "crawl.csv")
     read = {r["org_id"] for r in crawl if (r.get("pass") or "site") == "site"}
@@ -892,8 +972,12 @@ def stages(pdir: Path) -> dict:
                                            and t.get("title", "").lower().startswith("pool") and t.get("status") != "done")},
         "orgs": {"total": len(ids), "no_website": sum(1 for o in orgs if not o.get("website")),
                  "not_read": len(ids - read), "in_pipeline": len((read - final) & ids), "pipeline_done": len(final & ids)},
+        # the same sets the dig lane plans from: an organisation in a research package is its
+        # researcher's (it waits for that verdict, not for the lane) - fr41: 7 "waiting", lane empty
         "dig": {"done_without_confirmed_ab": len((final & ids) - confirmed),
-                "waiting_for_an_agent": len(((final & ids) - confirmed) - judged), "agent_verdicts": len(judged)},
+                "waiting_for_an_agent": len(((final & ids) - confirmed) - judged - mo_tasks.taken_orgs(pdir)),
+                "in_packages_without_verdict": len(((final & ids) - confirmed - judged) & mo_tasks.taken_orgs(pdir)),
+                "agent_verdicts": len(judged)},
         "review": {"ab_rows_to_review": sum(1 for c in contacts if c.get("grade") in ("A", "B") and c.get("review") == "yes")},
         "check": {"checked": len(checked), "ok": sum(c["checked"] == "ok" for c in checked)},
         "held_by_agents": len(mo_tasks.held_orgs(pdir)),
@@ -909,7 +993,7 @@ def update_orgs(pdir: Path, items: list[dict]) -> int:
     decides for it - a chain's head office for one of its stores). Matched by org_id; other
     fields are left alone."""
     path = pdir / "orgs.csv"
-    with _lock(path):
+    with _lock(pdir / "pools"):   # the lock every writer of orgs.csv takes
         rows = read_csv(path)
         cols = list(rows[0].keys()) if rows else ["id", "name", "website"]
         idx = {str(r.get("id") or r.get("org_id") or ""): r for r in rows}
@@ -926,6 +1010,92 @@ def update_orgs(pdir: Path, items: list[dict]) -> int:
             n += 1
         write_csv(path, cols, rows)
     return n
+
+
+def counted(o: dict) -> bool:
+    """An organisation counted and researched on its own: not a store filed under its chain
+    (part_of), not a duplicate merged into another (merged_into)."""
+    return not o.get("part_of") and not o.get("merged_into")
+
+
+def merge_orgs(pdir: Path, items: list[dict]) -> dict:
+    """One organisation pooled twice (two lists, two spellings): [{keep, drop: id or [ids]}].
+    The dropped row stays in orgs.csv marked merged_into (so every source's count still adds
+    up) and leaves the lanes and the headline; its contacts, verdicts and empty fields move to
+    the kept one. Not a chain: stores of a chain are part_of their head office."""
+    path = pdir / "orgs.csv"
+    merged, moved, skipped = [], 0, []
+    with _lock(pdir / "pools"):
+        rows = read_csv(path)
+        cols = list(rows[0].keys()) if rows else ["id", "name"]
+        if "merged_into" not in cols:
+            cols.append("merged_into")
+        idx = {str(r.get("id") or r.get("org_id") or ""): r for r in rows}
+        for it in items or []:
+            keep = str(it.get("keep") or "")
+            drops = it.get("drop") or []
+            for drop in [str(d) for d in (drops if isinstance(drops, list) else [drops])]:
+                k, d = idx.get(keep), idx.get(drop)
+                if not k or not d or keep == drop:
+                    skipped.append({"keep": keep, "drop": drop, "why": "unknown id" if not (k and d) else "same id"})
+                    continue
+                while idx.get(str(k.get("merged_into") or "")):   # keep is itself merged: follow it
+                    keep = str(k["merged_into"])
+                    k = idx[keep]
+                for f, v in d.items():
+                    if f in ("id", "org_id", "merged_into", "part_of") or not v:
+                        continue
+                    if f == "sources":
+                        k[f] = "|".join(dict.fromkeys(filter(None, str(k.get(f) or "").split("|") + str(v).split("|"))))
+                    elif not k.get(f):
+                        k[f] = v
+                for r in rows:   # anything merged into the dropped one follows it
+                    if str(r.get("merged_into") or "") == drop:
+                        r["merged_into"] = keep
+                d["merged_into"] = keep
+                merged.append({"keep": keep, "drop": drop})
+        write_csv(path, cols, rows)
+    names = {str(r.get("id") or ""): r.get("name", "") for r in read_csv(path)}
+    for m in merged:
+        old = contacts_of(pdir, m["drop"])
+        if old:
+            moved += merge_contacts(pdir, [{**c, "kind": c.get("kind") or "email"} for c in old],
+                                    m["keep"], names.get(m["keep"], ""), "merged")
+            # grades, people and roles an agent or Jev already set travel with the rows
+            update_contacts(pdir, [{**c, "org_id": m["keep"]} for c in old if c.get("grade")],
+                            ["grade", "grade_reason", "graded_by", "person", "role", "review", "review_reason",
+                             "checked", "note"], guard=lambda cur: cur.get("found_in") == "merged" or not cur.get("grade"))
+            with _lock(_cfile(pdir, m["drop"])):
+                _cfile(pdir, m["drop"]).unlink(missing_ok=True)
+        vpath = pdir / "verdicts.csv"
+        if vpath.exists():
+            with _lock(vpath):
+                vs = read_csv(vpath)
+                for v in vs:
+                    if v.get("org_id") == m["drop"]:
+                        v["org_id"], v["org"] = m["keep"], names.get(m["keep"], v.get("org", ""))
+                write_csv(vpath, VERDICT_COLS, vs)
+    return {"merged": merged, "contacts_moved": moved, **({"skipped": skipped} if skipped else {})}
+
+
+def release_held(pdir: Path, items: list[dict]) -> dict:
+    """Addresses held back from a flood (graded_by=held: a directory printed on one organisation's
+    pages) wait for an agent: [{org_id, held: "X" | "grade"}]. X marks them all not this
+    organisation's (the list's own entries are pooled as organisations instead); grade sends
+    them to Jev after all. Without an agent they stay out of the totals."""
+    done: dict[str, int] = {}
+    for it in items or []:
+        oid, how = str(it.get("org_id") or ""), str(it.get("held") or "").strip()
+        rows = [c for c in contacts_of(pdir, oid) if c.get("graded_by") == "held"]
+        if not rows or how not in ("X", "grade"):
+            continue
+        if how == "X":
+            upd = [{**c, "grade": "X", "graded_by": "agent", "grade_reason": "a list's entry, not this organisation's"}
+                   for c in rows]
+        else:
+            upd = [{**c, "grade": "", "graded_by": "", "grade_reason": ""} for c in rows]
+        done[oid] = update_contacts(pdir, upd, ["grade", "graded_by", "grade_reason"])
+    return {"released": done}
 
 
 def org_summaries(pdir: Path, ids: list[str] | None = None, stage: str = "", limit: int = 30) -> dict:

@@ -18,7 +18,11 @@ marketops-knowledge (who to find, grades, pages that pay), `references/projects/
      matters with `fetch(project, url, org_id=..., org=...)`, then `grade(project, orgs=[your ids])`.
    - No website: find it, `orgs(set=[{org_id, website}])`, `run(orgs=[it], rounds=0, again=True)`.
    - The venue is run by someone else -> `orgs(add=[...])`; a page listing many organisations
-     -> `sources(add=[...])`.
+     (`fetch` returns `list_page`: only the entry naming yours was given to it) -> `sources(add=[...])`,
+     and its entries are organisations of their own: `orgs(add=[{name, email, person, role, quote}],
+     source=...)`.
+   - Two of your organisations are one (the same president, the same address, two spellings):
+     `orgs(merge=[{keep, drop}])` - never `part_of`.
    - A store of a chain or franchise (one domain, many branches; `flow.possible_chains` lists
      them): the store page names its front desk at most. The chain decides - add its head
      office (`orgs(add=[{name, website}], source=...)`), file the stores under it

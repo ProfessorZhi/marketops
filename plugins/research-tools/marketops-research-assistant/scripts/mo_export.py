@@ -38,6 +38,9 @@ def ledgers(emails: list, strict: str = "AB") -> dict:
     grades = STRICT.get(strict, STRICT["AB"])
     strict_rows = [c for c in ok if c.get("grade") in grades
                    and (strict != "named_A" or str(c.get("person") or "").strip())]
+    # one address is one route, however many rows of the pool it landed on (073: two pooled
+    # twice clubs counted the same president twice)
+    strict_rows = list({str(c.get("value") or "").lower() or n: c for n, c in enumerate(strict_rows)}.values())
     return {"valid_routes": len(valid), "valid_orgs": len({c.get("org_id") for c in valid}),
             "valid_by_grade": " / ".join(str(sum(c.get("grade") == g for c in valid)) for g in "ABCD"),
             "strict": strict if strict in STRICT else "AB", "strict_routes": len(strict_rows),
@@ -47,7 +50,7 @@ def ledgers(emails: list, strict: str = "AB") -> dict:
 def metrics(orgs: list, emails: list) -> dict:
     """Headline numbers count confirmed A/B only; rows still marked review=yes are reported apart.
     A store filed under its chain (part_of) is not counted on its own: the chain is."""
-    orgs = [o for o in orgs if not o.get("part_of")] or orgs
+    orgs = [o for o in orgs if ws.counted(o)] or orgs
     ids = [str(o.get("id") or o.get("org_id") or "") for o in orgs] or list({c.get("org_id") for c in emails})
     idset, n = set(ids), len(set(ids)) or 1
     mine = [c for c in emails if c.get("org_id") in idset]
@@ -64,7 +67,12 @@ def metrics(orgs: list, emails: list) -> dict:
         per_org[c["org_id"]] = per_org.get(c["org_id"], 0) + 1
     pending = [c for c in mine if c.get("grade") in ("A", "B") and c.get("review") == "yes"]
     covered = {c.get("org_id") for c in mine if c.get("grade") in ("A", "B", "C", "D")}
-    return {"orgs": len(idset), "ab_routes": len(ab), "ab_orgs": len({c["org_id"] for c in ab}),
+    ab_orgs = {c["org_id"] for c in ab}
+    return {"orgs": len(idset),
+            # Bruce's 71/249: his 249 graded accounts are the ones he found a route for (A 4 / B 67 /
+            # C 102 / D 76) - A+B over organisations with any A-D route is the number to set beside it
+            "ab_share_of_covered": round(100 * len(ab_orgs) / (len(covered) or 1), 1),
+            "covered_orgs": len(covered), "ab_routes": len(ab), "ab_orgs": len({c["org_id"] for c in ab}),
             "ab_org_share": round(100 * len({c["org_id"] for c in ab}) / n, 1),
             "ab_routes_per_100_orgs": round(100 * len(ab) / n, 1),
             "ab_routes_per_100_orgs_max3": round(100 * sum(min(3, k) for k in per_org.values()) / n, 1),
@@ -101,6 +109,18 @@ def _precision(emails: list) -> str:
         return "未抽检（打开抽检页逐条核对，用 grade(set=[{value, org_id, checked}]) 记下结果）"
     ok = sum(c["checked"] == "ok" for c in done)
     return f"{round(100 * ok / len(done), 1)}%（{ok}/{len(done)}）"
+
+
+def _researched_share(pdir, orgs: list, emails: list) -> str:
+    """A+B among the organisations the work reached (an agent verdict or the tools' final pass):
+    the pool's unread rest says nothing about how well the research does."""
+    ids = {str(o.get("id") or o.get("org_id") or "") for o in orgs if ws.counted(o)}
+    done = ({v["org_id"] for v in ws.read_csv(pdir / "verdicts.csv")}
+            | {r["org_id"] for r in ws.read_csv(pdir / "crawl.csv") if r.get("pass") == "final"}) & ids
+    if not done:
+        return ""
+    ab = {c["org_id"] for c in emails if c.get("grade") in ("A", "B") and c.get("review") != "yes"} & done
+    return f"{round(100 * len(ab) / len(done), 1)}%（{len(ab)}/{len(done)}）"
 
 
 def _reconcile(org_rows: list, total: int) -> str:
@@ -148,12 +168,15 @@ def export(pdir) -> dict:
     mo_evidence.rescore(pdir)
     ws.snapshot_contacts(pdir)
     contacts = ws.read_contacts(pdir)
-    emails = [c for c in contacts if c.get("kind") == "email"]
+    # held back from a flood (a directory printed on one organisation's pages): not its routes,
+    # not in any total until an agent clears them (grade(held=...)) - their own sheet
+    held_rows = [c for c in contacts if c.get("kind") == "email" and c.get("graded_by") == "held"]
+    emails = [c for c in contacts if c.get("kind") == "email" and c.get("graded_by") != "held"]
     phones = {}
     for c in contacts + ws.read_csv(pdir / "phones.csv"):
         if c.get("kind", "phone") == "phone":
             phones.setdefault(c.get("org_id"), []).append(c["value"])
-    orgs = ws.read_csv(pdir / "orgs.csv")
+    orgs = [o for o in ws.read_csv(pdir / "orgs.csv") if not o.get("merged_into")]   # a duplicate lives on in its keeper
     venues = ws.read_csv(pdir / "venues.csv")
     org_venues: dict[str, list[str]] = {}
     for v in venues:
@@ -269,6 +292,12 @@ def export(pdir) -> dict:
         {"项目": "每百机构 A+B 路线数，每机构最多计 3 条", "值": m["ab_routes_per_100_orgs_max3"]},
         {"项目": "A+B 路线数 / 有 A+B 的机构数", "值": f"{m['ab_routes']} / {m['ab_orgs']}"},
         {"项目": "覆盖率（有任一 A–D 路线的机构 ÷ 机构数）", "值": f"{m['coverage_abcd']}%"},
+        {"项目": "Bruce 同口径：有确认 A+B 的机构 ÷ 有任一 A–D 路线的机构（Bruce 法国 71/249 = 28.5%）",
+         "值": f"{m['ab_share_of_covered']}%（{m['ab_orgs']}/{m['covered_orgs']}）"},
+        *(lambda r: [{"项目": "已研究机构（agent 下过结论或工具读完）中有确认 A+B 的占比", "值": r}] if r else [])(
+            _researched_share(pdir, orgs, emails)),
+        {"项目": "暂扣的名录地址（某机构页面上的整张名录，未计入任何总数；agent 用 grade(held=...) 处理）",
+         "值": len(held_rows)},
         {"项目": "待复核的 A/B（低置信度、共用地址或来自他站；不计入上面的数）", "值": m["ab_to_review"]},
         {"项目": "若待复核全部成立：每百机构 A+B 路线数", "值": m["ab_routes_per_100_orgs_if_review_holds"]},
         {"项目": "对账：机构按最佳等级 确认A / 确认B / 只有待复核的A或B / C / D / 未找到（其中未抓取） = 机构数；确认A + 确认B = 上面的有 A+B 机构数",
@@ -299,6 +328,11 @@ def export(pdir) -> dict:
               _sheet("机构（一家一行，带首选联系人）", org_rows, org_cols),
               _sheet("联系人", kept, route_cols, widths),
               _sheet("排除（X，可复核）", other, route_cols, widths)]
+    if held_rows:
+        sheets.append(_sheet("暂扣（名录地址）", [{"机构": c.get("org"), "机构ID": c.get("org_id"), "邮箱": c.get("value"),
+                                              "来源页面": c.get("page_url"), "原文引用": c.get("quote")}
+                                             for c in held_rows], ["机构", "机构ID", "邮箱", "来源页面", "原文引用"],
+                             (24, 16, 30, 50, 70)))
     if batch_rows:
         sheets.insert(1, _sheet("分批", batch_rows, list(batch_rows[0].keys())))
     src_rows, contrib_rows = _sources_and_contribution(pdir, orgs, emails)

@@ -79,10 +79,15 @@ before anything else:
 |---|---|---|
 | Research lanes (`sweep`, `dig`, `site`) hand out organisations source by source in turns; each source gets a pilot of 30, then more only while it yields A/B (>= 5%) | Bruce: test a source on 30, scale at >= 10%, stop under 5%; 072 researched one source of 27 | `sources(set=[{source, status: "scale"}])` gives a source everything, `"dropped"` nothing; `flow.sources_take_turns` shows each pilot. You may claim or `tasks(action="add")` any package |
 | A list row that prints an address gives it to that row's organisation as a contact, quoted from the row | school, club and timetable lists carry mailboxes; 072 threw away 1,658+ of them | map `email` / `person` / `role`; grade or correct as always |
-| Organisations match on their registry number (UAI, SIRET, RNA) before name and town | one club became two when one list wrote `75011` and another `Paris` | map the number when the file has one; merge or split by hand with `orgs(set=...)` |
+| Organisations match on their registry number (UAI, SIRET, RNA) before name and town | one club became two when one list wrote `75011` and another `Paris` | map the number when the file has one |
+| One organisation pooled twice (same name words, registry number or personal address) shows in `flow.possible_duplicates` and `needs_you`; the strict ledger counts one address once | paris11-073: six clubs pooled twice, two presidents counted twice | `orgs(merge=[{keep, drop}])` - contacts and verdicts move, the source counts still add up. Not `part_of`: that is for a chain's stores |
+| A page that prints many other parties' addresses is a list: with `org_id`, only the entry that names the organisation (and its own domain's addresses) go to it; `fetch` returns `list_page` | 073: a district table gave a club 8 others' addresses; fr41: a commune's /associations page gave it 76 | the list is a source: `sources(add=...)` and pool its entries as organisations with their addresses (`orgs(add=[{name, email, person, role, quote}])`) |
 | `run` without `orgs` reads sites ahead of researchers, never digs, waits once 30 are waiting | 071 | dig rounds for your own package: `run(orgs=[...], rounds=1-2)` |
 | Stores of one chain (one domain, a shared name word) show in `flow.possible_chains` and `needs_you`; a store filed `part_of` its head office leaves the lanes and the headline | a store page gives a front desk, the head office decides (073 smoke: 0 A/B on 4 stores of one chain) | add the head office, `orgs(set=[{org_id, part_of}])` the stores - or leave them, for an independent store |
-| Over 60 new addresses on one organisation (a chain's every store, a federation's every club) are not all sent to Jev: those naming the brief's region first, the rest wait ungraded | 073: 1,167 on one chain | pick the ones that belong with `grade(set=...)` |
+| Over 60 new addresses on one organisation (a chain's every store, a federation's every club) are not all sent to Jev: those naming the brief's region first, the rest are held - outside every total, on their own workbook sheet | 073: 1,167 on one chain; paris11: 274 held rows were 41% of the workbook | pool the list's entries, then `grade(held=[{org_id, held: "X"}])`; or `"grade"` to send them to Jev |
+| An empty lane says why (`keep_waiting`, `other_lanes`, `lane_finished`, `why_empty` - a pilot, the brief's `max_per_source`, sources still mined); a worker stops only on `lane_finished`, and an empty lane with work left reaches `needs_you` | paris11-073: three workers read `open: 0` and stopped with 310 organisations unread, 13 minutes before the lead noticed | raise or drop `max_per_source`, scale or drop a waiting source |
+| `project(brief=...)` merges: send only the keys you change (`null` removes one) | paris11-073: one key wiped the goal, region and fresh | - |
+| A website found by search must not show another département's postcodes; listings and company registers are never a website | fr41: a commune got its namesake's site in the Cher; paris11: a club got sortiraparis.com | `orgs(set=[{org_id, website}])` when you know better |
 | `browse` (the paid TinyFish Agent) is off; a call records the page and the user is asked once for all of them | it costs per step | the user allows it in the brief (`paid_agent: true`) |
 | A fresh project (`brief.fresh`) reuses nothing other projects read or learned, and flags files nobody fetched or registered here | a test must start from zero; 072b began from a 0.6.6 pool | without `fresh` the shared library makes reruns cheap |
 | Every tool call goes to the project's `calls.jsonl` (agent, tool, arguments in brief, seconds, errors) | the whole chain is reviewable without transcripts | read it in the retrospective |
@@ -98,7 +103,7 @@ before anything else:
 3. **Start the whole team at once** with your host's multi-agent mode - every lane from the
    first minute. Default: finders 1-2, miners 1-3, researchers 6-10, websites 0-1, finish 1-2.
    Start line: `You are the <role> worker on MarketOps project "<project>". Read
-   references/roles/<role>.md of the marketops plugin and work until your lane is empty.`
+   references/roles/<role>.md of the marketops plugin and work until a claim says lane_finished.`
    (Claude Code: `marketops-worker` subagents in the background; Codex / WorkBuddy: their
    multi-agent mode, else one session per worker; no multi-agent: work the lanes in turn.)
 4. **Lanes feed themselves.** `source`, `site`, `sweep` and `dig` refill from the pools when
@@ -111,8 +116,12 @@ before anything else:
    A source under 5% A/B after 30 organisations: drop it (`sources(set=[...])`).
 6. **One numbered list for the user**: `project()["needs_you"]` plus what workers raised, in one
    message.
-7. **Deliver** when the lanes are empty, the 100-row spot check is >= 90% and the 对账 line adds
-   up: `export(project)`; then the `learn` command.
+7. **Deliver** when the lanes are finished (`lane_finished`, not just empty), duplicates are
+   merged, held rows are cleared, the spot check is done and >= 90% (at least 20 of the 抽检
+   rows recorded with `checked`; `needs_you` asks until they are) and the 对账 line adds up:
+   `export(project)`; then the `learn` command. The workbook's "Bruce 同口径" line (A+B over
+   organisations with any A-D route - his 71/249 = 28.5%) and "已研究机构" line are the numbers
+   to compare; A+B over the whole pool also counts what nobody read yet.
 
 ## Keep the record
 
