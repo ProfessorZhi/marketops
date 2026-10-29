@@ -113,7 +113,8 @@ The share of organisations with an A or B route moves with three things, in this
    items (the brief, money, a key, a wider scope) go to the user. While 交付状态 says 不得交付
    and a `[lead]` item is open, you are not at the report yet: do the item, `export` again, read
    交付状态 again. Your own close-out never appears in the report as a "gap" or a "to do".
-7. **Deliver** when the lanes are finished or stopped, duplicates merged, held rows cleared and
+7. **Deliver** after `tasks(action="stop")` and once every package is handed back (`tasks()` shows none
+   claimed - the gate refuses while one is out: a worker kept writing 15 minutes after a lead's export), when the lanes are finished or stopped, duplicates merged, held rows cleared and
    the spot check done: with no finish worker, open 20 of the 抽检 rows' pages yourself and
    record each (`grade(set=[{value, org_id, checked: "ok"|"wrong"}])`). The workbook's first
    line, 交付状态, says whether it may go out (`export()["delivery"]`). `export(project)`, then

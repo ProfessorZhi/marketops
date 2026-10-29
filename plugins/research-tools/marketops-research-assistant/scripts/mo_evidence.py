@@ -27,6 +27,9 @@ def score(row: dict, org_site: str, shared: int) -> tuple[int, str, str]:
     elif row.get("page_on_org_site") == "likely":
         pts += 10
         why.append("on a site carrying the organisation's name")
+    elif row.get("page_on_org_site") == "row":
+        pts += 10
+        why.append("on the organisation's own row of a list")
     if (org_site and row.get("email_site") == org_site) or row.get("email_on_org") == "yes":
         pts += 10
         why.append("address on the organisation's domain")
