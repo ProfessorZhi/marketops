@@ -46,6 +46,17 @@
 项目文件夹就是普通文件（`~/MarketOps/<项目>/`）：`brief.json`、`venues.csv`、`orgs.csv`、
 `contacts/`、`crawl.csv`、`trace.jsonl`、`costs.jsonl`；网页原件在共享资料库 `~/.marketops/library`。agent 和人都可以直接打开、修改，断了接着跑。
 
+## 0.8.1 更新：换设备、换宿主，工作方式一样
+
+0.8.0 在不同地方跑表现不一样：Claude Code 会加载技能，WorkBuddy、Codex 只有用户手动复制了才有；Windows 安装器只复制了脚本，服务器发给 worker 的角色说明是空的；Windows 上的文件锁形同虚设，多个 agent 可能抢到同一个包、互相覆盖写入；宿主只能开一个 agent 时没有办法跑完整流程。
+
+- **说明跟着 MCP 走**：服务器在握手时就把核心规则（简报带 `minutes`、做完一个包马上认领下一个、只在 `lane_finished` 或 `stop` 时结束、先收尾再汇报）发给 agent；新工具 `guide(topic)` 返回和 Claude Code 技能一字不差的内容（workflow、tools、knowledge、worker、role:<角色>），任何能调工具的宿主读到的都一样。还提供 MCP 提示 `research`。
+- **一个 agent 也能跑完整流程**：`tasks(action="claim", kind="any")` 按流水线顺序给下一个包（没人挖的来源 → 调研 → 官网 → 找名单 → 复核），流程不变，只是慢一些。
+- **三个系统用同一把锁**：Linux、macOS 用 fcntl，Windows 用 msvcrt；两个进程同时写同一个文件，一次也不丢。
+- **安装统一**：两个安装器都把整个插件复制到 `~/.marketops/plugin`，写一个启动器（`~/.marketops/bin/marketops-mcp`，Windows 是 `marketops-mcp.cmd`），每个宿主都配这同一条命令；最后打印各宿主可以直接粘贴的配置。`sh install.sh` 用相对路径调用也能装（0.8.0 会什么都没装就直接退出）；Windows 没装 Claude Code 也不再报错。`--check` 会报出版本、插件目录、密钥文件、Python 和操作系统，缺 skills 或 references 时直接点名。
+- **CI 在 Linux、macOS、Windows 三个系统上跑同一组一致性测试**：真实的 MCP 握手、`guide()`、单 agent 认领、跨进程锁、安装脚本语法。
+- `HOSTS.md` 重写：一张表说明哪些东西对所有宿主都一样、一种接法、2 分钟的检查方法、新的 worker 启动语。
+
 ## 0.8.0 更新：团队会停、不再闲着、A/B 率按固定来源比（巴黎 11 区 0.7.9 复盘）
 
 0.7.9 那轮 A/B 率（Bruce 同口径）从 0.7.8 的 41% 掉到 23%，原因不是挖掘变差：研究员做完一个包就结束回合，26 分钟没人干活；一个企业登记库（225 个名字，A/B 1.7%）占了 65% 的机构，还让池子一直显示"在增长"。0.7.8 跑了 3 小时也是因为没东西让团队停。

@@ -43,11 +43,9 @@ def _now() -> str:
 
 def _flock(path: Path):
     try:
-        import fcntl
-        fh = open(str(path) + ".lock", "a")
-        fcntl.flock(fh, fcntl.LOCK_EX)
-        return fh
-    except (ImportError, OSError):
+        import mo_oslock
+        return mo_oslock.acquire(str(path) + ".lock")
+    except OSError:
         return None
 
 
@@ -84,7 +82,8 @@ def put_page(url: str, reader: str, body: bytes, ext: str, final_url: str) -> st
                 w.writerow(row)
         finally:
             if fh is not None:
-                fh.close()
+                import mo_oslock
+                mo_oslock.release(fh)
         _index["rows"].setdefault(url, []).append(row)
     return str(path)
 

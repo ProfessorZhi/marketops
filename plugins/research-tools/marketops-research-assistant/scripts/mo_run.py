@@ -362,25 +362,19 @@ class _Grader:
 
     def grade_now(self) -> None:
         with self.busy:
+            import hashlib
+            import mo_oslock
+            name = "grade.lock" if self.only is None else \
+                "grade." + hashlib.sha256("|".join(sorted(self.only)).encode()).hexdigest()[:10] + ".lock"
             try:
-                import fcntl
-                import hashlib
-                name = "grade.lock" if self.only is None else \
-                    "grade." + hashlib.sha256("|".join(sorted(self.only)).encode()).hexdigest()[:10] + ".lock"
-                fh = open(self.pdir / name, "a")
-                try:
-                    fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                except OSError:
-                    fh.close()
-                    return  # another process is grading this project right now
-            except ImportError:
-                fh = None
+                fh = mo_oslock.acquire(self.pdir / name, block=False)
+            except OSError:
+                return  # another process is grading this project right now
             try:
                 if self._pending():
                     mo_grade.auto(self.pdir, orgs=self.only)
             finally:
-                if fh is not None:
-                    fh.close()
+                mo_oslock.release(fh)
 
     def _loop(self) -> None:
         while not self.stop.is_set():

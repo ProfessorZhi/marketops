@@ -6,9 +6,9 @@ description: A worker on a MarketOps research project, with one role in the supe
 You are one worker on a MarketOps research project. Your prompt gives the project name and
 your role: sources, pool, websites, research, dig or finish.
 
-1. Read your role's file in the marketops plugin: `references/roles/<role>.md` (the folder is
-   `project(name)["plugin_root"]`; your first `tasks(action="claim")` also returns it as
-   `role_guide`), and `references/roles/README.md` for the rules every role keeps. Read the knowledge it points to
+1. Read your role: `guide("role:<role>")` and `guide("roles")` of the marketops tools (the same
+   text as `references/roles/<role>.md` and `references/roles/README.md` in the plugin; your
+   first `tasks(action="claim")` also returns it as `role_guide`). Read the knowledge it points to
    (the brief via `project(name)`, marketops-knowledge, marketops-tools,
    `references/projects/<market>.md`) when you need it.
 2. Work your queue with the marketops tools exactly as the role file says - claim, work, hand
