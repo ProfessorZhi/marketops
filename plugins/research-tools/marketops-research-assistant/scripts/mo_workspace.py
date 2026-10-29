@@ -48,6 +48,9 @@ _page_index: dict[str, dict[str, list[dict]]] = {}
 _agent_orgs: dict[str, str] = {}
 
 
+LOCK_WAIT_S: float | None = None   # the server sets it; background runs wait as long as it takes
+
+
 class _PathLock:
     """One writer at a time for a project file: threads in this process, and other processes
     (the background run, other agents' servers) through an OS lock on <file>.lock."""
@@ -58,10 +61,17 @@ class _PathLock:
         self.fh = None
 
     def __enter__(self):
-        self.thread.acquire()
+        import mo_oslock
+        # a tool call waits LOCK_WAIT_S at most and then says so (paris-all 0.8.4: orgs(add) sat
+        # 1,800 s behind another call and the host gave up with no word); background runs wait
+        if not self.thread.acquire(timeout=-1 if LOCK_WAIT_S is None else LOCK_WAIT_S):
+            raise mo_oslock.Busy(f"{Path(self.lockfile).name} is held by another call in this process for over "
+                                 f"{LOCK_WAIT_S:.0f} s - try again in a minute")
         try:
-            import mo_oslock
-            self.fh = mo_oslock.acquire(self.lockfile)
+            self.fh = mo_oslock.acquire(self.lockfile, timeout=LOCK_WAIT_S)
+        except mo_oslock.Busy as exc:
+            self.thread.release()
+            raise mo_oslock.Busy(f"{exc} - another agent's call is writing; try again in a minute") from None
         except OSError:  # a folder that cannot hold a lock file: threads only
             self.fh = None
         return self
@@ -76,6 +86,88 @@ class _PathLock:
 
 _locks: dict[str, _PathLock] = {}
 _locks_guard = threading.Lock()
+
+
+# What many agents ask for at once - the flow, the duplicate groups, each source's yield - is
+# computed once per state of the project's files and shared: every agent of a team is a thread
+# of one server, and eleven of them recomputing it together on 2,000 organisations made
+# project() take 440 s (paris-all 0.8.4; alone it takes one second).
+VERSION_FILES = ("orgs.csv", "verdicts.csv", "tasks.csv", "sources.csv", "source_pool.csv", "frontier.csv",
+                 "venues.csv", "crawl.csv", "keep_apart.json", "brief.json", "playbook.json")
+_memo: dict = {}
+_memo_locks: dict = {}
+_writes = [0]   # this process's own writes: two in one clock tick, same size, still count
+_memo_guard = threading.Lock()
+
+
+SCAN_S = 2.0   # another process's write to a contact file is seen within this long
+_scans: dict[str, tuple] = {}
+
+
+def contact_files(pdir: Path) -> list[tuple[str, int, int]]:
+    """(name, mtime_ns, size) of every contact file, sorted - one directory scan per SCAN_S
+    seconds unless this process wrote meanwhile (2,000 stats per call, many calls per project())."""
+    import time as _time
+    key = str(pdir)
+    hit = _scans.get(key)
+    if hit and hit[0] == _writes[0] and _time.time() - hit[1] < SCAN_S:
+        return hit[2]
+    try:
+        with os.scandir(pdir / "contacts") as it:
+            files = sorted((e.name, *(lambda st: (st.st_mtime_ns, st.st_size))(e.stat()))
+                           for e in it if e.name.endswith(".csv"))
+    except OSError:
+        files = []
+    _scans[key] = (_writes[0], _time.time(), files)
+    return files
+
+
+def data_version(pdir: Path) -> int:
+    """A number that changes whenever a pool, the queue or a contact file changes."""
+    sig = []
+    for name in VERSION_FILES:
+        try:
+            st = (pdir / name).stat()
+            sig.append((name, st.st_mtime_ns, st.st_size))
+        except OSError:
+            sig.append((name, 0, 0))
+    sig.append(hash(tuple(contact_files(pdir))))
+    return hash((tuple(sig), _writes[0]))
+
+
+def touched() -> None:
+    _writes[0] += 1
+
+
+SLOW_MEMO_S = 0.5    # a result that took this long to compute ...
+STALE_MEMO_S = 15.0  # ... is served for this long to callers that only report (flow), not decide
+
+
+def memo(pdir: Path, name: str, compute, report: bool = False):
+    """compute() once per state of the files; callers that ask while it runs wait for that result
+    (it started after they asked, so it is as fresh as their question) instead of computing it
+    again. report=True: a slow result (a large pool) is served up to STALE_MEMO_S old while the
+    files keep changing - a status read by eleven agents is not recomputed for each write. A copy
+    is returned: callers may change it."""
+    import copy
+    import time as _time
+    key = (str(pdir), name)
+    with _memo_guard:
+        lock = _memo_locks.setdefault(key, threading.Lock())
+    asked = _time.time()
+    hit = _memo.get(key)
+    if hit and (hit[0] == data_version(pdir) or
+                (report and hit[3] >= SLOW_MEMO_S and asked - hit[1] < STALE_MEMO_S)):
+        return copy.deepcopy(hit[2])
+    with lock:   # one computes; the others wait here, then take its result
+        hit = _memo.get(key)
+        if hit and (hit[1] >= asked or hit[0] == data_version(pdir)):
+            return copy.deepcopy(hit[2])
+        version, started = data_version(pdir), _time.time()
+        value = compute()
+        # the version read before computing: newer data recomputes
+        _memo[key] = (version, started, value, _time.time() - started)
+        return copy.deepcopy(value)
 
 
 def _lock(path: Path) -> _PathLock:
@@ -116,6 +208,7 @@ def write_csv(path: Path, cols: list[str], rows: list[dict]) -> None:
         for r in rows:
             w.writerow({k: r.get(k, "") for k in cols})
     tmp.replace(path)
+    touched()
 
 
 def append_csv(path: Path, cols: list[str], row: dict) -> None:
@@ -126,6 +219,7 @@ def append_csv(path: Path, cols: list[str], row: dict) -> None:
             if new:
                 w.writeheader()
             w.writerow({k: row.get(k, "") for k in cols})
+    touched()
 
 
 def append_jsonl(path: Path, row: dict) -> None:
@@ -215,7 +309,6 @@ def read_for(pdir: Path, org_id: str) -> set[str]:
 # organisation's file - a project with tens of thousands of addresses stays fast with many
 # workers. contacts.csv is a snapshot of all of them for people to open (written on export
 # and every few minutes during a run); change contacts through the tools, not that snapshot.
-_contact_cache: dict[str, tuple] = {}
 _phone_seen: dict[str, set] = {}
 
 
@@ -235,16 +328,27 @@ def _migrate(pdir: Path) -> None:
         write_csv(_cfile(pdir, oid), CONTACT_COLS, rows)
 
 
+_contact_files: dict[str, dict] = {}       # project -> {file name: ((mtime, size), rows)}
+_contact_locks: dict[str, threading.Lock] = {}
+
+
 def read_contacts(pdir: Path) -> list[dict]:
-    """Every contact row of the project (fresh copies; cached until a file changes)."""
+    """Every contact row of the project (fresh copies). Only the files that changed since the last
+    call are read again, by one caller at a time: eleven agents re-reading 2,000 files after
+    every write cost 200 s of a 60 s test (paris-all 0.8.4)."""
     _migrate(pdir)
-    files = sorted((pdir / "contacts").glob("*.csv"))
-    sig = tuple((f.name, f.stat().st_mtime_ns, f.stat().st_size) for f in files)
-    cached = _contact_cache.get(str(pdir))
-    if not cached or cached[0] != sig:
-        rows = [r for f in files for r in read_csv(f)]
-        _contact_cache[str(pdir)] = cached = (sig, rows)
-    return [dict(r) for r in cached[1]]
+    folder, key = pdir / "contacts", str(pdir)
+    with _locks_guard:
+        lock = _contact_locks.setdefault(key, threading.Lock())
+    with lock:
+        old = _contact_files.get(key, {})
+        new = {}
+        for name, mtime, size in contact_files(pdir):
+            sig = (mtime, size)
+            hit = old.get(name)
+            new[name] = hit if hit and hit[0] == sig else (sig, read_csv(folder / name))
+        _contact_files[key] = new
+        return [dict(r) for _, rows in new.values() for r in rows]
 
 
 def contacts_of(pdir: Path, oid: str) -> list[dict]:
@@ -1007,6 +1111,7 @@ def update_playbook(pdir: Path, changes: dict) -> dict:
                     mo_knowledge.KNOWLEDGE.learn_playbook(str(brief(pdir).get("country") or ""), str(seg).lower(), e)
         tmp = path.with_name(f"playbook.{os.getpid()}.{threading.get_ident()}.tmp")
         tmp.write_text(json.dumps(pb, ensure_ascii=False, indent=1), encoding="utf-8")
+        touched()
         tmp.replace(path)
     return pb
 
@@ -1036,6 +1141,10 @@ MIN_SOURCES = 3
 
 
 def source_saturation(pdir: Path) -> dict:
+    return memo(pdir, "source_saturation", lambda: _source_saturation(pdir))
+
+
+def _source_saturation(pdir: Path) -> dict:
     """Is the pool still growing? Each pooled source adds new organisations or merges into ones
     already there; when the last SATURATION_LAST sources each brought under SATURATION_NEW new,
     more lists of the same kind stop paying. One source is never saturation - it is a pool
@@ -1191,6 +1300,7 @@ def merge_orgs(pdir: Path, items: list[dict]) -> dict:
                              "checked", "note"], guard=lambda cur: cur.get("found_in") == "merged" or not cur.get("grade"))
             with _lock(_cfile(pdir, m["drop"])):
                 _cfile(pdir, m["drop"]).unlink(missing_ok=True)
+            touched()
         vpath = pdir / "verdicts.csv"
         if vpath.exists():
             with _lock(vpath):
@@ -1213,9 +1323,10 @@ def merge_suggested(pdir: Path, skip: list | None = None, rounds: int = 5) -> di
         path = pdir / "keep_apart.json"
         old = set(json.loads(path.read_text(encoding="utf-8"))) if path.exists() else set()
         path.write_text(json.dumps(sorted(old | skip)), encoding="utf-8")
+        touched()
     done: list[dict] = []
     for _ in range(rounds):
-        groups = [g for g in mo_tasks.possible_duplicates(pdir) if not (set(g["ids"]) & skip)]
+        groups = [g for g in mo_tasks.possible_duplicates(pdir, fresh=True) if not (set(g["ids"]) & skip)]
         if not groups:
             break
         orgs = _org_rows(pdir)
@@ -1232,7 +1343,7 @@ def merge_suggested(pdir: Path, skip: list | None = None, rounds: int = 5) -> di
         done += got["merged"]
         if not got["merged"]:
             break
-    left = [g for g in __import__("mo_tasks").possible_duplicates(pdir) if not (set(g["ids"]) & skip)]
+    left = [g for g in __import__("mo_tasks").possible_duplicates(pdir, fresh=True) if not (set(g["ids"]) & skip)]
     return {"merged": done, "groups_left": len(left), "kept_apart": sorted(skip)}
 
 

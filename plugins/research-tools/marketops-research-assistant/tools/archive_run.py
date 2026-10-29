@@ -7,7 +7,8 @@ Copies the run's standard files (workbook, routes, contacts, organisations, verd
 sources, tasks, calls, costs, journal, trace, crawl, playbook, brief, RETRO) into
 <run repository>/runs/<run name>/, never the raw pages or per-organisation stores. Every email
 address (with its "name @ host . fr" and "name(at)host" forms) becomes <email> and every
-telephone number <phone>, in text files and inside the workbook; names stay. It then scans what
+telephone number <phone>, social links <social> and @handles <handle>, in text files and inside
+the workbook; names stay. A secret anywhere stops the archive before anything is written. It then scans what
 it wrote: one address, phone or secret left and it removes the folder and exits 1 - nothing
 half-redacted is ever left to commit. The agent then commits on a branch, pushes, opens the pull
 request and merges it (the run repository is private; the redacted copy is what it holds).
@@ -28,13 +29,24 @@ KEEP = ("*.xlsx", "*-routes.csv", "contacts.csv", "orgs.csv", "verdicts.csv", "v
         "pages.csv")
 TEXT = {".csv", ".jsonl", ".json", ".md", ".txt", ".xml"}
 
-EMAIL = re.compile(r"[\w.+-]+\s?(?:@|\(at\)|\[at\]|\s(?:at|arobase)\s)\s?[\w-]+(?:\s?\.\s?[\w-]+)*\s?\.\s?"
-                   r"(?-i:[a-z]{2,10}(?![a-z])|[A-Z]{2,10}(?![A-Z]))", re.I)   # an ending glued to the next word ("comCORRESPONDANT")
-PHONE = re.compile(r"(?<![\w/])(?:\+|00)\d{1,3}[\s.-]?\(?0?\)?(?:[\s.-]?\d){8,11}(?!\d)"
-                   r"|(?<![\w/.])0\d(?:[\s.-]?\d{2}){4}(?![\d])"
+# What paris-all (0.8.4) found the patterns missing, round after round, all fixed here:
+#   endings in any case ("ldb13.Com", "x.Fr"), a doubled dot ("noos..fr"), an ending glued to the
+#   next word ("orange.frVICE", "msn.comCORRESPONDANT"), endings up to 24 letters; numbers glued to
+#   the word before ("Renseignements01 43 ...", "tél.01 ...") or after ("... 10Adresse",
+#   "... 10www."), eleven digits written together, +country numbers of 8 to 15 digits; an address
+#   cut before its ending ("jean.dupont@clu"); social profile links and @handles.
+EMAIL = re.compile(r"[\w.+-]+\s?(?:@|\(at\)|\[at\]|\s(?:at|arobase)\s)\s?[\w-]+(?:\s?\.+\s?[\w-]+)*\s?\.+\s?"
+                   r"(?-i:[a-z]{2,24}(?![a-z])|[A-Z]{2,24}(?![A-Z])|[A-Z][a-z]{1,23}(?![a-z]))", re.I)
+FRAGMENT = re.compile(r"[\w.+-]+@[\w.-]+")   # whatever is left with an @ in it: a cut address
+_END = r"(?!\d|[a-z]+\d)"   # not inside a longer number or an identifier ("10www." ends a number)
+PHONE = re.compile(r"(?<![\d/])(?:\+|00)\d{1,3}[\s.-]?\(?0?\)?(?:[\s.-]?\d){8,15}" + _END +
+                   r"|(?<!\d)0[1-9](?:[\s.-]?\d{2}){4}" + _END +
                    # service numbers grouped 0 8XX XX XX XX or 0800 XXX XXX (079: 64 of them passed)
-                   r"|(?<![\w/.])0[\s.-]?[1-9]\d{2}(?:[\s.-]?\d{2}){3}(?![\d])"
-                   r"|(?<![\w/.])0[\s.-]?[1-9]\d{2}[\s.-]?\d{3}[\s.-]?\d{3}(?![\d])")
+                   r"|(?<!\d)0[\s.-]?[1-9]\d{2}(?:[\s.-]?\d{2}){3}" + _END +
+                   r"|(?<!\d)0[\s.-]?[1-9]\d{2}[\s.-]?\d{3}[\s.-]?\d{3}" + _END +
+                   r"|(?<!\d)33[1-9]\d{8}(?!\d)")   # +33 written as eleven digits together
+SOCIAL = re.compile(r"(?i)\b(?:www\.)?(?:facebook|fb|instagram|twitter|x|linkedin|tiktok|youtube)\.com/[^\s\"'<>|,;]+")
+HANDLE = re.compile(r"(?<![\w@./])@[A-Za-z0-9_](?:[A-Za-z0-9_.]{1,28}[A-Za-z0-9_])?\b")
 SECRET = re.compile(r"(?i)\b(?:sk-[a-z0-9]{16,}|ghp_[a-z0-9]{20,}|api[_-]?key\s*[:=]\s*\S{12,}|bearer\s+[a-z0-9._-]{20,}"
                     r"|password\s*[:=]\s*\S+)")
 
@@ -43,19 +55,31 @@ def redact(text: str) -> tuple[str, int, int]:
     # a reader's Markdown escapes ("name\@club\.fr") hide an address from any pattern
     text = re.sub(r"\\([@.\-_+])", r"\1", text)
     text, emails = EMAIL.subn("<email>", text)
+    text, cut = FRAGMENT.subn("<email>", text)
+    text = SOCIAL.sub("<social>", text)
+    text = HANDLE.sub("<handle>", text)
     text, phones = PHONE.subn("<phone>", text)
-    return text, emails, phones
+    return text, emails + cut, phones
 
 
 # the check is written apart from the redaction: a check built from the same patterns cannot see
 # what the patterns miss (079: the tool reported 0 left while 65 numbers were still there)
 CHECK_EMAIL = re.compile(r"[^\s<>\"',;:()]+\s?@\s?[^\s<>\"',;:()]+\.[a-z]{2,}", re.I)
+CHECK_AT = re.compile(r"[\w.+-]@[\w-]")
 CHECK_PHONE = re.compile(r"(?<!\d)(?:\+33|0033|0)(?:[ .\-]?\d){9}(?!\d)")
 
 
 def left_over(text: str) -> list[str]:
-    text = re.sub(r"\\([@.\-_+])", r"\1", text.replace("<email>", " ").replace("<phone>", " "))
-    return [m.group(0) for rx in (CHECK_EMAIL, CHECK_PHONE, SECRET) for m in rx.finditer(text)][:5]
+    text = re.sub(r"\\([@.\-_+])", r"\1", text)
+    for mark in ("<email>", "<phone>", "<social>", "<handle>"):
+        text = text.replace(mark, " ")
+    return [m.group(0) for rx in (CHECK_EMAIL, CHECK_AT, CHECK_PHONE, SECRET) for m in rx.finditer(text)][:5]
+
+
+def secrets_in(text: str) -> list[str]:
+    """Secrets are looked for before anything is redacted: a key whose digits look like a phone
+    number would otherwise be hidden from the check, and a run holding a key is never archived."""
+    return [m.group(0)[:12] + "..." for m in SECRET.finditer(text)][:3]
 
 
 def archive(project: Path, repo: Path, name: str, doc: Path | None = None) -> dict:
@@ -76,6 +100,8 @@ def archive(project: Path, repo: Path, name: str, doc: Path | None = None) -> di
                     for item in zin.infolist():
                         data = zin.read(item.filename)
                         if item.filename.endswith(".xml"):
+                            if secrets_in(data.decode("utf-8", "replace")):
+                                raise RuntimeError(f"a secret in {f.name}/{item.filename} - remove it from the project first")
                             text, e, p = redact(data.decode("utf-8", "replace"))
                             counts["emails"] += e
                             counts["phones"] += p
@@ -83,7 +109,10 @@ def archive(project: Path, repo: Path, name: str, doc: Path | None = None) -> di
                         zout.writestr(item, data)
                 target.write_bytes(buf.getvalue())
             elif f.suffix in TEXT:
-                text, e, p = redact(f.read_text(encoding="utf-8", errors="replace"))
+                raw = f.read_text(encoding="utf-8", errors="replace")
+                if secrets_in(raw):
+                    raise RuntimeError(f"a secret in {f.name}: {secrets_in(raw)} - remove it from the project first")
+                text, e, p = redact(raw)
                 counts["emails"] += e
                 counts["phones"] += p
                 target.write_text(text, encoding="utf-8")
@@ -91,6 +120,8 @@ def archive(project: Path, repo: Path, name: str, doc: Path | None = None) -> di
                 continue
             counts["files"] += 1
         if doc:
+            if secrets_in(doc.read_text(encoding="utf-8")):
+                raise RuntimeError(f"a secret in {doc.name} - remove it first")
             text, e, p = redact(doc.read_text(encoding="utf-8"))
             (repo / "docs" / "runs").mkdir(parents=True, exist_ok=True)
             (repo / "docs" / "runs" / f"{name}.md").write_text(text, encoding="utf-8")

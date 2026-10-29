@@ -566,6 +566,11 @@ def harvest(pdir: Path, source: str, start: str = "", follow: str = "", next: st
 # ------------------------------------------------------------------ the flow
 
 def flow(pdir: Path) -> dict:
+    """flow, computed once per state of the files for every agent asking (mo_workspace.memo)."""
+    return ws.memo(pdir, "flow", lambda: _flow(pdir), report=True)
+
+
+def _flow(pdir: Path) -> dict:
     """How full each pool is, what waits between pools, and who works where - the lead staffs
     the stage where work piles up, and every stage keeps running while the others do."""
     spool = source_pool(pdir)
@@ -599,6 +604,7 @@ def flow(pdir: Path) -> dict:
             from_sources += int(r.get("orgs_added") or 0)
         except ValueError:
             pass
+    with_site = {str(o.get("id") or ""): bool(o.get("website")) for o in orgs}
     lanes: dict = {}
     for t in ws.read_csv(pdir / "tasks.csv"):
         lane = lanes.setdefault(t["kind"], {"open": 0, "claimed": 0, "done": 0, "agents": set()})
@@ -616,15 +622,24 @@ def flow(pdir: Path) -> dict:
                   "failed": sum(r["status"] == "failed" for r in frontier),
                   "harvest_files_not_pooled": unpooled},
         "venues": {"total": len(venues), "without_organisation": sum(1 for v in venues if not v.get("org_id"))},
+        # unread with a website (a research lane can read it) apart from unread without one (finding
+        # the site comes first): paris-all 0.8.4 read 1,890 "unread" as too few hands - 1,844 had no site
         "organisations": {"total": len(ids), "no_website": sum(1 for o in orgs if not o.get("website")),
-                          "not_read": len(ids - read), "with_confirmed_ab": len(confirmed & ids)},
-        "contacts": {"rows": len(contacts), "to_review": sum(1 for c in contacts if c.get("review") == "yes")},
+                          "not_read": len(ids - read),
+                          "not_read_with_website": len({i for i in ids - read if with_site.get(i)}),
+                          "not_read_no_website": len({i for i in ids - read if not with_site.get(i)}),
+                          "with_confirmed_ab": len(confirmed & ids)},
+        "contacts": {"rows": len(contacts), "to_review": sum(1 for c in contacts if c.get("review") == "yes"),
+                     "ungraded": sum(1 for c in contacts if c.get("kind", "email") == "email" and not c.get("grade")
+                                     and c.get("graded_by") != "held")},
     }
     waiting = {
         "sources -> pages": by_state.get("found", 0),
         "pages -> pools": pools["pages"]["queued"] + len(unpooled),
         "venues -> organisations": pools["venues"]["without_organisation"],
-        "organisations -> contacts": pools["organisations"]["not_read"],
+        "organisations -> websites": pools["organisations"]["not_read_no_website"],
+        "organisations -> contacts": pools["organisations"]["not_read_with_website"],
+        "contacts -> grades": pools["contacts"]["ungraded"],
         "contacts -> delivery": pools["contacts"]["to_review"],
     }
     unlogged = sat["orgs_without_logged_source"]

@@ -100,6 +100,10 @@ Each lesson came from a run; none names one market.
 - **The users of a public facility are on its booking and timetable files** (slot schedules,
   allocation tables, a sports office's yearbook PDF): one file names dozens of organisations
   with their president or secretary and a mailbox - the best A/B per page of any source.
+- **Rank lists by whether they print a name and a role, not by their size**: on all of Paris a
+  sports office's club list gave A/B for every organisation worked, a federation committee's two in
+  three, while the city's slot table - 81% of the pool - gave about one in fifty. A big list of
+  names is pooled for coverage and duplicates; the people come from the small lists.
 - **A company or association register gives names, not people**: hundreds of rows, few with any
   route (079: 1.7% A/B on 225). Pool it for the registry numbers and the duplicates it settles,
   let its pilot decide, and do not let its size steer the team.

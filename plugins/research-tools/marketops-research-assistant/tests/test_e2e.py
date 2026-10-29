@@ -240,7 +240,8 @@ class WholeJob(unittest.TestCase):
         self.assertTrue(all(c.get("page_url") and c.get("quote") for c in contacts))
         # nothing left waiting between the pools, nothing for the user about the flow
         self.assertEqual({"sources -> pages": 0, "pages -> pools": 0, "venues -> organisations": 0,
-                          "organisations -> contacts": 0}, {k: v for k, v in fl["waiting_between_pools"].items()
+                          "organisations -> websites": 0, "organisations -> contacts": 0, "contacts -> grades": 0},
+                         {k: v for k, v in fl["waiting_between_pools"].items()
                                                             if k != "contacts -> delivery"})
         flags = " ".join(server.needs_you(pdir, server.project(p)))
         for bad in ("nobody mines", "never pooled", "no organisation behind", "does not add up"):
