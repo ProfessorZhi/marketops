@@ -61,21 +61,33 @@ def net() -> dict:
 
 
 def browser() -> str:
-    """The first browser Playwright can start: its own Chromium, then Chrome, then Edge."""
+    """The first browser that can open a real page: Playwright's own Chromium, then Chrome, then
+    Edge. Starting is not enough: WorkBuddy's sandbox lets the downloaded Chromium start and
+    denies it the network (net::ERR_NETWORK_ACCESS_DENIED), while the computer's own Edge and
+    Chrome go out. With no network at all, the first that starts is kept."""
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
         return ""
-    found = ""
+    found, starts = "", ""
     with sync_playwright() as p:
         for channel in ("chromium", "chrome", "msedge"):
             try:
                 b = p.chromium.launch(headless=True, **({} if channel == "chromium" else {"channel": channel}))
-                b.close()
-                found = channel
-                break
             except Exception:  # noqa: BLE001 - not installed or will not start: try the next
                 continue
+            starts = starts or channel
+            try:
+                page = b.new_page()
+                page.goto("https://example.com/", timeout=20000)
+                found = channel
+            except Exception:  # noqa: BLE001 - started but cannot reach the web: try the next
+                pass
+            finally:
+                b.close()
+            if found:
+                break
+    found = found or starts
     home = os.environ.get("MARKETOPS_HOME") or os.path.join(os.path.expanduser("~"), ".marketops")
     os.makedirs(home, exist_ok=True)
     with open(os.path.join(home, "browser.txt"), "w", encoding="utf-8") as fh:
