@@ -472,6 +472,11 @@ def claim(pdir, agent: str, kind: str = "") -> dict:
     """Give the caller the next open package (or one whose claim went stale). An empty lane that
     the pools can refill (new organisations, new sources) is planned on the spot, so a worker
     never waits for the lead to plan."""
+    why_stop = ws.team_stop(pdir)
+    if why_stop:
+        return {"task": None, "lane_finished": True, "stop": True, "why_empty": why_stop,
+                "next": "stop now: finish or hand back what you hold (tasks(action='done' | release=True)), journal "
+                        "what you learned, report in three lines and end", **summary(pdir)}
     got = _claim(pdir, agent, kind)
     if got.get("task") is None and kind in AUTO_PLAN:
         plan(pdir, kind, AUTO_PLAN[kind])
@@ -488,6 +493,12 @@ def claim(pdir, agent: str, kind: str = "") -> dict:
             got = _claim(pdir, agent, other)
     if got.get("task") is None:
         got.update(outlook(pdir, kind, agent))
+        # nothing coming and nothing open elsewhere, the pool not saturated: look for more lists
+        # rather than end (a refill on its way is waited for - finding never jumps it)
+        if kind in ("sweep", "dig", "site") and got.get("lane_finished") and not got.get("other_lanes"):
+            found = _find_when_idle(pdir, agent, {"task": None})
+            if found.get("task"):
+                got = found
     if got.get("task") and got["task"]["kind"] == "source":
         import mo_flow
         for i in got["task"]["items"].split("|"):
@@ -509,6 +520,32 @@ def _quiet_for(pdir) -> float:
     if cdir.exists():
         stamps.append(cdir.stat().st_mtime)
     return time.time() - max(stamps) if stamps else 0.0
+
+
+AUTO_FIND = 5
+AUTO_FIND_TITLE = "find: more lists of"
+
+
+def _find_when_idle(pdir, agent: str, got: dict) -> dict:
+    """A researcher with nothing to read, while the pool is not saturated, looks for more lists
+    instead of waiting: the plugin plans a find package for it (078/079: idle workers claimed
+    empty lanes, or ended, while the pool could still grow)."""
+    if ws.source_saturation(pdir)["saturated"]:
+        return got
+    rows = ws.read_csv(_path(pdir))
+    if any(r["kind"] == "find" and r["status"] in ("open", "claimed") for r in rows):
+        return _claim(pdir, agent, "find") if any(r["kind"] == "find" and r["status"] == "open" for r in rows) else got
+    # at most one planned find a quarter of an hour, AUTO_FIND in all: a search that found nothing
+    # new is not repeated at once, and finding never crowds out the lanes it feeds
+    auto = [r for r in rows if r["kind"] == "find" and (r.get("title") or "").startswith(AUTO_FIND_TITLE)]
+    recent = (_now() - timedelta(minutes=15)).isoformat(timespec="seconds")
+    if len(auto) >= AUTO_FIND or any((r.get("finished") or "") >= recent for r in auto):
+        return got
+    b = ws.brief(pdir)
+    add(pdir, f"{AUTO_FIND_TITLE} {b.get('scenario') or b.get('goal') or 'organisations'} in "
+              f"{b.get('region') or 'the region'} - lists that name people with a mailbox first (timetables, yearbooks, club finders)",
+        note="planned by the tools: the research lanes were empty and the pool is not saturated", kind="find")
+    return _claim(pdir, agent, "find")
 
 
 def outlook(pdir, kind: str = "", agent: str = "") -> dict:
@@ -623,14 +660,34 @@ def _claim(pdir, agent: str, kind: str = "") -> dict:
 
 
 def done(pdir, task_id: str, note: str = "", release: bool = False) -> dict:
+    kind = ""
     with ws._lock(_path(pdir)):
         rows = ws.read_csv(_path(pdir))
         for r in rows:
             if r["task_id"] == task_id:
+                kind = r["kind"]
                 r.update(status="open" if release else "done", note=note[:500],
                          finished="" if release else _now().isoformat(timespec="seconds"))
         ws.write_csv(_path(pdir), TASK_COLS, rows)
-    return summary(pdir)
+    out = summary(pdir)
+    why_stop = ws.team_stop(pdir)
+    # a package handed back is not the end of the job (079: three workers ended after one package
+    # each and nothing moved for ten minutes) - the answer says what comes next
+    out["next"] = (f"stop: {why_stop} - journal, report in three lines and end" if why_stop else
+                   f"claim your next package now: tasks(action='claim', kind='{kind or 'sweep'}', wait=50) - "
+                   "end only when a claim says lane_finished")
+    return out
+
+
+def stop_team(pdir, note: str = "", resume: bool = False) -> dict:
+    f = pdir / "STOP_ALL"
+    if resume:
+        f.unlink(missing_ok=True)
+        return {"stopped": False, **summary(pdir)}
+    f.write_text(note[:200], encoding="utf-8")
+    held = [r for r in ws.read_csv(_path(pdir)) if r["status"] == "claimed"]
+    return {"stopped": True, "still_held": [{"task_id": r["task_id"], "agent": r.get("agent")} for r in held],
+            "next": "every next claim says stop; wait for the holders to hand back, then close out and export"}
 
 
 def summary(pdir) -> dict:

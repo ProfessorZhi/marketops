@@ -182,10 +182,15 @@ def _find_site(pdir, org: dict, replace: bool = False) -> str:
                                   weights=ws.weights(pdir, "search"))
     except Exception:  # noqa: BLE001
         return ""
+    # a domain another organisation already has is not this one's (079: one village directory
+    # became the website of three clubs, a public-service directory of two)
+    taken = {mo_pages.site_of(str(o.get("website") or "")) for o in ws.read_csv(pdir / "orgs.csv")
+             if _oid(o) != _oid(org) and o.get("website")} - {""}
     for hit in res["results"]:
         url = hit.get("url") or ""
         site = mo_pages.site_of(url)
-        if not url.startswith("http") or any(p in url for p in mo_discover.PLATFORMS) or site in ws.shared_sites(pdir):
+        if not url.startswith("http") or any(p in url for p in mo_discover.PLATFORMS) or site in ws.shared_sites(pdir) \
+                or site in taken:
             continue
         tld = site.rsplit(".", 1)[-1]
         if country and len(tld) == 2 and tld != country.lower() and tld not in ("eu", "io", "co", "me", "tv"):
@@ -203,7 +208,10 @@ def _find_site(pdir, org: dict, replace: bool = False) -> str:
         named = len(in_domain) * 2 >= len(words) or (
             in_domain and any(len(w) >= 5 and _rare(pdir, w) for w in in_domain)
             and (not town or town in _norm(text)))
-        if named or (home_page and _mentions(name, hit.get("title") or "")):
+        # a title naming it is enough only for a name of two words or more: "SOLID" or "IUNA" in a
+        # directory's title names nothing (079: a phone directory and an acronym dictionary)
+        titled = home_page and len(words) >= 2 and _mentions(name, hit.get("title") or "")
+        if named or titled:
             home = urllib.parse.urlsplit(url)._replace(path="/", query="", fragment="").geturl()
             oid = _oid(org)
             with ws._lock(pdir / "pools"):

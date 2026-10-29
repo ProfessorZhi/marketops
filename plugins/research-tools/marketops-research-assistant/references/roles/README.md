@@ -15,8 +15,9 @@ Every lane runs at the same time; several workers can share a role, each on its 
 Every role: claim with `tasks(project, action="claim", agent="<name>", kind=<lane>)`, work only
 what you claimed, hand it back with `tasks(action="done", task_id, note)`. An empty claim is a
 pause, not the end - read what it says: `keep_waiting` (the pools before you still fill): claim
-again with `wait=50`; `other_lanes`: take one of those, then come back. Stop only when a claim
-says `lane_finished` - its `why_empty` may name sources paused by the pilot rule (under 5% A/B)
+again with `wait=50`; `other_lanes`: take one of those, then come back. After every `done`, claim again at once - `done`
+answers `next`. Stop only when a claim says `stop` (the lead stopped the team, or the brief's
+`minutes` are up: finish or hand back what you hold, report, end) or `lane_finished` - its `why_empty` may name sources paused by the pilot rule (under 5% A/B)
 or the brief's `max_per_source`: decisions already taken, which the lead can reverse (it sees
 them in `needs_you`); report them and stop. Feed other pools
 as you go: a new list -> `sources(add)`, a venue's real operator -> `orgs(add)`. Every address

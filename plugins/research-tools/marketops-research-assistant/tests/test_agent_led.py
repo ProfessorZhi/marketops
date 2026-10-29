@@ -163,7 +163,8 @@ class AgentLedChain(Patched):
         self.assertEqual(0, sum(flow[k] for k in ("queued", "site", "grading", "digging", "evidence")))
         # both lanes were worked by agents: the run's reads went to `dig`, untouched ones to `sweep`
         kinds = {k for _me, k, _ids in log}
-        self.assertEqual({"dig", "sweep"}, kinds, log)
+        self.assertLessEqual({"dig", "sweep"}, kinds, log)   # and a find when the lanes ran dry (0.8.0)
+        self.assertLessEqual(kinds, {"dig", "sweep", "find"}, log)
         # every organisation: an agent verdict, never handed out twice
         verdicts = [v["org_id"] for v in ws.read_csv(pdir / "verdicts.csv")]
         self.assertEqual({f"c{n}" for n in NAMES}, set(verdicts))

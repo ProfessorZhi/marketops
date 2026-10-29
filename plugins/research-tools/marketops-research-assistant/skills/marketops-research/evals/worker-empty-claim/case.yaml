@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: worker-empty-claim
+expected_outcome: |
+  The worker claims again after done and after keep_waiting, takes the open source lane, and ends only on lane_finished or stop.

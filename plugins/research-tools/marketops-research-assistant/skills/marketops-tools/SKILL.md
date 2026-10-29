@@ -1,6 +1,6 @@
 ---
 name: marketops-tools
-description: How MarketOps agents use their tools - the marketops MCP tools (project, sources, harvest, search, fetch, pool, run, orgs, tasks, grade, judge, browse, export) and the six providers behind them (Serper, SerpApi, DeepSeek, TinyFish, Crawl4AI, Jev), what each is good at, and how the plugin steps down when one is missing. Use when choosing a tool, writing searches, mining a list, a page will not read, or a provider is slow, blocked or out of credit.
+description: How MarketOps agents use their tools fluently - every marketops MCP call (project, sources, harvest, search, fetch, pool, run, orgs, tasks, grade, judge, browse, export) with its exact arguments, which call and which of the six providers behind them (Serper, SerpApi, DeepSeek, TinyFish, Crawl4AI, Jev) fits each job, and how the plugin steps down when one is missing. Use it before any marketops tool call you are unsure of, when writing searches, mining or pooling a list, merging duplicates, grading or attaching addresses, when a page will not read, a provider is slow, blocked or out of credit, or a key or gateway (DEEPSEEK_BASE_URL) needs setting.
 ---
 
 # The tools
@@ -41,6 +41,39 @@ Several keys per provider (`NAME`, `NAME_2`..`_9`): a used-up key hands over by 
 | venues, organisations | `pool(file, into, filters, map, group_by, source)` - every source into the same pools, merged on name + place; `judge(file, question, options, column)` - one Jev decision per row; `orgs(set / add)` |
 | contacts | `run(orgs=[...])` reads a package's sites in the background (rounds 0-2, default 0: digging is yours); `orgs(ids=...)` summaries; `fetch(url, org_id)` for digging; `grade()` (Jev) and `grade(set=...)` (you); `browse` for click-hidden contacts (paid) |
 | all | `project(name)` - brief, `flow` (pools, waiting work, lanes), `needs_you`, costs; `tasks(plan / claim / done / add / verdict)` - the lanes; `export` - the workbook |
+
+## Which provider for which job
+
+| Job | First | Then | Never |
+|---|---|---|---|
+| Find whole lists | `search` (all engines race) with `filetype:pdf`, `site:`, `annuaire` / `liste` / registry words in the brief's language | `fetch` the list, read 20 rows | pool a list you have not read |
+| Find an organisation's site | `run` (the tools search its name and town and check the domain) | `search('"<name>" <town>')`, maps for venues | take a directory, a register or a phonebook page as a website |
+| Read a page | `fetch` (Crawl4AI, TinyFish, DeepSeek and plain HTTP race; PDFs are read here, `pdf_file` is the file) | another URL of the same site | read the same page twice: the library has it |
+| Page through a listing | `harvest(start, follow, next)` or `harvest(sitemap=True)` | `harvest(urls=[...])` for links you collected | fetch 200 entry pages one by one |
+| Judge many rows | `judge` / `grade()` (Jev) | `grade(set=...)` on what stays unsure | grade by hand what Jev can sort |
+| Hidden behind clicks | `browse` - paid, only when the brief allows it | - | `browse` a page with a single inbox |
+
+DeepSeek behind a gateway (LiteLLM and the like): set `DEEPSEEK_BASE_URL`; its balance is then not
+read.
+
+## The calls you will need
+
+| Call | Does |
+|---|---|
+| `project(name, brief={..., minutes})` | brief merge (send only what changes; `null` removes a key); `minutes` starts the time box; the answer carries `time_left_min`, `flow`, `needs_you`, `agents` (seconds since each worker's last call) |
+| `tasks(action="claim", kind, agent, wait=50)` | the next package; an empty one says `keep_waiting`, `other_lanes`, `lane_finished` or `stop` |
+| `tasks(action="done", task_id, note)` | hands back; `next` says what to do now (claim again, or stop). `release=True` hands it back unfinished |
+| `tasks(action="stop", note)` / `tasks(action="resume")` | the lead stops the team (every claim answers `stop`) / lifts it |
+| `tasks(action="add", kind="find" \| "dig" \| "review" \| "custom", title)` | a package of your own |
+| `sources(add=[{source, url, kind, row_is}])`, `sources(set=[{source, status: scale \| dropped}])` | register a list; overrule its pilot |
+| `pool(file, into, map, source)` | a file into the pools; `file` may be an absolute path of your own (it is copied into `pages/inbox/`) |
+| `orgs(add / set / ids, wait=50)` | add, correct (`website`, `scope: "out"`, `part_of`), read summaries when a package is through |
+| `orgs(merge=[{keep, drop}])`, `orgs(merge="suggested", keep_apart=[ids])` | one pair / every suggested group at once; `keep_apart` is remembered, so a group named once is never suggested again |
+| `fetch(url, org_id, org)` | read and attribute; a list page gives only its own entry (`list_page`), the rest are kept aside for `grade(set)` |
+| `grade(set=[{value, org_id, grade, person, role, note}])` | your grade; an address seen on any page read (a yearbook, a table) is attached from that page (`page_url` for a long list); never from nowhere |
+| `grade(set=[{org_id, all: "X"}])`, `grade(set=[{value, org_id, checked: ok \| wrong}])` | every address of one organisation you have not set / a spot check |
+| `grade(held=[{org_id, held: "X" \| "grade"}])` | clear the rows held aside on a crowded organisation |
+| `export(project)` | the workbook; `delivery` says whether it may be delivered and what is still open |
 
 ## Using them well
 

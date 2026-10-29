@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: source-triage
+expected_outcome: |
+  A and D first (they name people), B registered for its registry numbers but piloted, not prioritised; C is a directory; the annuaire-mairie page is not the club's website.

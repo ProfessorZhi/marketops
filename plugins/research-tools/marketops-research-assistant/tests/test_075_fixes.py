@@ -64,7 +64,9 @@ class Base(unittest.TestCase):
         self.patches = [mock.patch.object(mo_providers, "read", side_effect=fake_read),
                         mock.patch.object(mo_providers, "read_race", side_effect=fake_read),
                         mock.patch.object(mo_providers, "public_url", side_effect=lambda u: u),
-                        mock.patch.object(mo_providers, "search", return_value={"results": [], "routes": {}})]
+                        mock.patch.object(mo_providers, "search", return_value={"results": [], "routes": {}}),
+                        mock.patch.object(mo_providers, "pdf_text",   # offline: the page readers above serve the PDF
+                                          side_effect=mo_providers.ProviderError("offline test"))]
         for p in self.patches:
             p.start()
 
@@ -150,7 +152,8 @@ class Lanes(Base):
         self.assertTrue(got["keep_waiting"])
         self.assertNotIn("lane_finished", got)
 
-    def test_a_source_under_the_pilot_bar_is_paused_not_waited_for(self):
+    @mock.patch.object(mo_tasks, "AUTO_FIND", 0)   # the lane's own end, without the find it now offers
+    def test_a_source_under_the_pilot_bar_is_paused_not_waited_for(self, *_):
         p, pdir = "l075b", ws.project_dir("l075b")
         server.project(p, brief={"goal": "g", "country": "FR", "language": "fr", "pilot": 2})
         ids = [self.org(p, f"Club Pause {c}") for c in "ABCDEFGHIJKL"]

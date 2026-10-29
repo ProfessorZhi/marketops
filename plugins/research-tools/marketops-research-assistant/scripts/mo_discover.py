@@ -32,7 +32,10 @@ PLATFORMS = ("facebook.", "instagram.", "twitter.", "x.com", "linkedin.", "youtu
              # listings and company registers: a page about the organisation, never its own site (073:
              # a fencing club got sortiraparis.com and 15 pages were read for nothing)
              "sortiraparis.", "petitfute.", "societe.com", "pappers.", "verif.com", "annuaire-mairie.",
-             "net1901.", "journal-officiel.", "infogreffe.", "manageo.", "kompass.")
+             "net1901.", "journal-officiel.", "infogreffe.", "manageo.", "kompass.",
+             # directories and phone books seen as "websites" in 079
+             "gralon.", "clubcorner.", "assohome.", "lavieduvillage.", "118000.", "118712.", "lannuaire.service-public",
+             "sigle-acronyme.", "pages-blanches.", "infobel.", "cylex.", "hoodspot.")
 
 
 def combos(pdir) -> list[tuple[str, str]]:

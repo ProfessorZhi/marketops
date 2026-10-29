@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: lead-midrun-steer
+expected_outcome: |
+  Restart r2, merge the suggested duplicates, handle the three reviews, leave the paused register paused, stop the team now that ~10 minutes are left, and not bother the user with lead items.

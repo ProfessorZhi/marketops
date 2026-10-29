@@ -181,7 +181,8 @@ class Duplicates(Base):
 
 
 class EmptyLanes(Base):
-    def test_a_lane_capped_by_the_brief_says_so(self):
+    @mock.patch.object(mo_tasks, "AUTO_FIND", 0)   # the lane's own end, without the find it now offers
+    def test_a_lane_capped_by_the_brief_says_so(self, *_):
         p, pdir = "e074", ws.project_dir("e074")
         server.project(p, brief={"goal": "g", "country": "FR", "language": "fr", "pilot": 2, "max_per_source": 2})
         ids = [self.org(p, f"Club Capped {c}") for c in "ABCDE"]
@@ -198,7 +199,8 @@ class EmptyLanes(Base):
         st = server.tasks(p, action="status", kind="sweep")
         self.assertIn("why_empty", st)
 
-    def test_a_lane_waits_while_sources_are_mined_and_ends_when_nothing_can_refill_it(self):
+    @mock.patch.object(mo_tasks, "AUTO_FIND", 0)   # the lane's own end, without the find it now offers
+    def test_a_lane_waits_while_sources_are_mined_and_ends_when_nothing_can_refill_it(self, *_):
         p = "e074b"
         server.project(p, brief={"goal": "g", "country": "FR", "language": "fr"})
         server.sources(p, add=[{"source": "district list", "url": "https://district074.test/list"}])

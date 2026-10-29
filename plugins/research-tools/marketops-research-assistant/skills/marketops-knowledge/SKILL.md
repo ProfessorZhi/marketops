@@ -1,6 +1,6 @@
 ---
 name: marketops-knowledge
-description: Business judgment for any MarketOps research job, distilled from Bruce's research lines - what counts as success, how to grade a contact (A/B/C/D/X and the two ledgers), who the customer is, how to test, scale or stop a source, the questions to settle before starting, where whole lists come from, and the blockers that cost most. Use when writing the brief, choosing or dropping a source, judging a contact or a grade, deciding whether to keep going, or when results look thin or wrong - for any market or product.
+description: Business judgment for any MarketOps sales-research job, distilled from Bruce's research lines and the plugin's own runs - what counts as success, how to grade a contact (A/B/C/D/X, the two ledgers), who the customer is, which kinds of lists pay (timetables and yearbooks name people; registers give names; directories are never websites), how to pilot, scale or stop a source, the questions to settle before starting, and the blockers that cost most (idle hands, no end, pages with no address). Use it when writing a brief, choosing, registering or dropping a source, judging whose an address is or what grade it deserves, deciding whether to keep going, or whenever the A/B rate looks thin or wrong - for any market or product.
 ---
 
 # Business judgment for research
@@ -94,6 +94,27 @@ organisations. Search engines return pages, not rosters. Pages by yield: staff, 
 pages carry many times more A/B than contact or home pages; the legal page names the operator;
 department pages beat searching role titles.
 
+## What sources taught (any market)
+
+Each lesson came from a run; none names one market.
+- **The users of a public facility are on its booking and timetable files** (slot schedules,
+  allocation tables, a sports office's yearbook PDF): one file names dozens of organisations
+  with their president or secretary and a mailbox - the best A/B per page of any source.
+- **A company or association register gives names, not people**: hundreds of rows, few with any
+  route (079: 1.7% A/B on 225). Pool it for the registry numbers and the duplicates it settles,
+  let its pilot decide, and do not let its size steer the team.
+- **People first, numbers beside them**: the lists that name people are what the A/B rate is made
+  of - mine them first. A list with a registry number (RNA, SIRET, UAI...) is worth mining early
+  too, by a miner of its own, because later lists then merge on the number instead of a guess at
+  names - but it rides beside the people lists, never ahead of them or instead of them.
+- **Directories, phonebooks, acronym dictionaries and listing sites are never an organisation's
+  website**, even when their page title carries its name.
+- **A portal's own inbox in the footer of every fiche is the portal's** - not each organisation's.
+- **Addresses hide**: `name (at) club . fr`, `name[at]club.fr`, ROT13, `mailto:` links, Markdown
+  escapes - read the page with the tools before deciding it has none.
+- **A page read before its script ran shows only its frame**: an empty big page is read again with
+  another reader, never taken as "no address".
+
 ## The blockers that cost most
 
 - **Pages with no address at all** - the usual bottleneck, not speed. Change page type or source.
@@ -107,5 +128,10 @@ department pages beat searching role titles.
   agent owns a package end to end.
 - **Extraction before blame**: lost `mailto:` links, undecoded addresses, compressed responses,
   DNS bursts that drop live sites. Zero addresses on a big site is a parsing problem first.
+- **Idle hands**: a worker that ended its turn, or waited on an empty lane while the pool could
+  grow, cost more than any slow site (079: 26 minutes). Keep claiming; when the lanes are empty,
+  find more lists.
+- **No end**: a run without a time box dilutes its own rate - the late hours read the weakest
+  sources.
 - **Asking one question at a time**: open questions held his queue for a hundred rounds. One
   numbered list, one reply.

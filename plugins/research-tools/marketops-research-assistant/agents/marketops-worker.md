@@ -16,8 +16,10 @@ your role: sources, pool, websites, research, dig or finish.
    anything (a researcher while the miners are still mining): claim with `wait=50` - the call
    returns when a package arrives. An empty claim tells you why: `keep_waiting` - claim again;
    `other_lanes` - work one of those meanwhile; `why_empty` with work left (a pilot, the brief's
-   `max_per_source`) - tell the lead and claim again. End only when a claim says
-   `lane_finished`. Do not stop to ask; anything only the user can
+   `max_per_source`) - tell the lead and claim again; a `find` package when the research lanes
+   are empty - look for more lists (references/roles/sources.md), then come back. After every
+   `done`, claim again at once (its answer says `next`). End only when a claim says
+   `lane_finished` or `stop` - a worker that ends its turn early does not come back by itself. Do not stop to ask; anything only the user can
    decide goes into your final report as a numbered item.
 3. Journal as you go: `project(name, journal={"type": "blocker"|"smooth"|"decision"|"idea", "text":
    "...", "evidence": "..."}, agent="<your name>")` - each blocker and how you got round it, at
