@@ -106,6 +106,8 @@ class Installers(unittest.TestCase):
         self.assertIn("marketops-mcp.cmd", ps)
         self.assertIn('dirname -- "$0"', sh)                      # "sh install.sh" works too
         self.assertNotRegex(ps, r"(?m)^claude mcp")               # no Claude Code: not an error
+        self.assertIn("MARKETOPS_NO_PROMPT", sh)                  # an agent can install without typing keys
+        self.assertIn("MARKETOPS_NO_PROMPT", ps)
 
     def test_the_check_names_a_plugin_folder_without_its_skills(self):
         with mock.patch.object(server, "PLUGIN", Path(tempfile.mkdtemp())), \

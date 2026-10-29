@@ -21,7 +21,9 @@ Unzip the release, then run the installer inside the unzipped folder:
 - Linux / macOS: `sh install.sh`
 - Windows (PowerShell): `.\Install.ps1`
 
-It prepares a private Python and the local browser, asks for the keys that are missing, copies
+An agent installing for you sets `MARKETOPS_NO_PROMPT=1`: the installer then asks for no key and
+lists the missing ones, to add to `keys.env` by hand. Otherwise it prepares a private Python and
+the local browser, asks for the keys that are missing, copies
 the whole plugin to `~/.marketops/plugin` and writes one launcher:
 
 - Linux / macOS: `~/.marketops/bin/marketops-mcp`
