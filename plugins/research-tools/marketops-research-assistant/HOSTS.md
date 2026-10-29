@@ -93,3 +93,12 @@ lane_finished or stop - after every done, claim again; never end your turn on an
 One agent alone: `You lead MarketOps project "<project>" alone. Call guide("workflow"), write the
 brief with minutes, then claim tasks(action="claim", kind="any", wait=50) in a loop until a claim
 says lane_finished or stop; close out and report.`
+
+## Browser
+
+The local browser reader (Crawl4AI) needs its browser to reach the web. Some hosts' sandboxes
+start the browser but deny it the network (`net::ERR_NETWORK_ACCESS_DENIED` - WorkBuddy on
+Windows): `--check` says so, and the server sets the reader aside after a few failed pages - TinyFish,
+DeepSeek and plain HTTP read instead. To try the computer's Edge or Chrome, write `msedge` or
+`chrome` in `~/.marketops/browser.txt` (or set `MARKETOPS_BROWSER`); allowing the browser in the
+host's sandbox settings brings the reader back.

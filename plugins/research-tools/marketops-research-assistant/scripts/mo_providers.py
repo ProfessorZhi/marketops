@@ -450,13 +450,18 @@ def search(query: str, engines=None, country: str = "", lang: str = "", n: int =
         ok, why = mo_budget.allowed(engine, "search")
         if not ok:
             return engine, None, why
+        brk = paused("search:" + engine)
+        if brk:
+            return engine, None, f"set aside for {brk['search:' + engine]['for_s']} s ({brk['search:' + engine]['why'][:160]})"
         try:
             rows = with_slots(engine, lambda: _again(lambda: _SEARCH[engine](query, country, lang, n, maps, purpose, page, near)))
             mo_budget.record(project_dir, engine, "search", True, query[:80])
+            _streak("search:" + engine, True)
             mo_library.put_search(key, rows)
             return engine, rows, ""
         except Exception as exc:  # noqa: BLE001 - one engine failing never fails the search
             mo_budget.record(project_dir, engine, "search", False, f"{type(exc).__name__}: {exc}")
+            _streak("search:" + engine, False, query, f"{type(exc).__name__}: {exc}")
             return engine, None, mo_config.scrub(f"{type(exc).__name__}: {exc}")[:160]
 
     def gather(batch):
@@ -549,7 +554,9 @@ class _Browser:
             result = asyncio.run_coroutine_threadsafe(self.crawler.arun(url, config=cfg),
                                                       self.loop).result(timeout + 30)
         if not result.success:
-            raise ProviderError((result.error_message or "page did not load")[:160])
+            # the browser's own reason first: Crawl4AI's message starts with a page of its context
+            msg = result.error_message or "page did not load"
+            raise ProviderError((_last_line(msg) + " | " + msg)[:400])
         return {"final_url": result.redirected_url or url, "html": result.html or "",
                 "text": str(result.markdown or "")}
 
@@ -802,8 +809,12 @@ def capabilities() -> dict:
     level = "minimal" if (not search or readers == ["http"]) else (
         "full" if any(e in search for e in ("serper", "serpapi")) and len(search) >= 2 and len(readers) >= 2 and jev
         else "reduced")
+    aside = paused()
+    for k, v in aside.items():
+        effects.append(f"{k.split(':', 1)[1]} is set aside for {max(0, v['for_s']) // 60} more min here: {v['why'][:200]} "
+                       "- the other readers and engines carry on")
     return {"level": level, "search": search, "read": readers, "grade": "jev + rules" if jev else "rules + agents",
-            "missing": missing, "effects": effects}
+            "missing": missing, "effects": effects, **({"set_aside": aside} if aside else {})}
 
 
 _HAS_CRAWL4AI: list = []
@@ -826,6 +837,42 @@ def available_readers(readers=None) -> list[str]:
     return out or ["http"]
 
 
+# A reader or engine that fails on page after page here - a browser this computer does not let
+# out (WorkBuddy's sandbox: ERR_NETWORK_ACCESS_DENIED on every page), a gateway without the
+# endpoint (DeepSeek through LiteLLM: 404) - is set aside for a while instead of being waited on
+# for every page: 0.8.3 tried Crawl4AI 31 times, 0 read, before each TinyFish read.
+BREAK_AFTER = 5        # failures in a row, on at least BREAK_SUBJECTS different sites or queries
+BREAK_SUBJECTS = 3
+BREAK_S = 900
+_STREAK: dict[str, dict] = {}
+_STREAK_LOCK = threading.Lock()
+
+
+def paused(key: str = "") -> dict:
+    """{key: {"until", "why"}} for what is set aside now ("read:crawl4ai", "search:deepseek")."""
+    import time
+    now = time.time()
+    with _STREAK_LOCK:
+        out = {k: {"for_s": round(v["until"] - now), "why": v["why"]} for k, v in _STREAK.items()
+               if v.get("until", 0) > now}
+    return {key: out[key]} if key and key in out else ({} if key else out)
+
+
+def _streak(key: str, ok: bool, subject: str = "", why: str = "") -> None:
+    import time
+    with _STREAK_LOCK:
+        st = _STREAK.setdefault(key, {"n": 0, "subjects": set(), "until": 0, "why": ""})
+        if ok:
+            st.update(n=0, subjects=set(), until=0)
+            return
+        st["n"] += 1
+        st["subjects"].add(subject)
+        if st["n"] >= BREAK_AFTER and len(st["subjects"]) >= BREAK_SUBJECTS and st["until"] <= time.time():
+            st["until"] = time.time() + BREAK_S
+            st["why"] = f"{st['n']} failures in a row on {len(st['subjects'])} sites or queries, the last: {why[:200]}"
+            st["n"], st["subjects"] = 0, set()
+
+
 def read(url: str, readers=None, project_dir=None, force: bool = False) -> dict:
     """Read one page with several readers at once. {reader: result or {"error": ...}}.
     Site health (mo_health) sets aside pages and sites that failed repeatedly and readers a
@@ -838,6 +885,10 @@ def read(url: str, readers=None, project_dir=None, force: bool = False) -> dict:
         ok, why = mo_budget.allowed("serpapi" if reader == "facebook" else reader, "fetch")
         if not ok:
             return reader, {"error": "skipped: " + why}
+        brk = paused("read:" + reader)
+        if brk and not force:
+            return reader, {"error": f"skipped: {reader} set aside for {brk['read:' + reader]['for_s']} s here "
+                                     f"({brk['read:' + reader]['why'][:160]})"}
         aside = "" if force or not mo_health.enabled() else mo_health.HEALTH.skip(url, reader)
         if aside:
             return reader, {"error": "skipped: " + aside}
@@ -858,13 +909,16 @@ def read(url: str, readers=None, project_dir=None, force: bool = False) -> dict:
                 raise
             mo_budget.record(project_dir, "serpapi" if reader == "facebook" else reader,
                              "search" if reader == "facebook" else "fetch", True, url[:120])
+            _streak("read:" + reader, True)
             if mo_health.enabled():
                 mo_health.HEALTH.record(url, reader, True)
             return reader, res
         except Exception as exc:  # noqa: BLE001 - each reader fails on its own
             # keep the reason ("no text", "HTTP 403", a timeout) so failures can be told apart later
-            mo_budget.record(project_dir, reader, "fetch", False,
-                             mo_config.scrub(f"{type(exc).__name__}: {exc}")[:80] + " | " + url[:80])
+            # the whole reason, not its first 80 characters (0.8.3 cut "ERR_NETWORK_ACCESS_DENIED" off)
+            err = mo_config.scrub(f"{type(exc).__name__}: {exc}")
+            mo_budget.record(project_dir, reader, "fetch", False, err[:400] + " | " + url[:120])
+            _streak("read:" + reader, False, (urllib.parse.urlsplit(url).hostname or url).lower(), _last_line(err))
             if mo_health.enabled():
                 mo_health.HEALTH.record(url, reader, False, f"{type(exc).__name__}: {exc}")
             return reader, {"error": mo_config.scrub(f"{type(exc).__name__}: {exc}")[:160]}
@@ -934,6 +988,17 @@ def read_race(url: str, readers=None, project_dir=None, grace: float = 3.0, on_l
 
 
 _LATE: set = set()
+
+
+def _last_line(err: str) -> str:
+    """The line that says what went wrong in a long error (Crawl4AI wraps the browser's own
+    message, e.g. net::ERR_NETWORK_ACCESS_DENIED, in a page of context)."""
+    lines = [x.strip() for x in str(err).splitlines() if x.strip()]
+    for mark in ("net::ERR_", "Error:"):
+        for x in lines:
+            if mark in x and "Unexpected error" not in x:
+                return x[:200]
+    return (lines[-1] if lines else "")[:200]
 
 
 def drain(timeout: float = 90) -> int:

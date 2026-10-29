@@ -52,7 +52,7 @@ The share of organisations with an A or B route moves with three things, in this
 | When | The lead | The workers |
 |---|---|---|
 | 0-5 min | tools, brief (with `minutes`), start the whole team at once | claim with `wait=50` |
-| every 10-15 min | `project()`: `flow`, `needs_you` `[lead]` items, silent workers, merges | claim -> work -> done -> claim; journal blockers |
+| every 10-15 min | `project()`: `flow`, `needs_you` `[lead]` items, silent workers, merges; between checks claim `kind="any"` packages yourself - never `sleep` and never wait idle | claim -> work -> done -> claim; journal blockers |
 | ~10 min before the end | `tasks(action="stop", note="close-out")` | finish or hand back, three-line report, end |
 | the end | close out, spot check, export, retro, final report | - |
 
@@ -66,6 +66,8 @@ The share of organisations with an A or B route moves with three things, in this
 | a claim: `lane_finished` or `stop` | finish or hand back what you hold, journal, report in three lines, end | nothing can refill it / the team stops |
 | `done` answers `next` | do what it says - normally claim again at once | a worker that ends its turn does not come back |
 | `needs_you`: a worker silent 3+ min | start it again with the same role | it ended its turn |
+| `needs_you`: only N worker(s) active while lanes have work | start a worker for each lane that waits, research first | one worker for every lane read 47 of 260 organisations in 35 minutes (WorkBuddy, 0.8.3) |
+| `capabilities.set_aside` names a reader or engine | nothing to do - the others carry on; say it in the report if it lasts | a browser denied the network, a gateway without the endpoint |
 | `flow.possible_duplicates` | `orgs(merge="suggested", keep_apart=[ids that are two])` | until merged, their routes count twice |
 | `fetch` says `list_page` | `sources(add=...)` the list; pool its entries as organisations with their addresses | a list's addresses belong to its entries, not to you |
 | an address on a list belongs to one of yours | `grade(set=[{value, org_id, grade, person, role}])` | it is attached from the page that prints it |
