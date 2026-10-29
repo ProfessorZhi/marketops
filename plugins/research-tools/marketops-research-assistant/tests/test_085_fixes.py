@@ -81,6 +81,42 @@ class SetAside(unittest.TestCase):
         self.assertIn("net::ERR_NETWORK_ACCESS_DENIED", mo_providers._last_line(DENIED))
 
 
+class BrowserSwitch(unittest.TestCase):
+    def test_a_browser_denied_the_network_is_left_for_the_next_one(self):
+        import asyncio
+        import threading
+        from types import SimpleNamespace
+
+        class Fake:
+            def __init__(self, ok):
+                self.ok = ok
+
+            async def arun(self, url, config=None):
+                return SimpleNamespace(success=self.ok, error_message="" if self.ok else DENIED,
+                                       redirected_url=url, html="<p>ok</p>" * 50, markdown="ok")
+
+            async def close(self):
+                pass
+
+        b = mo_providers._Browser()
+        b.loop = asyncio.new_event_loop()
+        threading.Thread(target=b.loop.run_forever, daemon=True).start()
+        started = []
+
+        def start():
+            channel = next(c for c in ("chromium", "msedge") if c not in b.denied)
+            started.append(channel)
+            b.crawler, b.channel = Fake(channel != "chromium"), channel
+        b._start = start
+        with mock.patch.dict(sys.modules, {"crawl4ai": SimpleNamespace(CacheMode=SimpleNamespace(BYPASS=0),
+                                                                       CrawlerRunConfig=lambda **k: None)}):
+            got = b.read("https://example.com/")
+        self.assertEqual(["chromium", "msedge"], started)
+        self.assertIn("ok", got["html"])
+        self.assertEqual({"chromium"}, b.denied)
+        b.loop.call_soon_threadsafe(b.loop.stop)
+
+
 class Check(unittest.TestCase):
     def test_the_check_reads_a_real_page_and_says_when_the_browser_cannot(self):
         with mock.patch.object(mo_providers, "crawl4ai_installed", return_value=True), \

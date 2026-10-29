@@ -512,6 +512,9 @@ def browser_channel() -> str:
     return v if v in ("chromium", "chrome", "msedge") else ""
 
 
+DENIED = re.compile(r"net::ERR_(?:NETWORK_ACCESS_DENIED|ACCESS_DENIED|BLOCKED_BY_ADMINISTRATOR)")
+
+
 class _Browser:
     """One Crawl4AI browser on its own event loop, shared by every read."""
 
@@ -520,10 +523,13 @@ class _Browser:
         self.crawler = None
         self.lock = threading.Lock()
         self.slots = threading.Semaphore(pages_at_once)  # one browser, at most this many tabs
+        self.channel = ""
+        self.denied: set[str] = set()   # browsers that started here but were refused the network
 
     def _start(self):
-        self.loop = asyncio.new_event_loop()
-        threading.Thread(target=self.loop.run_forever, daemon=True, name="crawl4ai").start()
+        if self.loop is None:   # one loop for the process; a browser switched for another reuses it
+            self.loop = asyncio.new_event_loop()
+            threading.Thread(target=self.loop.run_forever, daemon=True, name="crawl4ai").start()
 
         async def boot():
             from crawl4ai import AsyncWebCrawler, BrowserConfig
@@ -532,30 +538,52 @@ class _Browser:
             chosen = browser_channel()
             last = None
             for channel in dict.fromkeys([chosen or "chromium", "chromium", "chrome", "msedge"]):
+                if channel in self.denied:
+                    continue
                 extra = {} if channel == "chromium" else {"chrome_channel": channel, "channel": channel}
                 crawler = AsyncWebCrawler(config=BrowserConfig(headless=True, verbose=False, user_agent=UA, **extra))
                 try:
                     await crawler.start()
+                    self.channel = channel
                     return crawler
                 except Exception as exc:  # noqa: BLE001 - not installed here: the next one
                     last = exc
-            raise last
+            raise last or ProviderError("no browser left to try here")
 
         self.crawler = asyncio.run_coroutine_threadsafe(boot(), self.loop).result(120)
 
-    def read(self, url: str, timeout: int = 30) -> dict:
+    def _switch(self, failed: str):
+        """Leave the browser the network is denied to and start the next one on the next read
+        (once: a read that failed on a browser already left behind changes nothing)."""
+        with self.lock:
+            if failed != self.channel or self.crawler is None:
+                return
+            self.denied.add(failed)
+            old, self.crawler = self.crawler, None
+        if old is not None:
+            try:
+                asyncio.run_coroutine_threadsafe(old.close(), self.loop).result(20)
+            except Exception:  # noqa: BLE001 - it is being dropped anyway
+                pass
+
+    def read(self, url: str, timeout: int = 30, _retry: bool = False) -> dict:
         with self.lock:
             if self.crawler is None:
                 self._start()
+            crawler, channel = self.crawler, self.channel
         from crawl4ai import CacheMode, CrawlerRunConfig
         cfg = CrawlerRunConfig(cache_mode=CacheMode.BYPASS, page_timeout=timeout * 1000,
                                verbose=False, delay_before_return_html=1.0)
         with self.slots, GATE.hold("crawl4ai:tabs", BROWSER_TABS):   # tabs of every process together
-            result = asyncio.run_coroutine_threadsafe(self.crawler.arun(url, config=cfg),
+            result = asyncio.run_coroutine_threadsafe(crawler.arun(url, config=cfg),
                                                       self.loop).result(timeout + 30)
         if not result.success:
             # the browser's own reason first: Crawl4AI's message starts with a page of its context
             msg = result.error_message or "page did not load"
+            if DENIED.search(msg) and channel and not _retry:
+                # this browser may start but not go out (a sandbox): the next one, once
+                self._switch(channel)
+                return self.read(url, timeout, _retry=True)
             raise ProviderError((_last_line(msg) + " | " + msg)[:400])
         return {"final_url": result.redirected_url or url, "html": result.html or "",
                 "text": str(result.markdown or "")}

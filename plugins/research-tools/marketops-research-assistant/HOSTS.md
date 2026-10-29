@@ -99,6 +99,4 @@ says lane_finished or stop; close out and report.`
 The local browser reader (Crawl4AI) needs its browser to reach the web. Some hosts' sandboxes
 start the browser but deny it the network (`net::ERR_NETWORK_ACCESS_DENIED` - WorkBuddy on
 Windows): `--check` says so, and the server sets the reader aside after a few failed pages - TinyFish,
-DeepSeek and plain HTTP read instead. To try the computer's Edge or Chrome, write `msedge` or
-`chrome` in `~/.marketops/browser.txt` (or set `MARKETOPS_BROWSER`); allowing the browser in the
-host's sandbox settings brings the reader back.
+DeepSeek and plain HTTP read instead. The installer picks the first browser that opens a real page (Playwright's Chromium, then Chrome, then Edge), and the server leaves a browser that is denied the network for the next one by itself; `~/.marketops/browser.txt` (or `MARKETOPS_BROWSER`) still sets one by hand.

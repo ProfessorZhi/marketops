@@ -46,6 +46,13 @@
 项目文件夹就是普通文件（`~/MarketOps/<项目>/`）：`brief.json`、`venues.csv`、`orgs.csv`、
 `contacts/`、`crawl.csv`、`trace.jsonl`、`costs.jsonl`；网页原件在共享资料库 `~/.marketops/library`。agent 和人都可以直接打开、修改，断了接着跑。
 
+## 0.8.6 更新：自动换用能联网的浏览器
+
+WorkBuddy 的沙箱让 Playwright 下载的 Chromium 能启动、但不让它联网；电脑自带的 Edge、Chrome 却可以联网。换成 Edge 以后，Crawl4AI 马上能用了，还从一个页面上找回了 TinyFish 漏掉的邮箱（TinyFish 返回的是文字，mailto 和链接会丢）。
+
+- 安装器挑浏览器时，用真实打开一个网页来检验，不再只看能不能启动：Chromium 打不开网页就换 Chrome、Edge。完全没网时，保留第一个能启动的。
+- 服务器运行时，浏览器被拒绝联网（`net::ERR_NETWORK_ACCESS_DENIED` 一类），就丢下它、换下一个浏览器，把这一页重读一次；不用手动写 `browser.txt`。
+
 ## 0.8.5 更新：读不了的工具自动让开，人手不够会提醒（WorkBuddy 实跑复盘）
 
 WorkBuddy 那一轮 35 分钟只拿到 3 个联系人，原因有三个：主 agent 只启动了 1 个 worker；WorkBuddy 的沙箱不让浏览器联网，Crawl4AI 31 次全部失败，每页却还要先等它失败；DeepSeek 走网关，搜索和读页返回 404，75 次只成功 2 次。
