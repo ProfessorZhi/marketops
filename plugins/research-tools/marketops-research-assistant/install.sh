@@ -25,9 +25,16 @@ echo "1/5 Network"
 # a broken local proxy and a slow PyPI cost the 0.8.2 Windows install half an hour: test both first
 net=$("$py" "$here/tools/install_helper.py" net 2>/dev/null || echo '{}')
 field() { printf '%s' "$net" | "$py" -c "import json,sys; print(json.load(sys.stdin).get('$1', ''))"; }
-if [ "$(field drop_proxy)" = "True" ]; then
-    echo "  the proxy in HTTPS_PROXY does not answer; installing over a direct connection"
+if [ "$net" = "{}" ]; then
+    echo "  could not test the network; going on with the computer's own settings"
+elif [ "$(field drop_proxy)" = "True" ]; then
+    echo "  the proxy does not answer; installing over a direct connection"
     unset HTTPS_PROXY https_proxy HTTP_PROXY http_proxy ALL_PROXY all_proxy
+    export NO_PROXY="*" no_proxy="*"
+elif [ -z "$(field pypi_seconds)" ] || [ "$(field pypi_seconds)" = "None" ]; then
+    echo "  PyPI does not answer, with or without the proxy: the downloads below may fail"
+else
+    echo "  PyPI answers in $(field pypi_seconds) s"
 fi
 mirror=$(field pip_index)
 if [ -n "$mirror" ]; then

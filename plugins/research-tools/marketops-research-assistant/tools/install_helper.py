@@ -42,7 +42,9 @@ def _get(url: str, proxy: bool = True, timeout: float = 8.0) -> float | None:
 
 
 def net() -> dict:
-    has_proxy = any(os.environ.get(k) for k in ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"))
+    # the proxies Python itself will use: the environment, and on Windows the system settings too
+    # (pip reads both)
+    has_proxy = bool({k: v for k, v in urllib.request.getproxies().items() if k in ("http", "https", "all")})
     via_proxy = _get(PYPI) if has_proxy else None
     direct = _get(PYPI, proxy=False) if (not has_proxy or via_proxy is None) else None
     drop_proxy = has_proxy and via_proxy is None and direct is not None
@@ -54,7 +56,7 @@ def net() -> dict:
             if t is not None and (best is None or t < best / 2):
                 pip_index = m
                 break
-    return {"drop_proxy": drop_proxy, "pip_index": pip_index,
+    return {"drop_proxy": drop_proxy, "pip_index": pip_index, "has_proxy": has_proxy,
             "pypi_seconds": None if best is None else round(best, 1)}
 
 
