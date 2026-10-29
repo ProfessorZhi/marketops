@@ -46,6 +46,16 @@
 项目文件夹就是普通文件（`~/MarketOps/<项目>/`）：`brief.json`、`venues.csv`、`orgs.csv`、
 `contacts/`、`crawl.csv`、`trace.jsonl`、`costs.jsonl`；网页原件在共享资料库 `~/.marketops/library`。agent 和人都可以直接打开、修改，断了接着跑。
 
+## 0.8.5 更新：读不了的工具自动让开，人手不够会提醒（WorkBuddy 实跑复盘）
+
+WorkBuddy 那一轮 35 分钟只拿到 3 个联系人，原因有三个：主 agent 只启动了 1 个 worker；WorkBuddy 的沙箱不让浏览器联网，Crawl4AI 31 次全部失败，每页却还要先等它失败；DeepSeek 走网关，搜索和读页返回 404，75 次只成功 2 次。
+
+- **一直失败的读取或搜索工具会暂时让开**：在至少 3 个不同网站或查询上连续失败 5 次，就让开 15 分钟，其他工具照常工作；`project()` 的 capabilities 里会写明让开了哪个、为什么。
+- **报错原因不再截断**：保留浏览器自己给的原因（比如 `net::ERR_NETWORK_ACCESS_DENIED`），不再在第 80 个字处截断。
+- **`--check` 会真实读一次网页**：浏览器在这台电脑上不能联网时，安装时就直接说清楚。
+- **人手不够会提醒**：有多道工序在等活、却只有一两个 worker 在干时，`needs_you` 会提醒主 agent 给每道工序补一个 worker。
+- **skill**：主 agent 在两次检查之间自己认领 `kind="any"` 的包，不用 `sleep` 干等。
+
 ## 0.8.4 更新：网络检测真的生效，装不上就明说（WorkBuddy 从零安装复盘）
 
 - 修复 0.8.3 Windows 安装器的回归：PowerShell 的 `if` 会把单元素数组展开，`$probe[0]` 拿到的是路径的第一个字母，网络检测每次都静默失败，坏代理没被绕开，核心包装不上。

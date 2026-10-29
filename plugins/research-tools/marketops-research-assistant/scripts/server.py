@@ -205,6 +205,22 @@ def needs_you(pdir, status: dict) -> list[str]:
             items.append(f"Worker(s) {', '.join(quiet[:4])} made no call for {SILENT_S // 60}+ minutes while {open_lanes} "
                          "package(s) are open: start them again with the same role (a worker that ends its turn does "
                          "not come back by itself).")
+        # too few hands for the lanes that have work: a lead that started one worker (or none) while
+        # several lanes fill (WorkBuddy 0.8.3: one worker for sources, mining and research - 47 of 260
+        # organisations read in 35 minutes)
+        flow = status.get("flow") or {}
+        lanes = {k: v.get("open", 0) for k, v in (flow.get("lanes") or {}).items()
+                 if isinstance(v, dict) and v.get("open", 0)}
+        waits = flow.get("waiting_between_pools") or {}   # work the lanes hand out on the next claim
+        for lane, gap in (("source", "sources -> pages"), ("sweep", "organisations -> contacts")):
+            if waits.get(gap):
+                lanes[lane] = max(lanes.get(lane, 0), int(waits[gap]))
+        busy = [a for a, s in (status.get("agents") or {}).items() if s["silent_s"] < SILENT_S]
+        if len(lanes) >= 2 and len(busy) < min(len(lanes), 3):
+            items.append(f"Only {len(busy)} worker(s) active while {len(lanes)} lanes have work waiting ("
+                         + ", ".join(f"{k} {n}" for k, n in sorted(lanes.items(), key=lambda x: -x[1])[:5])
+                         + "): start a worker for each of them now - research lanes first (guide('workflow'), step 3); "
+                         "a host with one agent claims kind='any' between these checks.")
     dups = (status.get("flow") or {}).get("possible_duplicates") or []
     if dups:
         items.append(f"{len(dups)} organisations look pooled twice (" + "; ".join(
@@ -973,6 +989,15 @@ def check() -> int:
     print(f"  level: {cap['level']} - search {cap['search'] or 'none'}, read {cap['read']}, grade {cap['grade']}")
     for e in cap["effects"]:
         print("  -", e)
+    if mo_providers.crawl4ai_installed() and os.environ.get("MARKETOPS_CHECK_BROWSER", "1") != "0":
+        # a real page through the browser, not only a launch: WorkBuddy's sandbox let the browser
+        # start and denied it the network (net::ERR_NETWORK_ACCESS_DENIED), and nothing said so
+        try:
+            mo_providers.BROWSER.read("https://example.com/", timeout=20)
+            print(f"  browser reader: reads pages ({mo_providers.browser_channel() or 'chromium'})")
+        except Exception as exc:  # noqa: BLE001 - the plugin reads without it
+            print("  browser reader: cannot read pages here - " + mo_providers._last_line(f"{exc}")
+                  + " - pages are read by TinyFish, DeepSeek and plain HTTP instead (HOSTS.md, Browser)")
     for mod in ("crawl4ai", "typesafe_sdk"):   # optional: their absence steps the plugin down, not out
         try:
             __import__(mod)
