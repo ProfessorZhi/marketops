@@ -94,6 +94,25 @@ organisations. Search engines return pages, not rosters. Pages by yield: staff, 
 pages carry many times more A/B than contact or home pages; the legal page names the operator;
 department pages beat searching role titles.
 
+## What sources taught (any market)
+
+Each lesson came from a run; none names one market.
+- **The users of a public facility are on its booking and timetable files** (slot schedules,
+  allocation tables, a sports office's yearbook PDF): one file names dozens of organisations
+  with their president or secretary and a mailbox - the best A/B per page of any source.
+- **A company or association register gives names, not people**: hundreds of rows, few with any
+  route (079: 1.7% A/B on 225). Pool it for the registry numbers and the duplicates it settles,
+  let its pilot decide, and do not let its size steer the team.
+- **A list with a registry number is mined first**: later lists then merge on the number, not on
+  a guess at names.
+- **Directories, phonebooks, acronym dictionaries and listing sites are never an organisation's
+  website**, even when their page title carries its name.
+- **A portal's own inbox in the footer of every fiche is the portal's** - not each organisation's.
+- **Addresses hide**: `name (at) club . fr`, `name[at]club.fr`, ROT13, `mailto:` links, Markdown
+  escapes - read the page with the tools before deciding it has none.
+- **A page read before its script ran shows only its frame**: an empty big page is read again with
+  another reader, never taken as "no address".
+
 ## The blockers that cost most
 
 - **Pages with no address at all** - the usual bottleneck, not speed. Change page type or source.
@@ -107,5 +126,10 @@ department pages beat searching role titles.
   agent owns a package end to end.
 - **Extraction before blame**: lost `mailto:` links, undecoded addresses, compressed responses,
   DNS bursts that drop live sites. Zero addresses on a big site is a parsing problem first.
+- **Idle hands**: a worker that ended its turn, or waited on an empty lane while the pool could
+  grow, cost more than any slow site (079: 26 minutes). Keep claiming; when the lanes are empty,
+  find more lists.
+- **No end**: a run without a time box dilutes its own rate - the late hours read the weakest
+  sources.
 - **Asking one question at a time**: open questions held his queue for a hundred rounds. One
   numbered list, one reply.

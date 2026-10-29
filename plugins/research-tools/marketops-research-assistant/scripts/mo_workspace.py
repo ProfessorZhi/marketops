@@ -569,8 +569,14 @@ def attach_from_evidence(pdir: Path, value: str, org_id: str, page_url: str = ""
     org = str(_org_rows(pdir).get(str(org_id), {}).get("name") or "")
     if not org:
         return False
-    found = next((r for r in reversed(read_csv(pdir / "unattributed.csv")) if (r.get("value") or "").lower() == value),
-                 None) or next((c for c in read_contacts(pdir) if (c.get("value") or "").lower() == value), None)
+
+    def same(v: str) -> bool:
+        # the address as read may carry the next word ("...@club.com.pour", read before 0.8.0):
+        # the clean form the agent sets is on the page all the same
+        v = (v or "").lower()
+        return v == value or v.startswith(value + ".")
+    found = next((r for r in reversed(read_csv(pdir / "unattributed.csv")) if same(r.get("value"))),
+                 None) or next((c for c in read_contacts(pdir) if same(c.get("value"))), None)
     if found is None and page_url:
         for row in _pages(pdir).get(page_url, []):
             try:
@@ -578,7 +584,7 @@ def attach_from_evidence(pdir: Path, value: str, org_id: str, page_url: str = ""
             except OSError:
                 continue
             hit = next((c for c in mo_pages.contacts(parsed["lines"], page_url, "", parsed.get("blocks"),
-                                                     parsed.get("mailtos")) if c["value"].lower() == value), None)
+                                                     parsed.get("mailtos")) if same(c["value"])), None)
             if hit:
                 found = hit
                 break
@@ -636,6 +642,15 @@ def _keep_pdf(pdir: Path, url: str, body: bytes) -> str:
     return str(path)
 
 
+SHELL_TEXT = 200      # characters of text under which a large page is only its frame
+SHELL_BODY = 3000
+
+
+def is_shell(parsed: dict, body_len: int) -> bool:
+    text = sum(len(x) for x in parsed.get("lines") or [])
+    return body_len >= SHELL_BODY and text < SHELL_TEXT
+
+
 def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
           org_site: str = "", refresh: bool = False, via: str = "fetch", links: bool = False) -> dict:
     """Read a page with every chosen reader at once; save each version; collect contacts.
@@ -685,7 +700,10 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
     if saved:
         for row in saved:
             try:
-                parsed_by[row["reader"]] = _parse_saved(pdir, row)
+                parsed = _parse_saved(pdir, row)
+                if is_shell(parsed, int(row.get("chars") or 0)):
+                    continue   # a frame cached before 0.8.0: read the page again instead
+                parsed_by[row["reader"]] = parsed
                 read_at[row["reader"]] = row.get("time", "")
                 report[row["reader"]] = {"file": row["file"], "cached": "library" if row.get("library") else "project"}
             except OSError:
@@ -717,12 +735,15 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
         if "error" in res:
             report[reader] = {"error": res["error"]}
             return None
-        if res.get("html"):
-            f = _save(pdir, url, reader, res["html"].encode("utf-8"), "html", res["final_url"], org_id)
-            parsed = mo_pages.from_html(res["html"], res["final_url"])
-        else:
-            f = _save(pdir, url, reader, res["text"].encode("utf-8"), "md", res["final_url"], org_id)
-            parsed = mo_pages.from_markdown(res["text"], res["final_url"])
+        body = res.get("html") or res.get("text") or ""
+        parsed = mo_pages.from_html(body, res["final_url"]) if res.get("html") else \
+            mo_pages.from_markdown(body, res["final_url"])
+        if is_shell(parsed, len(body)):
+            # the page's frame without its text (a script not run yet): never cached - a cached frame
+            # hides the real page from every later read (079: five true A/B failed the spot check)
+            report[reader] = {"error": "page frame without its text: not kept, another reader is tried"}
+            return None
+        f = _save(pdir, url, reader, body.encode("utf-8"), "html" if res.get("html") else "md", res["final_url"], org_id)
         read_at[reader] = _now()
         report[reader] = {"file": f, "chars": sum(map(len, parsed["lines"])), "final_url": res["final_url"]}
         return parsed
@@ -841,6 +862,19 @@ def fetch(pdir: Path, url: str, readers=None, org_id: str = "", org: str = "",
             keep, held = keep + k2, held + h2
         else:
             keep, held = split_attribution(contacts, org, org_site, on_org, name_counts(pdir))
+        if on_org not in ("yes", "likely") and keep:
+            # the address of the site a page is on, already given to another organisation from that
+            # site, is the site's own mailbox in every fiche's footer (079: a sports office's inbox on
+            # each club fiche of its yearbook) - not this organisation's. One page naming several
+            # organisations (a syndicate's members) is not a footer: only other pages count.
+            here = {url} | {c.get("page_url") for c in contacts if c.get("page_url")}
+            elsewhere = {c.get("value", "").lower() for c in read_contacts(pdir)
+                         if c.get("org_id") != str(org_id) and c.get("page_site") == page_site
+                         and c.get("page_url") not in here}
+            footer = [c for c in keep if c.get("kind") == "email" and c.get("email_site") == page_site
+                      and c["value"].lower() in elsewhere]
+            keep = [c for c in keep if c not in footer]
+            held += footer
         added = merge_contacts(pdir, keep, org_id, org, via)
         save_unattributed(pdir, held, org_id, org, via)
     best = max((p["lines"] for p in parsed_by.values()), key=lambda ls: sum(map(len, ls)), default=[])
@@ -928,6 +962,14 @@ def playbook(pdir: Path) -> dict:
         return {}
 
 
+def site_path_hint(path: str) -> bool:
+    """A playbook path that can be tried on any organisation's own site ("/bureau", "/contact"):
+    not a pattern ("/FR-17-*.html"), not a full address, not one page's long slug from somebody
+    else's site (079: such paths, joined to every club's domain, read 404s)."""
+    p = (path or "").strip()
+    return bool(p) and not re.search(r"[*{}<>?]|^\w+://|^www\.", p) and len(p) <= 40 and p.count("/") <= 3
+
+
 def playbook_for(pdir: Path, org: dict) -> dict:
     """The playbook entries for this organisation: "*" (all) plus its own segment, plus what
     earlier projects learned for this market and kind of organisation (mo_knowledge)."""
@@ -1011,7 +1053,16 @@ def source_saturation(pdir: Path) -> dict:
             if added + merged:
                 return round(added / (added + merged), 3)
         return None
-    shares = [x for x in (new_share(r) for r in rows) if x is not None]
+    # new names that lead to nobody are not growth: a source its pilot paused (under 5% A/B) counts
+    # as adding nothing (079: a company register gave 225 new names, 1.7% with A/B, and kept the
+    # pool "growing" for good)
+    import mo_tasks
+    try:
+        idle = {s for s, y in mo_tasks.source_yield(pdir).items() if y["state"] in ("waiting", "dropped", "stopped")
+                and y["worked"] >= mo_tasks.PAUSE_MIN and not y["with_ab"] / max(1, y["worked"]) >= mo_tasks.STOP}
+    except Exception:  # noqa: BLE001 - the measure of growth never breaks the report
+        idle = set()
+    shares = [0.0 if r["source"] in idle else x for r in rows for x in [new_share(r)] if x is not None]
     n = len({r["source"] for r in rows})
     last = shares[-SATURATION_LAST:]
     saturated = n >= MIN_SOURCES and len(last) == SATURATION_LAST and all(x < SATURATION_NEW for x in last)
@@ -1408,7 +1459,7 @@ def _crawl_one(pdir: Path, t: dict, max_pages: int, readers, extra: list[str] | 
     heap: list = []
     base = site if site.endswith("/") else site + "/"   # under the organisation's own page, portal or not
     hinted = [urllib.parse.urljoin(base, p.lstrip("/"))
-              for p in (hint_paths or []) if site and isinstance(p, str) and p.strip()]
+              for p in (hint_paths or []) if site and isinstance(p, str) and site_path_hint(p)]
     for n, u in enumerate(([site] if site else []) + hinted + (extra or [])):
         heapq.heappush(heap, (-100 + n, 0, u))
     seen, pages, emails, ok_readers, notes, buttons = set(), 0, 0, set(), [], 0
@@ -1471,7 +1522,40 @@ def _crawl_one(pdir: Path, t: dict, max_pages: int, readers, extra: list[str] | 
 
 
 def stop_requested(pdir: Path) -> bool:
-    return (pdir / "STOP").exists()
+    return (pdir / "STOP").exists() or bool(team_stop(pdir))
+
+
+def time_left(pdir: Path) -> float | None:
+    """Seconds left of the brief's own time box (brief.minutes, counted from brief.started), or
+    None when the brief sets none."""
+    b = brief(pdir)
+    try:
+        minutes = float(b.get("minutes") or 0)
+    except (TypeError, ValueError):
+        minutes = 0
+    if minutes <= 0 or not b.get("started"):
+        return None
+    from datetime import datetime, timezone
+    try:
+        start = datetime.fromisoformat(str(b["started"]).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=timezone.utc)
+    return minutes * 60 - (datetime.now(timezone.utc) - start).total_seconds()
+
+
+def team_stop(pdir: Path) -> str:
+    """Why the team stops now, or "": the lead's stop (tasks(action="stop")) or the end of the
+    brief's minutes. Lanes hand out nothing more, runs end; what is claimed is finished or handed
+    back, then the lead closes out (078: the lead said stop, workers kept claiming for two hours)."""
+    f = pdir / "STOP_ALL"
+    if f.exists():
+        return "the lead stopped the team" + (f": {f.read_text(encoding='utf-8')[:200]}" if f.stat().st_size else "")
+    left = time_left(pdir)
+    if left is not None and left <= 0:
+        return f"the brief's {brief(pdir).get('minutes')} minutes are up"
+    return ""
 
 
 # ------------------------------------------------------------------ TinyFish Agent

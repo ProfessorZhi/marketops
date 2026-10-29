@@ -27,7 +27,8 @@ that has none).
   one district (indoor: basketball, handball, volleyball, badminton, table tennis, gymnastics,
   combat sports, dance, fencing, climbing): presidents, secretaries, facility leads, from at
   least 3 sources", "pilot": 5, "address_rules": {"info": "X", "admin": "X", "book": "X"}, "strict_ledger": "AB",
-  "fresh": true}`. Nothing else: no sources, no pool, no playbook - the finders find them.
+  "fresh": true, "minutes": 35}`. Nothing else: no sources, no pool, no playbook - the finders
+  find them. `minutes` is the time box: the team stops itself when it is up.
 - **Start from zero**: a new project name per run (`bench-paris11-<version>-<date>`) and an empty
   `MARKETOPS_HOME` (no shared pages, searches or lessons). `project()` must show no brought-in
   source; one is a failed test, not a result.
@@ -36,7 +37,8 @@ that has none).
   its first package) - all on Haiku (`claude -p --model haiku --plugin-dir <plugin> --max-turns 60`, host
   tools limited to the plugin's, Skill, Read, Glob, Grep and Agent). Record the model every
   worker really ran on.
-- **Limits**: 35 minutes, a few cents of provider spend, paid TinyFish Agent off.
+- **Limits**: 35 minutes (the brief's `minutes`), a few cents of provider spend, paid TinyFish Agent off.
+  Setup (keys, plugin, project) takes at most 3 minutes; time beyond that is a defect to report.
 - **Report**: sources found / pooled / piloted / scaled / dropped; organisations (and the share
   out of scope); organisations researched per source; organisations with A/B and A/B per 30
   minutes; X share; spend per provider; agent turns; the slowest stage and the most frequent
@@ -46,6 +48,27 @@ that has none).
   are past their pilot); site reads past the home page; every worker kept working until its
   lane ended; a journal entry from each worker; `RETRO.md` written; every contact quoted.
   A/B counts at this size are a baseline to compare, not a pass mark.
+
+## Why one A/B rate moves: two tiers and a fixed-source run
+
+The from-zero smoke measures the whole chain, finders included - so its A/B rate moves with the
+lists the finders happen to pick (077: 40.8% on timetable files; 079: 23.4% when a company
+register made up 65% of the pool) and with minutes lost to idle workers. One number cannot tell a
+plugin regression from a different source mix. So each version runs:
+
+| Tier | Brief | Minutes | Pass | Answers |
+|---|---|---|---|---|
+| chain check | the smoke brief, `"minutes": 15` | 15 | every chain pass item above except A/B; no worker silent 3+ minutes while packages are open | does the chain still run end to end |
+| fixed sources | the smoke brief without finders' freedom: the lead registers exactly the three lists below first (`sources(add=...)`), finders may add more after | 35 | Bruce-comparable A/B >= 37%, and not more than 3 points under the previous version's fixed run | did the plugin get better or worse at turning the same lists into people |
+| from zero | the smoke brief as written | 35 | the chain pass items above; A/B recorded | does the team find good lists by itself |
+
+The fixed lists (public; each one is a kind of source any district has - a timetable of the
+district's facility users, a sports office's yearbook, the city's open data on slots):
+1. `https://mairie11.paris.fr/pages/le-sport-dans-le-11e-tous-les-creneaux-associatifs-18447`
+2. `http://www.oms-paris11.org/documents/OMS-2025-2026.pdf`
+3. `https://opendata.paris.fr/explore/dataset/occupation-des-creneaux-sportifs/`
+
+They fix the benchmark's input, not the plugin: no code or skill may name them (the rule below).
 
 ## Archive (every run, automatically)
 

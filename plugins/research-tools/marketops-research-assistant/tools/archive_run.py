@@ -28,22 +28,34 @@ KEEP = ("*.xlsx", "*-routes.csv", "contacts.csv", "orgs.csv", "verdicts.csv", "v
         "pages.csv")
 TEXT = {".csv", ".jsonl", ".json", ".md", ".txt", ".xml"}
 
-EMAIL = re.compile(r"[\w.+-]+\s?(?:@|\(at\)|\[at\]|\s(?:at|arobase)\s)\s?[\w-]+(?:\s?\.\s?[\w-]+)*\s?\.\s?[a-z]{2,10}\b",
-                   re.I)
+EMAIL = re.compile(r"[\w.+-]+\s?(?:@|\(at\)|\[at\]|\s(?:at|arobase)\s)\s?[\w-]+(?:\s?\.\s?[\w-]+)*\s?\.\s?"
+                   r"(?-i:[a-z]{2,10}(?![a-z])|[A-Z]{2,10}(?![A-Z]))", re.I)   # an ending glued to the next word ("comCORRESPONDANT")
 PHONE = re.compile(r"(?<![\w/])(?:\+|00)\d{1,3}[\s.-]?\(?0?\)?(?:[\s.-]?\d){8,11}(?!\d)"
-                   r"|(?<![\w/.])0\d(?:[\s.-]?\d{2}){4}(?![\d])")
+                   r"|(?<![\w/.])0\d(?:[\s.-]?\d{2}){4}(?![\d])"
+                   # service numbers grouped 0 8XX XX XX XX or 0800 XXX XXX (079: 64 of them passed)
+                   r"|(?<![\w/.])0[\s.-]?[1-9]\d{2}(?:[\s.-]?\d{2}){3}(?![\d])"
+                   r"|(?<![\w/.])0[\s.-]?[1-9]\d{2}[\s.-]?\d{3}[\s.-]?\d{3}(?![\d])")
 SECRET = re.compile(r"(?i)\b(?:sk-[a-z0-9]{16,}|ghp_[a-z0-9]{20,}|api[_-]?key\s*[:=]\s*\S{12,}|bearer\s+[a-z0-9._-]{20,}"
                     r"|password\s*[:=]\s*\S+)")
 
 
 def redact(text: str) -> tuple[str, int, int]:
+    # a reader's Markdown escapes ("name\@club\.fr") hide an address from any pattern
+    text = re.sub(r"\\([@.\-_+])", r"\1", text)
     text, emails = EMAIL.subn("<email>", text)
     text, phones = PHONE.subn("<phone>", text)
     return text, emails, phones
 
 
+# the check is written apart from the redaction: a check built from the same patterns cannot see
+# what the patterns miss (079: the tool reported 0 left while 65 numbers were still there)
+CHECK_EMAIL = re.compile(r"[^\s<>\"',;:()]+\s?@\s?[^\s<>\"',;:()]+\.[a-z]{2,}", re.I)
+CHECK_PHONE = re.compile(r"(?<!\d)(?:\+33|0033|0)(?:[ .\-]?\d){9}(?!\d)")
+
+
 def left_over(text: str) -> list[str]:
-    return [m.group(0) for rx in (EMAIL, PHONE, SECRET) for m in rx.finditer(text)][:5]
+    text = re.sub(r"\\([@.\-_+])", r"\1", text.replace("<email>", " ").replace("<phone>", " "))
+    return [m.group(0) for rx in (CHECK_EMAIL, CHECK_PHONE, SECRET) for m in rx.finditer(text)][:5]
 
 
 def archive(project: Path, repo: Path, name: str, doc: Path | None = None) -> dict:

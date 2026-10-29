@@ -61,7 +61,9 @@ def project(name: str, brief: dict | None = None, playbook: dict | None = None,
     removed): {"goal": "...", "region": "...", "country": "FR",
     "language": "fr", "scenario": "...", "grades": {"A": "...", ...}, "exclude": "...",
     "address_rules": {"info": "X"}, "routes_per_org": 3, "strict_ledger": "AB" | "A" | "named_A",
-    "focus": {...}, "fresh": true, "pilot": 30, "max_per_source": 0}. pilot: how many organisations
+    "focus": {...}, "fresh": true, "pilot": 30, "max_per_source": 0, "minutes": 35}. minutes: the run's
+    time box, enforced - when it is up every claim answers stop and runs end; the lead then closes
+    out and exports (project() shows time_left_min). pilot: how many organisations
     each source is tried on before the research lanes give it more (Bruce's 30; 5 for a run of 20);
     max_per_source: a run's own limit of organisations researched per source (0: none). strict_ledger: which grades the strict ledger counts (the workbook
     reports it next to the research-valid ledger, A-D). fresh: the project starts from nothing -
@@ -92,6 +94,8 @@ def project(name: str, brief: dict | None = None, playbook: dict | None = None,
             # merged into the brief, not replacing it: a lead who sends one key keeps the goal,
             # region and fresh it set before (073: {"max_per_source": 8} wiped them); null removes a key
             brief = {k: v for k, v in {**ws.brief(pdir), **brief}.items() if v is not None}
+            if brief.get("minutes") and not brief.get("started"):
+                brief["started"] = ws._now()   # the time box counts from the moment it is set
             if brief.get("fresh") and not brief.get("fresh_since"):
                 # from this moment on: nothing read or learned before it, by any project, is reused
                 brief = {**brief, "fresh_since": ws._now()}
@@ -111,10 +115,50 @@ def project(name: str, brief: dict | None = None, playbook: dict | None = None,
         out["capabilities"] = mo_providers.capabilities()
         import mo_library
         out["library"] = mo_library.stats()
+        left = ws.time_left(pdir)
+        if left is not None:
+            out["time_left_min"] = round(max(0.0, left) / 60, 1)
+        out["agents"] = agents_seen(pdir)
         out["needs_you"] = needs_you(pdir, out)
         return out
     except Exception as exc:  # noqa: BLE001
         return _err(exc)
+
+
+SILENT_S = 180
+
+
+def agents_seen(pdir) -> dict:
+    """Per worker: seconds since its last tool call and how many it made (calls.jsonl) - a worker
+    that ended its turn makes no more calls, and nothing else shows it (079: three workers ended
+    after one package each; nothing moved for ten minutes until the lead looked)."""
+    import time as _time
+    from datetime import datetime
+    seen: dict[str, dict] = {}
+    try:
+        lines = (pdir / "calls.jsonl").read_text(encoding="utf-8").splitlines()[-3000:]
+    except OSError:
+        return {}
+    for line in lines:
+        try:
+            c = json.loads(line)
+        except ValueError:
+            continue
+        a = c.get("agent") or ""
+        if not a or a == "lead":
+            continue
+        s = seen.setdefault(a, {"calls": 0, "last": ""})
+        s["calls"] += 1
+        s["last"] = max(s["last"], str(c.get("time") or ""))
+    now = _time.time()
+    out = {}
+    for a, s in seen.items():
+        try:
+            ago = now - datetime.fromisoformat(s["last"]).timestamp()
+        except ValueError:
+            continue
+        out[a] = {"calls": s["calls"], "silent_s": round(ago)}
+    return out
 
 
 def _minutes_ago(n: int) -> str:
@@ -151,6 +195,14 @@ def needs_you(pdir, status: dict) -> list[str]:
                          f"under {int(mo_tasks.STOP * 100)}%); its other {y['orgs'] - y['worked']} are paused by the pilot "
                          "rule. Nothing waits on it; resume it with sources(set=[{source, status: 'scale'}]) if it "
                          "should get them after all.")
+    if not ws.team_stop(pdir):
+        open_lanes = sum(v.get("open", 0) for v in ((status.get("flow") or {}).get("lanes") or {}).values()
+                         if isinstance(v, dict))
+        quiet = [a for a, s in (status.get("agents") or {}).items() if SILENT_S <= s["silent_s"] <= 3600]
+        if quiet and open_lanes:
+            items.append(f"Worker(s) {', '.join(quiet[:4])} made no call for {SILENT_S // 60}+ minutes while {open_lanes} "
+                         "package(s) are open: start them again with the same role (a worker that ends its turn does "
+                         "not come back by itself).")
     dups = (status.get("flow") or {}).get("possible_duplicates") or []
     if dups:
         items.append(f"{len(dups)} organisations look pooled twice (" + "; ".join(
@@ -473,6 +525,10 @@ def tasks(project: str, action: str = "status", kind: str = "", size: int = 15, 
     real end of the lane. An empty claim says why: keep_waiting (the lane refills - claim again;
     never stop on it), other_lanes (open work elsewhere), lane_finished (nothing can refill it).
     Stop only on lane_finished; until then an empty lane is a pause, and the lead hears of it.
+    action="stop" (the lead; note=why): the team stops - every next claim answers stop, runs end,
+    holders finish or hand back; action="resume" lifts it. The brief's minutes stop the team the
+    same way when they are up. A worker ends only on lane_finished (or stop): `done` answers with
+    the next claim to make.
     While an agent holds a package, the pipeline leaves its organisations alone.
     action="verdict", verdicts=[{org_id, verdict: routes|partial|none|user, found, where, why}]:
     one line per organisation you finished - what you found, on which kind of page, why that
@@ -500,6 +556,8 @@ def tasks(project: str, action: str = "status", kind: str = "", size: int = 15, 
             return got
         if action == "done":
             return mo_tasks.done(pdir, task_id, note, release)
+        if action in ("stop", "resume"):
+            return mo_tasks.stop_team(pdir, note, resume=action == "resume")
         if action == "verdict":
             return {"recorded": ws.add_verdicts(pdir, verdicts or [], agent), **ws.stages(pdir)}
         # open: 0 is not "the work is over" - the lanes refill as the pools grow (073: three workers

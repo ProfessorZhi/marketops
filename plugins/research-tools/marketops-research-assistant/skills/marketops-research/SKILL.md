@@ -92,10 +92,29 @@ before anything else:
 | Over 60 new addresses on one organisation (a chain's every store, a federation's every club) are not all sent to Jev: those naming the brief's region first, the rest are held - outside every total, on their own workbook sheet | 073: 1,167 on one chain; paris11: 274 held rows were 41% of the workbook | pool the list's entries, then `grade(held=[{org_id, held: "X"}])`; or `"grade"` to send them to Jev |
 | An empty lane says why (`keep_waiting`, `other_lanes`, `lane_finished`, `why_empty` - a pilot, the brief's `max_per_source`, sources still mined, a project with nothing registered yet); a worker stops only on `lane_finished`. A source under 5% A/B after its pilot is paused by default - nobody waits for a verdict - and `needs_you` lists it | paris11-073: three workers stopped with 310 organisations unread; paris11-074: two workers idled seven minutes waiting for a lead's call | resume a paused source (`sources(set=[{source, status: "scale"}])`), raise `max_per_source` |
 | `project(brief=...)` merges: send only the keys you change (`null` removes one) | paris11-073: one key wiped the goal, region and fresh | - |
+| The brief's `minutes` is the run's time box, counted from the moment it is set (`project()["time_left_min"]`); when it is up, and after `tasks(action="stop", note)`, every claim answers `stop` and `run` ends | 078 ran three hours because nothing stopped the team; its A/B rate fell from 41% at 38 minutes to 37% | `tasks(action="resume")`, or raise `minutes` |
+| `tasks(action="done")` answers `next`: claim the next package now; a worker silent for 3+ minutes while packages are open is named in `needs_you` | 079: three workers ended their turn after one package each; nothing moved for ten minutes | start it again with the same role |
+| A researcher whose lanes are finished, while the pool is not saturated, is handed a `find` package ("find: more lists of ...") - at most one every 15 minutes, five in all | 079: workers waited or ended while the pool could still grow | add your own `find` lanes for the gaps you see |
+| A source its pilot paused (under 5% A/B) counts as adding nothing to the pool's growth | 079: a company register gave 225 new names, 1.7% with A/B, and kept the pool "growing" | - |
+| The address of the site a page is on, already given to another organisation from another page of that site, is held as the site's footer inbox | 079: a sports office's inbox on every club fiche of its yearbook | `grade(set=...)` it on the organisation it really is |
+| A page frame read before its script ran (big page, almost no text) is not cached; another reader is tried | 079: cached frames hid five true A/B from the spot check | - |
+| A website found by search is never a domain another organisation already has, and a one-word name needs its words in the domain | 079: a village directory became three clubs' website; an acronym dictionary another's | - |
 | A website found by search must not show another département's postcodes; listings and company registers are never a website | fr41: a commune got its namesake's site in the Cher; paris11: a club got sortiraparis.com | `orgs(set=[{org_id, website}])` when you know better |
 | `browse` (the paid TinyFish Agent) is off; a call records the page and the user is asked once for all of them | it costs per step | the user allows it in the brief (`paid_agent: true`) |
 | A fresh project (`brief.fresh`) reuses nothing other projects read or learned, and flags files nobody fetched or registered here | a test must start from zero; 072b began from a 0.6.6 pool | without `fresh` the shared library makes reruns cheap |
 | Every tool call goes to the project's `calls.jsonl` (agent, tool, arguments in brief, seconds, errors) | the whole chain is reviewable without transcripts | read it in the retrospective |
+
+## The run in time
+
+| When | The lead | The workers |
+|---|---|---|
+| 0-5 min | tools, brief (with `minutes`), start the whole team | claim with `wait=50` |
+| every 10-15 min | `project()`: `flow`, `needs_you` `[lead]` items, silent workers, merges | claim -> work -> done -> claim, journal blockers |
+| 10 min before the end | `tasks(action="stop")` | finish or hand back, three-line report, end |
+| the end | close out (step 6), spot check, export, retro, report (step 8) | - |
+
+A run that ends with idle minutes, or one that never ends, both cost A/B: 079 lost 26 minutes to
+workers that had ended their turn; 078 diluted its rate over three hours.
 
 ## Running the job
 
@@ -103,12 +122,14 @@ before anything else:
    Every provider is optional; the plugin steps down, never stops. Not installed: run
    `install.sh` (Windows `Install.ps1`), restart (`HOSTS.md`).
 2. **Brief.** `project(name, brief={goal, country, language, scenario, grades, exclude,
-   routes_per_org, ...})`. Ask the user once, up front, for what is missing (marketops-knowledge
+   routes_per_org, minutes, ...})` - `minutes` is the time box (a smoke test 15-35, a job what
+   the user gives); without it nothing ends the run but you. Ask the user once, up front, for what is missing (marketops-knowledge
    lists the questions); after that never stop to ask - collect decisions for step 6.
 3. **Start the whole team at once** with your host's multi-agent mode - every lane from the
    first minute. Default: finders 1-2, miners 1-3, researchers 6-10, websites 0-1, finish 1-2.
    Start line: `You are the <role> worker on MarketOps project "<project>". Read
-   references/roles/<role>.md of the marketops plugin and work until a claim says lane_finished.`
+   references/roles/<role>.md of the marketops plugin and work until a claim says lane_finished
+   or stop - after every done, claim again; never end your turn on an empty claim.`
    (Claude Code: `marketops-worker` subagents in the background; Codex / WorkBuddy: their
    multi-agent mode, else one session per worker; no multi-agent: work the lanes in turn.)
 4. **Lanes feed themselves.** `source`, `site`, `sweep` and `dig` refill from the pools when
@@ -123,6 +144,10 @@ before anything else:
    **Your own work as the lead, every round**: merge what `flow.possible_duplicates` lists
    (`orgs(merge=...)`), answer what workers raised, move agents to the pool where work waits.
    A lead who only watches leaves these to the workers (074: they waited, then decided alone).
+   A worker `needs_you` names as silent ended its turn: start it again with the same role.
+   **Time**: about ten minutes before `time_left_min` reaches 0 (or when the lanes are finished
+   and the pool saturated), `tasks(action="stop", note="close-out")`; holders finish or hand back,
+   then you close out.
 6. **Close out yourself**: every `needs_you` item marked `[lead]` is yours, done before you report -
    merge the suggested duplicates (`orgs(merge="suggested", keep_apart=[...])`, naming why a group
    stays apart), accept, correct or downgrade each A/B in review (say why), clear held rows, put

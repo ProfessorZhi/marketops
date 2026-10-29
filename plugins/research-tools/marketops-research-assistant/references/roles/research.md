@@ -41,7 +41,9 @@ marketops-knowledge (who to find, grades, pages that pay), `references/projects/
      found, where, why}])`.
 5. After a handful of one segment, write how it is found: `project(name, playbook={"<segment>":
    {"paths": [...], "queries": ['"{name}" {city} <title>'], "roles": [...], "notes": "..."}})`.
-6. `tasks(action="done", task_id, note)`; next package.
+6. `tasks(action="done", task_id, note)`; claim the next package at once. When your lanes are
+   finished and the pool can still grow, a claim hands you a `find` package: look for more lists
+   as references/roles/sources.md says, register them, then claim research again.
 
 Grades in one breath (the full table: marketops-knowledge, or the brief's own `grades`):
 **A** a named person + their role + an address tied to them on an official page; **B** a role

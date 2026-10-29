@@ -115,7 +115,8 @@ class HarvestRepeats(unittest.TestCase):
 
 
 class Lanes(Base):
-    def test_an_empty_lane_ends_when_nothing_moves(self):
+    @mock.patch.object(mo_tasks, "AUTO_FIND", 0)   # the lane's own end, without the find it now offers
+    def test_an_empty_lane_ends_when_nothing_moves(self, *_):
         p, pdir = "q077", ws.project_dir("q077")
         server.project(p, brief={"goal": "g", "country": "FR", "language": "fr"})
         server.sources(p, add=[{"source": "stuck list", "url": "https://stuck077.test/"}])

@@ -263,6 +263,17 @@ MAIL_HOSTS = {"gmail.com", "hotmail.com", "hotmail.fr", "outlook.com", "outlook.
               "gmx.de", "gmx.net", "web.de", "aol.com", "neuf.fr", "bbox.fr"}
 
 
+def _trim_tail(address: str) -> str:
+    """An address the next sentence ran into: "secretariat@club.com.Pour" is
+    "secretariat@club.com" followed by "Pour ..." (079: graded B, then un-correctable). A domain
+    label after a real ending that starts with a capital letter is the next word."""
+    parts = address.split(".")
+    for i in range(len(parts) - 1, 1, -1):
+        if parts[i - 1].lower() in TLDS and parts[i][:1].isupper() and "@" not in parts[i]:
+            return ".".join(parts[:i])
+    return address
+
+
 def _rot_like_page(address: str, page_site: str) -> str:
     """.fr and .se, .it and .vg, .pl and .cy are each other's ROT13: an address whose ROT13 ends like
     the page it is printed on, while the address itself does not, is that ROT13 (075: a paris.fr
@@ -388,7 +399,7 @@ def contacts(lines: list[str], page_url: str, org_site: str = "", blocks: dict |
         for e in emails:
             at = line.find(e)
             fixed.append(_unglue(e, line[:at] if at >= 0 else "", mailtos or set()))
-        emails = fixed
+        emails = [_trim_tail(e) for e in fixed]
         for n, raw in enumerate(dict.fromkeys(emails)):
             e = _rot_like_page(raw, page_site)   # found on the line as written, kept as decoded
             at = line.find(raw, pos)
