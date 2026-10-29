@@ -35,6 +35,8 @@ for pair in "SERPER_API_KEY:Serper" "SERPAPI_API_KEY:SerpApi" "DEEPSEEK_API_KEY:
             "TINYFISH_API_KEY:TinyFish" "TYPESAFE_API_KEY:Jev (TypeSafe)"; do
     name=${pair%%:*}; label=${pair#*:}
     if grep -q "^$name=." "$keys" 2>/dev/null; then echo "  $label: kept"; continue; fi
+    # an agent installing for the user never types keys: they go into keys.env by hand
+    if [ -n "${MARKETOPS_NO_PROMPT:-}" ]; then echo "  $label: missing - add $name=... to $keys"; continue; fi
     printf '  %s key: ' "$label"
     stty -echo 2>/dev/null || true; read -r value || value=""; stty echo 2>/dev/null || true; echo
     [ -n "$value" ] && printf '%s=%s\n' "$name" "$value" >> "$keys"

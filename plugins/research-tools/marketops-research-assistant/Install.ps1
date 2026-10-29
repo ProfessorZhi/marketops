@@ -25,6 +25,8 @@ foreach ($pair in @("SERPER_API_KEY=Serper", "SERPAPI_API_KEY=SerpApi", "DEEPSEE
                     "TINYFISH_API_KEY=TinyFish", "TYPESAFE_API_KEY=Jev (TypeSafe)")) {
     $name, $label = $pair.Split("=", 2)
     if ($have -match "^$name=.") { Write-Host "  ${label}: kept"; continue }
+    # an agent installing for the user never types keys: they go into keys.env by hand
+    if ($env:MARKETOPS_NO_PROMPT) { Write-Host "  ${label}: missing - add $name=... to $keys"; continue }
     $secure = Read-Host "  $label key" -AsSecureString
     $value = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure))
     if ($value) { Add-Content -Path $keys -Value "$name=$value" }
