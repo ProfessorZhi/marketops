@@ -543,7 +543,7 @@ def _find_when_idle(pdir, agent: str, got: dict) -> dict:
         return got
     b = ws.brief(pdir)
     add(pdir, f"{AUTO_FIND_TITLE} {b.get('scenario') or b.get('goal') or 'organisations'} in "
-              f"{b.get('region') or 'the region'} - registries with a mailbox or a registry number first",
+              f"{b.get('region') or 'the region'} - lists that name people with a mailbox first (timetables, yearbooks, club finders)",
         note="planned by the tools: the research lanes were empty and the pool is not saturated", kind="find")
     return _claim(pdir, agent, "find")
 

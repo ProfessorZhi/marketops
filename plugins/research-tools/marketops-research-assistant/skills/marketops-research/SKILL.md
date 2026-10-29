@@ -91,8 +91,9 @@ The share of organisations with an A or B route moves with three things, in this
    none: work the lanes in turn yourself.)
 4. **Lanes feed themselves.** `source`, `site`, `sweep` and `dig` refill from the pools when
    claimed. Add `find` lanes for gaps (`tasks(action="add", kind="find", title="find: <layer>,
-   <region>")`), `dig` for a second look, `review` for rows to check. A list with a registry
-   number (RNA, SIRET, UAI...) is mined first: later lists then merge on the number.
+   <region>")`), `dig` for a second look, `review` for rows to check. Order the miners
+   by what makes A/B: lists that name people first; a list with a registry number (RNA, SIRET,
+   UAI...) early beside them - one miner - so later lists merge on the number, never ahead of them.
 5. **Steer every 10-15 minutes** from `project(name)`: move agents to where work waits between
    pools (sources nobody mines: another miner; organisations arriving faster than read: more
    researchers; pool saturated: finders become researchers). Each round, do your own work too:

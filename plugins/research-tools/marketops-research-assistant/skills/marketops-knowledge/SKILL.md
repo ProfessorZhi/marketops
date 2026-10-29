@@ -103,8 +103,10 @@ Each lesson came from a run; none names one market.
 - **A company or association register gives names, not people**: hundreds of rows, few with any
   route (079: 1.7% A/B on 225). Pool it for the registry numbers and the duplicates it settles,
   let its pilot decide, and do not let its size steer the team.
-- **A list with a registry number is mined first**: later lists then merge on the number, not on
-  a guess at names.
+- **People first, numbers beside them**: the lists that name people are what the A/B rate is made
+  of - mine them first. A list with a registry number (RNA, SIRET, UAI...) is worth mining early
+  too, by a miner of its own, because later lists then merge on the number instead of a guess at
+  names - but it rides beside the people lists, never ahead of them or instead of them.
 - **Directories, phonebooks, acronym dictionaries and listing sites are never an organisation's
   website**, even when their page title carries its name.
 - **A portal's own inbox in the footer of every fiche is the portal's** - not each organisation's.
