@@ -366,8 +366,11 @@ class _Grader:
             import mo_oslock
             name = "grade.lock" if self.only is None else \
                 "grade." + hashlib.sha256("|".join(sorted(self.only)).encode()).hexdigest()[:10] + ".lock"
+            # one lock file per graded set, kept in .locks/ - not 24 empty files among the project's own
+            locks = self.pdir / ".locks"
+            locks.mkdir(exist_ok=True)
             try:
-                fh = mo_oslock.acquire(self.pdir / name, block=False)
+                fh = mo_oslock.acquire(locks / name, block=False)
             except OSError:
                 return  # another process is grading this project right now
             try:
@@ -776,6 +779,29 @@ def _done_passes(pdir) -> set:
 
 
 _procs: dict[int, object] = {}
+_reaper: list = []
+
+
+def _reap_children() -> None:
+    """Collect every finished child this server started, every 10 s: a batch that ended stays a
+    zombie until someone asks (paris-all 0.8.4: 20+ under one server, the oldest 31 minutes)."""
+    import threading
+    import time as _time
+    if _reaper:
+        return
+
+    def loop():
+        while True:
+            for pid, proc in list(_procs.items()):
+                try:
+                    if proc.poll() is not None:   # reaped; the pid stays known as finished
+                        continue
+                except Exception:  # noqa: BLE001
+                    continue
+            _time.sleep(10)
+    t = threading.Thread(target=loop, daemon=True, name="reaper")
+    _reaper.append(t)
+    t.start()
 
 
 def _alive(pid) -> bool:
@@ -830,6 +856,7 @@ def run(pdir, rounds: int = 0, max_pages: int = 15, goal_ab_org_share: float | N
             proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
                                     start_new_session=True, env=env)
         _procs[proc.pid] = proc
+        _reap_children()
         return {"batch": jid, "orgs": len(ids), "pid": proc.pid,
                 "next": "orgs(project, ids=[...]) shows each organisation's pages, addresses and grades as they "
                         "land; project(name).batches shows when this batch is done."}
@@ -865,6 +892,7 @@ def run(pdir, rounds: int = 0, max_pages: int = 15, goal_ab_org_share: float | N
         proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
                                 start_new_session=True, env=env)
     _procs[proc.pid] = proc
+    _reap_children()
     (pdir / "run.pid").write_text(str(proc.pid), encoding="utf-8")
     return {"started": True, "processes": shards, "supervisor": proc.pid,
             "next": "project(name).run shows each process's stage, round and progress (organisations per minute, "

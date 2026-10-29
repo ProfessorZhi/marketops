@@ -125,6 +125,10 @@ def pilot(pdir) -> int:
 
 
 def source_yield(pdir) -> dict[str, dict]:
+    return ws.memo(pdir, "source_yield", lambda: _source_yield(pdir))
+
+
+def _source_yield(pdir) -> dict[str, dict]:
     """Per source (an organisation's first source): organisations in scope, how many agents
     worked (verdict or confirmed A/B), how many have A/B, and its state - pilot, scaling,
     waiting (pilot done under STOP), scale (an agent's call) or dropped."""
@@ -189,7 +193,13 @@ def _mix(pdir, items: list[str], rows: list[dict]) -> list[str]:
     return out
 
 
-def possible_duplicates(pdir) -> list[dict]:
+def possible_duplicates(pdir, fresh: bool = False) -> list[dict]:
+    """possible_duplicates, computed once per state of the files for every agent asking (fresh is
+    kept for callers that say so; every answer reflects the files as they were when asked)."""
+    return ws.memo(pdir, "possible_duplicates", lambda: _possible_duplicates(pdir))
+
+
+def _possible_duplicates(pdir) -> list[dict]:
     """One organisation pooled twice (two lists, two spellings - 073: six clubs, each counted
     twice in the strict ledger): the same name words, the same registry number, or the same
     personal or role address (not a generic inbox) found for both. The lead merges them with
@@ -346,6 +356,10 @@ def _same_name(fa: list[frozenset], fb: list[frozenset], count: dict) -> bool:
 
 
 def possible_chains(pdir) -> list[dict]:
+    return ws.memo(pdir, "possible_chains", lambda: _possible_chains(pdir), report=True)
+
+
+def _possible_chains(pdir) -> list[dict]:
     """Organisations that look like stores of one chain: two or more in scope on one website
     domain, with a name word in common (duplicates of one organisation are not a chain). A hint for the lead - the chain's head office is the
     organisation to research (orgs(add=...) it, then orgs(set=[{org_id, part_of}]) its stores)."""
@@ -425,7 +439,13 @@ def plan(pdir, kind: str, size: int = 15) -> dict:
                         "status": "open"})
         if new:   # an empty plan writes nothing: the queue's age is how long nothing has moved
             ws.write_csv(_path(pdir), TASK_COLS, rows + new)
-    return {"planned": len(new), "items": len(items), "kind": kind, **summary(pdir)}
+    out = {"planned": len(new), "items": len(items), "kind": kind, **summary(pdir)}
+    if not new and kind == "dig":
+        # an empty dig plan says why (paris-all 0.8.4: two miners moved to dig found nothing, twice)
+        out["why_empty"] = ("dig takes organisations the tools have read without a confirmed A/B and nobody "
+                            "holds; none is waiting. Unread organisations with a website are sweep's, those "
+                            "without one need a website first (site) - see flow.waiting_between_pools")
+    return out
 
 
 def add(pdir, title: str, note: str = "", kind: str = "custom") -> dict:

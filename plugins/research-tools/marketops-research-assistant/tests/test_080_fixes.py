@@ -191,10 +191,9 @@ class Archive(unittest.TestCase):
         self.assertEqual([], archive_run.left_over(text))
         self.assertIn("VICE PRESIDENT", text)
 
-    def test_a_key_in_a_word_is_not_taken_for_a_phone(self):
-        text, _, phones = archive_run.redact("api_key=abcdef0123456789abcdef")
-        self.assertEqual(0, phones)
-        self.assertTrue(archive_run.left_over(text))   # so the check refuses it
+    def test_a_key_whose_digits_look_like_a_phone_is_still_found(self):
+        # secrets are looked for before redaction (0.9.0): a number inside the key cannot hide it
+        self.assertTrue(archive_run.secrets_in("api_key=abcdef0123456789abcdef"))
 
     def test_the_tool_refuses_what_it_could_not_redact(self):
         proj, repo = Path(tempfile.mkdtemp()), Path(tempfile.mkdtemp())

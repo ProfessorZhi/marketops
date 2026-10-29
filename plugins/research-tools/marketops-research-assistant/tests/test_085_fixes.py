@@ -132,7 +132,8 @@ class Hands(unittest.TestCase):
         p, pdir = "hands085", ws.project_dir("hands085")
         server.project(p, brief={"goal": "g", "country": "FR", "language": "fr"})
         server.sources(p, add=[{"source": "liste 085", "url": "https://liste085.test/"}])
-        server.orgs(p, add=[{"name": f"Club Main {i}"} for i in range(4)], source="autre liste")
+        server.orgs(p, add=[{"name": f"Club Main {i}", "website": f"https://main{i}085.test/"} for i in range(4)],
+                    source="autre liste")
         now = datetime.now().isoformat(timespec="seconds")
         (pdir / "calls.jsonl").write_text(json.dumps({"agent": "w1", "tool": "tasks", "time": now}) + "\n",
                                           encoding="utf-8")

@@ -102,6 +102,7 @@ def project(name: str, brief: dict | None = None, playbook: dict | None = None,
                 # from this moment on: nothing read or learned before it, by any project, is reused
                 brief = {**brief, "fresh_since": ws._now()}
             (pdir / "brief.json").write_text(json.dumps(brief, ensure_ascii=False, indent=1), encoding="utf-8")
+            ws.touched()
         if playbook:
             ws.update_playbook(pdir, playbook)
         if journal:
@@ -128,6 +129,7 @@ def project(name: str, brief: dict | None = None, playbook: dict | None = None,
 
 
 SILENT_S = 180
+UNGRADED_MAX = 200
 
 
 def agents_seen(pdir) -> dict:
@@ -209,6 +211,14 @@ def needs_you(pdir, status: dict) -> list[str]:
         # several lanes fill (WorkBuddy 0.8.3: one worker for sources, mining and research - 47 of 260
         # organisations read in 35 minutes)
         flow = status.get("flow") or {}
+        # addresses in hand but not graded are routes nobody can count (paris-all 0.8.4: 1,562 sat
+        # 40 minutes; one grade() pass took the organisations with A/B from 62 to 141)
+        ungraded = ((flow.get("pools") or {}).get("contacts") or {}).get("ungraded", 0)
+        if ungraded >= UNGRADED_MAX:
+            items.append(f"{ungraded} addresses are not graded yet: grade them now - grade(project, limit=500), "
+                         "again until none is left" + ("" if mo_config.slots("jev") else
+                         " (no Jev key: the research agents grade with grade(set=...))")
+                         + " - until then they count in no ledger.")
         lanes = {k: v.get("open", 0) for k, v in (flow.get("lanes") or {}).items()
                  if isinstance(v, dict) and v.get("open", 0)}
         waits = flow.get("waiting_between_pools") or {}   # work the lanes hand out on the next claim
@@ -1066,6 +1076,7 @@ def main() -> None:
         a = ap.parse_args(sys.argv[2:])
         print(json.dumps(mo_run.supervise(ws.project_dir(a.project), a.shards, json.loads(a.opts))))
         raise SystemExit(0)
+    ws.LOCK_WAIT_S = float(os.environ.get("MARKETOPS_LOCK_WAIT_S", "90"))   # under the host's 120 s tool timeout
     from mcp.server import MCPServer
     server = MCPServer("MarketOps Research", version=VERSION, instructions=INSTRUCTIONS)
     for fn in TOOLS:

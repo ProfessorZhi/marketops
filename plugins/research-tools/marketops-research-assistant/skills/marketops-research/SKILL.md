@@ -67,6 +67,8 @@ The share of organisations with an A or B route moves with three things, in this
 | `done` answers `next` | do what it says - normally claim again at once | a worker that ends its turn does not come back |
 | `needs_you`: a worker silent 3+ min | start it again with the same role | it ended its turn |
 | `needs_you`: only N worker(s) active while lanes have work | start a worker for each lane that waits, research first | one worker for every lane read 47 of 260 organisations in 35 minutes (WorkBuddy, 0.8.3) |
+| `needs_you`: N addresses are not graded yet | `grade(project, limit=500)`, again until none is left | ungraded addresses count in no ledger; one pass took 62 organisations with A/B to 141 (paris-all) |
+| your own tools stop answering, or a call says `busy` | `busy`: try again in a minute. Tools gone: check your workers with the host's agent list before you conclude anything - they have their own connection and keep working | a lead whose tools died closed a run 45 minutes early while ten workers were still at work (paris-all) |
 | `capabilities.set_aside` names a reader or engine | nothing to do - the others carry on; say it in the report if it lasts | a browser denied the network, a gateway without the endpoint |
 | `flow.possible_duplicates` | `orgs(merge="suggested", keep_apart=[ids that are two])` | until merged, their routes count twice |
 | `fetch` says `list_page` | `sources(add=...)` the list; pool its entries as organisations with their addresses | a list's addresses belong to its entries, not to you |
