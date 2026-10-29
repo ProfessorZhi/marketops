@@ -364,7 +364,10 @@ def _row_contacts(orig: dict, mapped: dict, org: dict, where: str) -> list[dict]
         dom = mo_pages.site_of("http://" + e.split("@")[1])
         local = e.split("@")[0]
         out.append({"kind": "email", "value": e, "quote": quote, "quote_from": "block",
-                    "page_url": str(mapped.get("page_url") or where), "page_site": "", "page_on_org_site": "no",
+                    "page_url": str(mapped.get("page_url") or where), "page_site": "",
+                    # the organisation's own row on a list: not "another site's page" (paris-all 0.9.0: Jev
+                    # gave X to a thousand clubs' own mailboxes on the city's booking table)
+                    "page_on_org_site": "row",
                     "email_site": dom, "same_site": "yes" if own and dom == own else "no",
                     "email_on_org": ("yes" if own and dom == own else "no") if own else "unknown",
                     "person": str(mapped.get("person") or ""), "role": str(mapped.get("role") or ""),

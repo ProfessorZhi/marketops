@@ -127,6 +127,17 @@ def delivery_gate(emails: list, pdir=None) -> dict:
         held = sum(1 for c in ws.read_contacts(pdir) if c.get("graded_by") == "held")
         if held:
             open_items.append(f"{held} 条暂扣的名录地址（grade(held=...)）")
+        # an address with no grade is in no ledger, and the gate let 7 through (paris-all 0.9.0)
+        ungraded = sum(1 for c in emails if not c.get("grade") and c.get("graded_by") != "held")
+        if ungraded:
+            open_items.append(f"{ungraded} 条地址还没有评级（grade(project) 或 grade(set=...)）")
+        # the team still at work: what lands after this export is not in it (paris-all 0.9.0: a
+        # worker wrote for 15 more minutes after the lead exported)
+        held_tasks = [t for t in ws.read_csv(pdir / "tasks.csv") if t.get("status") == "claimed"]
+        if held_tasks:
+            open_items.append(f"{len(held_tasks)} 个包还在 worker 手里（" + ("等他们交回再导出；worker 已不在的，用 "
+                              "tasks(action=\"done\", task_id, release=True) 收回" if ws.team_stop(pdir) else
+                              "先 tasks(action=\"stop\")，等他们交回再导出") + "）")
     if not ab:
         return {"ready": False, "status": "未交付：没有确认的 A/B"}
     if len(done) < need:

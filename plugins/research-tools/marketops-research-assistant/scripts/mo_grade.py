@@ -228,10 +228,15 @@ def auto(pdir, limit: int = 0, regrade: bool = False, batch: int = 16, workers: 
     state = {"research_brief": context, "how_to_judge": GUIDE}
 
     def card(r: dict) -> str:
+        if r.get("page_on_org_site") == "row":
+            page = (f"page: {r.get('page_url')} - a list; this address is on the list's own row for {r.get('org')}, "
+                    "the row that names it (the organisation's own entry, not another's page)")
+        else:
+            page = f"page: {r.get('page_url')} (on the organisation's own site: {r.get('page_on_org_site') or '?'})"
         return (f"organisation: {r.get('org')}\nemail: {r.get('value')} (address words: "
                 f"{_address_words(r.get('value', '')) or '-'}; email domain {r.get('email_site')}; "
                 f"same site as the organisation: {r.get('same_site')})\n"
-                f"page: {r.get('page_url')} (on the organisation's own site: {r.get('page_on_org_site') or '?'})\n"
+                f"{page}\n"
                 f"also listed for {len(holders.get(r['value'].lower(), ())) - 1} other organisations in this project\n"
                 f"text around it: {r.get('quote')}")
 
@@ -498,6 +503,9 @@ def manual(pdir, updates: list[dict]) -> dict:
     """The agent sets grade/person/role/note on rows, matched by value (+ org_id if given).
     An A or B that disagrees with the grade table or the brief is kept and marked review with
     the reason (confirm=True on the update: the agent has looked, no mark)."""
+    bad = [u for u in updates or [] if not isinstance(u, dict)]
+    if bad:
+        return {"error": f"set: a list of objects {{value, org_id, grade, person, role, note}}, not {str(bad[0])[:60]!r}"}
     rows = ws.read_contacts(pdir)
     # {org_id, all: grade}: every address of that organisation an agent has not set itself, at once
     # (077: a dojo's 13 instructor mailboxes, one by one or not at all)
