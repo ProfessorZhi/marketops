@@ -1098,7 +1098,7 @@ class Providers(unittest.TestCase):
 
 class Package(unittest.TestCase):
     def test_tools_and_manifest(self):
-        self.assertEqual(["project", "sources", "harvest", "search", "pool", "fetch", "browse", "judge", "grade", "run", "tasks", "orgs", "export"],
+        self.assertEqual(["guide", "project", "sources", "harvest", "search", "pool", "fetch", "browse", "judge", "grade", "run", "tasks", "orgs", "export"],
                          [f.__name__ for f in server.TOOLS])
         manifest = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["version"], server.VERSION)

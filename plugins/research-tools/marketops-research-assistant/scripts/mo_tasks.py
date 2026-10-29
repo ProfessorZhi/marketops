@@ -477,6 +477,8 @@ def claim(pdir, agent: str, kind: str = "") -> dict:
         return {"task": None, "lane_finished": True, "stop": True, "why_empty": why_stop,
                 "next": "stop now: finish or hand back what you hold (tasks(action='done' | release=True)), journal "
                         "what you learned, report in three lines and end", **summary(pdir)}
+    if kind == "any":
+        return _claim_any(pdir, agent)
     got = _claim(pdir, agent, kind)
     if got.get("task") is None and kind in AUTO_PLAN:
         plan(pdir, kind, AUTO_PLAN[kind])
@@ -505,6 +507,23 @@ def claim(pdir, agent: str, kind: str = "") -> dict:
             if i:
                 mo_flow.mark_source(pdir, i, "mining", agent)
     return got
+
+
+# One agent working alone (a host without sub-agents) runs the same pipeline, one lane after
+# another: what feeds the most work downstream first - a source nobody mines, then the people
+# research, then websites, then finding more lists, the review last.
+ANY_ORDER = ("source", "sweep", "dig", "site", "find", "review")
+
+
+def _claim_any(pdir, agent: str) -> dict:
+    for k in ANY_ORDER:
+        got = claim(pdir, agent, k)
+        if got.get("task") or got.get("stop"):
+            return got
+    got = _claim(pdir, agent, "")   # the lead's own packages (custom, evidence, browse)
+    if got.get("task"):
+        return got
+    return {**got, **outlook(pdir, "", agent)}
 
 
 QUIET_S = 600   # no pool, queue or verdict file changed for this long: nothing is coming
@@ -674,8 +693,8 @@ def done(pdir, task_id: str, note: str = "", release: bool = False) -> dict:
     # a package handed back is not the end of the job (079: three workers ended after one package
     # each and nothing moved for ten minutes) - the answer says what comes next
     out["next"] = (f"stop: {why_stop} - journal, report in three lines and end" if why_stop else
-                   f"claim your next package now: tasks(action='claim', kind='{kind or 'sweep'}', wait=50) - "
-                   "end only when a claim says lane_finished")
+                   f"claim your next package now: tasks(action='claim', kind='{kind or 'sweep'}', wait=50) "
+                   "(kind='any' if you work alone) - end only when a claim says lane_finished or stop")
     return out
 
 

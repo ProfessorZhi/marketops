@@ -42,8 +42,10 @@ import mo_run  # noqa: E402
 import mo_tasks  # noqa: E402
 import mo_workspace as ws  # noqa: E402
 
+PLUGIN = Path(__file__).resolve().parents[1]   # the plugin folder: skills/, references/, agents/
+
 try:
-    VERSION = json.loads((Path(__file__).resolve().parents[1] / ".claude-plugin" / "plugin.json")
+    VERSION = json.loads((PLUGIN / ".claude-plugin" / "plugin.json")
                          .read_text(encoding="utf-8"))["version"]
 except (OSError, ValueError, KeyError):
     VERSION = "0.6"
@@ -109,7 +111,7 @@ def project(name: str, brief: dict | None = None, playbook: dict | None = None,
         import mo_flow
         out["flow"] = mo_flow.flow(pdir)
         out["version"] = VERSION
-        out["plugin_root"] = str(Path(__file__).resolve().parents[1])   # references/roles/<role>.md live here
+        out["plugin_root"] = str(PLUGIN)   # references/roles/<role>.md live here; guide() reads them for you
         out["providers"] = mo_config.configured() + ["crawl4ai"]
         out["accounts"] = mo_budget.accounts()
         out["capabilities"] = mo_providers.capabilities()
@@ -493,7 +495,7 @@ WAIT_MAX = int(os.environ.get("MARKETOPS_WAIT_MAX", "50"))
 
 ROLE_FOR_KIND = {"sweep": "research", "dig": "dig", "source": "pool", "site": "websites", "find": "sources",
                  "review": "finish", "evidence": "finish"}
-ROLES = Path(__file__).resolve().parents[1] / "references" / "roles"
+ROLES = PLUGIN / "references" / "roles"
 
 
 def role_guide(kind: str) -> str:
@@ -518,6 +520,8 @@ def tasks(project: str, action: str = "status", kind: str = "", size: int = 15, 
     (optionally kind) returns one package with its organisations or rows and how to do it;
     work it with the other tools, then action="done", task_id, note="what you found/tried"
     (release=True hands it back undone). A claim untouched for 40 minutes is offered again.
+    kind="any": one agent working alone (a host without sub-agents) gets the next package of the
+    whole pipeline - an unmined source first, then research, websites, finding, review.
     The first claim of a lane also returns your role's guide (role_guide). wait=seconds (at most
     50, under the host's tool timeout; call again for longer) with claim: when the lane is empty because the pools before it are still filling (a
     researcher starting before the miners pooled anything), the call waits for a package
@@ -820,7 +824,75 @@ def export(project: str, agent: str = "") -> dict:
         return _err(exc)
 
 
-TOOLS = (project, sources, harvest, search, pool, fetch, browse, judge, grade, run, tasks, orgs, export)
+
+# The skills travel with the server: every host that can call a tool reads the same workflow,
+# tool notes and business knowledge here, whether or not it can load skill files (WorkBuddy,
+# Codex, a Windows install that copied only the scripts read none of them before 0.8.1).
+GUIDES = {
+    "workflow": "skills/marketops-research/SKILL.md",
+    "tools": "skills/marketops-tools/SKILL.md",
+    "knowledge": "skills/marketops-knowledge/SKILL.md",
+    "defaults": "skills/marketops-research/references/defaults.md",
+    "worker": "agents/marketops-worker.md",
+    "roles": "references/roles/README.md",
+    "hosts": "HOSTS.md",
+    "benchmarks": "references/benchmarks.md",
+}
+
+INSTRUCTIONS = """MarketOps research tools: sales research done by agents - lists of organisations ->
+their websites -> the people to reach, graded A/B/C/D/X with the page and quote for every address,
+delivered as one Excel workbook. The tools act only when an agent calls them.
+
+Before a research job, read guide("workflow") (the lead) or guide("worker") and guide("role:<role>")
+(a worker); guide("tools") and guide("knowledge") when a call or a judgement is unclear. Every host
+gets the same text from guide(), whatever skills it loads.
+
+The rules that keep a run good on any host:
+- Brief first: project(name, brief={goal, country, language, region, scenario, minutes}).
+  minutes is the time box; when it is up every claim answers stop.
+- Several agents at once if your host can (one per lane); if not, one agent claims
+  tasks(action="claim", kind="any") in a loop - the same pipeline, one lane after another.
+- After every tasks(action="done") claim again at once. End only when a claim says
+  lane_finished or stop; keep_waiting means claim again with wait=50.
+- Every address comes from a page read with these tools; never guess one.
+- The lead closes out (merges, reviews, held rows, spot check) before export and reports
+  result -> what was done -> its own calls -> gaps -> at most two questions for the user."""
+
+
+def _skill_text(rel: str) -> str:
+    text = (PLUGIN / rel).read_text(encoding="utf-8")
+    if text.startswith("---"):   # skill front matter is for the host's loader, not for the reader
+        end = text.find("\n---", 3)
+        text = text[end + 4:].lstrip() if end > 0 else text
+    return text
+
+
+def guide(topic: str = "") -> dict:
+    """The plugin's own instructions, for any host: the same text Claude Code loads as skills.
+
+    topic: "workflow" (lead a job: pools, timeline, what to do when, close-out, the report),
+    "worker", "role:<sources|pool|websites|research|dig|finish>" (one lane), "tools" (which call
+    for which job, every call), "knowledge" (grades, sources that pay, when to stop a source),
+    "defaults" (what each tool does by default and how to overrule it), "roles", "hosts",
+    "benchmarks". Empty: the list of topics and how to start."""
+    roles = sorted(p.stem for p in ROLES.glob("*.md") if p.stem != "README")
+    topics = list(GUIDES) + [f"role:{r}" for r in roles]
+    t = (topic or "").strip().lower()
+    if not t:
+        return {"version": VERSION, "topics": topics, "start": INSTRUCTIONS}
+    if t.startswith("role:") or t in roles:
+        rel = f"references/roles/{t.split(':', 1)[-1]}.md"
+    else:
+        rel = GUIDES.get(t, "")
+    if not rel or not (PLUGIN / rel).exists():
+        return {"error": f"no guide '{topic}'", "topics": topics,
+                "fix": "" if (PLUGIN / "skills").exists() else
+                f"the plugin's skills/ and references/ are missing beside {Path(__file__).parent}: "
+                "re-run the installer from the release zip"}
+    return {"version": VERSION, "topic": t, "text": _skill_text(rel), "topics": topics}
+
+
+TOOLS = (guide, project, sources, harvest, search, pool, fetch, browse, judge, grade, run, tasks, orgs, export)
 
 _EMAIL = __import__("re").compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 
@@ -888,8 +960,15 @@ def check() -> int:
     keys = mo_config.configured()
     print(f"MarketOps {VERSION}: keys for {', '.join(keys) or 'nothing yet'}; "
           f"projects in {mo_config.projects_root()}")
+    print(f"  plugin {PLUGIN}; keys file {mo_config.home() / 'keys.env'}"
+          + (f" and {os.environ['MARKETOPS_KEYS_FILE']}" if os.environ.get("MARKETOPS_KEYS_FILE") else "")
+          + f"; Python {sys.version.split()[0]} on {sys.platform}")
+    # every host reads the workflow through guide(): without these folders it reads nothing
+    for rel in ("skills", "references/roles", ".claude-plugin/plugin.json"):
+        if not (PLUGIN / rel).exists():
+            problems.append(f"{rel} is missing beside the server ({PLUGIN}) - re-run the installer from the release zip")
     for p in problems:
-        print("  missing package -", p)
+        print("  problem -", p)
     cap = mo_providers.capabilities()
     print(f"  level: {cap['level']} - search {cap['search'] or 'none'}, read {cap['read']}, grade {cap['grade']}")
     for e in cap["effects"]:
@@ -963,9 +1042,16 @@ def main() -> None:
         print(json.dumps(mo_run.supervise(ws.project_dir(a.project), a.shards, json.loads(a.opts))))
         raise SystemExit(0)
     from mcp.server import MCPServer
-    server = MCPServer("MarketOps Research", version=VERSION)
+    server = MCPServer("MarketOps Research", version=VERSION, instructions=INSTRUCTIONS)
     for fn in TOOLS:
         server.tool()(logged(fn))
+
+    @server.prompt(name="research", description="Run a MarketOps research task end to end")
+    def research_prompt(task: str) -> str:
+        return (f"Lead this MarketOps research task from start to finish: {task}\n\n"
+                "First call guide(\"workflow\") and follow it: ask at most once, up front, for what is "
+                "missing; write the brief with minutes; start the team (or claim kind=\"any\" in a loop "
+                "if your host runs one agent); close out; export; report.")
     server.run(transport="stdio")
 
 

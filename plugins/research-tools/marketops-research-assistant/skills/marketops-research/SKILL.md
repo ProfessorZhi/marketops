@@ -14,7 +14,8 @@ never researches (071 let a script dig for six hours: most addresses wrongly sha
 Read the others when needed: **marketops-tools** (which tool and provider for which job, every
 call), **marketops-knowledge** (grades, who the customer is, which sources pay, when to stop a
 source), `references/projects/<line>.md` (one market), `references/defaults.md` in this skill
-(what each tool does by default and how to overrule it).
+(what each tool does by default and how to overrule it). On a host that does not load skill
+files, `guide("workflow" | "tools" | "knowledge" | "role:<role>")` returns the same text.
 
 ```
  SOURCES ──mine──▶ PAGES ──pool──▶ VENUES ──who runs it──▶ ORGANISATIONS ──read, judge──▶ CONTACTS ──▶ Excel
@@ -84,11 +85,13 @@ The share of organisations with an A or B route moves with three things, in this
    never stop to ask. The brief merges: send only the keys you change.
 3. **Start the whole team at once** with your host's multi-agent mode. Default: finders 1-2,
    miners 1-3, researchers 6-10, websites 0-1, finish 1-2 (a smoke: sources, pool, research - one
-   each). Start line: `You are the <role> worker on MarketOps project "<project>". Read
-   references/roles/<role>.md of the marketops plugin and work until a claim says lane_finished
-   or stop - after every done, claim again; never end your turn on an empty claim.` (Claude Code:
-   `marketops-worker` subagents in the background; Codex / WorkBuddy: their multi-agent mode;
-   none: work the lanes in turn yourself.)
+   each). Start line: `You are the <role> worker on MarketOps project "<project>". Call
+   guide("worker") and guide("role:<role>") of the marketops tools and work until a claim says
+   lane_finished or stop - after every done, claim again; never end your turn on an empty claim.`
+   (Claude Code: `marketops-worker` subagents in the background; Codex / WorkBuddy: their
+   multi-agent mode.) **A host with one agent** runs the same pipeline: you claim
+   `tasks(action="claim", kind="any", wait=50)` in a loop - an unmined source first, then
+   research, websites, finding, review - and steer between packages. Slower, never different.
 4. **Lanes feed themselves.** `source`, `site`, `sweep` and `dig` refill from the pools when
    claimed. Add `find` lanes for gaps (`tasks(action="add", kind="find", title="find: <layer>,
    <region>")`), `dig` for a second look, `review` for rows to check. Order the miners

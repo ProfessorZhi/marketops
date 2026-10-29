@@ -60,18 +60,16 @@ class _PathLock:
     def __enter__(self):
         self.thread.acquire()
         try:
-            import fcntl
-            self.fh = open(self.lockfile, "a")
-            fcntl.flock(self.fh, fcntl.LOCK_EX)
-        except (ImportError, OSError):  # Windows: threads only
+            import mo_oslock
+            self.fh = mo_oslock.acquire(self.lockfile)
+        except OSError:  # a folder that cannot hold a lock file: threads only
             self.fh = None
         return self
 
     def __exit__(self, *exc):
         if self.fh is not None:
-            import fcntl
-            fcntl.flock(self.fh, fcntl.LOCK_UN)
-            self.fh.close()
+            import mo_oslock
+            mo_oslock.release(self.fh)
             self.fh = None
         self.thread.release()
 

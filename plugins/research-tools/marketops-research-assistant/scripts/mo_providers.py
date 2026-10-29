@@ -95,10 +95,9 @@ class _Rate:
         with self.lock:
             path = self._file(key)
             try:
-                import fcntl
-                fh = open(str(path) + ".lock", "a")
-                fcntl.flock(fh, fcntl.LOCK_EX)
-            except (ImportError, OSError):
+                import mo_oslock
+                fh = mo_oslock.acquire(str(path) + ".lock")
+            except OSError:
                 fh = None
             try:
                 if fh is None:
@@ -116,9 +115,8 @@ class _Rate:
                 return out
             finally:
                 if fh is not None:
-                    import fcntl
-                    fcntl.flock(fh, fcntl.LOCK_UN)
-                    fh.close()
+                    import mo_oslock
+                    mo_oslock.release(fh)
 
     def wait(self, key: str) -> None:
         import time

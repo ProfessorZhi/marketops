@@ -60,8 +60,9 @@ read.
 
 | Call | Does |
 |---|---|
+| `guide(topic)` | the plugin's own instructions for any host: `workflow`, `worker`, `role:<role>`, `tools`, `knowledge`, `defaults`; empty lists the topics |
 | `project(name, brief={..., minutes})` | brief merge (send only what changes; `null` removes a key); `minutes` starts the time box; the answer carries `time_left_min`, `flow`, `needs_you`, `agents` (seconds since each worker's last call) |
-| `tasks(action="claim", kind, agent, wait=50)` | the next package; an empty one says `keep_waiting`, `other_lanes`, `lane_finished` or `stop` |
+| `tasks(action="claim", kind, agent, wait=50)` | the next package; an empty one says `keep_waiting`, `other_lanes`, `lane_finished` or `stop`; `kind="any"` for one agent working the whole pipeline |
 | `tasks(action="done", task_id, note)` | hands back; `next` says what to do now (claim again, or stop). `release=True` hands it back unfinished |
 | `tasks(action="stop", note)` / `tasks(action="resume")` | the lead stops the team (every claim answers `stop`) / lifts it |
 | `tasks(action="add", kind="find" \| "dig" \| "review" \| "custom", title)` | a package of your own |
