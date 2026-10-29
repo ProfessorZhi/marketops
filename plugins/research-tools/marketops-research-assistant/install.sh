@@ -58,7 +58,8 @@ chmod 755 "$home/bin/marketops-mcp"
 "$home/bin/marketops-mcp" --check
 
 launcher="$home/bin/marketops-mcp"
-if command -v codex >/dev/null 2>&1; then
+# an agent installing for one host (MARKETOPS_NO_PROMPT) leaves the other hosts alone
+if [ -z "${MARKETOPS_NO_PROMPT:-}" ] && command -v codex >/dev/null 2>&1; then
     codex mcp remove marketops >/dev/null 2>&1 || true
     codex mcp add marketops -- "$launcher" >/dev/null 2>&1 && echo "Codex: registered (codex mcp list)" || true
 fi

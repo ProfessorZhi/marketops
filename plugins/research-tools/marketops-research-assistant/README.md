@@ -46,6 +46,13 @@
 项目文件夹就是普通文件（`~/MarketOps/<项目>/`）：`brief.json`、`venues.csv`、`orgs.csv`、
 `contacts/`、`crawl.csv`、`trace.jsonl`、`costs.jsonl`；网页原件在共享资料库 `~/.marketops/library`。agent 和人都可以直接打开、修改，断了接着跑。
 
+## 0.8.3 更新：Windows 安装更顺（WorkBuddy 实装复盘）
+
+- 没有 `py` 启动器也能装：依次找 `py -3.12`、`py -3`、`python`、`python3`，用第一个 3.10 以上的版本建环境（0.8.2 在没有 `py` 的电脑上第一步就中断）。
+- Windows 上宿主直接启动 `python.exe` + `server.py`，不经过 `cmd.exe`：有的宿主沙箱会拦截 cmd.exe（WorkBuddy 就拦了），`.cmd` 启动器只留给人在命令行里用。安装器打印的 JSON 带 `args`。
+- agent 替某个宿主安装时（`MARKETOPS_NO_PROMPT`），不再顺手把服务器注册进 Claude Code 和 Codex。
+- `HOSTS.md` 写明网络慢或被墙时怎么办：pip 和 Playwright 的国内镜像；本地代理坏了（返回 502）时临时去掉代理。安装的大部分时间花在下载 Crawl4AI 和浏览器上。
+
 ## 0.8.2 更新：agent 可以替你装
 
 - 设 `MARKETOPS_NO_PROMPT=1` 后，安装器（`install.sh` 和 `Install.ps1`）不再询问密钥，只列出缺哪几个、该写进哪个 `keys.env`。WorkBuddy、Codex 等宿主里的 agent 可以一键安装，不会卡在密钥输入上；密钥由你自己写进文件，不经过聊天。

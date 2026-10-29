@@ -108,6 +108,9 @@ class Installers(unittest.TestCase):
         self.assertNotRegex(ps, r"(?m)^claude mcp")               # no Claude Code: not an error
         self.assertIn("MARKETOPS_NO_PROMPT", sh)                  # an agent can install without typing keys
         self.assertIn("MARKETOPS_NO_PROMPT", ps)
+        self.assertNotRegex(ps, r"(?m)^\s*if .*\{ py -3")                # no py launcher: python is found
+        self.assertIn("Find-Python", ps)
+        self.assertIn('`"args`"', ps)                                # hosts start python.exe, not cmd.exe
 
     def test_the_check_names_a_plugin_folder_without_its_skills(self):
         with mock.patch.object(server, "PLUGIN", Path(tempfile.mkdtemp())), \

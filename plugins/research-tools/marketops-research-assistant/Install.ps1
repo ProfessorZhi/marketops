@@ -9,8 +9,27 @@ New-Item -ItemType Directory -Force -Path $home_ | Out-Null
 $venv = Join-Path $home_ "venv"
 $py = Join-Path $venv "Scripts\python.exe"
 
+# Python 3.10+ by whatever name this computer has it: the py launcher is missing on many
+# machines, and "python" may be the Store's placeholder that prints nothing (0.8.2 stopped here
+# on a computer without py)
+function Find-Python {
+    foreach ($cand in @("py -3.12", "py -3", "python", "python3")) {
+        $exe, $rest = $cand.Split(" ", 2)
+        if (-not (Get-Command $exe -ErrorAction SilentlyContinue)) { continue }
+        $argv = @(); if ($rest) { $argv += $rest }
+        try { $ok = & $exe @argv -c "import sys; print(sys.version_info >= (3, 10))" 2>$null } catch { continue }
+        if ("$ok".Trim() -eq "True") { return ,(@($exe) + $argv) }
+    }
+    return $null
+}
+
 Write-Host "1/4 Python environment in $venv"
-if (-not (Test-Path $py)) { py -3.12 -m venv $venv; if ($LASTEXITCODE) { python -m venv $venv } }
+if (-not (Test-Path $py)) {
+    $base = Find-Python
+    if (-not $base) { throw "Python 3.10 or newer is needed (python.org), on PATH as py, python or python3" }
+    $exe = $base[0]; $rest = @($base | Select-Object -Skip 1)
+    & $exe @rest -m venv $venv
+}
 & $py -m pip install -q --upgrade pip
 & $py -m pip install -q -r (Join-Path $here "requirements.txt")
 
@@ -47,28 +66,35 @@ foreach ($item in @(".claude-plugin", "scripts", "skills", "references", "agents
 if (Test-Path $plugin) { Remove-Item -Recurse -Force $plugin }
 Move-Item $staging $plugin
 $launcher = Join-Path $home_ "bin\marketops-mcp.cmd"
-Set-Content -Path $launcher -Encoding ASCII -Value "@`"$py`" `"$plugin\scripts\server.py`" %*"
-& $launcher --check
+$server = Join-Path $plugin "scripts\server.py"
+Set-Content -Path $launcher -Encoding ASCII -Value "@`"$py`" `"$server`" %*"
+& $py $server --check
 
-# Claude Code and Codex are registered when they are installed; a host that is not installed is
-# not an error (0.8.0 stopped here without Claude Code)
-if (Get-Command claude -ErrorAction SilentlyContinue) {
-    try { claude mcp remove --scope user marketops 2>$null } catch { }
-    claude mcp add --scope user marketops -- $launcher
-    Write-Host "Claude Code: registered"
+# Hosts start the server as python.exe + server.py, never through cmd.exe: some hosts' sandboxes
+# block cmd.exe (WorkBuddy's did), and a .cmd launcher would not start there. The .cmd file is for
+# people at a prompt.
+# Claude Code and Codex are registered when you run the installer yourself; an agent installing
+# for one host (MARKETOPS_NO_PROMPT) leaves the other hosts alone.
+if (-not $env:MARKETOPS_NO_PROMPT) {
+    if (Get-Command claude -ErrorAction SilentlyContinue) {
+        try { claude mcp remove --scope user marketops 2>$null } catch { }
+        claude mcp add --scope user marketops -- $py $server
+        Write-Host "Claude Code: registered"
+    }
+    if (Get-Command codex -ErrorAction SilentlyContinue) {
+        try { codex mcp remove marketops 2>$null } catch { }
+        codex mcp add marketops -- $py $server
+        Write-Host "Codex: registered"
+    }
 }
-if (Get-Command codex -ErrorAction SilentlyContinue) {
-    try { codex mcp remove marketops 2>$null } catch { }
-    codex mcp add marketops -- $launcher
-    Write-Host "Codex: registered"
-}
-$json = ($launcher -replace "\\", "\\")
+$jpy = ($py -replace "\\", "\\"); $jserver = ($server -replace "\\", "\\")
 Write-Host ""
-Write-Host "The same server for every host - command: $launcher (no arguments, stdio)"
+Write-Host "The same server for every host - command: $py, argument: $server (stdio)"
 Write-Host "  WorkBuddy, Claude Desktop, Cursor and any MCP host (JSON):"
-Write-Host "      {`"mcpServers`": {`"marketops`": {`"command`": `"$json`"}}}"
+Write-Host "      {`"mcpServers`": {`"marketops`": {`"command`": `"$jpy`", `"args`": [`"$jserver`"]}}}"
 Write-Host "  Codex (~/.codex/config.toml, if not registered above):"
 Write-Host "      [mcp_servers.marketops]"
-Write-Host "      command = '$launcher'"
+Write-Host "      command = '$py'"
+Write-Host "      args = ['$server']"
 Write-Host "Then ask the agent to call guide() - every host reads the same workflow from it."
 Write-Host "Restart the host. Re-run this installer after each plugin update."
