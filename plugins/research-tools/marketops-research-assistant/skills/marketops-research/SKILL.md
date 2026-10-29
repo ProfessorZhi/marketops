@@ -102,7 +102,9 @@ The share of organisations with an A or B route moves with three things, in this
    report: merge the suggested duplicates (say why a group stays apart); accept, correct or
    downgrade each A/B in review (say why); clear held rows (`grade(held=[{org_id, held: "X"}])`);
    put empty or out-of-scope records out (`orgs(set=[{org_id, scope: "out"}])`). Only `[user]`
-   items (the brief, money, a key, a wider scope) go to the user.
+   items (the brief, money, a key, a wider scope) go to the user. While 交付状态 says 不得交付
+   and a `[lead]` item is open, you are not at the report yet: do the item, `export` again, read
+   交付状态 again. Your own close-out never appears in the report as a "gap" or a "to do".
 7. **Deliver** when the lanes are finished or stopped, duplicates merged, held rows cleared and
    the spot check done: with no finish worker, open 20 of the 抽检 rows' pages yourself and
    record each (`grade(set=[{value, org_id, checked: "ok"|"wrong"}])`). The workbook's first

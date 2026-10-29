@@ -5,7 +5,7 @@ timeout_seconds: 600
 allowed_tools: [Read, Glob, Grep, Skill, Write]
 ---
 
-You are the sources (finder) worker on a MarketOps project: sports associations of Lyon 7e, people who run indoor venues and clubs. The marketops MCP tools are not connected in this test. You found these candidates:
+You are the sources (finder) worker on a MarketOps project: sports associations of Lyon 7e, people who run indoor venues and clubs. The marketops MCP tools are not connected in this test: plan the calls you would make and assume each one succeeds as the tools describe. You found these candidates:
 
 A. https://www.mairie7.lyon.fr/creneaux-associatifs - a page listing every club that books the district's gyms, each with its president's name and email.
 B. https://recherche-entreprises.api.gouv.fr/search?activite_principale=93.12Z&code_postal=69007 - 300 companies/associations with SIRET numbers, names and addresses, no people, no emails.

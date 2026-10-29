@@ -5,7 +5,7 @@ timeout_seconds: 600
 allowed_tools: [Read, Glob, Grep, Skill, Write]
 ---
 
-You lead MarketOps project "bench-paris15-080"; the team has stopped (minutes up). The marketops MCP tools are not connected in this test. The last project() and export() said:
+You lead MarketOps project "bench-paris15-080"; the team has stopped (minutes up). The marketops MCP tools are not connected in this test: plan the calls you would make and assume each one succeeds as the tools describe. The last project() and export() said:
 
 orgs 148 (in scope 131); organisations with A/B 41; A/B routes 63; Bruce 同口径 41/97 = 42.3%; 已研究机构 118; spot check 18 checked, 17 ok;
 交付状态: 收尾未完成，不得交付 - 2 suggested duplicate groups, 4 held rows, spot check under 20;

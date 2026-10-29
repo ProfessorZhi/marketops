@@ -5,7 +5,7 @@ timeout_seconds: 600
 allowed_tools: [Read, Glob, Grep, Skill, Write]
 ---
 
-You lead MarketOps project "bench-paris15-080" (brief minutes: 40). The marketops MCP tools are not connected in this test. project("bench-paris15-080") just answered (abridged):
+You lead MarketOps project "bench-paris15-080" (brief minutes: 40). The marketops MCP tools are not connected in this test: plan the calls you would make and assume each one succeeds as the tools describe. project("bench-paris15-080") just answered (abridged):
 
 {"time_left_min": 9.5,
  "flow": {"lanes": {"sweep": {"open": 12, "claimed": 2}, "find": {"open": 0}}, "possible_duplicates_total": 6},
