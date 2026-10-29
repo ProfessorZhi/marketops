@@ -96,6 +96,35 @@ class CloseOut(Base):
         self.assertTrue(mo_export.delivery_gate(rows, pdir)["ready"])
 
 
+class DeepSeekBase(unittest.TestCase):
+    def test_deepseek_goes_through_a_gateway_when_one_is_set(self):
+        import httpx
+
+        import mo_budget
+        import mo_config
+        self.assertEqual("https://api.deepseek.com", mo_config.base_url("deepseek"))
+        sent = []
+
+        class R:
+            status_code = 200
+            headers: dict = {}
+
+            def json(self):
+                return {"results": []}
+
+        def post(url, **k):
+            sent.append(url)
+            return R()
+        with mock.patch.dict(os.environ, {"DEEPSEEK_BASE_URL": "http://127.0.0.1:4000/v1/", "DEEPSEEK_API_KEY": "k"}), \
+                mock.patch.object(httpx, "post", side_effect=post), \
+                mock.patch.object(httpx, "get", side_effect=AssertionError("no balance call through a gateway")):
+            self.assertEqual("http://127.0.0.1:4000", mo_config.base_url("deepseek"))
+            mo_providers._deepseek("club escrime", "fr", "fr", 5, False)
+            self.assertIsNone(mo_budget._read_balance("deepseek"))
+        self.assertEqual(["http://127.0.0.1:4000/v1/tools/search"], sent)
+        self.assertTrue(mo_config.official("deepseek"))
+
+
 class Archive(unittest.TestCase):
     def test_a_run_is_archived_redacted_and_refused_if_anything_survives(self):
         tool = ROOT / "tools" / "archive_run.py"

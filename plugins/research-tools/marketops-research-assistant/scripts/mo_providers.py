@@ -375,7 +375,7 @@ def _deepseek(q, country, lang, n, maps, purpose="", page=1, near=""):
     body = {"query": q[:128], "count": max(1, min(n, 50)), "need_content": False}
     if purpose:
         body["ori_question"] = purpose[:128]
-    r = httpx.post("https://api.deepseek.com/v1/tools/search", json=body,
+    r = httpx.post(mo_config.base_url("deepseek") + "/v1/tools/search", json=body,
                    headers={"Authorization": "Bearer " + mo_config.key("deepseek")}, timeout=40)
     _check_money("deepseek", r, "search")
     rows = [{"title": o.get("title"), "url": o.get("url"),
@@ -618,7 +618,7 @@ def _read_facebook(url):
 
 
 def _read_deepseek(url):
-    r = httpx.post("https://api.deepseek.com/v1/tools/fetch", json={"url": url},
+    r = httpx.post(mo_config.base_url("deepseek") + "/v1/tools/fetch", json={"url": url},
                    headers={"Authorization": "Bearer " + mo_config.key("deepseek")}, timeout=40)
     if r.status_code == 404:   # DeepSeek got no usable Markdown (blocked, unsupported type...), not a dead page
         raise ProviderError("no text (DeepSeek fetch 404)")

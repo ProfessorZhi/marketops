@@ -4,7 +4,8 @@ Home: ``MARKETOPS_HOME`` or ``~/.marketops`` (keys.env, red lines, ledger).
 Projects: ``MARKETOPS_PROJECTS`` or ``~/MarketOps`` - one plain folder per project.
 Keys come from the environment, ``~/.marketops/keys.env`` (KEY=value lines, written by the
 installer, readable only by the user) and ``MARKETOPS_KEYS_FILE`` if set (e.g. a vault file).
-A key is never returned to the agent.
+A key is never returned to the agent. ``DEEPSEEK_BASE_URL`` (same places) points the DeepSeek
+calls at a gateway such as LiteLLM; DeepSeek's own address is the default.
 
 Several keys per provider (slots): ``TYPESAFE_API_KEY``, ``TYPESAFE_API_KEY_2`` ... ``_N`` for
 any N, or several in one value separated by commas. There is no cap on the number of slots.
@@ -66,6 +67,25 @@ def _read_env_file(path: Path) -> dict[str, str]:
         pass
     _file_cache[str(path)] = (sig, out)
     return out
+
+
+BASE_URLS = {"deepseek": ("DEEPSEEK_BASE_URL", "https://api.deepseek.com")}
+
+
+def base_url(provider: str) -> str:
+    """Where a provider's API is called: DEEPSEEK_BASE_URL (environment or keys.env) sends the
+    DeepSeek calls through a gateway such as LiteLLM; without it, DeepSeek's own address. Given
+    with or without a trailing /v1."""
+    name, default = BASE_URLS.get(provider, ("", ""))
+    value = (os.environ.get(name) or _file_keys().get(name) or "").strip() if name else ""
+    value = value.rstrip("/")
+    if value.endswith("/v1"):
+        value = value[:-3]
+    return value or default
+
+
+def official(provider: str) -> bool:
+    return base_url(provider) == BASE_URLS.get(provider, ("", ""))[1]
 
 
 def _file_keys() -> dict[str, str]:

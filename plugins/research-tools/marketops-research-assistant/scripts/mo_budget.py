@@ -78,7 +78,9 @@ def _read_balance(provider: str) -> dict | None:
             left = d.get("total_searches_left", d.get("plan_searches_left"))
             return {"left": float(left), "unit": "searches"} if left is not None else None
         if provider == "deepseek":
-            r = httpx.get("https://api.deepseek.com/user/balance",
+            if not mo_config.official("deepseek"):
+                return None   # behind a gateway the balance is the gateway's to tell, not DeepSeek's
+            r = httpx.get(mo_config.base_url("deepseek") + "/user/balance",
                           headers={"Authorization": "Bearer " + k}, timeout=20)
             infos = (r.json() or {}).get("balance_infos") if r.status_code == 200 else None
             if infos:
