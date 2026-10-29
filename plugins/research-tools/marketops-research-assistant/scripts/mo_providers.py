@@ -496,6 +496,17 @@ def search(query: str, engines=None, country: str = "", lang: str = "", n: int =
 
 
 # ---------------------------------------------------------------- read
+def browser_channel() -> str:
+    """MARKETOPS_BROWSER, else what the installer found (browser.txt): chromium, chrome, msedge."""
+    v = os.environ.get("MARKETOPS_BROWSER", "").strip()
+    if not v:
+        try:
+            v = (mo_config.home() / "browser.txt").read_text(encoding="utf-8").strip()
+        except OSError:
+            v = ""
+    return v if v in ("chromium", "chrome", "msedge") else ""
+
+
 class _Browser:
     """One Crawl4AI browser on its own event loop, shared by every read."""
 
@@ -511,9 +522,20 @@ class _Browser:
 
         async def boot():
             from crawl4ai import AsyncWebCrawler, BrowserConfig
-            crawler = AsyncWebCrawler(config=BrowserConfig(headless=True, verbose=False, user_agent=UA))
-            await crawler.start()
-            return crawler
+            # the browser the installer found (browser.txt): Playwright's own Chromium, or the
+            # computer's Chrome or Edge instead of a 150-300 MB download; then the others in turn
+            chosen = browser_channel()
+            last = None
+            for channel in dict.fromkeys([chosen or "chromium", "chromium", "chrome", "msedge"]):
+                extra = {} if channel == "chromium" else {"chrome_channel": channel, "channel": channel}
+                crawler = AsyncWebCrawler(config=BrowserConfig(headless=True, verbose=False, user_agent=UA, **extra))
+                try:
+                    await crawler.start()
+                    return crawler
+                except Exception as exc:  # noqa: BLE001 - not installed here: the next one
+                    last = exc
+            raise last
+
         self.crawler = asyncio.run_coroutine_threadsafe(boot(), self.loop).result(120)
 
     def read(self, url: str, timeout: int = 30) -> dict:

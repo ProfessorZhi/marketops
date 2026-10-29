@@ -35,11 +35,17 @@ It ends with `--check` (version, plugin folder, keys file, Python, which provide
 prints the configuration below with your own path. Claude Code and Codex are registered only when
 you run the installer yourself; an agent installing for one host leaves the others alone.
 
-**Slow or filtered network** (most of an install is downloading Crawl4AI and its browser): set a
-package mirror before the installer, e.g. `PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple`
-and `PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright` (PowerShell: `$env:NAME="..."`).
-A local proxy that answers 502 breaks every download: unset `HTTP_PROXY` / `HTTPS_PROXY` for the
-install if a direct connection works.
+**What it downloads, in order.** The core (MCP, HTTP, PDF, Jev: tens of MB, a minute or two),
+then the plugin and the server - MarketOps works from here, and the installer prints the
+configuration - then the local browser reader, Crawl4AI (about 1 GB with its libraries). On a
+computer with Chrome or Edge that browser is used instead of downloading Chromium (another
+150-300 MB). `MARKETOPS_LITE=1` skips the browser reader: pages are then read by TinyFish, DeepSeek
+and plain HTTP; run the installer again without it to add it later.
+
+**Network.** Before downloading, the installer tests the way out: a local proxy that does not
+answer (a 502 on everything) is dropped for the install when a direct connection works, and a
+slow PyPI is replaced by a faster mirror (pip and Playwright) unless you set `PIP_INDEX_URL`
+yourself.
 
 ## Attach the server
 

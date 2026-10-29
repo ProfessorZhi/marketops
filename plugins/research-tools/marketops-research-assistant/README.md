@@ -51,7 +51,9 @@
 - 没有 `py` 启动器也能装：依次找 `py -3.12`、`py -3`、`python`、`python3`，用第一个 3.10 以上的版本建环境（0.8.2 在没有 `py` 的电脑上第一步就中断）。
 - Windows 上宿主直接启动 `python.exe` + `server.py`，不经过 `cmd.exe`：有的宿主沙箱会拦截 cmd.exe（WorkBuddy 就拦了），`.cmd` 启动器只留给人在命令行里用。安装器打印的 JSON 带 `args`。
 - agent 替某个宿主安装时（`MARKETOPS_NO_PROMPT`），不再顺手把服务器注册进 Claude Code 和 Codex。
-- `HOSTS.md` 写明网络慢或被墙时怎么办：pip 和 Playwright 的国内镜像；本地代理坏了（返回 502）时临时去掉代理。安装的大部分时间花在下载 Crawl4AI 和浏览器上。
+- **先装核心，再装浏览器**：核心（MCP、HTTP、PDF、Jev，几十 MB，一两分钟）装好、插件复制好、配置打印出来之后，MarketOps 就能用了；最后一步才装 Crawl4AI（连依赖约 1 GB），失败也不影响使用。`MARKETOPS_LITE=1` 跳过这一步，读网页由 TinyFish、DeepSeek 和普通 HTTP 完成。
+- **电脑上有 Chrome 或 Edge 就直接用**，不再下载 150-300 MB 的 Chromium；服务器按安装器找到的浏览器启动，找不到时依次试 Chromium、Chrome、Edge。
+- **安装前先测网络**：本地代理不通、直连能通时，这次安装绕过代理；PyPI 太慢时自动换成国内镜像（pip 和 Playwright 都换；自己设了 `PIP_INDEX_URL` 的不动）。插件本体只有约 1 MB，之前半小时几乎都花在下载上。
 
 ## 0.8.2 更新：agent 可以替你装
 
