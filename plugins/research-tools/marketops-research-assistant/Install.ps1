@@ -27,7 +27,9 @@ function Find-Python {
 
 $base = Find-Python
 if (-not (Test-Path $py) -and -not $base) { throw "Python 3.10 or newer is needed (python.org), on PATH as py, python or python3" }
-$probe = if (Test-Path $py) { @($py) } else { $base }
+# @(...) around the whole if: an if hands back a one-item array unrolled, and [0] of a string is
+# its first letter (0.8.3 ran "p" and "C", so the network was never tested)
+$probe = @(if (Test-Path $py) { $py } else { $base })
 
 Write-Host "1/5 Network"
 # a broken local proxy and a slow PyPI cost the 0.8.2 install half an hour: test both first
@@ -35,10 +37,14 @@ $helper = Join-Path $here "tools\install_helper.py"
 $pexe = $probe[0]; $prest = @($probe | Select-Object -Skip 1)
 $net = $null
 try { $net = (& $pexe @prest $helper net 2>$null) | ConvertFrom-Json } catch { }
-if ($net -and $net.drop_proxy) {
-    Write-Host "  the proxy in HTTPS_PROXY does not answer; installing over a direct connection"
+if (-not $net) { Write-Host "  could not test the network; going on with the computer's own settings" }
+elseif ($net.drop_proxy) {
+    Write-Host "  the proxy does not answer; installing over a direct connection"
     foreach ($v in @("HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY")) { Remove-Item "Env:$v" -ErrorAction SilentlyContinue }
+    $env:NO_PROXY = "*"   # a proxy set in Windows' own settings is skipped too
 }
+elseif ($null -eq $net.pypi_seconds) { Write-Host "  PyPI does not answer, with or without the proxy: the downloads below may fail" }
+else { Write-Host "  PyPI answers in $($net.pypi_seconds) s$(if ($net.has_proxy) { ' through the proxy' })" }
 if ($net -and $net.pip_index) {
     Write-Host "  PyPI is slow from here; using the mirror $($net.pip_index)"
     $env:PIP_INDEX_URL = $net.pip_index
@@ -54,6 +60,9 @@ if (-not (Test-Path $py)) {
 $core = Join-Path $home_ "requirements-core.txt"
 Get-Content (Join-Path $here "requirements.txt") | Where-Object { $_ -notmatch "^crawl4ai" } | Set-Content $core
 & $py -m pip install -q -r $core
+# a core that did not install is the end of the install, never a quiet "done" (0.8.3 went on and
+# exited 0 with no httpx)
+if ($LASTEXITCODE) { throw "the core packages did not install (pip exit $LASTEXITCODE) - see pip's message above; a proxy or a mirror is the usual cause (HOSTS.md, Network)" }
 
 Write-Host "3/5 Provider keys (saved in $home_\keys.env; Enter skips one)"
 $keys = Join-Path $home_ "keys.env"
@@ -88,6 +97,7 @@ $launcher = Join-Path $home_ "bin\marketops-mcp.cmd"
 $server = Join-Path $plugin "scripts\server.py"
 Set-Content -Path $launcher -Encoding ASCII -Value "@`"$py`" `"$server`" %*"
 & $py $server --check
+if ($LASTEXITCODE) { throw "the server does not start (its --check above names what is missing)" }
 
 # Hosts start the server as python.exe + server.py, never through cmd.exe: some hosts' sandboxes
 # block cmd.exe (WorkBuddy's did), and a .cmd launcher would not start there. The .cmd file is for
