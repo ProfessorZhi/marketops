@@ -1,199 +1,141 @@
 ---
 name: marketops-research
-description: Lead a MarketOps sales-research job (find organisations, venues and the people to reach, delivered as Excel) as a pipeline of pools built by a team of agents with the marketops MCP tools - sources -> pages -> venues -> organisations -> contacts, every stage at once, several agents per stage. Use for any lead, venue, account or contact research request.
+description: Lead or work on a MarketOps sales-research job - find organisations, venues and the people to reach (presidents, secretaries, facility and operations managers) with graded, quoted email routes, delivered as an Excel workbook - as a team of agents building pools with the marketops MCP tools (sources -> pages -> venues -> organisations -> contacts). Use it for any lead, prospect, venue, account or contact research request, any "找客户 / 找联系人 / 找负责人邮箱 / 线索名单 / 场馆调研" job, any smoke or benchmark run of the plugin, and whenever you are a MarketOps worker deciding what to do next - even if the user never says "MarketOps".
 ---
 
 # MarketOps research: the workflow
 
-The work is building five pools, one after the other in order of dependency but **all at the
-same time**. Agents do the work (you and the workers you start with your host's multi-agent
-mode); the marketops tools are their power tools and only act when an agent calls them.
-Other knowledge, read when needed: **marketops-tools** (the six providers and the tools),
-**marketops-knowledge** (business judgment that holds for any market: success, grades, customer, sources, blockers); `references/projects/<line>.md` for one market or line.
+The job is five pools, filled in order of dependency but **all at the same time**, by agents.
+You (the lead) and the workers you start do the research; the marketops MCP tools are power
+tools that act only when an agent calls them - they read ten sites at once, page through a list,
+grade a batch, and hand back what they saw. They never decide for you, and a tool left alone
+never researches (071 let a script dig for six hours: most addresses wrongly shared).
+
+Read the others when needed: **marketops-tools** (which tool and provider for which job, every
+call), **marketops-knowledge** (grades, who the customer is, which sources pay, when to stop a
+source), `references/projects/<line>.md` (one market), `references/defaults.md` in this skill
+(what each tool does by default and how to overrule it).
 
 ```
  SOURCES ──mine──▶ PAGES ──pool──▶ VENUES ──who runs it──▶ ORGANISATIONS ──read, judge──▶ CONTACTS ──▶ Excel
  finders           miners          miners                  websites, researchers          researchers, finish
 ```
 
-| Pool | File | Built by (lane) | Done when |
-|---|---|---|---|
-| 1 sources | `source_pool.csv` | finders - `find` lanes | saturated: 3+ sources pooled, the last three each under 5% new organisations |
-| 2 pages | `frontier.csv`, `pages/harvest-*.csv` | miners - `source` lane, one source per claim | every source's pages read and pooled |
-| 3 venues | `venues.csv` | miners (`pool(group_by=operator)`) | every in-scope venue has the organisation that runs it |
-| 4 organisations | `orgs.csv` | miners, websites (`site` lane), researchers' `orgs(add)` | every organisation has its site, or a verdict why not |
-| 5 contacts | `contacts/`, `verdicts.csv` | researchers - `sweep` lane, ~10 organisations per claim; finish - `review` | every organisation has graded routes or an agent verdict; spot check >= 90% |
-
-## What makes the work good
-
-Five things decide a run; each has a reason and a place where the plugin holds it for you.
-Under all five: **the plugin makes agents stronger; it does not script them.** The agents
-choose the lists, mine them, judge whose an address is, dig, scale or drop a source; the tools
-do the bulk work an agent asks for in one call (read ten sites, page through a list, grade a
-batch) and hand back what they saw, with advice. A tool never researches alone: `run` without
-`orgs` only reads sites ahead of the researchers, stops starting new ones once 30 wait for an
-agent (`waiting_for_agents`), and ends after an hour with no agent taking work. Paris 071 let a
-script dig six rounds alone for six hours: 15 organisations with A/B for 105
-organisation-hours, most addresses wrongly shared. "What the tools give you" below lists each
-default and how you overrule it.
-
-- **Pipeline - stages hand over through pools, never through messages.** A stage takes what is
-  on disk in the pool before it and writes to the pool after it, so no stage waits for another to
-  finish and nothing is lost between them. Handovers in chat were Bruce's costliest failure (a
-  middle layer built and never written back). `project()["flow"]` shows what waits between pools.
-- **Concurrency - every stage at once, several agents per stage, one writer per claim.** Finding
-  lists, mining them, finding sites and researching people overlap from the first minute; inside
-  a lane each agent owns its claim (one source, ten organisations) end to end. Splitting one
-  package across many hands made Bruce's runs slower (coordination, not crawling, became the
-  cost); more claims in parallel made them faster.
-- **Many sources - coverage comes from the union of lists, not from one good list.** Each source
-  knows a part of the market and one kind of entity; saturation (the last sources mostly repeat
-  what is pooled) is the only honest sign the pool is complete. And every pooled source must be
-  *researched*, not only pooled: the research lanes give each one a turn (Paris 072 pooled 27
-  sources, then four researchers spent forty minutes on the first one; 26 were never read).
-- **Speed - more organisations in flight, cheap tools before expensive ones.** Throughput is
-  agents x claims, not pages per site; the tools race providers, batch requests, cache every page
-  and search for every project, and the lightest tool goes first (search -> fetch -> Agent). Never
-  poll a status; work, and look at `flow` every 10-15 minutes.
-- **Quality - evidence on every row, judged at the source, checked before delivery.** Every
-  address keeps its page and quote; grades follow one table; weak sources are dropped after 30
-  organisations, not after the run; a 100-row spot check gates delivery. A missing route is better
-  than a wrong one - and a status line is never evidence.
-
-## Pool 1 is never one list
-
-The source pool is a pool. A job built on one list - even a good one, even a pool inherited
-from an earlier project - finds only what that list knew, and only the kind of entity it lists:
-an organisation list gives no venues, a facility census gives no clubs that rent pitches. So,
-before anything else:
-- register the client's own lists as sources (`sources(add=...)`); an earlier project's pool
-  is reused only when the user asks for it (a fresh project flags anything brought in);
-- open `find` lanes for every layer the brief needs: **a venue census** (when the product is
-  used on venues), **organisation lists** (federations, registers, city portals), **operators
-  and contractors** (tenders) - `references/projects/<line>.md` lists each market's sources;
-- keep the finders running beside everyone else until the pool is saturated.
-
-## What the tools give you (and what stays yours)
-
-| The tools, by default | Why | Your call |
+| Pool | Built by (lane) | Done when |
 |---|---|---|
-| Research lanes (`sweep`, `dig`, `site`) hand out organisations source by source in turns; each source gets a pilot of 30, then more only while it yields A/B (>= 5%) | Bruce: test a source on 30, scale at >= 10%, stop under 5%; 072 researched one source of 27 | `sources(set=[{source, status: "scale"}])` gives a source everything, `"dropped"` nothing; `flow.sources_take_turns` shows each pilot. You may claim or `tasks(action="add")` any package |
-| A list row that prints an address gives it to that row's organisation as a contact, quoted from the row | school, club and timetable lists carry mailboxes; 072 threw away 1,658+ of them | map `email` / `person` / `role`; grade or correct as always |
-| Organisations match on their registry number (UAI, SIRET, RNA) before name and town | one club became two when one list wrote `75011` and another `Paris` | map the number when the file has one |
-| One organisation pooled twice (same name words, registry number or personal address) shows in `flow.possible_duplicates` and `needs_you`; the strict ledger counts one address once | paris11-073: six clubs pooled twice, two presidents counted twice | read the list, then `orgs(merge="suggested", keep_apart=[ids of groups that are two])` merges them all and again until none is left; one pair: `orgs(merge=[{keep, drop}])`. Not `part_of`: that is for a chain's stores |
-| A list that carries a registry number (RNA, SIRET, UAI...) is mined first when you plan the miners | it makes every later list's duplicates a mechanical match instead of a guess on names (077: 31 groups left to name likeness) | the lead orders the source lane: claim it first, or `tasks(action="add", kind="custom", title="pool <list> first")` |
-| A researcher's empty `sweep` claim hands out `dig` and back - one job, two lanes | 077: 14 empty sweep claims while 50 read organisations waited in dig | - |
-| A host that does not answer a connection in 10 s is not asked again for 30 minutes | 077: three tries on one unreachable PDF cost 367 s | its cached text, if any, is still read |
-| Phones: an unbroken digit run not starting with 0 or + (a SIREN, a SIRET) is not a phone; the brief's country plan is checked; at most 20 per organisation | 077: 1,778 of 1,893 "phones" were record numbers on one directory | - |
-| `grade(set=[{org_id, all: "X"}])` grades every address of one organisation you have not set yourself | 077: a dojo's 13 instructor mailboxes could not be cleared at once | any grade, not only X |
-| A page that prints many other parties' addresses is a list: with `org_id`, only the entry that names the organisation (and its own domain's addresses) go to it; `fetch` returns `list_page` | 073: a district table gave a club 8 others' addresses; fr41: a commune's /associations page gave it 76 | the list is a source: `sources(add=...)` and pool its entries as organisations with their addresses (`orgs(add=[{name, email, person, role, quote}])`) |
-| `run` without `orgs` reads sites ahead of researchers, never digs, waits once 30 are waiting | 071 | dig rounds for your own package: `run(orgs=[...], rounds=1-2)` |
-| Stores of one chain (one domain, a shared name word) show in `flow.possible_chains` and `needs_you`; a store filed `part_of` its head office leaves the lanes and the headline | a store page gives a front desk, the head office decides (073 smoke: 0 A/B on 4 stores of one chain) | add the head office, `orgs(set=[{org_id, part_of}])` the stores - or leave them, for an independent store |
-| Over 60 new addresses on one organisation (a chain's every store, a federation's every club) are not all sent to Jev: those naming the brief's region first, the rest are held - outside every total, on their own workbook sheet | 073: 1,167 on one chain; paris11: 274 held rows were 41% of the workbook | pool the list's entries, then `grade(held=[{org_id, held: "X"}])`; or `"grade"` to send them to Jev |
-| An empty lane says why (`keep_waiting`, `other_lanes`, `lane_finished`, `why_empty` - a pilot, the brief's `max_per_source`, sources still mined, a project with nothing registered yet); a worker stops only on `lane_finished`. A source under 5% A/B after its pilot is paused by default - nobody waits for a verdict - and `needs_you` lists it | paris11-073: three workers stopped with 310 organisations unread; paris11-074: two workers idled seven minutes waiting for a lead's call | resume a paused source (`sources(set=[{source, status: "scale"}])`), raise `max_per_source` |
-| `project(brief=...)` merges: send only the keys you change (`null` removes one) | paris11-073: one key wiped the goal, region and fresh | - |
-| The brief's `minutes` is the run's time box, counted from the moment it is set (`project()["time_left_min"]`); when it is up, and after `tasks(action="stop", note)`, every claim answers `stop` and `run` ends | 078 ran three hours because nothing stopped the team; its A/B rate fell from 41% at 38 minutes to 37% | `tasks(action="resume")`, or raise `minutes` |
-| `tasks(action="done")` answers `next`: claim the next package now; a worker silent for 3+ minutes while packages are open is named in `needs_you` | 079: three workers ended their turn after one package each; nothing moved for ten minutes | start it again with the same role |
-| A researcher whose lanes are finished, while the pool is not saturated, is handed a `find` package ("find: more lists of ...") - at most one every 15 minutes, five in all | 079: workers waited or ended while the pool could still grow | add your own `find` lanes for the gaps you see |
-| A source its pilot paused (under 5% A/B) counts as adding nothing to the pool's growth | 079: a company register gave 225 new names, 1.7% with A/B, and kept the pool "growing" | - |
-| The address of the site a page is on, already given to another organisation from another page of that site, is held as the site's footer inbox | 079: a sports office's inbox on every club fiche of its yearbook | `grade(set=...)` it on the organisation it really is |
-| A page frame read before its script ran (big page, almost no text) is not cached; another reader is tried | 079: cached frames hid five true A/B from the spot check | - |
-| A website found by search is never a domain another organisation already has, and a one-word name needs its words in the domain | 079: a village directory became three clubs' website; an acronym dictionary another's | - |
-| A website found by search must not show another département's postcodes; listings and company registers are never a website | fr41: a commune got its namesake's site in the Cher; paris11: a club got sortiraparis.com | `orgs(set=[{org_id, website}])` when you know better |
-| `browse` (the paid TinyFish Agent) is off; a call records the page and the user is asked once for all of them | it costs per step | the user allows it in the brief (`paid_agent: true`) |
-| A fresh project (`brief.fresh`) reuses nothing other projects read or learned, and flags files nobody fetched or registered here | a test must start from zero; 072b began from a 0.6.6 pool | without `fresh` the shared library makes reruns cheap |
-| Every tool call goes to the project's `calls.jsonl` (agent, tool, arguments in brief, seconds, errors) | the whole chain is reviewable without transcripts | read it in the retrospective |
+| 1 sources | finders - `find` | saturated: 3+ sources, the last three each under 5% new organisations |
+| 2 pages | miners - `source`, one source per claim | every source read and pooled |
+| 3 venues | miners (`pool(group_by=operator)`) | every in-scope venue has the organisation that runs it |
+| 4 organisations | miners, `site`, researchers' `orgs(add)` | each has its site, or a verdict why not |
+| 5 contacts | researchers - `sweep` / `dig`, ~10 per claim; finish - `review` | each has graded routes or a verdict; spot check >= 90% |
+
+Pools hand over on disk, never through chat: a stage takes what is in the pool before it and
+writes to the pool after it, so nobody waits for a stage to finish and nothing is lost between
+them (Bruce's costliest failure was a middle layer built in chat and never written back).
+
+## What decides the A/B rate
+
+The share of organisations with an A or B route moves with three things, in this order:
+1. **Which lists the pool is built from.** Lists that name people (a facility's booking or
+   timetable file, a sports office's yearbook, a federation's club finder) give many times more
+   A/B per organisation than lists of names (a company register: 1.7% in 079). A pool is never
+   one list: open `find` lanes for every layer the brief needs, and let the pilot (30
+   organisations per source, paused under 5% A/B) decide what scales.
+2. **Idle minutes.** A worker that ends its turn, or polls an empty lane while the pool could
+   grow, costs more than any slow site (079: 26 minutes, A/B fell from 41% to 23%).
+3. **An end.** Without a time box the late hours read the weakest sources (078: 41% at 38
+   minutes, 37% after three hours).
 
 ## The run in time
 
 | When | The lead | The workers |
 |---|---|---|
-| 0-5 min | tools, brief (with `minutes`), start the whole team | claim with `wait=50` |
-| every 10-15 min | `project()`: `flow`, `needs_you` `[lead]` items, silent workers, merges | claim -> work -> done -> claim, journal blockers |
-| 10 min before the end | `tasks(action="stop")` | finish or hand back, three-line report, end |
-| the end | close out (step 6), spot check, export, retro, report (step 8) | - |
+| 0-5 min | tools, brief (with `minutes`), start the whole team at once | claim with `wait=50` |
+| every 10-15 min | `project()`: `flow`, `needs_you` `[lead]` items, silent workers, merges | claim -> work -> done -> claim; journal blockers |
+| ~10 min before the end | `tasks(action="stop", note="close-out")` | finish or hand back, three-line report, end |
+| the end | close out, spot check, export, retro, final report | - |
 
-A run that ends with idle minutes, or one that never ends, both cost A/B: 079 lost 26 minutes to
-workers that had ended their turn; 078 diluted its rate over three hours.
+## What to do when...
+
+| You see | Do | Why |
+|---|---|---|
+| a claim: `keep_waiting` | claim again with `wait=50` | the pools before you are still filling |
+| a claim: `other_lanes` | take one of those, then come back | work is open elsewhere now |
+| a claim: a `find` package | look for more lists (references/roles/sources.md), register them, claim research again | the lanes are empty but the pool can still grow |
+| a claim: `lane_finished` or `stop` | finish or hand back what you hold, journal, report in three lines, end | nothing can refill it / the team stops |
+| `done` answers `next` | do what it says - normally claim again at once | a worker that ends its turn does not come back |
+| `needs_you`: a worker silent 3+ min | start it again with the same role | it ended its turn |
+| `flow.possible_duplicates` | `orgs(merge="suggested", keep_apart=[ids that are two])` | until merged, their routes count twice |
+| `fetch` says `list_page` | `sources(add=...)` the list; pool its entries as organisations with their addresses | a list's addresses belong to its entries, not to you |
+| an address on a list belongs to one of yours | `grade(set=[{value, org_id, grade, person, role}])` | it is attached from the page that prints it |
+| `website_check` on a summary | make sure the site is its own; `orgs(set=[{org_id, website: ""}])` clears a wrong one | directories, portals and namesakes look like websites |
+| a source paused by its pilot | leave it, or `sources(set=[{source, status: "scale"}])` if you know better | nobody waits on it |
+| `time_left_min` about 10 | `tasks(action="stop")`, then close out | the end is part of the run |
+| a question only the user can answer | write it down for the final report; keep working | one numbered list, once |
 
 ## Running the job
 
-1. **Tools.** `project(name)["capabilities"]` says what is set up (full / reduced / minimal).
-   Every provider is optional; the plugin steps down, never stops. Not installed: run
-   `install.sh` (Windows `Install.ps1`), restart (`HOSTS.md`).
-2. **Brief.** `project(name, brief={goal, country, language, scenario, grades, exclude,
-   routes_per_org, minutes, ...})` - `minutes` is the time box (a smoke test 15-35, a job what
-   the user gives); without it nothing ends the run but you. Ask the user once, up front, for what is missing (marketops-knowledge
-   lists the questions); after that never stop to ask - collect decisions for step 6.
-3. **Start the whole team at once** with your host's multi-agent mode - every lane from the
-   first minute. Default: finders 1-2, miners 1-3, researchers 6-10, websites 0-1, finish 1-2.
-   Start line: `You are the <role> worker on MarketOps project "<project>". Read
+1. **Tools.** `project(name)["capabilities"]` says what is set up. Every provider is optional;
+   the plugin steps down, never stops. Not installed: `install.sh` (Windows `Install.ps1`).
+2. **Brief.** `project(name, brief={goal, country, language, region, scenario, grades, exclude,
+   minutes, ...})`. `country` and `language` steer every engine (without them it answers as US
+   English); `minutes` is the time box (smoke 15-35; a job, what the user gives). Ask the user
+   once, up front, what is missing (marketops-knowledge, "Settle before starting"); after that
+   never stop to ask. The brief merges: send only the keys you change.
+3. **Start the whole team at once** with your host's multi-agent mode. Default: finders 1-2,
+   miners 1-3, researchers 6-10, websites 0-1, finish 1-2 (a smoke: sources, pool, research - one
+   each). Start line: `You are the <role> worker on MarketOps project "<project>". Read
    references/roles/<role>.md of the marketops plugin and work until a claim says lane_finished
-   or stop - after every done, claim again; never end your turn on an empty claim.`
-   (Claude Code: `marketops-worker` subagents in the background; Codex / WorkBuddy: their
-   multi-agent mode, else one session per worker; no multi-agent: work the lanes in turn.)
+   or stop - after every done, claim again; never end your turn on an empty claim.` (Claude Code:
+   `marketops-worker` subagents in the background; Codex / WorkBuddy: their multi-agent mode;
+   none: work the lanes in turn yourself.)
 4. **Lanes feed themselves.** `source`, `site`, `sweep` and `dig` refill from the pools when
-   claimed (`dig`: organisations the tools read without a confirmed A/B);
-   you add `find` lanes for gaps (`tasks(action="add", kind="find", title="find: <layer>,
-   <region>")`), `dig` packages for a second look, `review` for rows to check.
-5. **Steer every 10-15 minutes** from `project(name)["flow"]`: where work waits between pools,
-   move agents there. Sources found and nobody mining: another miner. Organisations arriving
-   faster than read: more researchers. Pool saturated: finders become miners or researchers.
-   A source under 5% A/B after its pilot is paused by the tools (Bruce's rule) - resume it with
-   `sources(set=[{source, status: "scale"}])` if you know better; nobody waits for you on it.
-   **Your own work as the lead, every round**: merge what `flow.possible_duplicates` lists
-   (`orgs(merge=...)`), answer what workers raised, move agents to the pool where work waits.
-   A lead who only watches leaves these to the workers (074: they waited, then decided alone).
-   A worker `needs_you` names as silent ended its turn: start it again with the same role.
-   **Time**: about ten minutes before `time_left_min` reaches 0 (or when the lanes are finished
-   and the pool saturated), `tasks(action="stop", note="close-out")`; holders finish or hand back,
-   then you close out.
-6. **Close out yourself**: every `needs_you` item marked `[lead]` is yours, done before you report -
-   merge the suggested duplicates (`orgs(merge="suggested", keep_apart=[...])`, naming why a group
-   stays apart), accept, correct or downgrade each A/B in review (say why), clear held rows, put
-   empty or out-of-scope records out (`orgs(set=[{org_id, scope: "out"}])`). Only `[user]` items
-   (the brief, money, a key, a wider scope) go to the user, and only if they matter.
-7. **Deliver** when the lanes are finished (`lane_finished`, not just empty), duplicates are
-   merged, held rows are cleared, the spot check is done and >= 90% and the 对账 line adds up.
-   The spot check is yours if no finish worker runs: open 20 of the 抽检 rows' pages and record
-   each (`grade(set=[{value, org_id, checked: "ok"|"wrong"}])`) - the workbook's first line,
-   交付状态, reads 未抽检，不得交付 until you have (`export()["delivery"]`). Then:
-   `export(project)`; then the `learn` command. The workbook's "Bruce 同口径" line (A+B over
-   organisations with any A-D route - his 71/249 = 28.5%) and "已研究机构" line are the numbers
-   to compare; A+B over the whole pool also counts what nobody read yet.
-8. **The final report** is a report, not a to-do list (078 ended on seven questions, five of them the
-   lead's own work). In this order, short:
-   1. **Result**: 交付状态, organisations, A/B routes and organisations with A/B, the Bruce-comparable
-      line, coverage, spot check - and the workbook's path.
-   2. **What was done**: sources (pooled / stopped / dropped and why), team, minutes, provider spend.
-   3. **Your calls**: the judgements you made at close-out and why (merges kept apart, reviews
-      downgraded, records put out).
-   4. **Known gaps**: what the run did not reach and why (unread organisations, an unreachable source).
-   5. **For the user** (only if any): at most two `[user]` items, each saying what it would change -
-      the delivery stands without them.
+   claimed. Add `find` lanes for gaps (`tasks(action="add", kind="find", title="find: <layer>,
+   <region>")`), `dig` for a second look, `review` for rows to check. A list with a registry
+   number (RNA, SIRET, UAI...) is mined first: later lists then merge on the number.
+5. **Steer every 10-15 minutes** from `project(name)`: move agents to where work waits between
+   pools (sources nobody mines: another miner; organisations arriving faster than read: more
+   researchers; pool saturated: finders become researchers). Each round, do your own work too:
+   merge duplicates, answer what workers raised, restart silent workers. A lead who only watches
+   leaves these to the workers (074: they waited, then decided alone).
+6. **Close out yourself.** Every `needs_you` item marked `[lead]` is yours, done before you
+   report: merge the suggested duplicates (say why a group stays apart); accept, correct or
+   downgrade each A/B in review (say why); clear held rows (`grade(held=[{org_id, held: "X"}])`);
+   put empty or out-of-scope records out (`orgs(set=[{org_id, scope: "out"}])`). Only `[user]`
+   items (the brief, money, a key, a wider scope) go to the user.
+7. **Deliver** when the lanes are finished or stopped, duplicates merged, held rows cleared and
+   the spot check done: with no finish worker, open 20 of the 抽检 rows' pages yourself and
+   record each (`grade(set=[{value, org_id, checked: "ok"|"wrong"}])`). The workbook's first
+   line, 交付状态, says whether it may go out (`export()["delivery"]`). `export(project)`, then
+   the `learn` command. Compare on "Bruce 同口径" (A+B over organisations with any A-D route;
+   his 71/249 = 28.5%) and "已研究机构".
+8. **The final report is a report, not a to-do list** (078 ended on seven questions, five of
+   them the lead's own work). Short, in this order:
+   1. **Result**: 交付状态, organisations, A/B routes and organisations with A/B, the
+      Bruce-comparable line, coverage, spot check, the workbook's path.
+   2. **What was done**: sources (pooled / paused / dropped and why), team, minutes, spend.
+   3. **Your calls**: the close-out judgements and why.
+   4. **Known gaps**: what the run did not reach and why.
+   5. **For the user** (only if any): at most two `[user]` items, each saying what it would
+      change - the delivery stands without them.
 
 ## Keep the record
 
-Every run is also a test of the plugin, so the work leaves its own trail - written while it
-happens, never reconstructed afterwards:
-- **The tools log themselves**: every call goes to `calls.jsonl` (who, which tool, how long,
-  what failed). Pass `agent="<your name>"` on every call that takes it, so the log can tell the
-  workers apart.
-- **Agents write what the log cannot see**: `project(name, journal={"type": "blocker" | "smooth" |
-  "decision" | "idea", "text": "...", "evidence": "file / count"}, agent="<name>")` - the moment a
-  tool or a site stops you and how you got round it, a source that paid or did not, a decision
-  others should know (dropping a source, scaling one, changing the scope). One line each; a
-  worker writes at least its blockers, the lead its decisions.
-- **The lead closes it**: before `export`, one `{"type": "retro"}` entry - what went well, what
-  cost the most, what the plugin should do differently. `export` writes `RETRO.md` from all of it
-  (numbers, the tool-call table, the journal), addresses masked: the file to read for the next
-  plugin change.
+Every run is also a test of the plugin. The tools log every call to `calls.jsonl`; pass
+`agent="<your name>"` on every call that takes it so the log can tell agents apart. Write what
+the log cannot see the moment it happens: `project(name, journal={"type": "blocker" | "smooth" |
+"decision" | "idea", "text": "...", "evidence": "file / count"}, agent="<name>")` - a worker at
+least its blockers, the lead its decisions. Before `export`, the lead writes one `{"type":
+"retro"}` entry; `export` builds `RETRO.md` from it all. A test run is then archived
+(`references/benchmarks.md`, "Archive").
 
 ## Rules
 
-- Every address comes from a page read with the tools (`fetch`, `harvest`, `run`) and keeps
-  its page and quote. Never guess one. The host's own web tools are for looking only.
+- Every address comes from a page read with the tools (`fetch`, `harvest`, `run`) and keeps its
+  page and quote. Never guess one. The host's own web tools are for looking only.
 - One claim, one writer. Feed the pools behind you: a new list -> `sources(add)`, a venue's
   real operator -> `orgs(add)`.
 - Judge by what is on disk (rows, pages, the workbook), never by a status line.
 - Nothing useful is dropped: review and X are labels. Research only; nothing is sent.
+- Never tune the work to one test's names or pages: what you learn goes to the playbook and the
+  journal as a pattern.

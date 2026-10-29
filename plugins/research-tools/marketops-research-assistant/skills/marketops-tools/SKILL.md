@@ -1,6 +1,6 @@
 ---
 name: marketops-tools
-description: How MarketOps agents use their tools - the marketops MCP tools (project, sources, harvest, search, fetch, pool, run, orgs, tasks, grade, judge, browse, export) and the six providers behind them (Serper, SerpApi, DeepSeek, TinyFish, Crawl4AI, Jev), what each is good at, and how the plugin steps down when one is missing. Use when choosing a tool, writing searches, mining a list, a page will not read, or a provider is slow, blocked or out of credit.
+description: How MarketOps agents use their tools fluently - every marketops MCP call (project, sources, harvest, search, fetch, pool, run, orgs, tasks, grade, judge, browse, export) with its exact arguments, which call and which of the six providers behind them (Serper, SerpApi, DeepSeek, TinyFish, Crawl4AI, Jev) fits each job, and how the plugin steps down when one is missing. Use it before any marketops tool call you are unsure of, when writing searches, mining or pooling a list, merging duplicates, grading or attaching addresses, when a page will not read, a provider is slow, blocked or out of credit, or a key or gateway (DEEPSEEK_BASE_URL) needs setting.
 ---
 
 # The tools

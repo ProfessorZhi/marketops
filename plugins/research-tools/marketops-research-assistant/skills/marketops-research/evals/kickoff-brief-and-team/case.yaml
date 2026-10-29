@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: kickoff-brief-and-team
+expected_outcome: |
+  A brief with minutes 40, country FR, language fr, region Paris 15e; the whole team started at once; lists that name people looked for first; no stream of questions to the user.

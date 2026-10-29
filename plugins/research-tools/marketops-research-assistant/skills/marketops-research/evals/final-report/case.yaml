@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: final-report
+expected_outcome: |
+  Close-out first (merge, held rows, finish the spot check, export), then a report in the order result / done / calls / gaps / at most two user items.

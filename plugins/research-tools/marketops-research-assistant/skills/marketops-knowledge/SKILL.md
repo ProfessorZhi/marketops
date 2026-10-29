@@ -1,6 +1,6 @@
 ---
 name: marketops-knowledge
-description: Business judgment for any MarketOps research job, distilled from Bruce's research lines - what counts as success, how to grade a contact (A/B/C/D/X and the two ledgers), who the customer is, how to test, scale or stop a source, the questions to settle before starting, where whole lists come from, and the blockers that cost most. Use when writing the brief, choosing or dropping a source, judging a contact or a grade, deciding whether to keep going, or when results look thin or wrong - for any market or product.
+description: Business judgment for any MarketOps sales-research job, distilled from Bruce's research lines and the plugin's own runs - what counts as success, how to grade a contact (A/B/C/D/X, the two ledgers), who the customer is, which kinds of lists pay (timetables and yearbooks name people; registers give names; directories are never websites), how to pilot, scale or stop a source, the questions to settle before starting, and the blockers that cost most (idle hands, no end, pages with no address). Use it when writing a brief, choosing, registering or dropping a source, judging whose an address is or what grade it deserves, deciding whether to keep going, or whenever the A/B rate looks thin or wrong - for any market or product.
 ---
 
 # Business judgment for research
