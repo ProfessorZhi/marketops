@@ -123,8 +123,11 @@ before anything else:
    **Your own work as the lead, every round**: merge what `flow.possible_duplicates` lists
    (`orgs(merge=...)`), answer what workers raised, move agents to the pool where work waits.
    A lead who only watches leaves these to the workers (074: they waited, then decided alone).
-6. **One numbered list for the user**: `project()["needs_you"]` plus what workers raised, in one
-   message.
+6. **Close out yourself**: every `needs_you` item marked `[lead]` is yours, done before you report -
+   merge the suggested duplicates (`orgs(merge="suggested", keep_apart=[...])`, naming why a group
+   stays apart), accept, correct or downgrade each A/B in review (say why), clear held rows, put
+   empty or out-of-scope records out (`orgs(set=[{org_id, scope: "out"}])`). Only `[user]` items
+   (the brief, money, a key, a wider scope) go to the user, and only if they matter.
 7. **Deliver** when the lanes are finished (`lane_finished`, not just empty), duplicates are
    merged, held rows are cleared, the spot check is done and >= 90% and the 对账 line adds up.
    The spot check is yours if no finish worker runs: open 20 of the 抽检 rows' pages and record
@@ -133,6 +136,16 @@ before anything else:
    `export(project)`; then the `learn` command. The workbook's "Bruce 同口径" line (A+B over
    organisations with any A-D route - his 71/249 = 28.5%) and "已研究机构" line are the numbers
    to compare; A+B over the whole pool also counts what nobody read yet.
+8. **The final report** is a report, not a to-do list (078 ended on seven questions, five of them the
+   lead's own work). In this order, short:
+   1. **Result**: 交付状态, organisations, A/B routes and organisations with A/B, the Bruce-comparable
+      line, coverage, spot check - and the workbook's path.
+   2. **What was done**: sources (pooled / stopped / dropped and why), team, minutes, provider spend.
+   3. **Your calls**: the judgements you made at close-out and why (merges kept apart, reviews
+      downgraded, records put out).
+   4. **Known gaps**: what the run did not reach and why (unread organisations, an unreachable source).
+   5. **For the user** (only if any): at most two `[user]` items, each saying what it would change -
+      the delivery stands without them.
 
 ## Keep the record
 

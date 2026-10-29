@@ -123,8 +123,9 @@ def _minutes_ago(n: int) -> str:
 
 
 def needs_you(pdir, status: dict) -> list[str]:
-    """Everything waiting on the user's judgement, as one numbered list (Bruce: "需要我人工复合的
-    内容清单发本窗口，我这里批量回复你") - never one question at a time."""
+    """Everything still open, as one numbered list (Bruce: "需要我人工复合的内容清单发本窗口，我这里
+    批量回复你") - never one question at a time. Each item says whose it is: [lead] items the lead
+    finishes itself before its final report; only [user] items go to the user."""
     items = []
     b = ws.brief(pdir)
     if not b.get("goal"):
@@ -234,11 +235,27 @@ def needs_you(pdir, status: dict) -> list[str]:
         if acc.get("skipped") or low:
             other = {"serper": "serpapi", "serpapi": "serper"}.get(name)
             other_ok = other and other in ((status.get("capabilities") or {}).get("search") or [])
+            # what costs nothing to lose is not a decision: TinyFish's balance pays only the Agent,
+            # off unless allowed (its search and reading are free); a Google engine with the other
+            # still working loses nothing
+            if (name == "tinyfish" and not ws.paid_agent_allowed(pdir)) or other_ok:
+                continue
             items.append(f"{name} is out of credit or at its red line (balance {bal}): top it up or leave it off"
                          + ((f" - {other} still searches the web and maps." if other_ok else
                              " - without it there is no maps search and digging leans on DeepSeek and TinyFish.")
                             if other else "."))
-    return [f"{n}. {t}" for n, t in enumerate(dict.fromkeys(items), 1)]
+    return [f"{n}. [{owner(t)}] {t}" for n, t in enumerate(dict.fromkeys(items), 1)]
+
+
+USER_ONLY = ("The brief has no goal", "Set country and language", "paid TinyFish Agent", "out of credit or at its red line",
+             "Working at '")
+
+
+def owner(item: str) -> str:
+    """Who an item of needs_you is for: [user] - only the user can decide it (the brief, money, a
+    key); [lead] - the lead does it before its final report (078: a final report listed merges,
+    reviews and empty records as questions for the user)."""
+    return "user" if any(k in item for k in USER_ONLY) else "lead"
 
 
 def search(query: str, project: str = "", engines: list[str] | None = None, country: str = "",

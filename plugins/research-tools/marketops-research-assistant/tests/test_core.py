@@ -586,12 +586,12 @@ class Supervision(unittest.TestCase):
         ws.merge_contacts(pdir, [{"kind": "email", "value": "a@x.fr", "quote": "q", "page_url": "u"}], "o1", "X", "site")
         ws.update_contacts(pdir, [{"org_id": "o1", "value": "a@x.fr", "grade": "A", "review": "yes"}], ["grade", "review"])
         items = server.needs_you(pdir, {"accounts": {}})
-        self.assertTrue(items[0].startswith("1. Set country and language"))
+        self.assertTrue(items[0].startswith("1. [user] Set country and language"))
         self.assertTrue(any("1 A/B rows are marked review" in i for i in items))
         items = server.needs_you(pdir, {"accounts": {"serper": {"balance": {"left": -28.0, "unit": "credits"},
                                                                  "red_line": 250.0, "skipped": None},
                                                       "deepseek": {"balance": {"left": 40.0}, "red_line": 1.0}}})
-        self.assertTrue(any(i.split(". ", 1)[1].startswith("serper is out of credit") for i in items))
+        self.assertTrue(any(i.split("] ", 1)[1].startswith("serper is out of credit") for i in items))
         self.assertFalse(any("deepseek" in i for i in items))
 
 

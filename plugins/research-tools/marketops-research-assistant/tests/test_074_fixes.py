@@ -202,10 +202,12 @@ class EmptyLanes(Base):
         p = "e074b"
         server.project(p, brief={"goal": "g", "country": "FR", "language": "fr"})
         server.sources(p, add=[{"source": "district list", "url": "https://district074.test/list"}])
+        mined = server.tasks(p, action="claim", kind="source", agent="m1")["task"]   # being mined (0.7.9: only that waits)
         got = server.tasks(p, action="claim", kind="sweep", agent="r1")
         self.assertTrue(got["keep_waiting"])
         self.assertIn("do not stop", got["next"])
         server.sources(p, set=[{"source": "district list", "status": "dropped", "note": "dead"}])
+        server.tasks(p, action="done", task_id=mined["task_id"], note="dead list")
         got = server.tasks(p, action="claim", kind="sweep", agent="r1")
         self.assertTrue(got["lane_finished"])
 

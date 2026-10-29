@@ -47,7 +47,20 @@ that has none).
   lane ended; a journal entry from each worker; `RETRO.md` written; every contact quoted.
   A/B counts at this size are a baseline to compare, not a pass mark.
 
-## Smoke baseline
+## Archive (every run, automatically)
+
+A run is not finished until it is archived - nobody should have to ask. After the final export:
+
+1. `python <plugin>/tools/archive_run.py <project folder> <run repository clone> <run name> --doc
+   <process notes>` - copies the standard files into `runs/<run name>/`, every address and phone
+   redacted (workbook included), and refuses (exit 1, nothing left behind) if one survives.
+   The run name is `<district>-<version without dots>-<date>`, e.g. `paris11-079-20261029`.
+2. In the run repository (this project's: the private `marketops-session`): a branch
+   `runs/<run name>`, one commit, push, open the pull request and merge it. The process notes are
+   the lead's: numbers, the fixed / not fixed table against the previous version, new defects with
+   how to reproduce them.
+3. Tell the user the pull request's link in the final report.
+
 
 A run whose brief differs from the smoke brief above (another cap, `max_per_source`, other
 worker counts) does not get a row here: its record goes to the private session repository
