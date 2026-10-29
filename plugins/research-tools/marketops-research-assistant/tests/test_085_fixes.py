@@ -33,7 +33,7 @@ import mo_workspace as ws  # noqa: E402
 import server  # noqa: E402
 
 ws._dns_ok[:] = [False]
-DENIED = ("Unexpected error in _crawl_web at line 779 in _crawl_web (C:\\Users\\x\\crawl4ai\\async_crawler_strategy.py):\n"
+DENIED = ("Unexpected error in _crawl_web at line 779 in _crawl_web (crawl4ai/async_crawler_strategy.py):\n"
           "Error: Failed on navigating ACS-GOTO:\nPage.goto: net::ERR_NETWORK_ACCESS_DENIED at https://example.com/\n"
           "Call log:\n  - navigating to \"https://example.com/\"")
 
