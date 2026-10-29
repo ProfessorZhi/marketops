@@ -108,6 +108,9 @@ class Installers(unittest.TestCase):
         self.assertNotRegex(ps, r"(?m)^claude mcp")               # no Claude Code: not an error
         self.assertIn("MARKETOPS_NO_PROMPT", sh)                  # an agent can install without typing keys
         self.assertIn("MARKETOPS_NO_PROMPT", ps)
+        self.assertNotRegex(ps, r"(?m)^\s*if .*\{ py -3")                # no py launcher: python is found
+        self.assertIn("Find-Python", ps)
+        self.assertIn('`"args`"', ps)                                # hosts start python.exe, not cmd.exe
 
     def test_the_check_names_a_plugin_folder_without_its_skills(self):
         with mock.patch.object(server, "PLUGIN", Path(tempfile.mkdtemp())), \
@@ -188,6 +191,48 @@ class Conformance(unittest.TestCase):
         self.assertGreater(proj["time_left_min"], 29)
         self.assertIsNone(claim.get("task"))             # nothing pooled yet: an empty claim that says why
         self.assertTrue(claim.get("why_empty"))
+
+
+class InstallNetwork(unittest.TestCase):
+    """What the installers decide before downloading (tools/install_helper.py)."""
+
+    def setUp(self):
+        sys.path.insert(0, str(ROOT / "tools"))
+        import install_helper
+        self.h = install_helper
+
+    def run_net(self, answers, env):
+        def fake(url, proxy=True, timeout=8.0):
+            return answers.get(("pypi" if "pypi.org" in url else "mirror") + ("" if proxy else "-direct"))
+        with mock.patch.object(self.h, "_get", side_effect=fake), mock.patch.dict(os.environ, env, clear=True):
+            return self.h.net()
+
+    def test_a_proxy_that_fails_is_dropped_when_a_direct_line_works(self):
+        got = self.run_net({"pypi-direct": 0.5}, {"HTTPS_PROXY": "http://127.0.0.1:59368"})
+        self.assertEqual((True, ""), (got["drop_proxy"], got["pip_index"]))
+
+    def test_a_slow_pypi_takes_a_fast_mirror_unless_one_is_set(self):
+        self.assertTrue(self.run_net({"pypi-direct": 9.0, "mirror-direct": 0.4}, {})["pip_index"])
+        self.assertEqual("", self.run_net({"pypi-direct": 9.0, "mirror-direct": 0.4},
+                                          {"PIP_INDEX_URL": "https://my.mirror/simple"})["pip_index"])
+        self.assertEqual("", self.run_net({"pypi-direct": 0.8, "mirror-direct": 0.2}, {})["pip_index"])
+
+    def test_the_server_uses_the_browser_the_installer_found(self):
+        home = Path(tempfile.mkdtemp())
+        (home / "browser.txt").write_text("msedge", encoding="utf-8")
+        with mock.patch.object(mo_providers.mo_config, "home", return_value=home), \
+                mock.patch.dict(os.environ, {"MARKETOPS_BROWSER": ""}):
+            self.assertEqual("msedge", mo_providers.browser_channel())
+        with mock.patch.dict(os.environ, {"MARKETOPS_BROWSER": "chrome"}):
+            self.assertEqual("chrome", mo_providers.browser_channel())
+
+    def test_both_installers_put_the_core_first_and_the_browser_last(self):
+        for name in ("install.sh", "Install.ps1"):
+            text = (ROOT / name).read_text(encoding="utf-8")
+            self.assertLess(text.index("requirements-core.txt"), text.index("4/5"), name)
+            self.assertLess(text.index("4/5"), text.index("5/5"), name)
+            self.assertIn("MARKETOPS_LITE", text)
+            self.assertIn("install_helper.py", text)
 
 
 class Docs(unittest.TestCase):

@@ -60,3 +60,24 @@ jobs:
           $errors = $null
           [System.Management.Automation.Language.Parser]::ParseFile("$PWD/Install.ps1", [ref]$null, [ref]$errors) | Out-Null
           if ($errors) { $errors; exit 1 }
+      - name: Installer, core only (Linux, macOS)
+        if: runner.os != 'Windows'
+        env:
+          MARKETOPS_NO_PROMPT: "1"
+          MARKETOPS_LITE: "1"
+        run: |
+          export MARKETOPS_HOME="$RUNNER_TEMP/mo"
+          sh install.sh </dev/null
+          "$MARKETOPS_HOME/bin/marketops-mcp" --check
+          test -f "$MARKETOPS_HOME/plugin/skills/marketops-research/SKILL.md"
+      - name: Installer, core only (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          MARKETOPS_NO_PROMPT: "1"
+          MARKETOPS_LITE: "1"
+        run: |
+          $env:MARKETOPS_HOME = Join-Path $env:RUNNER_TEMP "mo"
+          .\Install.ps1
+          & (Join-Path $env:MARKETOPS_HOME "venv\Scripts\python.exe") (Join-Path $env:MARKETOPS_HOME "plugin\scripts\server.py") --check
+          if (-not (Test-Path (Join-Path $env:MARKETOPS_HOME "plugin\skills\marketops-research\SKILL.md"))) { exit 1 }

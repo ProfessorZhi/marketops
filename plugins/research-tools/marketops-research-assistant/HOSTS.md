@@ -27,20 +27,35 @@ the local browser, asks for the keys that are missing, copies
 the whole plugin to `~/.marketops/plugin` and writes one launcher:
 
 - Linux / macOS: `~/.marketops/bin/marketops-mcp`
-- Windows: `%USERPROFILE%\.marketops\bin\marketops-mcp.cmd`
+- Windows: `%USERPROFILE%\.marketops\venv\Scripts\python.exe` with the argument
+  `%USERPROFILE%\.marketops\plugin\scripts\server.py` (hosts start Python directly: some hosts'
+  sandboxes block `cmd.exe`; `bin\marketops-mcp.cmd` is for people at a prompt)
 
 It ends with `--check` (version, plugin folder, keys file, Python, which providers work) and
-prints the configuration below with your own path.
+prints the configuration below with your own path. Claude Code and Codex are registered only when
+you run the installer yourself; an agent installing for one host leaves the others alone.
+
+**What it downloads, in order.** The core (MCP, HTTP, PDF, Jev: tens of MB, a minute or two),
+then the plugin and the server - MarketOps works from here, and the installer prints the
+configuration - then the local browser reader, Crawl4AI (about 1 GB with its libraries). On a
+computer with Chrome or Edge that browser is used instead of downloading Chromium (another
+150-300 MB). `MARKETOPS_LITE=1` skips the browser reader: pages are then read by TinyFish, DeepSeek
+and plain HTTP; run the installer again without it to add it later.
+
+**Network.** Before downloading, the installer tests the way out: a local proxy that does not
+answer (a 502 on everything) is dropped for the install when a direct connection works, and a
+slow PyPI is replaced by a faster mirror (pip and Playwright) unless you set `PIP_INDEX_URL`
+yourself.
 
 ## Attach the server
 
-Every host: an MCP server of type stdio whose command is the launcher, with no arguments.
+Every host: an MCP server of type stdio.
 
 | Host | How |
 |---|---|
-| Claude Code | `/plugin marketplace add ProfessorZhi/marketops`, `/plugin install marketops-research-assistant@marketops` (on Windows the installer also registers the launcher with `claude mcp add`) |
-| Codex | registered by the installer when `codex` is installed; else `~/.codex/config.toml`: `[mcp_servers.marketops]` `command = "<launcher>"` `tool_timeout_sec = 120` |
-| WorkBuddy, Claude Desktop, Cursor, any MCP host | its MCP settings, JSON `{"mcpServers": {"marketops": {"command": "<launcher>"}}}` |
+| Claude Code | `/plugin marketplace add ProfessorZhi/marketops`, `/plugin install marketops-research-assistant@marketops` (on Windows the installer also registers the server with `claude mcp add`) |
+| Codex | registered by the installer when `codex` is installed; else `~/.codex/config.toml`: `[mcp_servers.marketops]` `command = "<command>"` (`args = ["<server.py>"]` on Windows) `tool_timeout_sec = 120` |
+| WorkBuddy, Claude Desktop, Cursor, any MCP host | its MCP settings, the JSON the installer printed: Linux / macOS `{"mcpServers": {"marketops": {"command": "<launcher>"}}}`, Windows `{"mcpServers": {"marketops": {"command": "<python.exe>", "args": ["<server.py>"]}}}` |
 
 Long work runs in background processes the server starts, so most tools return in seconds; give
 the host a tool timeout of at least 120 s for `fetch` of a slow page.
