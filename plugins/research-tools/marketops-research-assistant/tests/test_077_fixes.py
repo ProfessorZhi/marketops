@@ -119,6 +119,7 @@ class Lanes(Base):
         p, pdir = "q077", ws.project_dir("q077")
         server.project(p, brief={"goal": "g", "country": "FR", "language": "fr"})
         server.sources(p, add=[{"source": "stuck list", "url": "https://stuck077.test/"}])
+        server.tasks(p, action="claim", kind="source", agent="m")   # a miner on it: organisations are coming
         self.assertTrue(server.tasks(p, action="claim", kind="sweep", agent="r")["keep_waiting"])
         old = time.time() - mo_tasks.QUIET_S - 5
         for f in pdir.iterdir():

@@ -21,6 +21,7 @@ A claim older than CLAIM_MINUTES is offered again, so a worker that dies never b
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from datetime import datetime, timedelta, timezone
 
@@ -238,7 +239,13 @@ def possible_duplicates(pdir) -> list[dict]:
     for key, ids in whys.items():
         merged.setdefault(root(next(iter(ids))), set()).update(ids)
     out = []
+    try:
+        apart = set(json.loads((pdir / "keep_apart.json").read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        apart = set()
     for r, ids in merged.items():
+        if ids & apart:
+            continue   # the lead said these are two organisations
         why = sorted({{"name": "one name written two ways", "id": "the same registry number",
                        "email": "the same address"}[k.split(":", 1)[0]] for k, v in whys.items() if v & ids})
         out.append({"ids": sorted(ids), "names": [names[i][:40] for i in sorted(ids)], "why": "; ".join(why)})
@@ -536,8 +543,15 @@ def outlook(pdir, kind: str = "", agent: str = "") -> dict:
     import mo_flow
     import mo_run
     spool = mo_flow.source_pool(pdir)
-    found = [r["source"] for r in spool if r.get("status") in ("found", "mining")]
     rows = ws.read_csv(_path(pdir))
+    stale = (_now() - timedelta(minutes=CLAIM_MINUTES)).isoformat(timespec="seconds")
+    being_mined = {i for r in rows if r["kind"] == "source" and r["status"] == "claimed" and r.get("claimed", "") >= stale
+                   for i in r["items"].split("|") if i}
+    # a source someone is mining brings organisations; one only found waits for a miner that may
+    # never come (078: one unmined list kept a researcher claiming for 17 minutes) - it is work to
+    # take, not a reason to wait
+    found = [r["source"] for r in spool if r.get("status") in ("found", "mining") and r["source"] in being_mined]
+    unmined = [r["source"] for r in spool if r.get("status") in ("found", "mining") and r["source"] not in being_mined]
     if not spool and not ws.read_csv(pdir / "orgs.csv"):
         # a project just started: nothing found yet is not nothing to do (074: a researcher was
         # told lane_finished at minute 3, before the finders had registered a list)
@@ -545,16 +559,18 @@ def outlook(pdir, kind: str = "", agent: str = "") -> dict:
         why.append("no source is registered and no organisation pooled yet: the finders are starting")
     if found and kind in ("sweep", "site", "dig", "source", "") and not quiet:
         waits = True
-        why.append(f"{len(found)} source(s) are still being found or mined: their organisations come next")
+        why.append(f"{len(found)} source(s) are being mined: their organisations come next")
+    if unmined and kind != "source":
+        why.append(f"{len(unmined)} registered source(s) nobody mines ({', '.join(unmined[:3])}): take one from the "
+                   "source lane (tasks(action='claim', kind='source')) or leave it to the lead")
     upstream = {"sweep": ("source", "find", "site"), "site": ("source", "find"), "dig": ("source", "find", "site", "sweep"),
                 "source": ("find",)}.get(kind, ())
-    stale = (_now() - timedelta(minutes=CLAIM_MINUTES)).isoformat(timespec="seconds")
     busy = {r["kind"] for r in rows if r["status"] == "claimed" and r["kind"] in upstream and r.get("claimed", "") >= stale}
     if busy and not quiet:
         waits = True
         why.append("agents still hold " + ", ".join(sorted(busy)) + " packages: what they bring comes here")
     running = [b for b in mo_run.batch_states(pdir) if not b.get("done")]
-    if quiet and (piloting or found or busy):
+    if quiet and (piloting or found or busy or unmined):
         why.append(f"nothing has moved in the pools for {QUIET_S // 60} minutes: what still looks unfinished "
                    "(a pilot, a source marked mining, a claimed package) is not coming - the lead checks it")
     if kind == "dig" and (running or any(r["kind"] == "sweep" and r["status"] != "done" for r in rows)):
@@ -564,6 +580,8 @@ def outlook(pdir, kind: str = "", agent: str = "") -> dict:
     for r in rows:
         if r["status"] == "open" and r["kind"] != kind:
             others[r["kind"]] = others.get(r["kind"], 0) + 1
+    if unmined and kind != "source":
+        others["source"] = max(others.get("source", 0), len(unmined))   # claiming it plans it
     out: dict = {}
     if others:
         out["other_lanes"] = others

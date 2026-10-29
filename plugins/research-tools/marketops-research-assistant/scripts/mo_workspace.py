@@ -1160,6 +1160,10 @@ def merge_suggested(pdir: Path, skip: list | None = None, rounds: int = 5) -> di
     row with the most contacts and verdicts, then the one with a website."""
     import mo_tasks
     skip = {str(s) for s in (skip or [])}
+    if skip:   # kept apart for good: the list stops offering them (078: the same groups every round)
+        path = pdir / "keep_apart.json"
+        old = set(json.loads(path.read_text(encoding="utf-8"))) if path.exists() else set()
+        path.write_text(json.dumps(sorted(old | skip)), encoding="utf-8")
     done: list[dict] = []
     for _ in range(rounds):
         groups = [g for g in mo_tasks.possible_duplicates(pdir) if not (set(g["ids"]) & skip)]

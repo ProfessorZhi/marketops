@@ -106,13 +106,27 @@ def _check_sample(emails: list) -> list[dict]:
 CHECK_MIN = 20
 
 
-def delivery_gate(emails: list) -> dict:
+def delivery_gate(emails: list, pdir=None) -> dict:
     """Whether the workbook may go out: at least CHECK_MIN confirmed A/B rows opened and recorded
     (grade(set=[{value, org_id, checked}])) at >= 90% - 073 and 074 both exported without one
     check, so the precision bar had no reading. Every export says so on its first line."""
     ab = [c for c in emails if c.get("grade") in ("A", "B") and c.get("review") != "yes"]
     done = [c for c in emails if c.get("checked") in ("ok", "wrong")]
     need = min(CHECK_MIN, len(ab))
+    # the lead's close-out comes before delivery (078: merges, reviews and held rows were left as
+    # questions in a final report): each open item keeps the workbook from reading 可交付
+    open_items = []
+    review = sum(1 for c in emails if c.get("grade") in ("A", "B") and c.get("review") == "yes")
+    if review:
+        open_items.append(f"{review} 条 A/B 待复核（接受、更正或降级，写明原因）")
+    if pdir is not None:
+        import mo_tasks
+        dups = mo_tasks.possible_duplicates(pdir)
+        if dups:
+            open_items.append(f"{len(dups)} 组疑似重复（orgs(merge=\"suggested\", keep_apart=[...])）")
+        held = sum(1 for c in ws.read_contacts(pdir) if c.get("graded_by") == "held")
+        if held:
+            open_items.append(f"{held} 条暂扣的名录地址（grade(held=...)）")
     if not ab:
         return {"ready": False, "status": "未交付：没有确认的 A/B"}
     if len(done) < need:
@@ -122,6 +136,8 @@ def delivery_gate(emails: list) -> dict:
     ok = sum(c["checked"] == "ok" for c in done) / len(done)
     if ok < 0.9:
         return {"ready": False, "status": f"抽检准确率 {ok:.0%} 低于 90%，不得交付：修正错误行并查同类错误"}
+    if open_items:
+        return {"ready": False, "status": "收尾未完成，不得交付：" + "；".join(open_items), "todo": open_items}
     return {"ready": True, "status": f"可交付：抽检 {len(done)} 条，准确率 {ok:.0%}"}
 
 
@@ -296,7 +312,7 @@ def export(pdir) -> dict:
 
     m = metrics(orgs, emails)
     total = m["orgs"]
-    gate = delivery_gate(emails)
+    gate = delivery_gate(emails, pdir)
     summary = [
         {"项目": "交付状态", "值": gate["status"]},
         {"项目": "机构数", "值": total},
