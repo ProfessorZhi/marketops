@@ -41,6 +41,11 @@ flowchart TD
 **读图规则**：箭头只表示「先看哪个」，不表示覆盖关系。冻结盘点里的事实只在它注明的
 revision 上成立；今天的结论要么写在当前事实类文档里，要么以新构建的追加回执出现。
 
+**运行记录**：`docs/runs/` 只放**脱敏的过程记录**（判定、指标口径、失败分布、通用缺陷）。
+真实 Run 的逐条产物——机构明细、联系人、读页记录、逐次成本、抽检证据——的唯一写入权威
+是私有仓 `ProfessorZhi/marketops-session` 的 `runs/<题>-<插件版本>-<日期>/`。
+边界与检查表见 [`runs/README.md`](runs/README.md)。
+
 ## 当前入口：Member-A 自动化设计与执行
 
 先读 [主架构](ARCHITECTURE.md) → [插件/多Session/通知](MULTI_SESSION_PLUGIN_AND_NOTIFICATION_ARCHITECTURE.md) → [共享市场/Scene业务模型](PRODUCT_LINE_AND_SCENE_MODEL.md) → [采集与供应商接入](ACQUISITION_AND_PROVIDER_DESIGN.md) → [统一执行计划](MEMBER_A_AUTOMATION_EXECUTION_PLAN.md)。长期控制/数据机制见 [增量设计](MEMBER_A_AUTOMATION_ARCHITECTURE.md)，证据见 [2026-09-26](research/MEMBER_A_AUTOMATION_EVIDENCE_2026-09-26.md) 与 [2026-09-27](research/MARKET_MODEL_ACCESS_REVIEW_2026-09-27.md)。
