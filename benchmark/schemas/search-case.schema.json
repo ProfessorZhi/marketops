@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marketops.dev/schemas/benchmark/search-case.schema.json",
+  "title": "MarketOps Search Benchmark Case",
+  "description": "One provider-independent search task. Every candidate Search provider must be given the identical query, country, language and top_k.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "case_id", "schema_version", "split", "market", "language", "task_type",
+    "query", "top_k", "country_code", "language_code", "difficulty",
+    "freshness_requirement", "expected_sources", "expected_entities",
+    "expected_fields", "expected_evidence", "gold_label", "label_status",
+    "validation_timestamp", "notes"
+  ],
+  "properties": {
+    "case_id": {
+      "type": "string",
+      "pattern": "^SRCH-[A-Z]{2,3}-[A-Z0-9-]+-[0-9]{3}$",
+      "description": "Stable identifier, e.g. SRCH-FR-WEB-001. Never reused for a different query."
+    },
+    "schema_version": { "const": "marketops.benchmark.case.v1" },
+    "split": {
+      "enum": ["development", "validation", "holdout"],
+      "description": "Holdout cases MUST NOT be consulted while tuning routing."
+    },
+    "market": { "type": "string", "description": "Market slug, e.g. fr, uk, us." },
+    "language": { "type": "string", "description": "Language the query is written in, ISO 639-1." },
+    "task_type": {
+      "enum": [
+        "official_website_discovery",
+        "contact_discovery",
+        "directory_association_discovery",
+        "local_venue_discovery",
+        "government_open_data",
+        "pdf_discovery",
+        "social_media_discovery",
+        "exact_search",
+        "long_tail_search",
+        "freshness_search"
+      ]
+    },
+    "query": { "type": "string", "minLength": 3 },
+    "top_k": { "type": "integer", "minimum": 1, "maximum": 50 },
+    "country_code": {
+      "type": "string",
+      "description": "Country parameter actually sent to providers (ISO 3166-1 alpha-2, lower case). Empty string means 'sent none'."
+    },
+    "language_code": {
+      "type": "string",
+      "description": "hl / language parameter actually sent. Empty string means 'sent none'."
+    },
+    "difficulty": { "enum": ["easy", "medium", "hard"] },
+    "freshness_requirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "max_age_days"],
+      "properties": {
+        "required": { "type": "boolean" },
+        "max_age_days": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    },
+    "expected_sources": {
+      "type": "array",
+      "description": "Authoritative source types or domains a good engine should surface.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "value"],
+        "properties": {
+          "kind": { "enum": ["domain", "source_type"] },
+          "value": { "type": "string" }
+        }
+      }
+    },
+    "expected_entities": {
+      "type": "array",
+      "description": "Entities that a complete answer must surface (organisation, venue, person, document).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["entity_id", "name", "entity_type"],
+        "properties": {
+          "entity_id": { "type": "string" },
+          "name": { "type": "string" },
+          "entity_type": { "enum": ["organisation", "venue", "person", "document", "dataset"] }
+        }
+      }
+    },
+    "expected_fields": {
+      "type": "array",
+      "description": "Fields the searcher must be able to reach from the result set (not necessarily in the snippet).",
+      "items": { "enum": ["official_url", "email", "phone", "address", "postcode", "city", "contact_person", "role", "document_url", "social_profile"] }
+    },
+    "expected_evidence": {
+      "type": "array",
+      "description": "What must be quotable for the case to be considered answered with evidence.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["field", "must_appear_on"],
+        "properties": {
+          "field": { "type": "string" },
+          "must_appear_on": { "type": "string", "description": "URL or URL pattern where the evidence must be found." }
+        }
+      }
+    },
+    "gold_label": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["relevant_urls", "required_entity_ids", "forbidden_urls"],
+      "properties": {
+        "relevant_urls": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["url", "relevance", "is_official"],
+            "properties": {
+              "url": { "type": "string", "format": "uri" },
+              "relevance": { "type": "integer", "minimum": 1, "maximum": 3, "description": "3 = authoritative/primary, 2 = useful, 1 = tangential." },
+              "is_official": { "type": "boolean" },
+              "entity_ids": { "type": "array", "items": { "type": "string" } },
+              "notes": { "type": "string" }
+            }
+          }
+        },
+        "required_entity_ids": { "type": "array", "items": { "type": "string" } },
+        "forbidden_urls": {
+          "type": "array",
+          "description": "Known-bad results: stale pages, scraper farms, wrong entity.",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "label_status": {
+      "enum": ["draft", "human_verified", "disputed"],
+      "description": "Only human_verified cases may enter the official scorecard. Draft cases are for runner development."
+    },
+    "verified_by": { "type": ["string", "null"], "description": "Pseudonymous reviewer id, never a real name or email." },
+    "validation_timestamp": { "type": "string", "format": "date-time" },
+    "notes": { "type": "string" }
+  }
+}
