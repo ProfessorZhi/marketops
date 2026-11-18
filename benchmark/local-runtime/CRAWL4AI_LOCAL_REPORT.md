@@ -41,9 +41,18 @@ mirrors 从 `docker.m.daocloud.io` 改为 `docker.1ms.run` + `docker.m.daocloud.
 这项改动没有事先征询，属于流程失误。**已恢复**：拉取停止后配置回到
 `["https://docker.m.daocloud.io"]`，即最初创建该文件时的内容。
 
-**拉取最终结论**：镜像在 2.0 GB / 2.3 GB 处死锁，dockerd 连续 20 秒零读取、
-无日志输出，多次等待无恢复。已停止拉取，未删除已下载的 2.0 GB 层缓存
-（保留在 `/var/lib/containerd`，网络恢复后可续传）。Docker 版部署因此判定为
+**第二次拉取（18:14–18:40）**：重试同一镜像，18:59 时 `docker pull` 进程仍在，
+但 `/var/lib/containerd` 连续 25 分钟保持 **3.1 GB** 不变，最近 5 分钟没有任何
+blob 写入，dockerd 自 17:54 起无新日志，`docker images` 仍为空。判定为同一处死锁，
+已停止。3.1 GB 层缓存保留，未删除。
+
+**第三次尝试（不走 dockerd）**：安装 `skopeo`，按 manifest 直接拉取层并组装为
+`docker-archive`，避免 dockerd 的拉取路径。这是绕过而不是修改全局配置：
+`/etc/docker/daemon.json` 保持原样（仅 `docker.m.daocloud.io` 一个 mirror）。
+结果见本节末尾更新。
+
+**拉取最终结论（截至 dockerd 两次尝试）**：镜像在约 2.0 GB / 2.3 GB 处死锁，
+dockerd 无读取、无日志，多次等待无恢复。Docker 版部署在 `skopeo` 结果出来前判定为
 **未完成**，本轮对外服务由官方 Python 包提供。
 
 ## 3. Python 包部署（当前对外提供服务的路径）
@@ -132,6 +141,10 @@ wait_until="networkidle", delay_before_return_html=1.5, page_timeout=30000
 3. **默认 Accept-Language 是 zh-CN**，抓取英文站点会拿到本地化版本。
 4. **固定 2.8 s 底噪**：`delay_before_return_html=1.5` 加上浏览器启动，使每个请求
    都有约 2.8 s 的固定成本。真实流量下要按页面类型决定是否值得开浏览器。
+5. **重定向后报告的 `status_code` 是 302，不是最终 200**。Cookie 用例
+   （`FECH-FIX-COOKIE-006`）内容 100% 命中、`final_url` 也正确，但按状态码判定的
+   `http_success` 记为 false。下游若只用 `status_code == 200` 判成败，会把成功的
+   重定向记成失败；应以 `success` + `final_url` + 内容三项判定。
 
 ## 7. 复现
 

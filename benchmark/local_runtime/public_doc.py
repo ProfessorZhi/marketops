@@ -52,7 +52,7 @@ def _probe(text: str, pages_expected: int | None) -> dict:
     }
 
 
-def run_pymupdf(path: pathlib.Path) -> dict:
+def run_pymupdf(path: pathlib.Path, want_tables: bool) -> dict:
     import pymupdf
 
     started = time.monotonic()
@@ -60,10 +60,16 @@ def run_pymupdf(path: pathlib.Path) -> dict:
     parts, tables = [], 0
     for page in doc:
         parts.append(page.get_text())
-        try:
-            tables += len(page.find_tables().tables)
-        except Exception:
-            pass
+        # find_tables() is opt-in: it is a structural analysis that costs
+        # seconds per page on a dense document (a 492-page standard spent
+        # >10 CPU-minutes in it before this was made a flag). Page text is
+        # what this comparison is about; table counts are not comparable
+        # with MinerU's markdown anyway.
+        if want_tables:
+            try:
+                tables += len(page.find_tables().tables)
+            except Exception:
+                pass
     text = "".join(parts)
     probe = _probe(text, doc.page_count)
     probe["pages"] = doc.page_count
@@ -96,6 +102,8 @@ def main() -> int:
     ap.add_argument("--out", default=None)
     ap.add_argument("--save-text", action="store_true",
                     help="keep full parsed text next to the run file")
+    ap.add_argument("--tables", action="store_true",
+                    help="also count PyMuPDF find_tables() results (slow on long PDFs)")
     args = ap.parse_args()
 
     pdfs = [pathlib.Path(p) for p in (args.pdf or sorted(PUBLIC.glob("*.pdf")))]
@@ -110,7 +118,7 @@ def main() -> int:
             "file": str(pdf),
             "bytes": len(raw),
             "sha256": hashlib.sha256(raw).hexdigest(),
-            "pymupdf": run_pymupdf(pdf),
+            "pymupdf": run_pymupdf(pdf, want_tables=args.tables),
             "mineru": run_mineru(pdf, args.timeout),
         }
         for name in ("pymupdf", "mineru"):

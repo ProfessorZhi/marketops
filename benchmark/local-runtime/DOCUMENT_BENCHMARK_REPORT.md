@@ -1,7 +1,7 @@
-# Document Parsing Benchmark — 第一轮（合成数据集）
+# Document Parsing Benchmark — 第一轮（合成 15 份 + 真实公开 4 份）
 
-状态：**Benchmark Completed（合成数据集，15 份）**。真实公开文档样本尚未加入，见文末「本轮不覆盖」。
-最后更新：2026-11-18 17:20 +08:00
+状态：**Benchmark Completed（合成数据集 15 份 + 真实公开文档 4 份，含 492 页长文档）**。
+最后更新：2026-11-18 18:26 +08:00
 
 ---
 
@@ -114,6 +114,60 @@ MinerU 的延迟里含固定开销：每份都 `force=True` 强制重跑，不�
 注意这块卡是共享的：整卡数字里含其他用户的进程（isaac 2.3 GB 等），
 `mineru_proc` 才是本部署可归因的部分。
 
+### 3.6 真实公开文档（3 份）
+
+合成文档证明能力边界，不能代表真实排版。这一组是直接下载的公开文件，
+没有手写金标，因此记录的是「截断或串页就一定会露馅」的性质：页覆盖、
+参考文献条数、章节标记。
+
+| 文档 | 页 | 字节 | PyMuPDF | MinerU | 版式 |
+|---|---|---|---|---|---|
+| arXiv 1706.03762（Attention Is All You Need） | 15 | 2.2 MB | 39,498 字符 / 5.0 s | **44,843 / 21.6 s** | 双栏、公式、2 张表、96 条参考文献 |
+| arXiv 1810.04805（BERT） | 16 | 775 KB | 64,117 / 5.6 s | **69,711 / 43.0 s** | 双栏、大对照表 |
+| IRS Form 1040 | 2 | 220 KB | 10,493 / 3.2 s | **18,695 / 52.5 s** | 表单版式，字段与标签密集 |
+| NIST SP 800-53r5 | **492** | 6.1 MB | 1,651,613 / **1.2 s** | 1,626,234 / **491.2 s** | 长文档、层级标题、大量表格；805 个 markdown 标题 |
+
+- **页覆盖**：MinerU 3/3 全部页（有 `<!-- page n of N -->` marker 可逐页核对），
+  PyMuPDF 按 `page_count` 计，同样 3/3。
+- **参考文献**：Attention 论文两边都是 96 条；截断到 8 页时 MinerU 只有 1 条。
+  这个指标能把「停在半路」和「读完了」分开。
+- **字符差**主要来自 markdown 标记与 LaTeX 转换，不是内容多寡；1040 表单上
+  MinerU 多出的部分是重复的标签/字段名。
+- **长文档**：492 页的 NIST 标准，MinerU 492/492 页、9 次 content 调用
+  （每次 ≤200k 字符，最后一次 `truncated=false`）、无覆盖缺口。单页约 1.0 s，
+  与短文档同量级，说明延迟随页数线性增长，没有隐藏的规模断崖。
+  PyMuPDF 在同一份文件上只用 1.2 s——**406 倍差距**，这是文本型 PDF 不该走
+  MinerU 的最直接证据。
+- MinerU 慢 4–406 倍，这个代价在文本型 PDF 上没有换来可测的质量收益。
+
+> **修正记录（2026-11-18 18:10）**：首次跑 arXiv 时 MinerU 只返回 27,722 字符、
+> 1–8 页，被误认为解析器截断。实际是两个 API 默认值叠加，见 §3.7。
+> 修复后 15/15 页、44,843 字符、96 条参考文献。
+> 首次的错误记录保留在 `runs/public-doc-arxiv-20261118T180500.json`，作否证。
+
+### 3.7 MinerU doclib 的两个静默截断
+
+这两个都不是解析质量问题，是 API 的默认值，但后果一样：**看起来成功，内容缺了一截**。
+
+| # | 位置 | 默认值 | 现象 | 后果 |
+|---|---|---|---|---|
+| 1 | `POST /api/v1/parses` 不给 `page_range` | `default_parse_range()` → `1-10` | 15 页文档只解析前 10 页，`status: done`、`coverage: null` | 第 11 页起从未解析，读取时也拿不到 |
+| 2 | `GET /docs/{ref}/content` 不给 `limit` | 30000 字符 | 第 8 页中途截断，返回 `truncated: true` + `next_request` | 只读第一页响应的客户端拿到 27,722 字符 |
+| 3 | 文件入库（`GET /docs/by-path`、watch 扫描） | 自动排一个 `tier=flash`、`page_range=1-10` 的解析 | 492 页文档入库后立刻有一条 1-10 的 flash 解析任务 | 只想查 page_count 也会触发解析；它和手动提交的 1-N 解析并存 |
+
+第 1 条是服务端行为，无法绕过，只能由调用方显式给范围；第 2 条是分页协议，
+正确做法是跟随 `next_request` 直到 `truncated=false`。
+
+`benchmark/local_runtime/document_bench.py::parse_mineru` 现在：
+
+1. 先 `GET /docs/by-path` 取 `page_count`；
+2. 提交时显式 `page_range: "1-N"`；
+3. 读取时带 `page_range` 和大 `limit`，并在 `truncated` 时跟随 `next_request`；
+4. 从 page marker 统计 `pages_covered` / `coverage_gaps` 写进结果，覆盖不全会留下痕迹。
+
+合成数据集不受影响：最长 2 页、最大 6,092 字符，两个上限都没碰到，
+因此 §3.1–§3.4 的结果不需要重跑。
+
 ## 4. 结论
 
 1. **文本型 PDF 不需要 MinerU。** PyMuPDF 0.2 s 拿到 100% 内容，MinerU 12 s 拿到同样的
@@ -128,12 +182,12 @@ MinerU 的延迟里含固定开销：每份都 `force=True` 强制重跑，不�
 
 ## 5. 本轮不覆盖
 
-- **真实公开文档**：全部 15 份为合成样本。它们能证明能力边界，不能代表真实排版
-  的分布。下一轮必须加入真实公开 PDF（政府公开文件、公开年报等）并重新计算。
+- **真实扫描件**：真实公开文档已加入 3 份，但都是文本型 PDF；扫描件仍只有合成样本。
+- **真实年报/财报**：SEC EDGAR 从本机返回 403，未能取到 10-K 原件。
 - **单元格级表格还原**：当前只测字符串命中。
 - **MinerU Cloud 对照**：未执行，配额未确认。
 - **字符级 CER / WER**：没有逐字符金标，只有 marker。
-- **多页长文档**：最长 2 页。
+- **长篇文档**：已补 492 页 NIST 标准（§3.6），但只有一份；扫描类长文档仍缺。
 - **并发与吞吐**：全部串行，并发为 1。
 
 ## 6. 原始数据
@@ -146,4 +200,20 @@ benchmark/local-runtime/runs/
   document-bench-20261118T171408.jsonl       MinerU 逐用例
   document-bench-all.jsonl                   合并后的 27 行
   *.summary.json                             按 parser × doc_type 聚合
+  public-doc-arxiv-20261118T180500.json      arXiv 首次对照（客户端截断，作否证）
+  public-doc-20261118T181008.json            arXiv 修复后：15/15 页、96 条参考文献
+  public-doc-20261118T181304.json            BERT + IRS 1040
 ```
+
+公开样本身份（SHA256）随每次运行写入记录；文件本身不提交仓库。
+
+复现：
+
+```bash
+cd /home/fjd/projects/marketops-local-runtime-lab
+PYTHONPATH=$PWD /data/home/fjd/marketops-lab/envs/docbench/bin/python \
+  -m benchmark.local_runtime.public_doc \
+  --pdf /data/home/fjd/marketops-lab/samples/public/arxiv-attention.pdf
+```
+
+`--tables` 会额外统计 PyMuPDF 的 `find_tables()`，在长文档上极慢，默认关闭。
