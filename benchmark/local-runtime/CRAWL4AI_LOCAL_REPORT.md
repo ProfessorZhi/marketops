@@ -124,6 +124,11 @@ wait_until="networkidle", delay_before_return_html=1.5, page_timeout=30000
    若下游按「被拦」触发重试或换代理，会白烧配额。
 2. **PDF URL 直接抛异常**，不是返回空。`/crawl` 调用方需要自己判断 URL 是否指向
    PDF 并转文档解析链路，不能指望 fetch 层兜底。
+   已做二次验证：打开 Crawl4AI 自带的 `BrowserConfig(accept_downloads=True)` 后
+   重试，**仍然失败**，错误同为 `Page.goto: Download is starting`。源码
+   `async_crawler_strategy.py:771` 只兜底 `net::ERR_ABORTED`，不匹配 Playwright
+   这个错误。**这是确定性的能力缺口，不是配置问题**，见
+   `JOINT_PIPELINE_REPORT.md` §4（12/12 PDF 全部在 fetch 阶段失败）。
 3. **默认 Accept-Language 是 zh-CN**，抓取英文站点会拿到本地化版本。
 4. **固定 2.8 s 底噪**：`delay_before_return_html=1.5` 加上浏览器启动，使每个请求
    都有约 2.8 s 的固定成本。真实流量下要按页面类型决定是否值得开浏览器。

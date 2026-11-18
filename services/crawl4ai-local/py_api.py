@@ -65,6 +65,17 @@ DEFAULTS = {
 }
 
 
+def _browser_config() -> BrowserConfig:
+    # accept_downloads is what lets a PDF URL abort navigation and become a
+    # download instead of raising "Download is starting". It is off by default
+    # in Crawl4AI, which is why a PDF URL fails without it.
+    return BrowserConfig(
+        headless=True,
+        verbose=False,
+        accept_downloads=os.environ.get("CRAWL4AI_ACCEPT_DOWNLOADS", "0") == "1",
+    )
+
+
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok", "version": "0.9.5", "uptime_s": round(time.time() - STARTED, 1)}
@@ -79,7 +90,7 @@ async def crawl(req: CrawlRequest, authorization: str | None = Header(default=No
     accepted = set(inspect.signature(CrawlerRunConfig).parameters)
     run_cfg = CrawlerRunConfig(**{k: v for k, v in cfg.items() if k in accepted})
     results = []
-    async with AsyncWebCrawler(config=BrowserConfig(headless=True, verbose=False)) as crawler:
+    async with AsyncWebCrawler(config=_browser_config()) as crawler:
         for url in req.urls:
             started = time.monotonic()
             try:
