@@ -1,0 +1,93 @@
+[
+  {
+    "parser": "native_office",
+    "doc_type": "docx",
+    "cases": 1,
+    "text_completeness": 1.0,
+    "page_coverage": 1.0,
+    "table_accuracy": null,
+    "reading_order_accuracy": null,
+    "long_enough_rate": 1.0,
+    "latency_p50_s": 0.01,
+    "latency_max_s": 0.01,
+    "failures": 0
+  },
+  {
+    "parser": "native_office",
+    "doc_type": "pptx",
+    "cases": 1,
+    "text_completeness": 1.0,
+    "page_coverage": 1.0,
+    "table_accuracy": null,
+    "reading_order_accuracy": null,
+    "long_enough_rate": 1.0,
+    "latency_p50_s": 0.01,
+    "latency_max_s": 0.01,
+    "failures": 0
+  },
+  {
+    "parser": "native_office",
+    "doc_type": "xlsx",
+    "cases": 1,
+    "text_completeness": 1.0,
+    "page_coverage": 1.0,
+    "table_accuracy": null,
+    "reading_order_accuracy": null,
+    "long_enough_rate": 1.0,
+    "latency_p50_s": 0.01,
+    "latency_max_s": 0.01,
+    "failures": 0
+  },
+  {
+    "parser": "pymupdf",
+    "doc_type": "pdf_multicolumn",
+    "cases": 3,
+    "text_completeness": 1.0,
+    "page_coverage": 1.0,
+    "table_accuracy": null,
+    "reading_order_accuracy": 1.0,
+    "long_enough_rate": 1.0,
+    "latency_p50_s": 0.2,
+    "latency_max_s": 0.31,
+    "failures": 0
+  },
+  {
+    "parser": "pymupdf",
+    "doc_type": "pdf_scanned",
+    "cases": 3,
+    "text_completeness": 0.0,
+    "page_coverage": 1.0,
+    "table_accuracy": 0.0,
+    "reading_order_accuracy": null,
+    "long_enough_rate": 0.0,
+    "latency_p50_s": 0.11,
+    "latency_max_s": 0.11,
+    "failures": 0
+  },
+  {
+    "parser": "pymupdf",
+    "doc_type": "pdf_table",
+    "cases": 3,
+    "text_completeness": 1.0,
+    "page_coverage": 1.0,
+    "table_accuracy": 1.0,
+    "reading_order_accuracy": null,
+    "long_enough_rate": 1.0,
+    "latency_p50_s": 0.26,
+    "latency_max_s": 0.52,
+    "failures": 0
+  },
+  {
+    "parser": "pymupdf",
+    "doc_type": "pdf_text",
+    "cases": 3,
+    "text_completeness": 1.0,
+    "page_coverage": 1.0,
+    "table_accuracy": 1.0,
+    "reading_order_accuracy": 1.0,
+    "long_enough_rate": 1.0,
+    "latency_p50_s": 0.22,
+    "latency_max_s": 3.23,
+    "failures": 0
+  }
+]

@@ -1,0 +1,19 @@
+{
+  "captured_at": "2026-11-18T17:12:22+08:00",
+  "mineru_version": "MinerU 版本: 4.2.3\nPython 版本: 3.12.15",
+  "tier": "standard",
+  "model_root": "/data/home/fjd/marketops-lab/mineru-home/models",
+  "model_bundles": "854M\t/data/home/fjd/marketops-lab/mineru-home/models/MinerU-4_models_torch;1.2G\t/data/home/fjd/marketops-lab/mineru-home/models/MinerU2.5-Pro-2605-1.2B-GGUF;",
+  "gpu": {
+    "name": "NVIDIA RTX A6000",
+    "driver": "595.99.02",
+    "cuda": "CUDA Version: 13.2",
+    "mineru_process_mib": "2152529, /data/home/fjd/marketops-lab/envs/mineru/bin/python, 2547 MiB"
+  },
+  "runtime": {
+    "python": "Python 3.12.15",
+    "torch_cuda": "2.15.0+cu132 13.2 True",
+    "endpoint": "http://127.0.0.1:18000",
+    "parse_server_port": 16580
+  }
+}

@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marketops.dev/schemas/benchmark/document-case.schema.json",
+  "title": "MarketOps Document Parsing Benchmark Case",
+  "description": "One provider-independent document parsing task. Every candidate parser must be given the identical file bytes, page limit and timeout.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "case_id", "schema_version", "split", "doc_type", "path", "difficulty",
+    "timeout_seconds", "expected", "label_status", "validation_timestamp", "notes"
+  ],
+  "properties": {
+    "case_id": {
+      "type": "string",
+      "pattern": "^DOC-[A-Z0-9-]+-[0-9]{3}$",
+      "description": "Stable identifier, e.g. DOC-PDF-TABLE-001."
+    },
+    "schema_version": { "const": "marketops.benchmark.document.v1" },
+    "split": { "enum": ["development", "validation", "holdout"] },
+    "doc_type": {
+      "enum": [
+        "pdf_text",
+        "pdf_scanned",
+        "pdf_multicolumn",
+        "pdf_table",
+        "docx",
+        "pptx",
+        "xlsx"
+      ]
+    },
+    "path": {
+      "type": "string",
+      "description": "Path relative to benchmark/datasets/local-runtime/document/."
+    },
+    "sha256": {
+      "type": "string",
+      "description": "Hash of the file bytes. A parser score is only comparable against the exact file it was measured on."
+    },
+    "difficulty": { "enum": ["easy", "medium", "hard"] },
+    "timeout_seconds": { "type": "integer", "minimum": 10, "maximum": 600 },
+    "language": { "type": "string" },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["page_count", "min_text_chars", "text_markers"],
+      "properties": {
+        "page_count": { "type": "integer", "minimum": 1 },
+        "min_text_chars": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total extracted characters below this means the parse lost content."
+        },
+        "text_markers": {
+          "type": "array",
+          "description": "Strings that must appear in the extracted text for the parse to count as complete.",
+          "items": { "type": "string" }
+        },
+        "reading_order": {
+          "type": "array",
+          "description": "Markers in the order they must appear. Catches column interleaving.",
+          "items": { "type": "string" }
+        },
+        "tables": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["rows", "columns"],
+            "properties": {
+              "rows": { "type": "integer", "minimum": 1 },
+              "columns": { "type": "integer", "minimum": 1 },
+              "cell_markers": {
+                "type": "array",
+                "description": "Cells that must survive as cells, not as flattened prose.",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        },
+        "expected_emails": { "type": "array", "items": { "type": "string" } },
+        "expected_phones": { "type": "array", "items": { "type": "string" } },
+        "forbidden_strings": {
+          "type": "array",
+          "description": "Markers of a failed or garbled parse.",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "label_status": { "enum": ["draft", "human_verified", "disputed"] },
+    "verified_by": { "type": ["string", "null"] },
+    "validation_timestamp": { "type": "string", "format": "date-time" },
+    "notes": { "type": "string" }
+  }
+}

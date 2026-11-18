@@ -1,0 +1,63 @@
+{
+  "base_url": "http://127.0.0.1:18000",
+  "tier": "standard",
+  "pdf": "/data/home/fjd/marketops-lab/datasets-raw/smoke/sample.pdf",
+  "checks": [
+    {
+      "name": "auth_required",
+      "status": 401,
+      "passed": true
+    },
+    {
+      "name": "status",
+      "status": 200,
+      "passed": true,
+      "detail": "4.2.3"
+    },
+    {
+      "name": "submit",
+      "status": 200,
+      "passed": true,
+      "parse_ids": [
+        7
+      ],
+      "sha256": "1bbf5ac163d83d5643285f26bec525a59ff31a1476f2dc4ee7488de8c9adb73b",
+      "cache_hit": false
+    },
+    {
+      "name": "parse",
+      "passed": true,
+      "status": "done",
+      "error_code": null,
+      "error_msg": null,
+      "elapsed_s": 3.0
+    },
+    {
+      "name": "content",
+      "passed": true,
+      "text_chars": 93,
+      "excerpt": "<!-- page 1 of 1 -->\n\nNorthwind Ltd quality manual. Page one. Contact info@northwind.example."
+    },
+    {
+      "name": "gpu_resident",
+      "passed": true,
+      "mineru_gpu_mib": 2547,
+      "processes": [
+        "2152529:python:2547 MiB"
+      ]
+    },
+    {
+      "name": "gpu_busy",
+      "passed": true,
+      "util_samples": [
+        9,
+        9,
+        15,
+        9,
+        9
+      ],
+      "gpu_total_peak_mib": 5683
+    }
+  ],
+  "passed": true
+}

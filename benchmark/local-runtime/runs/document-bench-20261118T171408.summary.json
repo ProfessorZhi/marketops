@@ -1,0 +1,54 @@
+[
+  {
+    "parser": "mineru_local",
+    "doc_type": "pdf_multicolumn",
+    "cases": 3,
+    "text_completeness": 1.0,
+    "page_coverage": 1.0,
+    "table_accuracy": null,
+    "reading_order_accuracy": 0.5,
+    "long_enough_rate": 1.0,
+    "latency_p50_s": 9.12,
+    "latency_max_s": 9.61,
+    "failures": 0
+  },
+  {
+    "parser": "mineru_local",
+    "doc_type": "pdf_scanned",
+    "cases": 3,
+    "text_completeness": 1.0,
+    "page_coverage": 1.0,
+    "table_accuracy": 1.0,
+    "reading_order_accuracy": null,
+    "long_enough_rate": 1.0,
+    "latency_p50_s": 46.75,
+    "latency_max_s": 69.61,
+    "failures": 0
+  },
+  {
+    "parser": "mineru_local",
+    "doc_type": "pdf_table",
+    "cases": 3,
+    "text_completeness": 1.0,
+    "page_coverage": 1.0,
+    "table_accuracy": 1.0,
+    "reading_order_accuracy": null,
+    "long_enough_rate": 1.0,
+    "latency_p50_s": 11.97,
+    "latency_max_s": 12.81,
+    "failures": 0
+  },
+  {
+    "parser": "mineru_local",
+    "doc_type": "pdf_text",
+    "cases": 3,
+    "text_completeness": 1.0,
+    "page_coverage": 1.0,
+    "table_accuracy": 1.0,
+    "reading_order_accuracy": 1.0,
+    "long_enough_rate": 1.0,
+    "latency_p50_s": 12.3,
+    "latency_max_s": 16.39,
+    "failures": 0
+  }
+]

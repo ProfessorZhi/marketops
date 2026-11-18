@@ -70,3 +70,8 @@ node_modules/
 *.swp
 Thumbs.db
 desktop.ini
+
+# --- 本地 benchmark 运行产物 ---
+# MinerU 在提交目录旁写自己的内容寻址副本与服务锁，都是可重建的运行态。
+benchmark/datasets/local-runtime/document/blobs/
+benchmark/datasets/local-runtime/document/.mineru-service.lock
