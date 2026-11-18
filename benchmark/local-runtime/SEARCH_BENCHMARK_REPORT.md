@@ -11,7 +11,7 @@
 |---|---|---|
 | SearXNG（自建） | 可用，但有硬限流 | **不能**，见 §5 |
 | Serper | `not_configured`（无 key） | 未测 |
-| TinyFish | `not_configured`（无 key，端点未核实） | 未测 |
+| TinyFish | `not_configured`（无 key；契约已按 LiteLLM 实现写入 adapter） | 未测 |
 | DeepSeek Search | `not_configured` | 未测 |
 | SerpAPI (Facebook) | `not_configured` | 未测 |
 
@@ -139,9 +139,15 @@ python -m benchmark.local_runtime.search_bench --providers searxng serper tinyfi
 
 - **Serper**：注册送 2500 次，`export SERPER_API_KEY=...` 即可跑，adapter 已就绪，
   数据集和打分不需要改。
-- **TinyFish / DeepSeek Search**：需要先把请求契约写进本仓库（端点、鉴权头、
-  响应结构）。当前 adapter 故意 `NotConfigured`，因为猜一个端点会产出看起来像
-  测量、实际是编造的数字。
+- **TinyFish**：契约已从 LiteLLM 的实现读出来并写进 adapter
+  （`GET https://api.search.tinyfish.ai?query=&location=`，头 `X-API-Key`，
+  结果字段 `title/url/snippet/position`，见
+  `litellm/llms/tinyfish/search/transformation.py`）。**这只是读源码，
+  不是实测**：没有 key，12/12 仍是 `not_configured`。
+- **DeepSeek Search**：端点与鉴权仍未知，adapter 保持 `NotConfigured`。猜一个
+  端点会产出看起来像测量、实际是编造的数字。
+
+本轮未申请任何新 key，外部 API 支出 **$0**（预算上限 $1 未动用）。
 - **SearXNG 若要继续用**：只能低频（例如每条查询间隔数十秒）、失败可重试，
   且必须有备用源。不能当作生产主搜索。
 

@@ -89,13 +89,34 @@ def search_searxng(case: dict) -> list[dict]:
 
 
 def search_tinyfish(case: dict) -> list[dict]:
+    """TinyFish Search: GET, query string, ``X-API-Key``.
+
+    The contract is taken from LiteLLM's own ``TinyfishSearchConfig``
+    (``litellm/llms/tinyfish/search/transformation.py``), which talks to this
+    API in production: ``query``, optional ``location`` (the caller's country),
+    results carrying ``title`` / ``url`` / ``snippet`` / ``position``. It is
+    read from source rather than guessed, but it has not been exercised here
+    without a key — the run reports ``not_configured`` until one is set.
+    """
     key = os.environ.get("TINYFISH_API_KEY", "").strip()
     if not key:
         raise NotConfigured("TINYFISH_API_KEY is not set")
-    # The request shape is not pinned down in this repo yet. Refusing is the
-    # honest state; a guessed endpoint would produce numbers that look like
-    # measurements.
-    raise NotConfigured("TinyFish adapter not implemented: endpoint contract unverified")
+    params = {"query": case["query"]}
+    if case.get("country_code"):
+        params["location"] = case["country_code"].upper()
+    url = "https://api.search.tinyfish.ai?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers={
+        "X-API-Key": key, "Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        payload = json.loads(resp.read())
+    out = []
+    for i, item in enumerate(payload.get("results") or [], start=1):
+        out.append({"url": item.get("url", ""), "title": item.get("title", ""),
+                    "snippet": item.get("snippet", ""),
+                    "rank": item.get("position", i)})
+    return {"results": out,
+            "meta": {"total_results": payload.get("total_results"),
+                     "page": payload.get("page")}}
 
 
 def search_deepseek(case: dict) -> list[dict]:
