@@ -1,0 +1,84 @@
+{
+  "fetch": [
+    {
+      "stage": "fetch",
+      "strategy": "F1 http+trafilatura only",
+      "cases": 12,
+      "qualified": 7,
+      "qualified_rate": 0.5833,
+      "mean_latency_s": 0.0343,
+      "total_latency_s": 0.412,
+      "false_success": 1,
+      "escalations": null
+    },
+    {
+      "stage": "fetch",
+      "strategy": "F2 crawl4ai only",
+      "cases": 12,
+      "qualified": 11,
+      "qualified_rate": 0.9167,
+      "mean_latency_s": 2.1037,
+      "total_latency_s": 25.244,
+      "false_success": 0,
+      "escalations": null
+    },
+    {
+      "stage": "fetch",
+      "strategy": "F3 http first, browser if thin",
+      "cases": 12,
+      "qualified": 11,
+      "qualified_rate": 0.9167,
+      "mean_latency_s": 0.9768,
+      "total_latency_s": 11.721,
+      "false_success": 0,
+      "escalations": 6
+    }
+  ],
+  "document": [
+    {
+      "stage": "document",
+      "strategy": "D1 pymupdf only",
+      "cases": 12,
+      "qualified": 9,
+      "qualified_rate": 0.75,
+      "mean_latency_s": 0.4632,
+      "total_latency_s": 5.559,
+      "escalations": null
+    },
+    {
+      "stage": "document",
+      "strategy": "D2 mineru only",
+      "cases": 12,
+      "qualified": 11,
+      "qualified_rate": 0.9167,
+      "mean_latency_s": 19.1112,
+      "total_latency_s": 229.335,
+      "escalations": null
+    },
+    {
+      "stage": "document",
+      "strategy": "D3 pymupdf first, mineru if thin",
+      "cases": 12,
+      "qualified": 12,
+      "qualified_rate": 1.0,
+      "mean_latency_s": 11.0529,
+      "total_latency_s": 132.635,
+      "escalations": 3
+    }
+  ],
+  "ocr": {
+    "doc": "irs-1040.pdf",
+    "dpi": 300,
+    "pymupdf_chars": 0,
+    "mineru_token_recall": 0.9042,
+    "mineru_latency_s": 47.349
+  },
+  "inputs": {
+    "fetch_run": "fetch-bench-20261118T194107.jsonl",
+    "doc_run": "document-bench-all.jsonl",
+    "ocr_run": "ocr-real-20261118T194826.json",
+    "fetch_min_chars": 200,
+    "doc_min_chars": 100
+  },
+  "cost_usd": 0.0
+}
