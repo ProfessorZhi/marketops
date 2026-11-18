@@ -5,7 +5,7 @@
 
 | 项 | 值 |
 |---|---|
-| 观测时间 | 2026-11-18T16:28–16:32 +08:00 |
+| 观测时间 | 2026-11-18T16:28–16:32 +08:00（Docker 与磁盘状态于 19:10 复核） |
 | 运行用户 | `fjd`（uid 1000，组含 `sudo`、`llm-team`） |
 | 项目根 | `/home/fjd/projects/marketops-local-runtime-lab` |
 | 代码分支 | `feat/a6000-local-runtime-lab` |
@@ -20,9 +20,9 @@
 |---|---|---|
 | GPU | ✅ RTX A6000 48 GB，空闲 | 可部署 MinerU，但必须限并发 |
 | CPU / RAM | ⚠️ 20 线程 / **30 GiB**（非 128 GiB） | 内存是本机最紧的资源 |
-| `/data` 数据盘 | ✅ 1.6 TiB 可用 | 模型权重与中间产物放这里 |
-| Docker / Compose | ❌ **未安装** | **Crawl4AI 官方 Docker 部署阻塞** |
-| NVIDIA Container Toolkit | ❌ 未安装 | 即便装了 Docker，GPU 容器仍需它 |
+| `/data` 数据盘 | ✅ 1.9 TiB，已用 242 GiB，1.6 TiB 可用 | 模型权重与中间产物放这里（初始审计写「未挂载」是错的） |
+| Docker / Compose | ✅ **29.1.3 / 2.40.3**（19:10 复核） | 已装，不再是阻塞项 |
+| NVIDIA Container Toolkit | ❌ 未安装 | Crawl4AI 不需要 GPU 容器；将来做 GPU 容器才需要 |
 | CUDA 驱动 | ✅ 595.99.02，CUDA 13.2 | 向下兼容 PyTorch cu12x |
 | CUDA Toolkit | ✅ `/usr/local/cuda-13.1` | `nvcc` 未在 PATH，仅影响编译 |
 | PyTorch | ❌ 系统 Python 无 torch | MinerU 需自建独立环境 |
@@ -30,8 +30,9 @@
 | `uv` | ✅ `~/.local/bin/uv`，自带 3.11/3.12 | Python 3.12 可用于 MinerU |
 | 网络出口 | ✅ pypi / github / docker hub / huggingface 均可达 | 可拉镜像与权重 |
 
-**一句话**：硬件和网络就绪，GPU 空闲；缺的是 **Docker 栈**，而这需要 `sudo`
-（当前 `sudo` 需要交互密码，非免密）。
+**一句话**：硬件、驱动、Docker 栈均已就绪；剩余的问题不是环境缺件，而是
+**Docker Hub 的层下载在本机网络下会中途死锁**（见 `CRAWL4AI_LOCAL_REPORT.md` §2），
+以及 GPU 与桌面/其他用户进程共享。
 
 ---
 
@@ -119,35 +120,29 @@ Swap    8 GiB（已用 4.4 GiB）
 
 ## 4. 容器与 CUDA 栈
 
-### 4.1 Docker：缺失
+### 4.1 Docker：已安装（初次审计时缺失）
 
 ```
-docker                 MISSING
-docker-compose         MISSING
-podman / nerdctl       MISSING
-containerd（服务）      未运行
+docker                 29.1.3（docker.io 包）
+docker compose         2.40.3（插件）
+containerd             运行中，使用 containerd image store
 nvidia-ctk             MISSING
 nvidia-container-runtime MISSING
-dpkg 中 docker/containerd/nvidia-container-* 包：无
 ```
 
-`sudo -n true` 失败：**当前 `sudo` 需要交互密码**，fjd 虽在 `sudo` 组，但本会话
-无法免密提权。
+初次审计时三条都不存在，`sudo` 也需要交互密码。后续以本机密码完成一次安装，
+Docker 与 Compose 已可用。**NVIDIA Container Toolkit 仍未装**：Crawl4AI 镜像
+不需要 GPU，MinerU 走的是独立 uv 环境，本阶段没有 GPU 容器的需求。
 
-### 4.2 影响
+### 4.2 影响与后续
 
-任务书 §5.A 要求 Crawl4AI **官方 Docker、固定版本、独立 Compose**。没有 Docker
-就不能按该形态部署。三条可选路径：
+Docker 就绪后，官方镜像的部署形态不再受阻。实际卡住的是**层下载**：
+`unclecode/crawl4ai:0.9.5`（2.3 GB）经 dockerd 两次拉取都在约 2.0 GB 处死锁，
+`/var/lib/containerd` 连续 25 分钟零增长、dockerd 无日志。改用 `skopeo` 直接
+按 manifest 拉层、组装成 `docker-archive` 后可以续上。细节与证据见
+`CRAWL4AI_LOCAL_REPORT.md` §2。
 
-| 路径 | 前提 | 评价 |
-|---|---|---|
-| A. 装 Docker + NVIDIA Container Toolkit | 需一次 `sudo`（交互密码） | **推荐**。符合任务书；一次装好，后续 Phase 全部受益 |
-| B. 不用 Docker，`uv` 装 `<crawl4ai>` 起独立进程 | 无需 sudo | 可行但偏离「官方 Docker/Compose」形态；健康检查与版本固定要自己做 |
-| C. 暂缓 Crawl4AI，先做 MinerU | 无需 sudo | 会打乱执行顺序 |
-
-**建议走 A**，并同时装 Compose 插件与 NVIDIA Container Toolkit（MinerU 之后若想
-容器化也用得上）。MinerU 本身不强制 Docker，可用独立 `uv` 环境直接跑，因此
-**Docker 不是 MinerU 的阻塞项，只是 Crawl4AI 的**。
+MinerU 本来就不依赖 Docker：独立 `uv` 环境直接跑，因此 Docker 从来不是它的阻塞项。
 
 ### 4.3 CUDA / PyTorch
 
@@ -245,7 +240,8 @@ dpkg 中 docker/containerd/nvidia-container-* 包：无
 
 ### 阻塞项
 
-1. **Docker 安装需要一次交互式 `sudo`。** 这是 Crawl4AI 官方部署的硬前置。
+1. **Docker Hub 层下载会在中途死锁**（约 2.0 GB / 2.3 GB）。dockerd 与镜像仓库
+   的连接不报错、不重试、不写入；已改用 `skopeo` 直取层绕过。
 2. **内存 30 GiB**，MinerU + Crawl4AI 并发必须显式限流。
 3. **9222 端口已被 Chrome 占用**，不能复用。
 
@@ -257,11 +253,12 @@ dpkg 中 docker/containerd/nvidia-container-* 包：无
 
 ### 建议顺序
 
-1. 取得一次 `sudo` 授权 → 安装 Docker Engine + Compose 插件 + NVIDIA Container Toolkit；
-2. 建 `/data/home/fjd/marketops-lab/` 作为 DATA_ROOT（权重、缓存、中间产物）；
-3. 部署 MinerU（独立 `uv` 环境，`batch=1`，显存上限）；
-4. 部署 Crawl4AI（Docker Compose，固定版本，loopback + 独立 Token）；
-5. 两者各自过 Smoke Test，再进入数据集与 Benchmark。
+1. ~~安装 Docker Engine + Compose 插件~~（已完成，NVIDIA Container Toolkit 暂不需要）；
+2. ~~建 `/data/home/fjd/marketops-lab/` 作为 DATA_ROOT~~（已完成）；
+3. ~~部署 MinerU~~（已完成，独立 uv 环境，常驻显存 3.3 GB）；
+4. ~~部署 Crawl4AI~~（Python 包 + REST API 已完成；Docker 镜像经 skopeo 拉取中）；
+5. 两者 Smoke Test 已过，Benchmark 见 `DOCUMENT_BENCHMARK_REPORT.md` 与
+   `CRAWL4AI_LOCAL_REPORT.md`。
 
 ---
 
