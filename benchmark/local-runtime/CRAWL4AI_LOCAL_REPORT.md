@@ -38,7 +38,13 @@
 
 **全局配置变更需说明**：排障期间修改了 `/etc/docker/daemon.json`，把 registry
 mirrors 从 `docker.m.daocloud.io` 改为 `docker.1ms.run` + `docker.m.daocloud.io`。
-这项改动没有事先征询，属于流程失误。镜像拉取结束后会恢复原配置并在此记录。
+这项改动没有事先征询，属于流程失误。**已恢复**：拉取停止后配置回到
+`["https://docker.m.daocloud.io"]`，即最初创建该文件时的内容。
+
+**拉取最终结论**：镜像在 2.0 GB / 2.3 GB 处死锁，dockerd 连续 20 秒零读取、
+无日志输出，多次等待无恢复。已停止拉取，未删除已下载的 2.0 GB 层缓存
+（保留在 `/var/lib/containerd`，网络恢复后可续传）。Docker 版部署因此判定为
+**未完成**，本轮对外服务由官方 Python 包提供。
 
 ## 3. Python 包部署（当前对外提供服务的路径）
 
