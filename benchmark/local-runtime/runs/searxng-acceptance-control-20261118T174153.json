@@ -1,0 +1,338 @@
+{
+  "rows": [
+    {
+      "http_status": 200,
+      "latency_s": 8.017,
+      "result_count": 20,
+      "engines": {
+        "google cse": 20
+      },
+      "unresponsive_engines": [
+        [
+          "brave",
+          "timeout"
+        ],
+        [
+          "duckduckgo",
+          "CAPTCHA"
+        ]
+      ],
+      "blocked_engines": [
+        [
+          "duckduckgo",
+          "CAPTCHA"
+        ]
+      ],
+      "top3": [
+        "https://openai.com/",
+        "https://openai.com/about/",
+        "https://openai.com/news/"
+      ],
+      "label": "corporate_website",
+      "query": "official website of OpenAI",
+      "language": "en",
+      "country": "us"
+    },
+    {
+      "http_status": 200,
+      "latency_s": 0.442,
+      "result_count": 20,
+      "engines": {
+        "google cse": 20
+      },
+      "unresponsive_engines": [
+        [
+          "brave",
+          "Suspended: timeout"
+        ],
+        [
+          "duckduckgo",
+          "CAPTCHA"
+        ]
+      ],
+      "blocked_engines": [
+        [
+          "duckduckgo",
+          "CAPTCHA"
+        ]
+      ],
+      "top3": [
+        "https://en.wikipedia.org/wiki/Sam_Altman",
+        "https://www.bloomberg.com/profile/person/16408119",
+        "https://builtin.com/articles/sam-altman"
+      ],
+      "label": "company_executive",
+      "query": "OpenAI CEO Sam Altman profile",
+      "language": "en",
+      "country": "us"
+    },
+    {
+      "http_status": 200,
+      "latency_s": 0.306,
+      "result_count": 20,
+      "engines": {
+        "google cse": 20
+      },
+      "unresponsive_engines": [
+        [
+          "brave",
+          "Suspended: timeout"
+        ],
+        [
+          "duckduckgo",
+          "CAPTCHA"
+        ]
+      ],
+      "blocked_engines": [
+        [
+          "duckduckgo",
+          "CAPTCHA"
+        ]
+      ],
+      "top3": [
+        "https://www.siemens.com/en-us/corporate-information/",
+        "https://www.siemens.com/en-us/contact/",
+        "https://www.siemens.com/en-us/contact/press-contacts/"
+      ],
+      "label": "company_contact",
+      "query": "Siemens AG corporate contact email phone",
+      "language": "en",
+      "country": "de"
+    },
+    {
+      "http_status": 200,
+      "latency_s": 0.489,
+      "result_count": 20,
+      "engines": {
+        "google cse": 20
+      },
+      "unresponsive_engines": [
+        [
+          "brave",
+          "Suspended: timeout"
+        ],
+        [
+          "duckduckgo",
+          "CAPTCHA"
+        ]
+      ],
+      "blocked_engines": [
+        [
+          "duckduckgo",
+          "CAPTCHA"
+        ]
+      ],
+      "top3": [
+        "https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA",
+        "https://www.youtube.com/@MrBeast/videos",
+        "https://www.youtube.com/watch?v=JFtlf8RoPZY&vl=en"
+      ],
+      "label": "youtube_creator",
+      "query": "MrBeast YouTube channel",
+      "language": "en",
+      "country": "us"
+    },
+    {
+      "http_status": 200,
+      "latency_s": 8.009,
+      "result_count": 20,
+      "engines": {
+        "google cse": 20
+      },
+      "unresponsive_engines": [
+        [
+          "brave",
+          "timeout"
+        ],
+        [
+          "duckduckgo",
+          "CAPTCHA"
+        ]
+      ],
+      "blocked_engines": [
+        [
+          "duckduckgo",
+          "CAPTCHA"
+        ]
+      ],
+      "top3": [
+        "https://www.facebook.com/Maersk/",
+        "https://www.facebook.com/Maersk/photos/",
+        "https://www.facebook.com/Maersk/mentions/"
+      ],
+      "label": "facebook_page",
+      "query": "Maersk official Facebook page",
+      "language": "en",
+      "country": "dk"
+    },
+    {
+      "http_status": 200,
+      "latency_s": 0.348,
+      "result_count": 20,
+      "engines": {
+        "google cse": 20
+      },
+      "unresponsive_engines": [
+        [
+          "brave",
+          "Suspended: timeout"
+        ],
+        [
+          "duckduckgo",
+          "CAPTCHA"
+        ]
+      ],
+      "blocked_engines": [
+        [
+          "duckduckgo",
+          "CAPTCHA"
+        ]
+      ],
+      "top3": [
+        "https://www.government.nl/",
+        "https://www.government.nl/government",
+        "https://www.netherlandsworldwide.nl/"
+      ],
+      "label": "country_region",
+      "query": "government of the Netherlands official portal",
+      "language": "en",
+      "country": "nl"
+    },
+    {
+      "http_status": 200,
+      "latency_s": 0.766,
+      "result_count": 29,
+      "engines": {
+        "google cse": 20,
+        "duckduckgo": 9
+      },
+      "unresponsive_engines": [
+        [
+          "brave",
+          "Suspended: timeout"
+        ]
+      ],
+      "blocked_engines": [],
+      "top3": [
+        "https://www.reddit.com/r/salesforce/comments/1t97jq2/salesforce_alternatives/",
+        "https://www.forbes.com/advisor/business/software/salesforce-competitors/",
+        "https://www.zendesk.com/why-zendesk/salesforce-alternatives/"
+      ],
+      "label": "competitor_discovery",
+      "query": "alternatives to Salesforce CRM",
+      "language": "en",
+      "country": "us"
+    },
+    {
+      "http_status": 200,
+      "latency_s": 0.861,
+      "result_count": 27,
+      "engines": {
+        "google cse": 20,
+        "duckduckgo": 7
+      },
+      "unresponsive_engines": [
+        [
+          "brave",
+          "Suspended: timeout"
+        ]
+      ],
+      "blocked_engines": [],
+      "top3": [
+        "https://www.asml.com/en/products/euv-lithography-systems",
+        "https://www.zeiss.com/semiconductor-manufacturing-technology/inspiring-technology/euv-lithography.html",
+        "https://metastatinsight.com/blogdetails/top-20-photolithography-companies"
+      ],
+      "label": "specific_industry",
+      "query": "EUV lithography equipment manufacturers",
+      "language": "en",
+      "country": "nl"
+    },
+    {
+      "http_status": 200,
+      "latency_s": 8.009,
+      "result_count": 20,
+      "engines": {
+        "google cse": 20
+      },
+      "unresponsive_engines": [
+        [
+          "brave",
+          "timeout"
+        ],
+        [
+          "duckduckgo",
+          "CAPTCHA"
+        ]
+      ],
+      "blocked_engines": [
+        [
+          "duckduckgo",
+          "CAPTCHA"
+        ]
+      ],
+      "top3": [
+        "https://www.siemens.com/zh-cn/",
+        "https://www.siemens.com/en-us/",
+        "https://www.siemens.com/zh-cn/company/jobs/"
+      ],
+      "label": "multilingual",
+      "query": "西门子 官方网站",
+      "language": "zh",
+      "country": "cn"
+    },
+    {
+      "http_status": 200,
+      "latency_s": 0.454,
+      "result_count": 20,
+      "engines": {
+        "google cse": 20
+      },
+      "unresponsive_engines": [
+        [
+          "brave",
+          "Suspended: timeout"
+        ],
+        [
+          "duckduckgo",
+          "CAPTCHA"
+        ]
+      ],
+      "blocked_engines": [
+        [
+          "duckduckgo",
+          "CAPTCHA"
+        ]
+      ],
+      "top3": [
+        "https://www.asml.com/en/company/about-asml/locations/veldhoven",
+        "https://www.asml.com/en",
+        "https://www.asml.com/en/products/euv-lithography-systems"
+      ],
+      "label": "long_tail",
+      "query": "ASML EUV lithography machine manufacturer headquarters Veldhoven Netherlands",
+      "language": "en",
+      "country": "nl"
+    }
+  ],
+  "summary": {
+    "base": "http://127.0.0.1:8888",
+    "queries": 10,
+    "engines_that_produced_results": {
+      "google cse": 10,
+      "duckduckgo": 2
+    },
+    "engines_that_errored": {
+      "brave": 10,
+      "duckduckgo": 8
+    },
+    "error_reasons": {
+      "brave": "timeout",
+      "duckduckgo": "CAPTCHA"
+    },
+    "queries_with_no_results": 0,
+    "mean_latency_s": 2.77,
+    "max_latency_s": 8.017,
+    "blocked_engine_events": 8
+  }
+}

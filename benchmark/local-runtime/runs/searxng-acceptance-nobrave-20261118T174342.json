@@ -1,0 +1,240 @@
+{
+  "rows": [
+    {
+      "http_status": 200,
+      "latency_s": 1.578,
+      "result_count": 23,
+      "engines": {
+        "google cse": 20,
+        "duckduckgo": 3
+      },
+      "unresponsive_engines": [],
+      "blocked_engines": [],
+      "top3": [
+        "https://openai.com/",
+        "https://openai.com/news/",
+        "https://openai.com/about/"
+      ],
+      "label": "corporate_website",
+      "query": "official website of OpenAI",
+      "language": "en",
+      "country": "us"
+    },
+    {
+      "http_status": 200,
+      "latency_s": 0.768,
+      "result_count": 25,
+      "engines": {
+        "google cse": 20,
+        "duckduckgo": 5
+      },
+      "unresponsive_engines": [],
+      "blocked_engines": [],
+      "top3": [
+        "https://en.wikipedia.org/wiki/Sam_Altman",
+        "https://www.biography.com/business-leaders/a65810455/sam-altman",
+        "https://www.weforum.org/people/sam-altman"
+      ],
+      "label": "company_executive",
+      "query": "OpenAI CEO Sam Altman profile",
+      "language": "en",
+      "country": "us"
+    },
+    {
+      "http_status": 200,
+      "latency_s": 0.939,
+      "result_count": 27,
+      "engines": {
+        "google cse": 20,
+        "duckduckgo": 7
+      },
+      "unresponsive_engines": [],
+      "blocked_engines": [],
+      "top3": [
+        "https://www.siemens.com/en-us/corporate-information/",
+        "https://www.siemens.com/en-us/contact/",
+        "https://www.siemens.com/en-us/contact/press-contacts/"
+      ],
+      "label": "company_contact",
+      "query": "Siemens AG corporate contact email phone",
+      "language": "en",
+      "country": "de"
+    },
+    {
+      "http_status": 200,
+      "latency_s": 0.662,
+      "result_count": 26,
+      "engines": {
+        "google cse": 20,
+        "duckduckgo": 6
+      },
+      "unresponsive_engines": [],
+      "blocked_engines": [],
+      "top3": [
+        "https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA",
+        "https://mrbeast.store/pages/mrbeast-youtube",
+        "https://www.youtube.com/@MrBeast/videos"
+      ],
+      "label": "youtube_creator",
+      "query": "MrBeast YouTube channel",
+      "language": "en",
+      "country": "us"
+    },
+    {
+      "http_status": 200,
+      "latency_s": 0.761,
+      "result_count": 29,
+      "engines": {
+        "google cse": 20,
+        "duckduckgo": 9
+      },
+      "unresponsive_engines": [],
+      "blocked_engines": [],
+      "top3": [
+        "https://www.facebook.com/Maersk/",
+        "https://www.facebook.com/Maersk/photos/",
+        "https://www.facebook.com/Maersk/mentions/"
+      ],
+      "label": "facebook_page",
+      "query": "Maersk official Facebook page",
+      "language": "en",
+      "country": "dk"
+    },
+    {
+      "http_status": 200,
+      "latency_s": 0.701,
+      "result_count": 24,
+      "engines": {
+        "google cse": 20,
+        "duckduckgo": 4
+      },
+      "unresponsive_engines": [],
+      "blocked_engines": [],
+      "top3": [
+        "https://www.government.nl/",
+        "https://www.government.nl/government",
+        "https://www.netherlandsworldwide.nl/"
+      ],
+      "label": "country_region",
+      "query": "government of the Netherlands official portal",
+      "language": "en",
+      "country": "nl"
+    },
+    {
+      "http_status": 200,
+      "latency_s": 0.781,
+      "result_count": 28,
+      "engines": {
+        "google cse": 20,
+        "duckduckgo": 8
+      },
+      "unresponsive_engines": [],
+      "blocked_engines": [],
+      "top3": [
+        "https://www.forbes.com/advisor/business/software/salesforce-competitors/",
+        "https://www.gartner.com/reviews/market/sales-force-automation-platforms/vendor/salesforce/alternatives",
+        "https://www.creatio.com/glossary/salesforce-alternatives"
+      ],
+      "label": "competitor_discovery",
+      "query": "alternatives to Salesforce CRM",
+      "language": "en",
+      "country": "us"
+    },
+    {
+      "http_status": 200,
+      "latency_s": 0.739,
+      "result_count": 24,
+      "engines": {
+        "google cse": 20,
+        "duckduckgo": 4
+      },
+      "unresponsive_engines": [],
+      "blocked_engines": [],
+      "top3": [
+        "https://www.asml.com/en/products/euv-lithography-systems",
+        "https://us.metoree.com/categories/semiconductor-exposure-system/",
+        "https://www.zeiss.com/semiconductor-manufacturing-technology/inspiring-technology/euv-lithography.html"
+      ],
+      "label": "specific_industry",
+      "query": "EUV lithography equipment manufacturers",
+      "language": "en",
+      "country": "nl"
+    },
+    {
+      "http_status": 200,
+      "latency_s": 0.482,
+      "result_count": 20,
+      "engines": {
+        "google cse": 20
+      },
+      "unresponsive_engines": [
+        [
+          "duckduckgo",
+          "CAPTCHA"
+        ]
+      ],
+      "blocked_engines": [
+        [
+          "duckduckgo",
+          "CAPTCHA"
+        ]
+      ],
+      "top3": [
+        "https://www.siemens.com/zh-cn/",
+        "https://www.siemens.com/en-us/",
+        "https://www.siemens.com/zh-cn/products/"
+      ],
+      "label": "multilingual",
+      "query": "西门子 官方网站",
+      "language": "zh",
+      "country": "cn"
+    },
+    {
+      "http_status": 200,
+      "latency_s": 1.172,
+      "result_count": 20,
+      "engines": {
+        "google cse": 20
+      },
+      "unresponsive_engines": [
+        [
+          "duckduckgo",
+          "CAPTCHA"
+        ]
+      ],
+      "blocked_engines": [
+        [
+          "duckduckgo",
+          "CAPTCHA"
+        ]
+      ],
+      "top3": [
+        "https://www.asml.com/en/company/about-asml/locations/veldhoven",
+        "https://www.asml.com/en",
+        "https://www.asml.com/en/products/euv-lithography-systems"
+      ],
+      "label": "long_tail",
+      "query": "ASML EUV lithography machine manufacturer headquarters Veldhoven Netherlands",
+      "language": "en",
+      "country": "nl"
+    }
+  ],
+  "summary": {
+    "base": "http://127.0.0.1:8888",
+    "queries": 10,
+    "engines_that_produced_results": {
+      "google cse": 10,
+      "duckduckgo": 8
+    },
+    "engines_that_errored": {
+      "duckduckgo": 2
+    },
+    "error_reasons": {
+      "duckduckgo": "CAPTCHA"
+    },
+    "queries_with_no_results": 0,
+    "mean_latency_s": 0.858,
+    "max_latency_s": 1.578,
+    "blocked_engine_events": 2
+  }
+}

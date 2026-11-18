@@ -1,0 +1,23 @@
+[
+  {
+    "provider": "searxng",
+    "cases": 12,
+    "ran": 12,
+    "not_configured": 0,
+    "errors": 0,
+    "empty_result_rows": 5,
+    "upstream_errors": {
+      "google cse: Suspended: too many requests": 12,
+      "duckduckgo: CAPTCHA": 5
+    },
+    "precision_at_5": 0.3167,
+    "precision_at_10": 0.1667,
+    "recall_at_5": 0.5833,
+    "recall_at_10": 0.5833,
+    "domain_hit_rate": 0.7,
+    "unique_relevant_coverage": 0.7,
+    "duplicate_rate": 0.0,
+    "latency_p50_s": 0.594,
+    "cost_usd": 0
+  }
+]

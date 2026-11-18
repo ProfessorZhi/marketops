@@ -1,0 +1,18 @@
+[
+  {
+    "provider": "searxng",
+    "cases": 12,
+    "ran": 12,
+    "not_configured": 0,
+    "errors": 0,
+    "precision_at_5": 0.65,
+    "precision_at_10": 0.5583,
+    "recall_at_5": 0.9167,
+    "recall_at_10": 0.9167,
+    "domain_hit_rate": 1.0,
+    "unique_relevant_coverage": 1.0,
+    "duplicate_rate": 0.0639,
+    "latency_p50_s": 0.825,
+    "cost_usd": 0
+  }
+]

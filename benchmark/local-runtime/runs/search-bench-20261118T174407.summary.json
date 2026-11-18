@@ -1,0 +1,50 @@
+[
+  {
+    "provider": "searxng",
+    "cases": 12,
+    "ran": 12,
+    "not_configured": 0,
+    "errors": 0,
+    "precision_at_5": 0.4833,
+    "precision_at_10": 0.3917,
+    "recall_at_5": 0.6667,
+    "recall_at_10": 0.6667,
+    "domain_hit_rate": 0.7,
+    "unique_relevant_coverage": 0.7,
+    "duplicate_rate": 0.0515,
+    "latency_p50_s": 0.839,
+    "cost_usd": 0
+  },
+  {
+    "provider": "serper",
+    "cases": 12,
+    "ran": 0,
+    "not_configured": 12,
+    "errors": 0,
+    "precision_at_5": null,
+    "precision_at_10": null,
+    "recall_at_5": null,
+    "recall_at_10": null,
+    "domain_hit_rate": null,
+    "unique_relevant_coverage": null,
+    "duplicate_rate": null,
+    "latency_p50_s": null,
+    "cost_usd": null
+  },
+  {
+    "provider": "tinyfish",
+    "cases": 12,
+    "ran": 0,
+    "not_configured": 12,
+    "errors": 0,
+    "precision_at_5": null,
+    "precision_at_10": null,
+    "recall_at_5": null,
+    "recall_at_10": null,
+    "domain_hit_rate": null,
+    "unique_relevant_coverage": null,
+    "duplicate_rate": null,
+    "latency_p50_s": null,
+    "cost_usd": null
+  }
+]

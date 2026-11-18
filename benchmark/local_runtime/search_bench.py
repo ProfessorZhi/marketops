@@ -73,9 +73,19 @@ def search_searxng(case: dict) -> list[dict]:
     })
     with urllib.request.urlopen(f"{base.rstrip('/')}/search?{query}", timeout=30) as resp:
         payload = json.loads(resp.read())
-    return [{"url": r.get("url", ""), "title": r.get("title", ""),
-             "snippet": r.get("content", ""), "rank": i}
-            for i, r in enumerate(payload.get("results", []), start=1)]
+    # SearXNG merges several upstream engines; an engine can return an entry
+    # with no URL. Dropping those keeps one broken upstream from being scored
+    # as a miss for every case.
+    rows = [r for r in payload.get("results", []) if r.get("url")]
+    results = [{"url": r["url"], "title": r.get("title", ""),
+                "snippet": r.get("content", ""), "rank": i}
+               for i, r in enumerate(rows, start=1)]
+    # Return the upstream health alongside the results. A zero-result case and
+    # a rate-limited case look identical in the row otherwise, and the
+    # difference decides whether the provider failed or the query was hard.
+    return {"results": results,
+            "meta": {"unresponsive_engines": payload.get("unresponsive_engines", []),
+                     "engines_seen": sorted({r.get("engine", "?") for r in results})}}
 
 
 def search_tinyfish(case: dict) -> list[dict]:
@@ -126,6 +136,11 @@ PROVIDERS = {
 def _norm(url: str) -> str:
     parsed = urllib.parse.urlparse(url.strip().lower())
     host = parsed.netloc[4:] if parsed.netloc.startswith("www.") else parsed.netloc
+    # LinkedIn serves the same company page from per-country hostnames
+    # (na., ng., mt. …). Left alone they look like distinct URLs and a correct
+    # result at rank 1 scores as a miss.
+    if host.endswith(".linkedin.com"):
+        host = "linkedin.com"
     return host + parsed.path.rstrip("/")
 
 
@@ -157,14 +172,16 @@ def score(case: dict, results: list[dict]) -> dict:
     forbidden = {_norm(u) for u in case["gold_label"].get("forbidden_urls", [])}
 
     seen, dup = set(), 0
-    urls, relevant_flags = [], []
+    urls, item_domains, relevant_flags = [], [], []
     for r in results:
         n = _norm(r["url"])
+        d = _domain(r["url"])
         if n in seen:
             dup += 1
         seen.add(n)
         urls.append(n)
-        relevant_flags.append(n in gold or _domain(r["url"]) in gold_domains)
+        item_domains.append(d)
+        relevant_flags.append(n in gold or d in gold_domains)
 
     def precision_at(k):
         top = relevant_flags[:k]
@@ -174,11 +191,14 @@ def score(case: dict, results: list[dict]) -> dict:
         if not gold:
             return None
         # The gold here is a set of pages; a domain-level hit satisfies the
-        # page it was derived from.
-        hit = sum(1 for u in urls[:k] if u in gold or _domain(u) in gold_domains)
+        # page it was derived from. Compare against the raw domain per item —
+        # deriving it from the normalised URL yields an empty netloc and
+        # silently scores every domain hit as a miss.
+        hit = sum(1 for u, d in zip(urls[:k], item_domains[:k])
+                  if u in gold or d in gold_domains)
         return round(min(hit, len(gold)) / len(gold), 4)
 
-    domains = {_domain(u) for u in urls}
+    domains = set(item_domains)
     return {
         "results": len(results),
         "precision_at_5": precision_at(5),
@@ -205,12 +225,19 @@ def summarise(rows: list[dict]) -> list[dict]:
             vals = [i[key] for i in ran if i.get(key) is not None]
             return round(statistics.mean(vals), 4) if vals else None
 
+        upstream: dict[str, int] = {}
+        for i in ran:
+            for engine, why in (i.get("meta") or {}).get("unresponsive_engines", []):
+                upstream[f"{engine}: {why}"] = upstream.get(f"{engine}: {why}", 0) + 1
+
         out.append({
             "provider": provider,
             "cases": len(items),
             "ran": len(ran),
             "not_configured": sum(1 for i in items if i.get("status") == "not_configured"),
             "errors": sum(1 for i in items if i.get("status") == "error"),
+            "empty_result_rows": sum(1 for i in ran if i.get("results") == 0),
+            "upstream_errors": upstream or None,
             "precision_at_5": mean("precision_at_5"),
             "precision_at_10": mean("precision_at_10"),
             "recall_at_5": mean("recall_at_5"),
@@ -230,6 +257,8 @@ def main() -> int:
     ap.add_argument("--providers", nargs="+", default=list(PROVIDERS))
     ap.add_argument("--cases", default=str(CASES))
     ap.add_argument("--out", default=None)
+    ap.add_argument("--min-interval", type=float, default=0.0,
+                    help="seconds to wait between requests; upstreams rate-limit bursts")
     args = ap.parse_args()
 
     cases_path = pathlib.Path(args.cases)
@@ -246,13 +275,20 @@ def main() -> int:
         for provider in args.providers:
             fn = PROVIDERS[provider]
             for case in cases:
+                if args.min_interval:
+                    time.sleep(args.min_interval)
                 row = {"provider": provider, "case_id": case["case_id"],
                        "task_type": case["task_type"], "query": case["query"]}
                 started = time.monotonic()
                 try:
-                    results = fn(case)
+                    out = fn(case)
+                    if isinstance(out, dict):
+                        results, meta = out["results"], out.get("meta", {})
+                    else:
+                        results, meta = out, {}
                     row["latency_s"] = round(time.monotonic() - started, 3)
                     row["status"] = "ok"
+                    row["meta"] = meta
                     row.update(score(case, results))
                 except NotConfigured as exc:
                     row.update({"status": "not_configured", "detail": str(exc),
