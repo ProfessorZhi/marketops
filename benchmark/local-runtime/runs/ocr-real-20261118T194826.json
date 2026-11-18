@@ -1,0 +1,83 @@
+{
+  "summary": {
+    "docs": 1,
+    "dpi": 300,
+    "pymupdf_text_chars_total": 0,
+    "mineru_token_recall_mean": 0.9042,
+    "mineru_similarity_mean": 0.4118,
+    "mineru_latency_total_s": 47.349,
+    "cost_usd": 0.0
+  },
+  "rows": [
+    {
+      "doc": "irs-1040.pdf",
+      "pages": 2,
+      "dpi": 300,
+      "raster_bytes": 50494058,
+      "pymupdf": {
+        "gold_words": 334,
+        "words_hit": 0,
+        "token_recall": 0.0,
+        "similarity": 0.0,
+        "text_chars": 0,
+        "missing_sample": [
+          "1040",
+          "1099",
+          "1099-r",
+          "11320b",
+          "11b.",
+          "1545-0074",
+          "1961",
+          "2024",
+          "2025",
+          "2025.",
+          "2026",
+          "2441",
+          "301.9100-2",
+          "4972",
+          "8812",
+          "8812.",
+          "8814",
+          "8839",
+          "8863",
+          "8888"
+        ],
+        "text_excerpt": "",
+        "latency_s": 0.035
+      },
+      "mineru": {
+        "gold_words": 334,
+        "words_hit": 302,
+        "token_recall": 0.9042,
+        "similarity": 0.4118,
+        "text_chars": 18545,
+        "missing_sample": [
+          "2441",
+          "8919",
+          "adjustments",
+          "annuities",
+          "benefits",
+          "capital",
+          "care",
+          "child’s",
+          "designee’s",
+          "distributions",
+          "dividends",
+          "employee",
+          "employer-provided",
+          "firm’s",
+          "gain",
+          "included",
+          "includes",
+          "loss",
+          "lump-sum",
+          "medicaid"
+        ],
+        "text_excerpt": "<!-- page 1 of 2 -->\n\n<table><tr><td colspan=\"5\">Form 1040 Department of the Treasury-Internal Revenue ServiceU.S. Individual Income Tax Return</td><td colspan=\"2\">2025</td><td colspan=\"2\">OMB No. 1545-0074</td><td colspan=\"3\">IRS Use Only-Do not write or staple in this space.</td></tr><tr><td colspan=\"10\">For the year Jan. 1-Dec. 31, 2025, or other tax year beginning , 2025, ending , 20</td><td c",
+        "latency_s": 47.349,
+        "pages_covered": 2,
+        "page_count": 2
+      }
+    }
+  ]
+}

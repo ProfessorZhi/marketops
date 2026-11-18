@@ -52,7 +52,8 @@ MINERU_TIER = "standard"
 def parse_pymupdf(case: dict) -> dict:
     import pymupdf
 
-    path = DOC_DIR / case["path"]
+    given = pathlib.Path(case["path"])
+    path = given if given.is_absolute() else DOC_DIR / given
     started = time.monotonic()
     doc = pymupdf.open(path)
     parts = []
@@ -194,7 +195,10 @@ def _mineru_content(short: str, page_count: int | None) -> tuple[str, list[dict]
 
 
 def parse_mineru(case: dict) -> dict:
-    path = str((DOC_DIR / case["path"]).resolve())
+    # Absolute paths let a caller parse a file outside the dataset directory
+    # (e.g. a rasterised page built at run time) without copying it in.
+    given = pathlib.Path(case["path"])
+    path = str((given if given.is_absolute() else DOC_DIR / given).resolve())
     started = time.monotonic()
 
     page_count = _mineru_page_count(path)

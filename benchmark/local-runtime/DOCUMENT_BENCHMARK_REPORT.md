@@ -168,6 +168,38 @@ MinerU 的延迟里含固定开销：每份都 `force=True` 强制重跑，不�
 合成数据集不受影响：最长 2 页、最大 6,092 字符，两个上限都没碰到，
 因此 §3.1–§3.4 的结果不需要重跑。
 
+### 3.8 真实排版的 OCR：把真实页面栅格化后再读
+
+合成扫描件证明「能读扫描件」，但不能证明「能把真实表单读对」——合成页的
+marker 是写进去的，命中一个 marker 不等于一行表单字段被正确转录。
+
+做法：取真实公开 PDF 的前两页，按指定 DPI 渲染成图片、重新组装成**没有文字层**
+的 PDF，让两个解析器读同一份文件。金标就是源页面自己的文字。
+
+| 文档 | 150 dpi | 200 dpi | 300 dpi |
+|---|---|---|---|
+| IRS Form 1040（字段密集表单） | 0.4042 | 0.7635 | **0.9042** |
+| arXiv Attention（双栏正文） | — | **0.9976** | — |
+
+指标是 `token_recall`：源页面里长度 ≥4 的词，有多少出现在解析结果里。
+PyMuPDF 在这三份栅格化文件上都是 **0 字符**——文件确实没有文本层，
+所以这一组测的是 OCR，不是文本提取。
+
+- **DPI 是表单的第一变量**：同一份 1040，从 150 到 300 dpi，词召回从 40% 升到 90%；
+  延迟没有随之上升（47–72 s，噪声大于趋势）。
+- **双栏论文 200 dpi 就有 99.8%**：唯一的缺口是 `transduc-`（词在行末被连字符
+  拆开），属于断词而不是识别错误。
+- **表单丢的是小字**：200 dpi 缺失的样本包括 `above`、`adjustments`、`asset`、
+  `city`、`country`、`deceased`——都是表格边栏与说明文字。真实扫描件通常比
+  这里的栅格更差（有倾斜、噪点、装订阴影），所以 300 dpi 是起点而不是上限。
+
+**这是扫描件模拟，不是原始扫描件**：源文件天生是数字版，图像干净。把它当成
+「真实扫描件已覆盖」会高估 MinerU。
+
+原始数据：`runs/ocr-real-20261118T194704.json`（200 dpi 两份）、
+`runs/ocr-real-20261118T194826.json`（300 dpi）、
+`runs/ocr-real-20261118T194920.json`（150 dpi）。
+
 ## 4. 结论
 
 1. **文本型 PDF 不需要 MinerU。** PyMuPDF 0.2 s 拿到 100% 内容，MinerU 12 s 拿到同样的
@@ -182,7 +214,8 @@ MinerU 的延迟里含固定开销：每份都 `force=True` 强制重跑，不�
 
 ## 5. 本轮不覆盖
 
-- **真实扫描件**：真实公开文档已加入 3 份，但都是文本型 PDF；扫描件仍只有合成样本。
+- **真实扫描件**：已补真实排版页的栅格化对照（§3.8），但源文件是数字版，
+  图像干净；原本就扫描的文件（倾斜、噪点、装订阴影）仍未覆盖。
 - **真实年报/财报**：SEC EDGAR 从本机返回 403，未能取到 10-K 原件。
 - **单元格级表格还原**：当前只测字符串命中。
 - **MinerU Cloud 对照**：未执行，配额未确认。
@@ -203,6 +236,9 @@ benchmark/local-runtime/runs/
   public-doc-arxiv-20261118T180500.json      arXiv 首次对照（客户端截断，作否证）
   public-doc-20261118T181008.json            arXiv 修复后：15/15 页、96 条参考文献
   public-doc-20261118T181304.json            BERT + IRS 1040
+  ocr-real-20261118T194704.json              栅格化真实页：IRS 200 dpi + arXiv 200 dpi
+  ocr-real-20261118T194826.json              IRS 300 dpi（召回 0.9042）
+  ocr-real-20261118T194920.json              IRS 150 dpi（召回 0.4042）
 ```
 
 公开样本身份（SHA256）随每次运行写入记录；文件本身不提交仓库。
@@ -214,6 +250,11 @@ cd /home/fjd/projects/marketops-local-runtime-lab
 PYTHONPATH=$PWD /data/home/fjd/marketops-lab/envs/docbench/bin/python \
   -m benchmark.local_runtime.public_doc \
   --pdf /data/home/fjd/marketops-lab/samples/public/arxiv-attention.pdf
+
+# 真实排版的 OCR（栅格化后无文字层）
+PYTHONPATH=$PWD /data/home/fjd/marketops-lab/envs/docbench/bin/python \
+  -m benchmark.local_runtime.ocr_real \
+  --pdf /data/home/fjd/marketops-lab/samples/public/irs-1040.pdf --pages 1-2 --dpi 300
 ```
 
 `--tables` 会额外统计 PyMuPDF 的 `find_tables()`，在长文档上极慢，默认关闭。

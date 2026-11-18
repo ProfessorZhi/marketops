@@ -1,0 +1,83 @@
+{
+  "summary": {
+    "docs": 1,
+    "dpi": 150,
+    "pymupdf_text_chars_total": 0,
+    "mineru_token_recall_mean": 0.4042,
+    "mineru_similarity_mean": 0.2159,
+    "mineru_latency_total_s": 72.563,
+    "cost_usd": 0.0
+  },
+  "rows": [
+    {
+      "doc": "irs-1040.pdf",
+      "pages": 2,
+      "dpi": 150,
+      "raster_bytes": 12626556,
+      "pymupdf": {
+        "gold_words": 334,
+        "words_hit": 0,
+        "token_recall": 0.0,
+        "similarity": 0.0,
+        "text_chars": 0,
+        "missing_sample": [
+          "1040",
+          "1099",
+          "1099-r",
+          "11320b",
+          "11b.",
+          "1545-0074",
+          "1961",
+          "2024",
+          "2025",
+          "2025.",
+          "2026",
+          "2441",
+          "301.9100-2",
+          "4972",
+          "8812",
+          "8812.",
+          "8814",
+          "8839",
+          "8863",
+          "8888"
+        ],
+        "text_excerpt": "",
+        "latency_s": 0.009
+      },
+      "mineru": {
+        "gold_words": 334,
+        "words_hit": 135,
+        "token_recall": 0.4042,
+        "similarity": 0.2159,
+        "text_chars": 11129,
+        "missing_sample": [
+          "11b.",
+          "1545-0074",
+          "1961",
+          "2024",
+          "2026",
+          "301.9100-2",
+          "4972",
+          "8812",
+          "8812.",
+          "8814",
+          "8863",
+          "8888",
+          "8995",
+          "8995-a",
+          "above",
+          "accompanying",
+          "account",
+          "actc",
+          "address",
+          "alien"
+        ],
+        "text_excerpt": "<!-- page 1 of 2 -->\n\n<table><tr><td rowspan=\"9\">Dependents(see instructions)If more than four dependents, see instructions and check here . . □</td><td colspan=\"3\">Dependent 1</td><td colspan=\"3\">Dependent 2</td><td colspan=\"3\">Dependent 3</td><td colspan=\"3\">Dependent 4</td></tr><tr><td>(1) First name</td><td colspan=\"2\"></td><td colspan=\"3\"></td><td colspan=\"3\"></td><td colspan=\"3\"></td></tr><t",
+        "latency_s": 72.563,
+        "pages_covered": 2,
+        "page_count": 2
+      }
+    }
+  ]
+}

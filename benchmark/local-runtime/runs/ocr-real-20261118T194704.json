@@ -1,0 +1,134 @@
+{
+  "summary": {
+    "docs": 2,
+    "dpi": 200,
+    "pymupdf_text_chars_total": 0,
+    "mineru_token_recall_mean": 0.8805,
+    "mineru_similarity_mean": 0.3901,
+    "mineru_latency_total_s": 65.008,
+    "cost_usd": 0.0
+  },
+  "rows": [
+    {
+      "doc": "irs-1040.pdf",
+      "pages": 2,
+      "dpi": 200,
+      "raster_bytes": 22444070,
+      "pymupdf": {
+        "gold_words": 334,
+        "words_hit": 0,
+        "token_recall": 0.0,
+        "similarity": 0.0,
+        "text_chars": 0,
+        "missing_sample": [
+          "1040",
+          "1099",
+          "1099-r",
+          "11320b",
+          "11b.",
+          "1545-0074",
+          "1961",
+          "2024",
+          "2025",
+          "2025.",
+          "2026",
+          "2441",
+          "301.9100-2",
+          "4972",
+          "8812",
+          "8812.",
+          "8814",
+          "8839",
+          "8863",
+          "8888"
+        ],
+        "text_excerpt": "",
+        "latency_s": 0.017
+      },
+      "mineru": {
+        "gold_words": 334,
+        "words_hit": 255,
+        "token_recall": 0.7635,
+        "similarity": 0.1976,
+        "text_chars": 25196,
+        "missing_sample": [
+          "1545-0074",
+          "301.9100-2",
+          "above",
+          "adjustments",
+          "apt.",
+          "asset",
+          "assets",
+          "award",
+          "beginning",
+          "box.",
+          "campaign",
+          "capital",
+          "change",
+          "checked",
+          "child’s",
+          "city",
+          "code",
+          "country",
+          "dec.",
+          "deceased"
+        ],
+        "text_excerpt": "<!-- page 1 of 2 -->\n\n<table><tr><td rowspan=\"9\">Dependent (see instructions)If more than four dependents, see instructions and check here . . □</td><td colspan=\"3\">Dependent 1</td><td colspan=\"3\">Dependent 2</td><td colspan=\"3\">Dependent 3</td><td colspan=\"3\">Dependent 4</td></tr><tr><td>(1) First name</td><td colspan=\"2\"></td><td colspan=\"3\"></td><td colspan=\"3\"></td><td colspan=\"3\"></td></tr><t",
+        "latency_s": 46.837,
+        "pages_covered": 2,
+        "page_count": 2
+      }
+    },
+    {
+      "doc": "arxiv-attention.pdf",
+      "pages": 2,
+      "dpi": 200,
+      "raster_bytes": 22444070,
+      "pymupdf": {
+        "gold_words": 419,
+        "words_hit": 0,
+        "token_recall": 0.0,
+        "similarity": 0.0,
+        "text_chars": 0,
+        "missing_sample": [
+          "1706.03762v7",
+          "2014",
+          "2017",
+          "2023",
+          "28.4",
+          "3.2.",
+          "31st",
+          "41.8",
+          "abstract",
+          "abstractive",
+          "accelerating",
+          "achieved",
+          "achieves",
+          "across",
+          "additional",
+          "advantages",
+          "after",
+          "aidan",
+          "albeit",
+          "aligned"
+        ],
+        "text_excerpt": "",
+        "latency_s": 0.016
+      },
+      "mineru": {
+        "gold_words": 419,
+        "words_hit": 418,
+        "token_recall": 0.9976,
+        "similarity": 0.5825,
+        "text_chars": 7658,
+        "missing_sample": [
+          "transduc-"
+        ],
+        "text_excerpt": "<!-- page 1 of 2 -->\n\narXiv:1706.03762v7 [cs.CL] 2 Aug 2023\n\nProvided proper attribution is provided, Google hereby grants permission to reproduce the tables and figures in this paper solely for use in journalistic or scholarly works.\n\n# Attention Is All You Need\n\nAshish Vaswani\\*\nGoogle Brain\navaswani@google.com\n\nNoam Shazeer\\*  \nGoogle Brain  \nnoam@google.com\n\nLlion Jones\\*\nGoogle Research\nllion",
+        "latency_s": 18.171,
+        "pages_covered": 2,
+        "page_count": 2
+      }
+    }
+  ]
+}

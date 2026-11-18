@@ -28,6 +28,9 @@ P3 失败不等于「浏览器没用」。P4 让浏览器只渲染 HTML 页面�
 字节仍由 HTTP 取：**4/4，15.78 s**。浏览器负责 HTML/JS，HTTP 负责二进制，
 这是本轮唯一被证明可用的组合方式（§8.1）。
 
+**换成 Docker 版 Crawl4AI 后结论不变**：P3 仍 0/12（全部失败在 fetch），
+P4 仍 4/4（10.77 s，官方镜像的服务端开销更小）。差别在部署形态，不在能力边界。
+
 ## 2. 流水线定义
 
 ```
@@ -182,7 +185,7 @@ P3 让 Crawl4AI 直接取 PDF，0/4。P4 换分工：浏览器渲染一个普通
 | 成功 | 0 / 4 | **4 / 4** |
 | 页面渲染 | — | 4 / 4 |
 | 字节与源文件一致 | — | 4 / 4 |
-| 总延迟 | — | 15.78 s |
+| 总延迟 | — | 15.78 s（Docker 版重跑 10.77 s） |
 | 失败原因 | `Page.goto: Download is starting` | — |
 
 这就是可用的生产拓扑：**浏览器负责 HTML 与 JS，HTTP 负责二进制**。
@@ -224,6 +227,8 @@ runs/joint-public-20261118T184345.jsonl           真实公开文档 4 行
 runs/joint-public-20261118T184345.summary.json    聚合
 runs/joint-public-20261118T182635.jsonl           首次运行，PyMuPDF 含表格检测（P1 延迟不可比）
 runs/joint-public-20261118T190816.jsonl           P4：页面→链接→HTTP→PyMuPDF，4/4
+runs/joint-pipeline-20261118T194305.jsonl         Docker 版重跑：P3 仍 0/12（fetch）
+runs/joint-public-20261118T194412.jsonl           Docker 版 P4：4/4，10.77 s
 ```
 
 （`175609` 那一轮是错误解释器产生的无效数据，已删除，不进入报告。）
