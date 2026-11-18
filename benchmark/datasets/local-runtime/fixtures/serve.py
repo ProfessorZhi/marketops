@@ -1,0 +1,241 @@
+#!/usr/bin/env python3
+"""Serve the local-runtime fixtures on 127.0.0.1.
+
+The point is determinism: a fetch reader's score should not move because a
+real site redesigned its homepage overnight. Every fixture is generated here,
+so the bytes are stable and the gold labels can be checked against them.
+
+Routes
+------
+  /                      index of what this server exposes
+  /static/about.html     plain HTML with contacts a reader must keep
+  /js/team.html          content injected by JavaScript only
+  /lazy/list.html        list that fills in after a timer
+  /page/1 .. /page/3     pagination with next/prev links
+  /redirect/1            -> /redirect/2 -> /static/about.html
+  /cookie/set            sets a cookie, redirects to /cookie/check
+  /cookie/check          only renders the payload if the cookie is present
+  /shell/spa.html        empty <div id="root">; a reader must not call this success
+  /pdf/sample.pdf        a tiny text PDF generated on the fly
+"""
+
+from __future__ import annotations
+
+import http.server
+import socketserver
+import sys
+import urllib.parse
+
+HOST = "127.0.0.1"
+DEFAULT_PORT = 18080
+
+ABOUT_HTML = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>About Northwind Ltd</title></head>
+<body>
+  <header><nav><a href="/static/about.html">About</a> <a href="/js/team.html">Team</a></nav></header>
+  <main>
+    <h1>About Northwind Ltd</h1>
+    <p>Northwind Ltd is a fictional company used only by the MarketOps benchmark.
+       It assembles marine fittings in Rotterdam and has done so since 1987.
+       Its registered office is 14 Harbour Road, Rotterdam.</p>
+    <h2>Contact</h2>
+    <p>Email: <a href="mailto:info@northwind.example">info@northwind.example</a></p>
+    <p>Phone: +31 10 555 0123</p>
+    <p>Press: <a href="mailto:press@northwind.example">press@northwind.example</a></p>
+  </main>
+  <footer><p>&copy; 2026 Northwind Ltd</p></footer>
+</body></html>
+"""
+
+TEAM_HTML = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Northwind Team</title></head>
+<body>
+  <h1>Our team</h1>
+  <div id="people">Loading…</div>
+  <script>
+    setTimeout(function () {
+      document.getElementById('people').innerHTML =
+        '<ul>' +
+        '<li><strong>Marta Visser</strong> — Managing Director, <a href="mailto:m.visser@northwind.example">m.visser@northwind.example</a></li>' +
+        '<li><strong>Pieter de Boer</strong> — Operations Manager, <a href="mailto:p.deboer@northwind.example">p.deboer@northwind.example</a></li>' +
+        '</ul>';
+    }, 300);
+  </script>
+</body></html>
+"""
+
+LAZY_HTML = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Distributors</title></head>
+<body>
+  <h1>Distributors</h1>
+  <ul id="rows"><li>Loading…</li></ul>
+  <script>
+    var data = [
+      ['Hansa Marine', 'Hamburg', 'hansa@example.org'],
+      ['Adriatic Supply', 'Split', 'adriatic@example.org'],
+      ['Baltic Parts', 'Gdansk', 'baltic@example.org']
+    ];
+    setTimeout(function () {
+      var ul = document.getElementById('rows');
+      ul.innerHTML = '';
+      data.forEach(function (r) {
+        var li = document.createElement('li');
+        li.textContent = r[0] + ' — ' + r[1] + ' — ' + r[2];
+        ul.appendChild(li);
+      });
+    }, 500);
+  </script>
+</body></html>
+"""
+
+SPA_HTML = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Northwind</title></head>
+<body>
+  <div id="root"></div>
+  <noscript>You need to enable JavaScript to run this app.</noscript>
+  <script src="/shell/app.js"></script>
+</body></html>
+"""
+
+EMPTY_JS = "/* placeholder: this fixture deliberately never fills #root */\n"
+
+
+def pdf_bytes() -> bytes:
+    """A minimal one-page PDF with selectable text, no external libraries."""
+    text = "Northwind Ltd quality manual. Page one. Contact info@northwind.example."
+    stream = f"BT /F1 12 Tf 72 720 Td ({text}) Tj ET".encode()
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+        b"/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+        b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    out = bytearray(b"%PDF-1.4\n")
+    offsets = []
+    for i, obj in enumerate(objects, start=1):
+        offsets.append(len(out))
+        out += f"{i} 0 obj\n".encode() + obj + b"\nendobj\n"
+    xref_at = len(out)
+    out += f"xref\n0 {len(objects)+1}\n".encode()
+    out += b"0000000000 65535 f \n"
+    for off in offsets:
+        out += f"{off:010d} 00000 n \n".encode()
+    out += (
+        f"trailer\n<< /Size {len(objects)+1} /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF\n"
+    ).encode()
+    return bytes(out)
+
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    server_version = "MarketOpsFixtures/1.0"
+
+    def log_message(self, fmt, *args):  # keep the smoke output readable
+        sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
+
+    def _send(self, body: bytes, status: int = 200, ctype: str = "text/html; charset=utf-8",
+              extra: dict | None = None) -> None:
+        self.send_response(status)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(body)))
+        for k, v in (extra or {}).items():
+            self.send_header(k, v)
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _redirect(self, location: str, extra: dict | None = None) -> None:
+        self.send_response(302)
+        self.send_header("Location", location)
+        for k, v in (extra or {}).items():
+            self.send_header(k, v)
+        self.end_headers()
+
+    def do_GET(self) -> None:  # noqa: N802 - stdlib naming
+        path = urllib.parse.urlparse(self.path).path
+
+        if path == "/":
+            body = (
+                "<h1>MarketOps fixtures</h1><ul>"
+                + "".join(f'<li><a href="{p}">{p}</a></li>' for p in (
+                    "/static/about.html", "/js/team.html", "/lazy/list.html",
+                    "/page/1", "/redirect/1", "/cookie/set", "/shell/spa.html",
+                    "/pdf/sample.pdf"))
+                + "</ul>"
+            ).encode()
+            return self._send(body)
+
+        if path == "/static/about.html":
+            return self._send(ABOUT_HTML.encode())
+        if path == "/js/team.html":
+            return self._send(TEAM_HTML.encode())
+        if path == "/lazy/list.html":
+            return self._send(LAZY_HTML.encode())
+        if path == "/shell/spa.html":
+            return self._send(SPA_HTML.encode())
+        if path == "/shell/app.js":
+            return self._send(EMPTY_JS.encode(), ctype="application/javascript")
+
+        if path.startswith("/page/"):
+            try:
+                n = int(path.rsplit("/", 1)[1])
+            except ValueError:
+                return self._send(b"bad page", status=400)
+            if n < 1 or n > 3:
+                return self._send(b"not found", status=404)
+            rows = "".join(
+                f"<li>Member {i} — member{i}@northwind.example</li>"
+                for i in range((n - 1) * 10 + 1, n * 10 + 1)
+            )
+            nav = []
+            if n > 1:
+                nav.append(f'<a rel="prev" href="/page/{n-1}">Previous</a>')
+            if n < 3:
+                nav.append(f'<a rel="next" href="/page/{n+1}">Next</a>')
+            body = (
+                f"<h1>Members page {n} of 3</h1><ul>{rows}</ul>"
+                f"<nav>{' '.join(nav)}</nav>"
+            ).encode()
+            return self._send(body)
+
+        if path == "/redirect/1":
+            return self._redirect("/redirect/2")
+        if path == "/redirect/2":
+            return self._redirect("/static/about.html")
+
+        if path == "/cookie/set":
+            return self._redirect(
+                "/cookie/check",
+                {"Set-Cookie": "mo_consent=yes; Path=/; Max-Age=3600"},
+            )
+        if path == "/cookie/check":
+            if "mo_consent=yes" in (self.headers.get("Cookie") or ""):
+                return self._send(
+                    b"<h1>Consent accepted</h1><p>Cookie-gated content: "
+                    b"sales@northwind.example</p>"
+                )
+            return self._send(
+                b"<h1>Cookie required</h1><p>This page only renders after consent.</p>",
+                status=403,
+            )
+
+        if path == "/pdf/sample.pdf":
+            return self._send(pdf_bytes(), ctype="application/pdf")
+
+        return self._send(b"not found", status=404)
+
+
+class Server(socketserver.ThreadingTCPServer):
+    allow_reuse_address = True
+    daemon_threads = True
+
+
+def main() -> None:
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PORT
+    with Server((HOST, port), Handler) as httpd:
+        print(f"fixtures on http://{HOST}:{port}", flush=True)
+        httpd.serve_forever()
+
+
+if __name__ == "__main__":
+    main()

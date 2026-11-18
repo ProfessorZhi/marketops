@@ -1,0 +1,50 @@
+# Crawl4AI Local — benchmark-only deployment.
+#
+# Image tag is pinned: `0.9.5`. Moving it changes what the fetch benchmark is
+# measuring, so a version bump is a new run, not a routine upgrade.
+#
+# The API token lives in `.env` (gitignored, mode 600). There is no default:
+# if the variable is missing Compose refuses to start rather than exposing an
+# unauthenticated crawler on the host.
+name: marketops-crawl4ai-local
+
+services:
+  crawl4ai:
+    image: unclecode/crawl4ai:0.9.5
+    container_name: mo-crawl4ai-local
+    restart: unless-stopped
+
+    # Loopback only. Nothing on the LAN reaches this service.
+    ports:
+      - "127.0.0.1:11235:11235"
+
+    environment:
+      CRAWL4AI_API_TOKEN: ${CRAWL4AI_API_TOKEN:?CRAWL4AI_API_TOKEN must be set in .env}
+
+    # Chromium needs more than the 64 MB default /dev/shm, or tabs crash under
+    # load and the crash looks like a provider failure in the benchmark.
+    shm_size: "1gb"
+
+    # The host has 30 GiB total. Keep the browser pool from taking the box down
+    # while MinerU is also resident.
+    mem_limit: 6g
+
+    security_opt:
+      - no-new-privileges:true
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          python -c "import urllib.request;
+          urllib.request.urlopen('http://127.0.0.1:11235/health', timeout=5)"
+      interval: 15s
+      timeout: 8s
+      retries: 5
+      start_period: 90s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
