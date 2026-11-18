@@ -24,12 +24,17 @@
 P1 4/4（1.77 s）、P2 4/4（567 s，525/525 页）、P3 0/4（全部失败在 fetch），
 见 §8。P3 的失败不是本地 fixture 的产物。
 
+P3 失败不等于「浏览器没用」。P4 让浏览器只渲染 HTML 页面并读出 PDF 链接，
+字节仍由 HTTP 取：**4/4，15.78 s**。浏览器负责 HTML/JS，HTTP 负责二进制，
+这是本轮唯一被证明可用的组合方式（§8.1）。
+
 ## 2. 流水线定义
 
 ```
 P1  GET url ──────────────► bytes ─► PyMuPDF ─► text
 P2  GET url ──────────────► bytes ─► MinerU  ─► markdown
 P3  Crawl4AI /crawl url ──► text  ─► MinerU  ─► markdown
+P4  Crawl4AI 渲染 HTML 页 ─► 读出 PDF 链接 ─► GET 字节 ─► PyMuPDF ─► text
 ```
 
 三者的 URL 集合、字节、gold markers 完全相同。P3 没有在失败时偷偷回退到 HTTP：
@@ -116,14 +121,20 @@ Page.goto: Download is starting
 | 复杂表格/多栏 | 先 PyMuPDF，质量不达标再升 MinerU | 本轮两者都 1.0，未分出差距 |
 | 网页 | Crawl4AI（JS 页）或 HTTP+Trafilatura | 见 `FETCH_BENCHMARK_REPORT.md` |
 | PDF URL | **不要**交给 Crawl4AI | 0/12，确定性失败 |
+| 网页里的 PDF 链接 | Crawl4AI 取链接 → HTTP 下字节 → PyMuPDF | P4 4/4，15.78 s |
 
 一个可用的判定顺序：
 
 ```
-1. content-type 是 PDF？
-   ├─ 是 → HTTP 下载 → PyMuPDF；若文本 < 阈值 → MinerU
-   └─ 否 → 静态页 → HTTP+Trafilatura；失败或 JS → Crawl4AI
+1. 拿到一个 URL
+   ├─ 响应是 HTML → 静态页用 HTTP+Trafilatura；有 JS 用 Crawl4AI
+   │                页面里有 PDF 链接 → 交给 HTTP 下载（不要让浏览器点）
+   └─ 响应是 PDF  → HTTP 下载 → PyMuPDF
+                    若文本 < 阈值（扫描件）→ MinerU
 ```
+
+分流的依据必须是**内容类型或字节头**，不能靠「先试浏览器、失败再回退」：
+Crawl4AI 对 PDF 抛的是导航异常，和网络错误无法区分，重试只会重复失败。
 
 ## 7. 本轮不覆盖
 
@@ -161,6 +172,23 @@ HTTP 下载字节与源文件一致、解析返回内容、MinerU 覆盖全部�
 - PyMuPDF 的表格结构检测（`find_tables()`）不计入这里的延迟：它在 492 页文档上
   要 110 s，而文本提取只要 1.5 s，两者不是同一条生产路径。
 
+### 8.1 P4：浏览器只负责找链接
+
+P3 让 Crawl4AI 直接取 PDF，0/4。P4 换分工：浏览器渲染一个普通的 HTML 页面，
+从页面里读出 PDF 链接，再由 HTTP 下载字节，交给 PyMuPDF。
+
+| 指标 | P3（浏览器取 PDF） | P4（浏览器找链接） |
+|---|---|---|
+| 成功 | 0 / 4 | **4 / 4** |
+| 页面渲染 | — | 4 / 4 |
+| 字节与源文件一致 | — | 4 / 4 |
+| 总延迟 | — | 15.78 s |
+| 失败原因 | `Page.goto: Download is starting` | — |
+
+这就是可用的生产拓扑：**浏览器负责 HTML 与 JS，HTTP 负责二进制**。
+把 PDF 交给浏览器既拿不到字节，也拿不到错误（Crawl4AI 抛的是导航异常，
+不是「这是 PDF」），所以由内容类型或链接后缀分流比任何重试都可靠。
+
 复现：
 
 ```bash
@@ -195,6 +223,7 @@ runs/joint-pipeline-20261118T175723.summary.json  聚合
 runs/joint-public-20261118T184345.jsonl           真实公开文档 4 行
 runs/joint-public-20261118T184345.summary.json    聚合
 runs/joint-public-20261118T182635.jsonl           首次运行，PyMuPDF 含表格检测（P1 延迟不可比）
+runs/joint-public-20261118T190816.jsonl           P4：页面→链接→HTTP→PyMuPDF，4/4
 ```
 
 （`175609` 那一轮是错误解释器产生的无效数据，已删除，不进入报告。）

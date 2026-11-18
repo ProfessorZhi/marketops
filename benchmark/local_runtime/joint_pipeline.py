@@ -28,6 +28,7 @@ import pathlib
 import statistics
 import sys
 import time
+import re
 import urllib.error
 import urllib.request
 
@@ -98,6 +99,30 @@ def crawl4ai_fetch(url: str) -> dict:
             "text_chars": len(text), "latency_s": result.get("latency_s")}
 
 
+LINK_RE = re.compile(r"https?://127\.0\.0\.1:18082/[^\s<>)\]\"']+")
+
+
+def crawl4ai_page_links(url: str) -> dict:
+    """Render an HTML page in the browser and return the PDF links on it.
+
+    This is the path that actually works: the browser carries HTML, and the
+    PDF bytes are fetched over HTTP. P3 asks the browser to carry a PDF and
+    fails; P4 asks it to carry the link instead.
+    """
+    from benchmark.local_runtime.fetch_bench import fetch_crawl4ai_local
+
+    try:
+        result = fetch_crawl4ai_local({"url": url, "timeout_seconds": FETCH_TIMEOUT})
+    except Exception as exc:
+        return {"ok": False, "error": f"{type(exc).__name__}: {exc}", "links": [],
+                "latency_s": None}
+    text = result.get("text") or ""
+    links = sorted(set(LINK_RE.findall(text)))
+    return {"ok": bool(links), "links": links,
+            "error": None if links else "page rendered but carried no PDF link",
+            "latency_s": result.get("latency_s")}
+
+
 def parse_safe(fn, parse_case: dict, gold_case: dict) -> dict:
     from benchmark.local_runtime.document_bench import score
 
@@ -115,10 +140,76 @@ def parse_safe(fn, parse_case: dict, gold_case: dict) -> dict:
             "latency_s": result["latency_s"], "meta": result["meta"]}
 
 
+def run_p4(cases: list[dict], base: str, out_path: pathlib.Path) -> int:
+    """P4: browser renders a page, reads the PDF link, HTTP fetches the bytes."""
+    from benchmark.local_runtime.document_bench import parse_pymupdf
+
+    BLOB_DIR.mkdir(parents=True, exist_ok=True)
+    rows = []
+    with out_path.open("w", encoding="utf-8") as fh:
+        for case in cases:
+            name = pathlib.Path(case["path"]).name
+            page_url = f"http://127.0.0.1:18080/pdf/link/{name}"
+            page = crawl4ai_page_links(page_url)
+
+            pdf_url = page["links"][0] if page["links"] else None
+            download = (http_download(pdf_url) if pdf_url else
+                        {"ok": False, "error": "no link", "bytes": 0, "sha256": None,
+                         "latency_s": 0.0})
+            blob = BLOB_DIR / name
+            if download.get("ok"):
+                blob.write_bytes(download["body"])
+
+            parsed = {"ok": False, "error": "no bytes", "text_chars": 0, "latency_s": 0.0}
+            if download.get("ok"):
+                parsed = parse_safe(parse_pymupdf,
+                                    {"path": str(blob), "find_tables": False}, case)
+            ok = bool(page["ok"] and download.get("ok") and parsed["ok"]
+                      and (parsed.get("text_chars") or 0) >= 100)
+            row = {
+                "case_id": case["case_id"], "page_url": page_url, "pdf_url": pdf_url,
+                "page": page,
+                "download": {k: v for k, v in download.items() if k != "body"},
+                "blob_sha256_matches_source": (
+                    hashlib.sha256(blob.read_bytes()).hexdigest() == case["sha256"]
+                    if download.get("ok") else None),
+                "parse": parsed, "p4_ok": ok,
+                "p4_latency_s": round(sum(x for x in (page.get("latency_s"),
+                                                      download.get("latency_s"),
+                                                      parsed.get("latency_s"))
+                                          if isinstance(x, (int, float))), 3),
+            }
+            row["download"].pop("body", None)
+            rows.append(row)
+            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+            print(f"{case['case_id']:24} page={page['ok']!s:5} "
+                  f"pdf={bool(pdf_url)!s:5} parse={parsed['ok']!s:5} "
+                  f"chars={parsed.get('text_chars')} p4={ok!s:5}")
+
+    summary = {
+        "pipeline": "p4_page_to_link_to_http_pymupdf",
+        "cases": len(rows),
+        "success": sum(1 for r in rows if r["p4_ok"]),
+        "success_rate": round(sum(1 for r in rows if r["p4_ok"]) / len(rows), 4) if rows else None,
+        "page_rendered": sum(1 for r in rows if r["page"]["ok"]),
+        "downloaded": sum(1 for r in rows if r["download"].get("ok")),
+        "blob_hash_matches_source": sum(1 for r in rows if r["blob_sha256_matches_source"]),
+        "total_latency_s": round(sum(r["p4_latency_s"] for r in rows), 3),
+        "cost_usd": 0.0,
+    }
+    out_path.with_suffix(".summary.json").write_text(
+        json.dumps(summary, indent=2, ensure_ascii=False) + "\n")
+    print("\n" + json.dumps(summary, indent=2, ensure_ascii=False))
+    print(f"\nraw -> {out_path}")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--public", action="store_true",
                     help="use the downloaded public PDFs instead of the synthetic set")
+    ap.add_argument("--p4", action="store_true",
+                    help="only run the discovery pipeline: page -> PDF link -> HTTP -> PyMuPDF")
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
 
@@ -131,6 +222,9 @@ def main() -> int:
     stamp = time.strftime("%Y%m%dT%H%M%S")
     prefix = "joint-public" if args.public else "joint-pipeline"
     out_path = pathlib.Path(args.out) if args.out else RUNS_DIR / f"{prefix}-{stamp}.jsonl"
+
+    if args.p4:
+        return run_p4(cases, base, out_path)
 
     rows = []
     with out_path.open("w", encoding="utf-8") as fh:

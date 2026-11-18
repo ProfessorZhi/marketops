@@ -1,0 +1,11 @@
+{
+  "pipeline": "p4_page_to_link_to_http_pymupdf",
+  "cases": 4,
+  "success": 4,
+  "success_rate": 1.0,
+  "page_rendered": 4,
+  "downloaded": 4,
+  "blob_hash_matches_source": 4,
+  "total_latency_s": 15.782,
+  "cost_usd": 0.0
+}

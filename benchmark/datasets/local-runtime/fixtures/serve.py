@@ -17,6 +17,7 @@ Routes
   /cookie/check          only renders the payload if the cookie is present
   /shell/spa.html        empty <div id="root">; a reader must not call this success
   /pdf/sample.pdf        a tiny text PDF generated on the fly
+  /pdf/link/<name>       HTML that links to a PDF served on :18082
   /long/article.html     a long article; truncating readers lose its closing lines
   /static/team.html      several people with titles and addresses in plain HTML
   /org/subsidiary.html   states the parent/subsidiary relationship a reader must keep
@@ -26,6 +27,7 @@ Routes
 from __future__ import annotations
 
 import http.server
+import re
 import socketserver
 import sys
 import urllib.parse
@@ -310,6 +312,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         if path == "/pdf/sample.pdf":
             return self._send(pdf_bytes(), ctype="application/pdf")
+
+        if path.startswith("/pdf/link/"):
+            # A page that points at a PDF instead of being one. This is the
+            # realistic path: a browser renders the page, the PDF itself is
+            # fetched over HTTP. It exists so the pipeline can be measured
+            # instead of assuming the browser can carry the bytes.
+            name = path.rsplit("/", 1)[1]
+            if not re.fullmatch(r"[A-Za-z0-9._-]+", name):
+                return self._send(b"bad name", status=400)
+            body = (
+                "<html><head><title>Document index</title></head><body>"
+                "<h1>Public document index</h1>"
+                "<p>Annual report available for download.</p>"
+                f'<p><a href="http://127.0.0.1:18082/{name}">{name}</a></p>'
+                "</body></html>"
+            ).encode()
+            return self._send(body)
 
         return self._send(b"not found", status=404)
 
