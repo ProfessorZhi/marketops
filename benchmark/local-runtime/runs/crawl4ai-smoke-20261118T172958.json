@@ -1,0 +1,43 @@
+{
+  "base_url": "http://127.0.0.1:11235",
+  "checks": [
+    {
+      "name": "health",
+      "status": 200,
+      "passed": true,
+      "body": "{\"status\":\"ok\",\"version\":\"0.9.5\",\"uptime_s\":81.1}"
+    },
+    {
+      "name": "auth_required",
+      "status": 401,
+      "passed": true,
+      "latency_ms": 2,
+      "detail": "{\"detail\":\"unauthorized\"}"
+    },
+    {
+      "name": "static_page",
+      "status": 200,
+      "passed": true,
+      "latency_ms": 2800,
+      "text_chars": 430,
+      "excerpt": "[About](http://127.0.0.1:18080/static/about.html) [Team](http://127.0.0.1:18080/js/team.html) # About Northwind Ltd Northwind Ltd is a fictional company used on"
+    },
+    {
+      "name": "js_rendered_page",
+      "status": 200,
+      "passed": true,
+      "latency_ms": 2872,
+      "text_chars": 154,
+      "excerpt": "# Our team   * **Marta Visser** — Managing Director, m.visser@northwind.example   * **Pieter de Boer** — Operations Manager, p.deboer@northwind.example   "
+    }
+  ],
+  "external": {
+    "name": "external_js_page",
+    "status": 200,
+    "marker_found": true,
+    "latency_ms": 6733,
+    "text_chars": 1666,
+    "note": "informational only; an external site changing or being slow is not this service failing"
+  },
+  "passed": true
+}

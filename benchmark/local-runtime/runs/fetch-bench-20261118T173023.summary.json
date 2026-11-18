@@ -1,0 +1,30 @@
+[
+  {
+    "provider": "crawl4ai_local",
+    "cases": 12,
+    "useful_content_rate": 0.9091,
+    "text_completeness_mean": 0.9091,
+    "contact_completeness_mean": 0.9091,
+    "http_success_rate": 0.75,
+    "final_url_accuracy": 1.0,
+    "false_success_on_no_content": 0,
+    "errors": 2,
+    "latency_p50_s": 2.833,
+    "latency_p95_s": 2.989,
+    "cost_usd": 0.0
+  },
+  {
+    "provider": "http_trafilatura",
+    "cases": 12,
+    "useful_content_rate": 0.6364,
+    "text_completeness_mean": 0.5697,
+    "contact_completeness_mean": 0.6364,
+    "http_success_rate": 1.0,
+    "final_url_accuracy": 0.6667,
+    "false_success_on_no_content": 1,
+    "errors": 0,
+    "latency_p50_s": 0.013,
+    "latency_p95_s": 0.143,
+    "cost_usd": 0.0
+  }
+]

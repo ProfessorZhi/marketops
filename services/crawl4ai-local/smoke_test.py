@@ -24,10 +24,21 @@ import urllib.error
 import urllib.request
 
 BASE = os.environ.get("CRAWL4AI_BASE_URL", "http://127.0.0.1:11235")
+FIXTURES = os.environ.get("CRAWL4AI_FIXTURES_URL", "http://127.0.0.1:18080")
 ENV_FILE = pathlib.Path(__file__).with_name(".env")
 
-STATIC_URL = "https://example.com/"
-JS_URL = "https://quotes.toscrape.com/js/"
+# Local fixtures decide pass/fail: they are byte-stable, so a failure means the
+# service is broken rather than a site having changed overnight.
+STATIC_URL = f"{FIXTURES}/static/about.html"
+JS_URL = f"{FIXTURES}/js/team.html"
+STATIC_MARKER = "Northwind Ltd"
+JS_MARKER = "Marta Visser"
+
+# External page, recorded but not scored. example.com localises its body by
+# Accept-Language, so it cannot serve as a fixed marker, and an external site
+# being slow says nothing about this service.
+EXTERNAL_URL = "https://quotes.toscrape.com/js/"
+EXTERNAL_MARKER = "Albert Einstein"
 
 
 def load_token() -> str:
@@ -96,7 +107,7 @@ def main() -> int:
         {
             "name": "static_page",
             "status": status,
-            "passed": status == 200 and "Example Domain" in text,
+            "passed": status == 200 and STATIC_MARKER in text,
             "latency_ms": ms,
             "text_chars": len(text),
             "excerpt": text[:160].replace("\n", " "),
@@ -109,12 +120,23 @@ def main() -> int:
         {
             "name": "js_rendered_page",
             "status": status,
-            "passed": status == 200 and "Albert Einstein" in text,
+            "passed": status == 200 and JS_MARKER in text,
             "latency_ms": ms,
             "text_chars": len(text),
             "excerpt": text[:160].replace("\n", " "),
         }
     )
+
+    status, payload, ms = post("/crawl", {"urls": [EXTERNAL_URL]}, token=token, timeout=180)
+    text = first_markdown(payload)
+    out["external"] = {
+        "name": "external_js_page",
+        "status": status,
+        "marker_found": EXTERNAL_MARKER in text,
+        "latency_ms": ms,
+        "text_chars": len(text),
+        "note": "informational only; an external site changing or being slow is not this service failing",
+    }
 
     out["passed"] = all(c["passed"] for c in out["checks"])
     print(json.dumps(out, ensure_ascii=False, indent=2))

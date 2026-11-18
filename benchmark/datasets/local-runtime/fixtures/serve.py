@@ -17,6 +17,10 @@ Routes
   /cookie/check          only renders the payload if the cookie is present
   /shell/spa.html        empty <div id="root">; a reader must not call this success
   /pdf/sample.pdf        a tiny text PDF generated on the fly
+  /long/article.html     a long article; truncating readers lose its closing lines
+  /static/team.html      several people with titles and addresses in plain HTML
+  /org/subsidiary.html   states the parent/subsidiary relationship a reader must keep
+  /meta/refresh.html     a <meta http-equiv="refresh"> hop, which is not an HTTP 302
 """
 
 from __future__ import annotations
@@ -128,6 +132,82 @@ def pdf_bytes() -> bytes:
     return bytes(out)
 
 
+LONG_PARAGRAPH = (
+    "Northwind Marine Fittings Ltd has supplied deck hardware to shipyards around "
+    "the North Sea since 1987. Each casting is poured in the Rotterdam foundry, "
+    "machined on site, pressure-tested at sixteen bar and photographed before it "
+    "leaves the yard. The company keeps its inspection records for seven years."
+)
+LONG_TAIL = (
+    "<h2>How to reach us</h2>"
+    "<p>Write to <a href=\"mailto:long@northwind.example\">long@northwind.example</a> "
+    "or call +31 10 555 0199. The office is open on weekdays from 08:00 to 17:00 CET.</p>"
+)
+
+
+def long_html() -> str:
+    """A page whose payload sits at the end, not the start.
+
+    A reader that truncates by character budget or by DOM depth returns a
+    non-empty string for this page and still misses the contact block, which is
+    the only part downstream extraction needs.
+    """
+    body = "".join(
+        f"<h2>Section {i}</h2><p>{LONG_PARAGRAPH}</p>" for i in range(1, 121)
+    )
+    return (
+        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
+        "<title>Northwind — long technical note</title></head><body>"
+        "<h1>Northwind long technical note</h1>"
+        f"<main>{body}{LONG_TAIL}</main>"
+        "<footer><p>&copy; 2026 Northwind Ltd</p></footer></body></html>"
+    )
+
+
+TEAM_STATIC_HTML = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Northwind — management</title></head>
+<body>
+  <h1>Management</h1>
+  <p>The people below are the current management of Northwind Marine Fittings Ltd.</p>
+  <table>
+    <tr><th>Name</th><th>Role</th><th>Email</th><th>Phone</th></tr>
+    <tr><td>Marta Visser</td><td>Managing Director</td>
+        <td><a href="mailto:m.visser@northwind.example">m.visser@northwind.example</a></td>
+        <td>+31 10 555 0124</td></tr>
+    <tr><td>Pieter de Boer</td><td>Operations Manager</td>
+        <td><a href="mailto:p.deboer@northwind.example">p.deboer@northwind.example</a></td>
+        <td>+31 10 555 0125</td></tr>
+    <tr><td>Sanne Bakker</td><td>Purchasing Lead</td>
+        <td><a href="mailto:s.bakker@northwind.example">s.bakker@northwind.example</a></td>
+        <td>+31 10 555 0126</td></tr>
+  </table>
+  <p>General enquiries: <a href="mailto:info@northwind.example">info@northwind.example</a></p>
+</body></html>
+"""
+
+ORG_HTML = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Northwind Baltic — about</title></head>
+<body>
+  <h1>Northwind Baltic OÜ</h1>
+  <p>Northwind Baltic OÜ is a wholly owned subsidiary of Northwind Marine Fittings Ltd,
+     registered in Tallinn. It handles distribution in the Baltic states.</p>
+  <p>The subsidiary does not manufacture. All production stays in Rotterdam.</p>
+  <p>Contact: <a href="mailto:baltic@northwind.example">baltic@northwind.example</a>,
+     +372 5555 0140.</p>
+  <p>Group website: northwind.example</p>
+</body></html>
+"""
+
+META_HTML = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Northwind — moved</title>
+<meta http-equiv="refresh" content="0; url=/static/about.html">
+</head>
+<body><p>This page has moved. If nothing happens, follow
+<a href="/static/about.html">this link</a>.</p></body></html>
+"""
+
+
 class Handler(http.server.BaseHTTPRequestHandler):
     server_version = "MarketOpsFixtures/1.0"
 
@@ -160,7 +240,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 + "".join(f'<li><a href="{p}">{p}</a></li>' for p in (
                     "/static/about.html", "/js/team.html", "/lazy/list.html",
                     "/page/1", "/redirect/1", "/cookie/set", "/shell/spa.html",
-                    "/pdf/sample.pdf"))
+                    "/pdf/sample.pdf", "/long/article.html", "/static/team.html",
+                    "/org/subsidiary.html", "/meta/refresh.html"))
                 + "</ul>"
             ).encode()
             return self._send(body)
@@ -175,6 +256,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._send(SPA_HTML.encode())
         if path == "/shell/app.js":
             return self._send(EMPTY_JS.encode(), ctype="application/javascript")
+        if path == "/long/article.html":
+            return self._send(long_html().encode())
+        if path == "/static/team.html":
+            return self._send(TEAM_STATIC_HTML.encode())
+        if path == "/org/subsidiary.html":
+            return self._send(ORG_HTML.encode())
+        if path == "/meta/refresh.html":
+            return self._send(META_HTML.encode())
 
         if path.startswith("/page/"):
             try:
