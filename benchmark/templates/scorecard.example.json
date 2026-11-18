@@ -1,0 +1,153 @@
+{
+  "schema_version": "marketops.benchmark.scorecard.v1",
+  "run": {
+    "run_id": "example-not-a-real-run",
+    "started_at": "2026-11-13T00:00:00Z",
+    "finished_at": "2026-11-13T00:01:00Z",
+    "mode": "replay",
+    "repeats": 1,
+    "operator": "offline"
+  },
+  "dataset": {
+    "name": "pilot",
+    "version": "v1",
+    "checksum": "0000000000000000000000000000000000000000000000000000000000000000",
+    "split": "development",
+    "case_counts": {
+      "search": 11,
+      "fetch": 13,
+      "e2e": 4
+    },
+    "label_status": {
+      "draft": 28
+    }
+  },
+  "environment": {
+    "marketops_version": "1.0.0",
+    "git_commit": "unknown",
+    "python_version": "3.12.0",
+    "network": "offline",
+    "providers": {
+      "serper": {
+        "version": "example",
+        "endpoint": "recorded",
+        "region_params_sent": {
+          "gl": "fr",
+          "hl": "fr"
+        },
+        "api_quota_used": 0
+      }
+    }
+  },
+  "search": [
+    {
+      "provider": "serper",
+      "cases": 11,
+      "metrics": {
+        "precision_at_5": 0.6182,
+        "precision_at_10": 0.4727,
+        "recall_at_5": 0.5455,
+        "recall_at_10": 0.6364,
+        "mrr": 0.7273,
+        "ndcg_at_10": 0.6912,
+        "unique_recall": 0.1818,
+        "official_source_rate": 0.5818,
+        "domain_diversity": 0.7091,
+        "duplicate_rate": 0.0182,
+        "market_language_accuracy": 0.9091,
+        "freshness_pass_rate": null
+      },
+      "latency_ms": {
+        "p50": 412.0,
+        "p95": 1180.0
+      },
+      "cost": {
+        "total_usd": 0.011,
+        "per_100_relevant_results_usd": 0.055
+      },
+      "failures": []
+    }
+  ],
+  "fetch": [
+    {
+      "reader": "http",
+      "cases": 13,
+      "metrics": {
+        "http_success_rate": 0.8462,
+        "useful_content_rate": 0.6154,
+        "content_completeness": 0.5897,
+        "text_coverage": 0.7308,
+        "structured_extraction_accuracy": null,
+        "email_precision": null,
+        "email_recall": null,
+        "phone_precision": null,
+        "phone_recall": null,
+        "contact_person_accuracy": null,
+        "link_retention": 0.6923,
+        "mailto_retention": null,
+        "js_coverage": 0.0,
+        "pdf_coverage": 0.0,
+        "shell_page_false_success_rate": 0.2308
+      },
+      "latency_ms": {
+        "p50": 640.0,
+        "p95": 2100.0
+      },
+      "cost": {
+        "total_usd": 0.0,
+        "per_successful_page_usd": 0.0
+      },
+      "failures": [
+        {
+          "case_id": "FECH-FR-EMPTY-010",
+          "error_code": "no_content",
+          "message": "http failed on broken_link"
+        }
+      ]
+    }
+  ],
+  "e2e": [
+    {
+      "configuration": "serper+deepseek",
+      "cases": 4,
+      "metrics": {
+        "entity_precision": 0.875,
+        "entity_recall": 0.75,
+        "verified_contact_precision": null,
+        "verified_contact_recall": null,
+        "correct_entity_attribution": null,
+        "source_attribution_accuracy": 0.8125,
+        "evidence_completeness": 0.75,
+        "false_positive_rate": 0.125,
+        "duplicate_entity_rate": 0.0,
+        "task_completion_rate": 0.5
+      },
+      "cost": {
+        "total_usd": 0.084,
+        "per_verified_entity_usd": 0.021,
+        "per_verified_contact_usd": null
+      },
+      "latency_ms": {
+        "p50": 42000.0,
+        "p95": 96000.0
+      },
+      "failures": []
+    }
+  ],
+  "judge": {
+    "provider": "none",
+    "model": "",
+    "blind": true,
+    "calibration": {
+      "sample_size": 0,
+      "agreement": null,
+      "false_positive_rate": null,
+      "false_negative_rate": null
+    }
+  },
+  "notes": [
+    "example only: numbers are illustrative and must not be read as a result",
+    "judge_calibration: insufficient_sample",
+    "judge: none -- deterministic metrics only"
+  ]
+}

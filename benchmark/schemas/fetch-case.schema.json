@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marketops.dev/schemas/benchmark/fetch-case.schema.json",
+  "title": "MarketOps Fetch Benchmark Case",
+  "description": "One provider-independent page-extraction task. Every candidate reader must be given the identical URL, timeout budget and retry policy.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "case_id", "schema_version", "split", "market", "language", "task_type",
+    "url", "difficulty", "timeout_seconds", "expected_outcome",
+    "gold_label", "label_status", "validation_timestamp", "notes"
+  ],
+  "properties": {
+    "case_id": {
+      "type": "string",
+      "pattern": "^FECH-[A-Z]{2,3}-[A-Z0-9-]+-[0-9]{3}$"
+    },
+    "schema_version": { "const": "marketops.benchmark.case.v1" },
+    "split": { "enum": ["development", "validation", "holdout"] },
+    "market": { "type": "string" },
+    "language": { "type": "string" },
+    "task_type": {
+      "enum": [
+        "static_html",
+        "js_rendered",
+        "lazy_loading",
+        "pagination",
+        "contact_page",
+        "directory_page",
+        "pdf_text",
+        "pdf_scanned",
+        "social_public_page",
+        "redirect_chain",
+        "cookie_consent",
+        "antibot_challenge",
+        "broken_link",
+        "empty_or_irrelevant"
+      ]
+    },
+    "url": { "type": "string", "format": "uri" },
+    "final_url_expected": { "type": ["string", "null"], "description": "Set when redirects must be followed to a specific target." },
+    "difficulty": { "enum": ["easy", "medium", "hard"] },
+    "timeout_seconds": { "type": "integer", "minimum": 5, "maximum": 180 },
+    "expected_outcome": {
+      "enum": ["content", "no_content"],
+      "description": "no_content encodes the anti-bot / broken / empty cases: a correct reader must report failure rather than a shell page."
+    },
+    "gold_label": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["page_kind", "expected_emails", "expected_phones", "expected_text_markers", "expected_links"],
+      "properties": {
+        "page_kind": { "type": "string" },
+        "requires_js": { "type": "boolean" },
+        "expected_emails": { "type": "array", "items": { "type": "string" } },
+        "expected_phones": { "type": "array", "items": { "type": "string" } },
+        "expected_persons": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "role"],
+            "properties": { "name": { "type": "string" }, "role": { "type": "string" } }
+          }
+        },
+        "expected_text_markers": {
+          "type": "array",
+          "description": "Short strings that MUST appear in the extracted text for the read to be complete.",
+          "items": { "type": "string" }
+        },
+        "expected_links": {
+          "type": "array",
+          "description": "Links (including mailto:) that must survive extraction.",
+          "items": { "type": "string" }
+        },
+        "min_text_chars": { "type": "integer", "minimum": 0, "description": "Below this, the page is treated as a shell." },
+        "forbidden_strings": {
+          "type": "array",
+          "description": "Markers of a blocked/challenge page, e.g. 'Just a moment', 'Enable JavaScript'.",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "label_status": { "enum": ["draft", "human_verified", "disputed"] },
+    "verified_by": { "type": ["string", "null"] },
+    "validation_timestamp": { "type": "string", "format": "date-time" },
+    "notes": { "type": "string" }
+  }
+}

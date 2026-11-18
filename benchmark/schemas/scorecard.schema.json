@@ -1,0 +1,341 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marketops.dev/schemas/benchmark/scorecard.schema.json",
+  "title": "MarketOps Benchmark Scorecard",
+  "description": "Machine-readable result of one benchmark run. Deterministic metrics and judge metrics are reported separately and never merged into a single opaque score.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "run", "dataset", "environment", "search", "fetch", "e2e", "judge", "notes"],
+  "properties": {
+    "schema_version": { "const": "marketops.benchmark.scorecard.v1" },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_id", "started_at", "finished_at", "mode", "repeats", "operator"],
+      "properties": {
+        "run_id": { "type": "string" },
+        "started_at": { "type": "string", "format": "date-time" },
+        "finished_at": { "type": "string", "format": "date-time" },
+        "mode": { "enum": ["offline", "live", "replay"] },
+        "repeats": { "type": "integer", "minimum": 1 },
+        "operator": { "type": "string", "description": "Pseudonymous operator id." }
+      }
+    },
+    "dataset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "checksum", "split", "case_counts", "label_status"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "checksum": { "type": "string", "description": "sha256 of the concatenated case files." },
+        "split": { "enum": ["development", "validation", "holdout"] },
+        "case_counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["search", "fetch", "e2e"],
+          "properties": {
+            "search": { "type": "integer", "minimum": 0 },
+            "fetch": { "type": "integer", "minimum": 0 },
+            "e2e": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "label_status": {
+          "type": "object",
+          "description": "case count per label_status. draft means the gold labels are NOT human-confirmed and the metrics are not decision-grade.",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["marketops_version", "git_commit", "python_version", "network", "providers"],
+      "properties": {
+        "marketops_version": { "type": "string" },
+        "git_commit": { "type": "string" },
+        "python_version": { "type": "string" },
+        "network": { "enum": ["offline", "live"] },
+        "providers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["version", "endpoint", "region_params_sent", "api_quota_used"],
+            "properties": {
+              "version": { "type": "string" },
+              "endpoint": { "type": "string" },
+              "region_params_sent": {
+                "type": "object",
+                "additionalProperties": { "type": "string" }
+              },
+              "api_quota_used": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Units consumed, in the provider's native unit (credits/calls)."
+              }
+            }
+          }
+        }
+      }
+    },
+    "search": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["provider", "cases", "metrics", "latency_ms", "cost", "failures"],
+        "properties": {
+          "provider": { "type": "string" },
+          "cases": { "type": "integer", "minimum": 0 },
+          "metrics": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "precision_at_5", "precision_at_10", "recall_at_5", "recall_at_10", "mrr",
+              "ndcg_at_10", "unique_recall", "official_source_rate", "domain_diversity",
+              "duplicate_rate", "market_language_accuracy", "freshness_pass_rate"
+            ],
+            "properties": {
+              "precision_at_5": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "precision_at_10": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "recall_at_5": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "recall_at_10": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "mrr": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "ndcg_at_10": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "unique_recall": {
+                "type": ["number", "null"],
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Share of gold URLs found by this provider alone among all providers."
+              },
+              "official_source_rate": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "domain_diversity": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "duplicate_rate": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "market_language_accuracy": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "freshness_pass_rate": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+            }
+          },
+          "latency_ms": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["p50", "p95"],
+            "properties": {
+              "p50": {
+                "type": ["number", "null"],
+                "description": "null when the arm produced no latency sample."
+              },
+              "p95": {
+                "type": ["number", "null"],
+                "description": "null when the arm produced no latency sample."
+              }
+            }
+          },
+          "cost": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["total_usd", "per_100_relevant_results_usd"],
+            "properties": {
+              "total_usd": { "type": "number", "minimum": 0 },
+              "per_100_relevant_results_usd": { "type": ["number", "null"], "minimum": 0 }
+            }
+          },
+          "failures": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["case_id", "error_code", "message"],
+              "properties": {
+                "case_id": { "type": "string" },
+                "error_code": { "type": "string" },
+                "message": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "fetch": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["reader", "cases", "metrics", "latency_ms", "cost", "failures"],
+        "properties": {
+          "reader": { "type": "string" },
+          "cases": { "type": "integer", "minimum": 0 },
+          "metrics": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "http_success_rate", "useful_content_rate", "content_completeness", "text_coverage",
+              "structured_extraction_accuracy", "email_precision", "email_recall",
+              "phone_precision", "phone_recall", "contact_person_accuracy", "link_retention",
+              "mailto_retention", "js_coverage", "pdf_coverage", "shell_page_false_success_rate"
+            ],
+            "properties": {
+              "http_success_rate": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "useful_content_rate": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "content_completeness": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "text_coverage": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "structured_extraction_accuracy": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "email_precision": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "email_recall": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "phone_precision": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "phone_recall": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "contact_person_accuracy": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "link_retention": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "mailto_retention": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "js_coverage": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "pdf_coverage": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "shell_page_false_success_rate": {
+                "type": ["number", "null"],
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Returned content for expected_outcome=no_content cases. Lower is better."
+              }
+            }
+          },
+          "latency_ms": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["p50", "p95"],
+            "properties": {
+              "p50": {
+                "type": ["number", "null"],
+                "description": "null when the arm produced no latency sample."
+              },
+              "p95": {
+                "type": ["number", "null"],
+                "description": "null when the arm produced no latency sample."
+              }
+            }
+          },
+          "cost": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["total_usd", "per_successful_page_usd"],
+            "properties": {
+              "total_usd": { "type": "number", "minimum": 0 },
+              "per_successful_page_usd": { "type": ["number", "null"], "minimum": 0 }
+            }
+          },
+          "failures": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["case_id", "error_code", "message"],
+              "properties": {
+                "case_id": { "type": "string" },
+                "error_code": { "type": "string" },
+                "message": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "e2e": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["configuration", "cases", "metrics", "cost", "latency_ms", "failures"],
+        "properties": {
+          "configuration": {
+            "type": "string",
+            "description": "Provider combination under test, e.g. serper+deepseek."
+          },
+          "cases": { "type": "integer", "minimum": 0 },
+          "metrics": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "entity_precision", "entity_recall", "verified_contact_precision",
+              "verified_contact_recall", "correct_entity_attribution",
+              "source_attribution_accuracy", "evidence_completeness", "false_positive_rate",
+              "duplicate_entity_rate", "task_completion_rate"
+            ],
+            "properties": {
+              "entity_precision": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "entity_recall": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "verified_contact_precision": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "verified_contact_recall": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "correct_entity_attribution": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "source_attribution_accuracy": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "evidence_completeness": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "false_positive_rate": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "duplicate_entity_rate": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "task_completion_rate": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+            }
+          },
+          "cost": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["total_usd", "per_verified_entity_usd", "per_verified_contact_usd"],
+            "properties": {
+              "total_usd": { "type": "number", "minimum": 0 },
+              "per_verified_entity_usd": { "type": ["number", "null"], "minimum": 0 },
+              "per_verified_contact_usd": { "type": ["number", "null"], "minimum": 0 }
+            }
+          },
+          "latency_ms": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["p50", "p95"],
+            "properties": {
+              "p50": {
+                "type": ["number", "null"],
+                "description": "null when the arm produced no latency sample."
+              },
+              "p95": {
+                "type": ["number", "null"],
+                "description": "null when the arm produced no latency sample."
+              }
+            }
+          },
+          "failures": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["case_id", "error_code", "message"],
+              "properties": {
+                "case_id": { "type": "string" },
+                "error_code": { "type": "string" },
+                "message": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "judge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "model", "blind", "calibration"],
+      "properties": {
+        "provider": { "type": "string", "description": "e.g. jev, none (deterministic only)." },
+        "model": { "type": "string" },
+        "blind": { "type": "boolean" },
+        "calibration": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sample_size", "agreement", "false_positive_rate", "false_negative_rate"],
+          "properties": {
+            "sample_size": { "type": "integer", "minimum": 0 },
+            "agreement": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+            "false_positive_rate": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+            "false_negative_rate": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+          }
+        }
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}
