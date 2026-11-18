@@ -38,11 +38,35 @@ BLOB_DIR = DOC_DIR / "blobs/joint"
 RUNS_DIR = ROOT / "benchmark/local-runtime/runs"
 FETCH_BASE = "http://127.0.0.1:18081"
 FETCH_TIMEOUT = 25
+PUBLIC_DIR = pathlib.Path("/data/home/fjd/marketops-lab/samples/public")
+PUBLIC_BASE = "http://127.0.0.1:18082"
 
 
 def load_pdf_cases() -> list[dict]:
     rows = [json.loads(l) for l in CASES.read_text().splitlines() if l.strip()]
     return [c for c in rows if c["doc_type"].startswith("pdf")]
+
+
+def public_cases() -> list[dict]:
+    """Real public PDFs scored on delivery, not on markers.
+
+    There is no gold text for a downloaded annual report, so success means the
+    pipeline returned a parse that covers every page and has real content.
+    """
+    cases = []
+    for path in sorted(PUBLIC_DIR.glob("*.pdf")):
+        raw = path.read_bytes()
+        cases.append({
+            "case_id": f"PUB-{path.stem.upper()}",
+            "doc_type": "pdf-public",
+            "difficulty": "real",
+            "path": str(path),
+            "sha256": hashlib.sha256(raw).hexdigest(),
+            "timeout_seconds": 2400,
+            "find_tables": False,
+            "expected": {"text_markers": [], "min_text_chars": 100},
+        })
+    return cases
 
 
 def http_download(url: str) -> dict:
@@ -93,6 +117,8 @@ def parse_safe(fn, parse_case: dict, gold_case: dict) -> dict:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
+    ap.add_argument("--public", action="store_true",
+                    help="use the downloaded public PDFs instead of the synthetic set")
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
 
@@ -100,15 +126,17 @@ def main() -> int:
 
     BLOB_DIR.mkdir(parents=True, exist_ok=True)
     RUNS_DIR.mkdir(parents=True, exist_ok=True)
-    cases = load_pdf_cases()
+    cases = public_cases() if args.public else load_pdf_cases()
+    base = PUBLIC_BASE if args.public else FETCH_BASE
     stamp = time.strftime("%Y%m%dT%H%M%S")
-    out_path = pathlib.Path(args.out) if args.out else RUNS_DIR / f"joint-pipeline-{stamp}.jsonl"
+    prefix = "joint-public" if args.public else "joint-pipeline"
+    out_path = pathlib.Path(args.out) if args.out else RUNS_DIR / f"{prefix}-{stamp}.jsonl"
 
     rows = []
     with out_path.open("w", encoding="utf-8") as fh:
         for case in cases:
             name = pathlib.Path(case["path"]).name
-            url = f"{FETCH_BASE}/{name}"
+            url = f"{base}/{name}"
             row = {"case_id": case["case_id"], "doc_type": case["doc_type"],
                    "url": url}
 
@@ -141,6 +169,18 @@ def main() -> int:
 
             row["p1_http_pymupdf"] = p1
             row["p2_http_mineru"] = p2
+
+            meta2 = p2.get("meta") or {}
+            row["p2_pages"] = {
+                "expected": meta2.get("doc_page_count"),
+                "covered": len(meta2.get("pages_covered") or []),
+                "gaps": meta2.get("coverage_gaps"),
+                "content_calls": len(meta2.get("content_calls") or []),
+            }
+            row["p1_delivered"] = bool(p1["ok"] and (p1.get("text_chars") or 0) >= 100)
+            row["p2_delivered"] = bool(
+                p2["ok"] and (p2.get("text_chars") or 0) >= 100
+                and not (meta2.get("coverage_gaps") or []))
             # P3: Crawl4AI -> MinerU. If the browser step failed there is no
             # document to parse, so the pipeline fails at the first stage.
             row["p3_crawl4ai_mineru"] = {
@@ -155,7 +195,8 @@ def main() -> int:
             fh.write(json.dumps(row, ensure_ascii=False) + "\n")
             print(f"{case['case_id']:22} http={http['ok']!s:5} crawl4ai={crawl['ok']!s:5} "
                   f"pymupdf={p1['ok']!s:5}({p1.get('text_completeness')}) "
-                  f"mineru={p2['ok']!s:5}({p2.get('text_completeness')})")
+                  f"mineru={p2['ok']!s:5}({p2.get('text_completeness')}) "
+                  f"pages={row['p2_pages']['covered']}/{row['p2_pages']['expected']}")
 
     def agg(key: str) -> dict:
         items = [r[key] for r in rows]
@@ -184,6 +225,10 @@ def main() -> int:
         "p3_failed_at_parse": sum(1 for r in rows
                                   if r["p3_crawl4ai_mineru"]["failed_stage"] == "parse"),
         "blob_hash_matches_source": sum(1 for r in rows if r["blob_sha256_matches_source"]),
+        "p1_delivered": sum(1 for r in rows if r["p1_delivered"]),
+        "p2_delivered": sum(1 for r in rows if r["p2_delivered"]),
+        "p2_pages_covered": sum(r["p2_pages"]["covered"] or 0 for r in rows),
+        "p2_pages_expected": sum(r["p2_pages"]["expected"] or 0 for r in rows),
         "cost_usd": 0.0,
     }
     summary_path = out_path.with_suffix(".summary.json")

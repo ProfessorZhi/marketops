@@ -1,7 +1,7 @@
 # 联合流水线 — Crawl4AI / MinerU / PyMuPDF 端到端对照
 
-状态：**Completed（12 份合成 PDF；真实公开文档尚未加入）**
-最后更新：2026-11-18 17:58 +08:00
+状态：**Completed（12 份合成 PDF + 4 份真实公开 PDF，含 492 页长文档）**
+最后更新：2026-11-18 19:00 +08:00
 
 ---
 
@@ -19,6 +19,10 @@
 2. **PyMuPDF 对扫描件完全无效**（3/3 完整性 0），这是 MinerU 唯一不可替代的
    价值点。
 3. P2 的代价是 **14.7 倍延迟**（52.2 s vs 3.5 s）换 **+0.25 完整性**。
+
+在 4 份真实公开 PDF（525 页，含 492 页 NIST 标准）上重复同一套流水线，结论不变：
+P1 4/4（1.77 s）、P2 4/4（567 s，525/525 页）、P3 0/4（全部失败在 fetch），
+见 §8。P3 的失败不是本地 fixture 的产物。
 
 ## 2. 流水线定义
 
@@ -123,14 +127,50 @@ Page.goto: Download is starting
 
 ## 7. 本轮不覆盖
 
-- 真实公开 PDF（政府采购、年报、扫描公文）。当前 12 份全部合成。
+- 真实公开 PDF 中的**扫描件**。已加入 4 份真实文档（§10），但都是文本型。
 - 大文件（>100 页）与超时行为。
 - 并发：全部串行，并发 1。
 - MinerU 冷启动延迟（本轮命中缓存）。
 - Crawl4AI 通过 HTML 页面**发现** PDF 链接的路径（只测了直接 URL）。
 - OCR 质量的语言维度（只有英文样本）。
 
-## 8. 复现
+## 8. 真实公开文档（4 份）
+
+同一套流水线，换成下载来的公开 PDF。没有金标，成功定义为：
+HTTP 下载字节与源文件一致、解析返回内容、MinerU 覆盖全部页。
+
+| 文档 | 页 | HTTP | P1 PyMuPDF | P2 MinerU | P3 Crawl4AI |
+|---|---|---|---|---|---|
+| arXiv Attention | 15 | 0.015 s | 0.11 s / 39,498 字符 | 23.6 s / 44,843 | 失败 |
+| arXiv BERT | 16 | 0.009 s | 0.06 s / 64,117 | 22.9 s / 69,711 | 失败 |
+| IRS Form 1040 | 2 | 0.003 s | 0.06 s / 10,493 | 49.0 s / 18,695 | 失败 |
+| NIST SP 800-53r5 | 492 | 0.085 s | 1.54 s / 1,651,613 | 471.8 s / 1,626,231 | 失败 |
+
+| 汇总 | P1 | P2 | P3 |
+|---|---|---|---|
+| 成功 | **4 / 4** | **4 / 4** | **0 / 4** |
+| 页覆盖 | 525 / 525 | **525 / 525** | — |
+| 总延迟 | **1.77 s** | 567.28 s | — |
+| 失败阶段 | — | — | fetch ×4 |
+
+- P2 是 P1 的 **320 倍**延迟，换来的是扫描件能力（本组文档没有一份需要它）。
+- P3 的 4 次失败与合成集完全同一错误：`Page.goto: Download is starting`。
+  **这不是 fixture 的产物**，真实 PDF 一样失败。
+- MinerU 长文档用了 9 次 content 调用（每次 ≤200k 字符），无覆盖缺口，
+  分页协议在真实大文件上工作正常。
+- PyMuPDF 的表格结构检测（`find_tables()`）不计入这里的延迟：它在 492 页文档上
+  要 110 s，而文本提取只要 1.5 s，两者不是同一条生产路径。
+
+复现：
+
+```bash
+python3 -m http.server 18082 --bind 127.0.0.1 \
+  -d /data/home/fjd/marketops-lab/samples/public &
+PYTHONPATH=$PWD /data/home/fjd/marketops-lab/envs/docbench/bin/python \
+  -m benchmark.local_runtime.joint_pipeline --public
+```
+
+## 9. 复现
 
 ```bash
 # 依赖服务
@@ -147,11 +187,14 @@ python -m http.server 18081 --bind 127.0.0.1 \
 必须用 `docbench` venv：系统 Python 没有 `pymupdf`/`httpx`，用错解释器会得到
 12 条假的「解析失败」。
 
-## 9. 原始数据
+## 10. 原始数据
 
 ```
-runs/joint-pipeline-20261118T175723.jsonl         12 行
+runs/joint-pipeline-20261118T175723.jsonl         合成集 12 行
 runs/joint-pipeline-20261118T175723.summary.json  聚合
+runs/joint-public-20261118T184345.jsonl           真实公开文档 4 行
+runs/joint-public-20261118T184345.summary.json    聚合
+runs/joint-public-20261118T182635.jsonl           首次运行，PyMuPDF 含表格检测（P1 延迟不可比）
 ```
 
 （`175609` 那一轮是错误解释器产生的无效数据，已删除，不进入报告。）

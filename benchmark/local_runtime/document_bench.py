@@ -57,12 +57,17 @@ def parse_pymupdf(case: dict) -> dict:
     doc = pymupdf.open(path)
     parts = []
     tables = 0
+    # find_tables() is structure analysis, not text extraction: on a 492-page
+    # document it takes ~110 s against ~1 s for the text. It is skipped when a
+    # case opts out, so a latency comparison measures the text path.
+    want_tables = case.get("find_tables", True)
     for page in doc:
         parts.append(page.get_text())
-        try:
-            tables += len(page.find_tables().tables)
-        except Exception:
-            pass
+        if want_tables:
+            try:
+                tables += len(page.find_tables().tables)
+            except Exception:
+                pass
     return {
         "text": "".join(parts),
         "pages": doc.page_count,

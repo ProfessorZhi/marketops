@@ -1,0 +1,51 @@
+{
+  "cases": 4,
+  "http_download": {
+    "cases": 4,
+    "success": 4,
+    "success_rate": 1.0,
+    "mean_text_completeness": null,
+    "p50_latency_s": 0.012,
+    "total_latency_s": 0.112
+  },
+  "crawl4ai_fetch": {
+    "cases": 4,
+    "success": 0,
+    "success_rate": 0.0,
+    "mean_text_completeness": null,
+    "p50_latency_s": 2.25,
+    "total_latency_s": 8.591
+  },
+  "p1_http_pymupdf": {
+    "cases": 4,
+    "success": 4,
+    "success_rate": 1.0,
+    "mean_text_completeness": null,
+    "p50_latency_s": 0.087,
+    "total_latency_s": 1.773
+  },
+  "p2_http_mineru": {
+    "cases": 4,
+    "success": 4,
+    "success_rate": 1.0,
+    "mean_text_completeness": null,
+    "p50_latency_s": 36.283,
+    "total_latency_s": 567.28
+  },
+  "p3_crawl4ai_mineru": {
+    "cases": 4,
+    "success": 0,
+    "success_rate": 0.0,
+    "mean_text_completeness": null,
+    "p50_latency_s": 38.328,
+    "total_latency_s": 575.871
+  },
+  "p3_failed_at_fetch": 4,
+  "p3_failed_at_parse": 0,
+  "blob_hash_matches_source": 4,
+  "p1_delivered": 4,
+  "p2_delivered": 4,
+  "p2_pages_covered": 525,
+  "p2_pages_expected": 525,
+  "cost_usd": 0.0
+}
