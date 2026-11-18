@@ -1,7 +1,20 @@
 # benchmark/ —— Provider 评测框架 v1
 
-**当前状态：Phase 1（标准 + 骨架 + 离线验证）。未发起任何真实收费调用，未消耗任何
-生产 API 配额，未修改生产业务逻辑，未提交或推送。**
+**当前状态：Phase 1（标准 + 骨架 + 离线验证）已完成；Phase 2 已执行 180 次真实
+Provider Pilot（96 Search + 84 Fetch，总成本 $0.4230）。**
+
+Pilot 产出的是一组**诊断性观察**，不是生产选型结论：
+
+- 金标**全部仍为 `draft`**（62 条，无一条 `human_verified`），样本量远低于
+  `STANDARD.md` §5 的 `Insufficient Evidence` 门槛；
+- `PHASE2_LIVE_PLAN.md` §1 的第 1 条前置条件（金标升级）**未成立即执行**，这是
+  已知的偏离，因此结果只能用于定位问题，不能用于排名；
+- e2e 层**未执行**。
+
+原始运行 artifacts 保存在运行机（A6000）的
+`/data/home/vince/artifacts/skills/marketops-benchmark/2026-11-18/recorded-pilot/`，
+**尚未同步进本仓库** —— 缺失清单见 `local-runtime/SYNC_MANIFEST.json`。
+A6000 上的后续工作交接见 `local-runtime/HANDOFF.md`。
 
 这个目录回答的问题是：
 
@@ -40,8 +53,10 @@ python -m benchmark.runner.cli score --dataset benchmark/datasets/pilot \
 | `JUDGE_CONTRACT.md` | judge 的输入/输出/禁止事项/prompt 版本 |
 | `JUDGE_CALIBRATION.md` | 校准四指标、三个等级、失败处置 |
 | `EXECUTION_GUIDE.md` | recorded 布局、CLI、加 provider/加用例、离线保证 |
-| `PHASE2_LIVE_PLAN.md` | 调用清单、成本估算、停止条件（**未执行**） |
+| `PHASE2_LIVE_PLAN.md` | 调用清单、成本估算、停止条件（**2026-11-18 已执行 search/fetch 部分**，见 `IMPLEMENTATION_REPORT.md` §10） |
 | `IMPLEMENTATION_REPORT.md` | 实施报告：验收十问、测试结果、未完成项、风险、Phase 2 条件 |
+| `local-runtime/HANDOFF.md` | A6000 本地运行时实验室的交接（目标、基线、未解问题、部署要求） |
+| `local-runtime/SYNC_MANIFEST.json` | 本次同步清单：提交、用例数、数据集哈希、**缺失 artifacts** |
 | `schemas/` | search / fetch / e2e / judge-verdict / scorecard，JSON Schema 2020-12 |
 | `datasets/pilot/` | 24 search + 28 fetch + 10 e2e，全部 `draft` |
 | `runner/` | 纯 Python，无第三方依赖；`metrics` 无 I/O |
@@ -65,10 +80,11 @@ python -m benchmark.runner.cli score --dataset benchmark/datasets/pilot \
 
 - **不能给 provider 排名。** pilot 的 62 条用例全部是 `draft`，且规模远低于
   `STANDARD.md` §5 的 `Insufficient Evidence` 门槛（每能力每市场 ≥ 30 条
-  `human_verified`）。
+  `human_verified`）。**Phase 2 已经跑过 180 次真实调用，但这个前提没有改变** ——
+  跑过不等于可信，金标没升级，排名就仍然不成立。
 - **不能回答"哪家更便宜"。** 只有 `cost_per_100_relevant_results_usd` 是可比的成本
   口径，而它需要 `human_verified` 的金标。
 - **不能替代业务链路的判断。** 它量的是零件；装配起来好不好用是 C 层的事，而 C 层
-  目前只有 10 条 draft 用例。
+  目前只有 10 条 draft 用例，且**尚未执行**。
 
 把现在的数字当结论用，得到的是"官方首页在三家搜索引擎里都排第一"。

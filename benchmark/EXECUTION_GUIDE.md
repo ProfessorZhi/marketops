@@ -14,7 +14,7 @@ benchmark/
   JUDGE_CONTRACT.md           judge 的输入输出契约
   JUDGE_CALIBRATION.md        校准与等级
   EXECUTION_GUIDE.md          本文件
-  PHASE2_LIVE_PLAN.md         真实调用的计划（未执行，需授权）
+  PHASE2_LIVE_PLAN.md         真实调用的计划（2026-11-18 已执行 search/fetch 部分）
   schemas/                    4 份 JSON Schema 2020-12
   datasets/pilot/             62 条 draft 用例
   templates/                  报告与计分卡模板

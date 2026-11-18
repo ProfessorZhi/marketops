@@ -2,7 +2,14 @@
 
 分支：`feat/provider-benchmark-v1`（工作区只有新增文件，未改动任何已跟踪文件）
 本阶段的交付物**不是结论，是量具**：一套能长期复用、供应商无关、可离线复现的评测框架。
-**没有任何一次收费 API 调用**，没有任何 provider 排名，没有改动生产逻辑或配置。
+
+> **状态更新（2026-11-18）**：本报告正文描述的是 Phase 1（框架与离线验证）。
+> 在那之后，Phase 2 已在 A6000 上执行 **180 次真实 Provider 调用（96 Search +
+> 84 Fetch，总成本 $0.4230）**，金标**全部仍为 `draft`**。Pilot 的结果只作诊断，
+> 不构成生产选型结论 —— 详见文末 **§10**。因此下文"没有任何一次收费 API 调用"
+> 一类表述，均应读作 **Phase 1 阶段的事实**，不是当前仓库的整体状态。
+
+Phase 1 本身：**没有任何一次收费 API 调用**，没有任何 provider 排名，没有改动生产逻辑或配置。
 
 ---
 
@@ -106,7 +113,7 @@ fetch 覆盖 10 类（静态/名录页/JS 渲染/Cookie 弹层/PDF 文字层/重
 | 12 | Scorecard Schema | `benchmark/schemas/scorecard.schema.json` |
 | 13 | JSON / Markdown 报告模板 | `benchmark/templates/report.template.md`、`scorecard.example.json` |
 | 14 | Benchmark Execution Guide | `benchmark/EXECUTION_GUIDE.md` |
-| 15 | Phase 2 Live Testing Plan | `benchmark/PHASE2_LIVE_PLAN.md`（**未执行**） |
+| 15 | Phase 2 Live Testing Plan | `benchmark/PHASE2_LIVE_PLAN.md`（Phase 1 阶段未执行；2026-11-18 已执行 search/fetch，见 §10） |
 
 Runner 可独立运行，不依赖生产任务调度：
 
@@ -147,7 +154,7 @@ python -m benchmark.runner.cli calibrate --verdicts v.json --labels l.json
 | `JUDGE_CONTRACT.md` | 174 | judge 输入/输出/禁令 |
 | `JUDGE_CALIBRATION.md` | 146 | 校准 |
 | `EXECUTION_GUIDE.md` | 231 | 执行与扩展 |
-| `PHASE2_LIVE_PLAN.md` | 162 | 真实调用计划（未执行） |
+| `PHASE2_LIVE_PLAN.md` | 162 | 真实调用计划（2026-11-18 已执行 search/fetch，见 §10） |
 | `IMPLEMENTATION_REPORT.md` | 本文件 | 实施报告 |
 | `runner/__init__.py` | 16 | 版本常量 `marketops.benchmark.v1` |
 | `runner/models.py` | 310 | 用例加载/校验、`RecordedRun` 录像、`label_status` 计数 |
@@ -314,7 +321,8 @@ C 层：Search → URL 发现 → Fetch → 抽取 → 实体归并 → 证据 �
 1. **没有人工金标。** 62 条全部 `draft`，`validation_timestamp` 是占位值。
    `STANDARD.md` §5 的 Insufficient Evidence 门槛是「每能力每市场 ≥30 条 human_verified」，
    pilot 远低于此。**任何数字现在都不能作决策依据。**
-2. **没有真实调用，没有排名。** 没有一次收费 API、没有消耗生产配额。
+2. **Phase 1 没有真实调用，没有排名。** 没有一次收费 API、没有消耗生产配额。
+   （Phase 2 Pilot 已于 2026-11-18 执行，见 §10；排名仍然不成立，因为金标未升级。）
 3. **没有 live 采集器。** runner 只有 replay 路径；`--recorded` 的录像由 Phase 2 的采集器
    产生，采集器尚未实现（`PHASE2_LIVE_PLAN.md` §3 列了它要做什么）。
 4. **judge 未接真实模型。** 只实现了 payload 构造、verdict 校验、校准统计。
@@ -391,9 +399,74 @@ C 层：Search → URL 发现 → Fetch → 抽取 → 实体归并 → 证据 �
 
 | 禁令 | 状态 |
 |---|---|
-| 不发起真实收费 API 测试、不消耗生产配额 | ✅ 零调用 |
+| 不发起真实收费 API 测试、不消耗生产配额 | ✅ Phase 1 零调用（Phase 2 另见 §10） |
 | 不修改生产业务逻辑 / 生产配置 / 不部署 | ✅ `git status` 只有新增 |
 | 不读取、复制或输出 API Key / Cookie / Token | ✅ 未读取任何凭据 |
-| 不提交或推送 | ✅ 未 commit、未 push |
+| 不提交或推送 | ✅ Phase 1 阶段未 commit、未 push（Phase 2 见 §10） |
 | 不访问东京 11GB 语料、不扫描其他设备 | ✅ |
 | 不提前做收费 Provider 排名 | ✅ 框架无排名字段，pilot 全 `draft` |
+
+---
+
+## 10. Phase 2 Pilot（2026-11-18，A6000 运行）
+
+> **这一节记录的是 Pilot 的观察，不是生产选型结论。**
+> 金标仍为 `draft`、e2e 层未执行、原始 artifacts 尚未同步进仓库 —— 三条中任何一条都
+> 足以让"谁更好"不成立。本节的用途是**给下一轮定位问题**，不是给业务选供应商。
+
+### 10.1 规模与成本
+
+| 项 | 值 |
+|---|---|
+| Search 调用 | 96 |
+| Fetch 调用 | 84 |
+| e2e 调用 | 0（未执行） |
+| 合计 | **180** |
+| 总成本 | **$0.4230** |
+| 金标状态 | 62 条用例**全部 `draft`**，无一条 `human_verified` |
+
+e2e 层未执行，因此 C 层（端到端）在本阶段没有任何证据。
+
+### 10.2 Pilot 层面的观察
+
+以下每条都是**观察**，标注了它现在能支撑什么、不能支撑什么：
+
+1. **SerpApi：Google 重定向 URL 包装问题。** 返回结果里有一部分 URL 是
+   `google.com/url?...` 形式的跳转包装，而不是目标页地址。**能支撑**：这是必须在
+   进入计分前处理的规范化缺口。**不能支撑**：SerpApi 的相关性差 —— 在解包之前，
+   任何 URL 层面的指标都量的是包装层。
+2. **TinyFish：fetch 恢复表现好。** **能支撑**：在抓取失败/受限的用例上它有实际价值。
+   **不能支撑**：它可以替代核心抓取器 —— 样本量与难度分布都不够（fetch 难度**全部
+   为 `easy`**，见 §5 第 5 条）。
+3. **Serper：重要的低成本 Search 候选。** **能支撑**：值得进入下一轮做重点验证。
+   **不能支撑**：它是赢家 —— 单价低不等于单位有效结果成本低，后者需要 `human_verified`
+   金标才能算。
+4. **DeepSeek Search：证据不足以判断。** 有效样本量不够，**能支撑**：需要专门补样本。
+   **不能支撑**：任何方向的结论，包括"不好"。
+
+### 10.3 为什么这些观察不能升级为结论
+
+- **金标是 `draft`。** `STANDARD.md` §5 的门槛是每能力每市场 ≥ 30 条
+  `human_verified`；本轮在同一起跑线上就执行了，`PHASE2_LIVE_PLAN.md` §1 的第 1 条
+  前置条件被越过。draft 金标量出来的"相关性"量的是标注者的第一印象。
+- **e2e 未执行。** 零件单独打分的加总不等于装配后的效果，这一点 `STANDARD.md` §2
+  已经写死（不允许 `overall_score`）。
+- **样本有结构性缺口。** fetch 难度全 `easy`，`pdf_scanned` / 懒加载 / Facebook 公开页
+  都没有覆盖。
+
+### 10.4 原始 artifacts 的位置与缺失
+
+报告在运行机上，路径：
+
+```
+/data/home/vince/artifacts/skills/marketops-benchmark/2026-11-18/recorded-pilot/
+```
+
+包含 9 个文件（交接描述里写作「8 个」，但枚举出的名字是 9 个 —— 这个不一致本报告
+不抹平，取回时以目录实际内容为准）：`LIVE_SEARCH_REPORT.md`、`LIVE_FETCH_REPORT.md`、
+`PROVIDER_COMPLEMENTARITY.md`、`RUN_MANIFEST.json`、`scorecard.json`、`scorecard.md`、
+`scorecard.ablation.md`、`quota_snapshot.json`、`serpapi_url_resolution.json`。
+
+**这些文件在本次同步时不在 Windows 侧，因此没有进入仓库。** 缺失清单与
+"待从原始机器取得"的状态记录在 `local-runtime/SYNC_MANIFEST.json` 的
+`missing_artifacts` 字段。**在它们被取回并复核之前，§10.2 的四条观察只能当线索。**

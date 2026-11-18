@@ -1,0 +1,250 @@
+{
+  "schema_version": 1,
+  "generated_by": "benchmark/local-runtime/HANDOFF.md 同步作业",
+  "sync_timestamp": "2026-11-18T16:16:04+08:00",
+  "timezone": "+08:00",
+  "repository": {
+    "url": "https://github.com/ProfessorZhi/marketops.git",
+    "visibility": "public",
+    "default_branch": "main",
+    "base_branch": "feat/provider-benchmark-v1",
+    "base_commit": "61fa275054f3ab589ed67c5471c342ee97178eb6",
+    "base_pull_request": 111,
+    "base_pull_request_state": "OPEN",
+    "branch": "feat/a6000-local-runtime-lab",
+    "commit": null,
+    "commit_note": "提交信息不能自引用：本清单随某个 commit 进仓，而那个 commit 的 SHA 由内容决定。取包含它的提交：git log -1 --format=%H -- benchmark/local-runtime/SYNC_MANIFEST.json"
+  },
+  "datasets": {
+    "root": "benchmark/datasets/pilot",
+    "total_cases": 62,
+    "label_status": {
+      "draft": 62,
+      "human_verified": 0
+    },
+    "counts": {
+      "search": 24,
+      "fetch": 28,
+      "e2e": 10
+    },
+    "checksum": "28157ca3b4a9ac31",
+    "hashes": {
+      "benchmark/datasets/pilot/search/pilot.jsonl": {
+        "sha256": "938d53d6279df9a39e69249b7d6eaa58bc3572433093ff06b52486a9eece7f92",
+        "bytes": 25516
+      },
+      "benchmark/datasets/pilot/fetch/pilot.jsonl": {
+        "sha256": "8f9c4d24294afbdf262c6f996c2b3e6492f7dd309fce530f9f0294e36a39d59a",
+        "bytes": 22168
+      },
+      "benchmark/datasets/pilot/e2e/pilot.jsonl": {
+        "sha256": "21e287444270bb0eee6fd3152a77e01efbc380f7db2b4309e5f222ac12940f45",
+        "bytes": 13602
+      }
+    },
+    "splits": {
+      "search": {
+        "development": 11,
+        "validation": 7,
+        "holdout": 6
+      },
+      "fetch": {
+        "development": 13,
+        "validation": 9,
+        "holdout": 6
+      },
+      "e2e": {
+        "development": 4,
+        "validation": 3,
+        "holdout": 3
+      }
+    }
+  },
+  "included": {
+    "documents": {
+      "benchmark/README.md": {
+        "sha256": "df178c916ede950d8625c578c8be5dc2da20ccfa7181d7b3e583e544f625fae9",
+        "bytes": 4901
+      },
+      "benchmark/STANDARD.md": {
+        "sha256": "9acbe4b93c106de35f2239fd1fff2a453ecd8b3b091739cca40a972fe3bdb9c6",
+        "bytes": 20400
+      },
+      "benchmark/PROVIDER_INVENTORY.md": {
+        "sha256": "af75fcb7b4f3cbbb38257aec607751d975adc7f8d893cc3cc33acfd2fd2356d1",
+        "bytes": 17534
+      },
+      "benchmark/EXECUTION_GUIDE.md": {
+        "sha256": "e64787f14dd7ee3339f12d03903ad301435e21a6011e82b9ffa242ec6bdc46cf",
+        "bytes": 9336
+      },
+      "benchmark/GROUND_TRUTH_GUIDE.md": {
+        "sha256": "5460c06ab8db1e03f99974fadc3cedfe2145281a1205ff488f9de99a7bec3e4d",
+        "bytes": 8311
+      },
+      "benchmark/JUDGE_CONTRACT.md": {
+        "sha256": "289ce45c12ecab2838c058b93f38e87eb3a6d34fec2aed1e3b5058c5222cf592",
+        "bytes": 7330
+      },
+      "benchmark/JUDGE_CALIBRATION.md": {
+        "sha256": "0df9c52b0955b42380ede561ca15a1b9873db92ab2ed9130487076cce3e20fa7",
+        "bytes": 6669
+      },
+      "benchmark/IMPLEMENTATION_REPORT.md": {
+        "sha256": "eb6a09cdd0370543d3b183f9ed00fc7703f755dc681832cef272e06a45b64e7a",
+        "bytes": 28083
+      },
+      "benchmark/BRUCE_WORKLOAD_GAP_REPORT.md": {
+        "sha256": "69e345fcc402482534176799b0cde0f7566445108ffb31820a6a969ff757d3ac",
+        "bytes": 18929
+      },
+      "benchmark/PHASE2_LIVE_PLAN.md": {
+        "sha256": "71a6aee5993b0b0dcf840467fcc0957e338061cf79a116d29516ca18be888c69",
+        "bytes": 8062
+      },
+      "benchmark/local-runtime/HANDOFF.md": {
+        "sha256": "992db163ea914d1fca6a8ec0cb4fc5605b9c93589e3c025eb81b3830764f8d57",
+        "bytes": 17308
+      }
+    },
+    "schemas": {
+      "benchmark/schemas/search-case.schema.json": {
+        "sha256": "a4e403059ff683d9f0faaae3f653e224baebf42dc94ac5bce353187c471e21e8",
+        "bytes": 5869
+      },
+      "benchmark/schemas/fetch-case.schema.json": {
+        "sha256": "0afcdf6087d3b4f883c1730c841a241575c4521a847c86b7cfc6dd96ca1b8679",
+        "bytes": 3658
+      },
+      "benchmark/schemas/e2e-case.schema.json": {
+        "sha256": "328db272bf36b8543eab314ed42f4ed263f3e53f3f136c409c26a0fc43b48677",
+        "bytes": 4815
+      },
+      "benchmark/schemas/judge-verdict.schema.json": {
+        "sha256": "11d2ec1c00139701f3dfdaaaeec0fbc6dd2adf3797e8c8268e72f297a30ff143",
+        "bytes": 3788
+      },
+      "benchmark/schemas/scorecard.schema.json": {
+        "sha256": "d380dde573deefd7275ab8e777e0b1264742716c5f9a140430ec085518af905b",
+        "bytes": 15128
+      }
+    },
+    "runner": {
+      "benchmark/runner/__init__.py": {
+        "sha256": "bede32904f397825711a52b8ce89853c95ee46ec0b0a0a09e47c16135b26de62",
+        "bytes": 625
+      },
+      "benchmark/runner/cli.py": {
+        "sha256": "04930574194e7fda634cc38968e0e507a8fd0c2d36cff650cd3638fe10d9fa14",
+        "bytes": 14014
+      },
+      "benchmark/runner/judge.py": {
+        "sha256": "6811830e1924c92348598f247423979accedfccdfd4aa6e243abf482d00bfa50",
+        "bytes": 14756
+      },
+      "benchmark/runner/metrics.py": {
+        "sha256": "34061dbcffad8ac337f635d873f262470786e4b2a37288549990c21d53de0b26",
+        "bytes": 28737
+      },
+      "benchmark/runner/models.py": {
+        "sha256": "cd9b8cc4515f206ac29f5caeff1bd1336d1b792aabbf531952208bd445e8b1d9",
+        "bytes": 11658
+      },
+      "benchmark/runner/normalize.py": {
+        "sha256": "30d20cec420f0f70173fd4a8f38137c3a57744d8059ae2ab9b88e0a2310ef973",
+        "bytes": 4830
+      },
+      "benchmark/runner/report.py": {
+        "sha256": "b6ced07d2a8dd0812c125a995e53c784d744eaf3b84b26c80d66489e453c0c80",
+        "bytes": 16866
+      }
+    },
+    "tests": {
+      "tests/test_benchmark_cases.py": {
+        "sha256": "7b137e43452f7be6a7020006862af193a11d0b2222fada16a72e6a5ec7eb5611",
+        "bytes": 7573
+      },
+      "tests/test_benchmark_cli.py": {
+        "sha256": "a0b904333a7e548a4e0097175e39a36b6a095499c42bdd90f2197a1841739415",
+        "bytes": 13955
+      },
+      "tests/test_benchmark_is_offline.py": {
+        "sha256": "43f7ef1ccaea573af803f766b23f22d17bde6b880f5053d0a38b196e1403fdd6",
+        "bytes": 8901
+      },
+      "tests/test_benchmark_judge.py": {
+        "sha256": "ac5ef64af581fe4e5b6068c7f660e70c0c2b09470b5064dbce818b98f73408d6",
+        "bytes": 15356
+      },
+      "tests/test_benchmark_local_runtime_manifest.py": {
+        "sha256": "f8575cce804cff5b616d5898e0ae1fd4442a71c30501344112e6965ec72270f6",
+        "bytes": 7971
+      },
+      "tests/test_benchmark_metrics.py": {
+        "sha256": "d8cda9aceab321b3bdd17baf867836c6723be9254eedf5e8c98d9539fbb28fc1",
+        "bytes": 14209
+      },
+      "tests/test_benchmark_normalize.py": {
+        "sha256": "b0008962970dc7cbac9455ceed5ad78e6298b7231e3acfd47217b11453d72112",
+        "bytes": 3724
+      }
+    }
+  },
+  "missing_artifacts": {
+    "status": "pending_fetch_from_original_machine",
+    "source_machine": "A6000",
+    "source_directory": "/data/home/vince/artifacts/skills/marketops-benchmark/2026-11-18/recorded-pilot/",
+    "note": "这些文件在本次同步时不存在于 Windows 侧。不得假装已同步；取回并脱敏后再补入本清单。",
+    "files": [
+      "LIVE_SEARCH_REPORT.md",
+      "LIVE_FETCH_REPORT.md",
+      "PROVIDER_COMPLEMENTARITY.md",
+      "RUN_MANIFEST.json",
+      "scorecard.json",
+      "scorecard.md",
+      "scorecard.ablation.md",
+      "quota_snapshot.json",
+      "serpapi_url_resolution.json"
+    ],
+    "count": 9
+  },
+  "pilot_run": {
+    "executed_on": "2026-11-18",
+    "search_calls": 96,
+    "fetch_calls": 84,
+    "e2e_calls": 0,
+    "total_calls": 180,
+    "total_cost_usd": "0.4230",
+    "gold_status_at_run": "all_draft",
+    "precondition_met": false,
+    "precondition_reference": "benchmark/PHASE2_LIVE_PLAN.md §1 第 1 条",
+    "is_selection_conclusion": false
+  },
+  "excluded_sensitive": {
+    "policy": "只上传代码/数据集/schema/标准/文档/脱敏报告/运行配置/版本信息/数据集哈希；其余一律不传。",
+    "patterns": [
+      "**/.env",
+      "**/.env.*",
+      "**/secrets/**",
+      "**/*.pem",
+      "**/*.key",
+      "**/*.p12",
+      "**/credentials*",
+      "**/vault/**",
+      "**/*.safetensors",
+      "**/*.gguf",
+      "**/*.bin",
+      "**/*.pt",
+      "**/*.ckpt",
+      "**/.cache/**",
+      "**/recorded/**",
+      "**/raw_web_content/**",
+      "**/*.har"
+    ],
+    "notes": [
+      "原始 web 正文、未脱敏的请求/响应、原始 recorded 目录均留在本地。",
+      "API Key / Cookie / Token 未读取、未复制、未输出。",
+      "内网地址与主机名不进本 public 仓库。"
+    ]
+  }
+}
