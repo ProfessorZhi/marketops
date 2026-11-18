@@ -1,0 +1,192 @@
+[
+ {
+  "file": "/data/home/fjd/marketops-lab/samples/public/arxiv-bert.pdf",
+  "bytes": 775166,
+  "sha256": "5692a5514787a8c6727b4ff3b726a3385798bc68e12138d1d4af83947e2acf6e",
+  "pymupdf": {
+   "ok": true,
+   "error": null,
+   "latency_s": 5.596,
+   "probe": {
+    "chars": 64117,
+    "page_markers": 0,
+    "pages_covered": [],
+    "pages_expected": 16,
+    "coverage_gaps": [
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     12,
+     13,
+     14,
+     15,
+     16
+    ],
+    "headings": 0,
+    "latex_blocks": 0,
+    "table_tags": 0,
+    "references_hits": 1,
+    "bib_entries": 0,
+    "pages": 16,
+    "tables_detected": 7
+   }
+  },
+  "mineru": {
+   "ok": true,
+   "error": null,
+   "latency_s": 43.016,
+   "probe": {
+    "chars": 69711,
+    "page_markers": 16,
+    "pages_covered": [
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     12,
+     13,
+     14,
+     15,
+     16
+    ],
+    "pages_expected": 16,
+    "coverage_gaps": [],
+    "headings": 33,
+    "latex_blocks": 0,
+    "table_tags": 4,
+    "references_hits": 1,
+    "bib_entries": 0,
+    "pages": 16,
+    "tables_detected": 4
+   },
+   "meta": {
+    "engine": "mineru",
+    "tier": "standard",
+    "parse_id": 111,
+    "via": "local",
+    "sha256": "5692a5514787a8c6727b4ff3b726a3385798bc68e12138d1d4af83947e2acf6e",
+    "doc_page_count": 16,
+    "parse_page_range": "1-16",
+    "pages_covered": [
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     12,
+     13,
+     14,
+     15,
+     16
+    ],
+    "coverage_gaps": [],
+    "content_calls": [
+     {
+      "page_range": "1-16",
+      "ranges": [
+       "1-16"
+      ],
+      "chars": 69711,
+      "truncated": false
+     }
+    ],
+    "content_chars": 69711
+   }
+  }
+ },
+ {
+  "file": "/data/home/fjd/marketops-lab/samples/public/irs-1040.pdf",
+  "bytes": 220237,
+  "sha256": "3d31c226df0d189ced80e039d01cf0f8820c1019681a0f0ca6264de277b7e982",
+  "pymupdf": {
+   "ok": true,
+   "error": null,
+   "latency_s": 3.241,
+   "probe": {
+    "chars": 10493,
+    "page_markers": 0,
+    "pages_covered": [],
+    "pages_expected": 2,
+    "coverage_gaps": [
+     1,
+     2
+    ],
+    "headings": 0,
+    "latex_blocks": 0,
+    "table_tags": 0,
+    "references_hits": 0,
+    "bib_entries": 0,
+    "pages": 2,
+    "tables_detected": 3
+   }
+  },
+  "mineru": {
+   "ok": true,
+   "error": null,
+   "latency_s": 52.537,
+   "probe": {
+    "chars": 18695,
+    "page_markers": 2,
+    "pages_covered": [
+     1,
+     2
+    ],
+    "pages_expected": 2,
+    "coverage_gaps": [],
+    "headings": 0,
+    "latex_blocks": 0,
+    "table_tags": 2,
+    "references_hits": 0,
+    "bib_entries": 0,
+    "pages": 2,
+    "tables_detected": 2
+   },
+   "meta": {
+    "engine": "mineru",
+    "tier": "standard",
+    "parse_id": 114,
+    "via": "local",
+    "sha256": "3d31c226df0d189ced80e039d01cf0f8820c1019681a0f0ca6264de277b7e982",
+    "doc_page_count": 2,
+    "parse_page_range": "1-2",
+    "pages_covered": [
+     1,
+     2
+    ],
+    "coverage_gaps": [],
+    "content_calls": [
+     {
+      "page_range": "1-2",
+      "ranges": [
+       "1-2"
+      ],
+      "chars": 18695,
+      "truncated": false
+     }
+    ],
+    "content_chars": 18695
+   }
+  }
+ }
+]

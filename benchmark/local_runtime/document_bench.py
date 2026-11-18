@@ -133,11 +133,70 @@ def _mineru_call(path: str, method: str = "GET", payload: dict | None = None) ->
         return exc.code, {"error": exc.read().decode(errors="replace")[:400]}
 
 
+PAGE_MARKER_RE = re.compile(r"<!-- page (\d+) of (\d+) -->")
+
+
+def _mineru_page_count(path: str) -> int | None:
+    """Ask doclib for the page count *before* submitting the parse.
+
+    Submitting without ``page_range`` makes doclib fall back to
+    ``default_parse_range``, which is ``1-10`` for any document with ten or
+    more pages. The parse then reports ``status: done`` while pages 11+ were
+    never looked at. Reading the page count first is what lets the caller ask
+    for the whole document.
+    """
+    status, doc = _mineru_call(
+        f"/api/v1/docs/by-path?{urllib.parse.urlencode({'path': path})}")
+    if status != 200:
+        return None
+    return doc.get("page_count")
+
+
+def _mineru_content(short: str, page_count: int | None) -> tuple[str, list[dict]]:
+    """Read content, following ``next_request`` until nothing is truncated.
+
+    ``GET /docs/{ref}/content`` caps a response at ``limit`` characters
+    (default 30000) and says so with ``truncated: true`` plus a
+    ``next_request`` cursor. A caller that reads only the first response gets a
+    prefix of the document that ends mid-page — and no error. The same call
+    also defaults its page range to 1-10, so the range has to be stated.
+    """
+    parts: list[str] = []
+    calls: list[dict] = []
+    cursor = {"tier": MINERU_TIER, "limit": 200_000}
+    if page_count:
+        cursor["page_range"] = f"1-{page_count}"
+    for _ in range(50):
+        status, chunk = _mineru_call(
+            f"/api/v1/docs/{short}/content?"
+            + urllib.parse.urlencode({k: v for k, v in cursor.items() if v is not None}))
+        if status != 200:
+            raise RuntimeError(f"content {status}: {chunk}")
+        body = chunk.get("content", "")
+        parts.append(body)
+        calls.append({
+            "page_range": (chunk.get("request_scope") or {}).get("page_range"),
+            "ranges": [r.get("page_range") for r in chunk.get("content_ranges") or []],
+            "chars": len(body),
+            "truncated": bool(chunk.get("truncated")),
+        })
+        if not chunk.get("truncated"):
+            return "".join(parts), calls
+        nxt = chunk.get("next_request") or {}
+        cursor = {"tier": MINERU_TIER, "limit": 200_000,
+                  "page_range": nxt.get("page_range"), "after": nxt.get("after")}
+    raise RuntimeError(f"content still truncated after 50 calls: {calls[-1]}")
+
+
 def parse_mineru(case: dict) -> dict:
     path = str((DOC_DIR / case["path"]).resolve())
     started = time.monotonic()
-    status, resp = _mineru_call("/api/v1/parses", "POST",
-                                {"path": path, "tier": MINERU_TIER, "force": True})
+
+    page_count = _mineru_page_count(path)
+    payload = {"path": path, "tier": MINERU_TIER, "force": True}
+    if page_count:
+        payload["page_range"] = f"1-{page_count}"
+    status, resp = _mineru_call("/api/v1/parses", "POST", payload)
     if status != 200:
         raise RuntimeError(f"submit {status}: {resp}")
     ids = resp.get("wait_parse_ids") or resp.get("created_parse_ids") or []
@@ -156,19 +215,22 @@ def parse_mineru(case: dict) -> dict:
         raise RuntimeError(f"parse {record.get('status')}: {record.get('error_code')} {record.get('error_msg')}")
 
     short = record["short_id"]
-    query = urllib.parse.urlencode({"tier": MINERU_TIER})
-    status, doc = _mineru_call(f"/api/v1/docs/{short}/content?{query}")
-    if status != 200:
-        raise RuntimeError(f"content {status}: {doc}")
-    text = doc.get("content", "")
-    page_nums = [int(n) for n in re.findall(r"<!-- page \d+ of (\d+) -->", text)]
+    text, content_calls = _mineru_content(short, page_count)
+
+    markers = [(int(a), int(b)) for a, b in PAGE_MARKER_RE.findall(text)]
+    covered = sorted({p for p, _ in markers})
+    total = markers[0][1] if markers else (page_count or 1)
+    gaps = sorted(set(range(1, (page_count or total) + 1)) - set(covered))
     return {
         "text": text,
-        "pages": page_nums[0] if page_nums else record.get("coverage") or 1,
+        "pages": total,
         "tables_detected": text.count("<table"),
         "latency_s": round(time.monotonic() - started, 3),
         "meta": {"engine": "mineru", "tier": MINERU_TIER, "parse_id": parse_id,
-                 "via": record.get("via"), "sha256": record.get("sha256")},
+                 "via": record.get("via"), "sha256": record.get("sha256"),
+                 "doc_page_count": page_count, "parse_page_range": record.get("page_range"),
+                 "pages_covered": covered, "coverage_gaps": gaps,
+                 "content_calls": content_calls, "content_chars": len(text)},
     }
 
 

@@ -1,0 +1,115 @@
+[
+ {
+  "file": "/data/home/fjd/marketops-lab/samples/public/arxiv-attention.pdf",
+  "bytes": 2215244,
+  "sha256": "bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697",
+  "pymupdf": {
+   "ok": true,
+   "error": null,
+   "latency_s": 5.047,
+   "probe": {
+    "chars": 39498,
+    "page_markers": 0,
+    "pages_covered": [],
+    "pages_expected": 15,
+    "coverage_gaps": [
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     12,
+     13,
+     14,
+     15
+    ],
+    "headings": 0,
+    "latex_blocks": 0,
+    "table_tags": 0,
+    "references_hits": 1,
+    "bib_entries": 96,
+    "pages": 15,
+    "tables_detected": 4
+   }
+  },
+  "mineru": {
+   "ok": true,
+   "error": null,
+   "latency_s": 21.605,
+   "probe": {
+    "chars": 44843,
+    "page_markers": 15,
+    "pages_covered": [
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     12,
+     13,
+     14,
+     15
+    ],
+    "pages_expected": 15,
+    "coverage_gaps": [],
+    "headings": 25,
+    "latex_blocks": 10,
+    "table_tags": 2,
+    "references_hits": 1,
+    "bib_entries": 96,
+    "pages": 15,
+    "tables_detected": 2
+   },
+   "meta": {
+    "engine": "mineru",
+    "tier": "standard",
+    "parse_id": 108,
+    "via": "local",
+    "sha256": "bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697",
+    "doc_page_count": 15,
+    "parse_page_range": "1-15",
+    "pages_covered": [
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     12,
+     13,
+     14,
+     15
+    ],
+    "coverage_gaps": [],
+    "content_calls": [
+     {
+      "page_range": "1-15",
+      "ranges": [
+       "1-15"
+      ],
+      "chars": 44843,
+      "truncated": false
+     }
+    ],
+    "content_chars": 44843
+   }
+  }
+ }
+]

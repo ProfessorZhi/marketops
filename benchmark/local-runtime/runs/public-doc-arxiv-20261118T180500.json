@@ -1,0 +1,28 @@
+{
+  "pymupdf": {
+    "ok": true,
+    "error": null,
+    "latency_s": 4.8,
+    "chars": 39498,
+    "pages": 15,
+    "chars_per_page": 2633,
+    "tables_detected": 4,
+    "title_found": true,
+    "abstract_before_intro": true,
+    "has_transformer": 28,
+    "excerpt": "Provided proper attribution is provided, Google hereby grants permission to reproduce the tables and figures in this paper solely for use in journalistic or scholarly works. Attention Is All You Need Ashish Vaswani∗ Google Brain avaswani@google.com Noam Shazeer∗ Google Brain noam@google.com Niki Par"
+  },
+  "mineru": {
+    "ok": true,
+    "error": null,
+    "latency_s": 35.8,
+    "chars": 27722,
+    "pages": 15,
+    "chars_per_page": 1848,
+    "tables_detected": 1,
+    "title_found": true,
+    "abstract_before_intro": true,
+    "has_transformer": 18,
+    "excerpt": "<!-- page 1 of 15 -->  arXiv:1706.03762v7 [cs.CL] 2 Aug 2023  Provided proper attribution is provided, Google hereby grants permission to reproduce the tables and figures in this paper solely for use in journalistic or scholarly works.  # Attention Is All You Need  **Ashish Vaswani**∗ Google Brain a"
+  }
+}
