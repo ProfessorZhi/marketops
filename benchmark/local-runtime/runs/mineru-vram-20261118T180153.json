@@ -1,0 +1,134 @@
+{
+  "summary": {
+    "case_id": "DOC-PDF-SCAN-001",
+    "case_path": "generated/scanned-01.pdf",
+    "parse_ok": true,
+    "error": null,
+    "parse_latency_s": 4.372,
+    "samples": 17,
+    "baseline": {
+      "gpu_used_mib": 6811,
+      "gpu_util_pct": 27,
+      "mineru_proc_mib": 3300
+    },
+    "during": {
+      "gpu_used_peak_mib": 6979,
+      "gpu_used_mean_mib": 6849.8,
+      "gpu_util_peak_pct": 63,
+      "gpu_util_mean_pct": 31.8,
+      "gpu_util_samples_above_0": 17,
+      "mineru_proc_peak_mib": 3468,
+      "mineru_proc_mean_mib": 3339.5
+    },
+    "result": {
+      "text_chars": 246,
+      "pages": 1
+    },
+    "gpu_is_shared": true,
+    "note": "host GPU also carries other users' processes; 'gpu_used' is the whole device, 'mineru_proc' is the part attributable to this deployment"
+  },
+  "series": [
+    {
+      "t": 2961628.584,
+      "gpu_used_mib": 6811,
+      "gpu_util_pct": 27,
+      "mineru_proc_mib": 3300
+    },
+    {
+      "t": 2961628.859,
+      "gpu_used_mib": 6811,
+      "gpu_util_pct": 28,
+      "mineru_proc_mib": 3300
+    },
+    {
+      "t": 2961629.125,
+      "gpu_used_mib": 6811,
+      "gpu_util_pct": 28,
+      "mineru_proc_mib": 3300
+    },
+    {
+      "t": 2961629.4,
+      "gpu_used_mib": 6811,
+      "gpu_util_pct": 41,
+      "mineru_proc_mib": 3300
+    },
+    {
+      "t": 2961629.697,
+      "gpu_used_mib": 6807,
+      "gpu_util_pct": 41,
+      "mineru_proc_mib": 3300
+    },
+    {
+      "t": 2961629.966,
+      "gpu_used_mib": 6807,
+      "gpu_util_pct": 28,
+      "mineru_proc_mib": 3300
+    },
+    {
+      "t": 2961630.24,
+      "gpu_used_mib": 6979,
+      "gpu_util_pct": 28,
+      "mineru_proc_mib": 3468
+    },
+    {
+      "t": 2961630.506,
+      "gpu_used_mib": 6979,
+      "gpu_util_pct": 32,
+      "mineru_proc_mib": 3468
+    },
+    {
+      "t": 2961630.773,
+      "gpu_used_mib": 6979,
+      "gpu_util_pct": 32,
+      "mineru_proc_mib": 3468
+    },
+    {
+      "t": 2961631.031,
+      "gpu_used_mib": 6979,
+      "gpu_util_pct": 63,
+      "mineru_proc_mib": 3468
+    },
+    {
+      "t": 2961631.297,
+      "gpu_used_mib": 6811,
+      "gpu_util_pct": 63,
+      "mineru_proc_mib": 3300
+    },
+    {
+      "t": 2961631.569,
+      "gpu_used_mib": 6811,
+      "gpu_util_pct": 16,
+      "mineru_proc_mib": 3300
+    },
+    {
+      "t": 2961631.84,
+      "gpu_used_mib": 6807,
+      "gpu_util_pct": 16,
+      "mineru_proc_mib": 3300
+    },
+    {
+      "t": 2961632.105,
+      "gpu_used_mib": 6811,
+      "gpu_util_pct": 15,
+      "mineru_proc_mib": 3300
+    },
+    {
+      "t": 2961632.383,
+      "gpu_used_mib": 6811,
+      "gpu_util_pct": 32,
+      "mineru_proc_mib": 3300
+    },
+    {
+      "t": 2961632.653,
+      "gpu_used_mib": 6811,
+      "gpu_util_pct": 32,
+      "mineru_proc_mib": 3300
+    },
+    {
+      "t": 2961632.918,
+      "gpu_used_mib": 6811,
+      "gpu_util_pct": 19,
+      "mineru_proc_mib": 3300
+    }
+  ]
+}

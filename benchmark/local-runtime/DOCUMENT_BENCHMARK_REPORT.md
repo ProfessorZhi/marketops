@@ -94,10 +94,25 @@ MinerU 的延迟里含固定开销：每份都 `force=True` 强制重跑，不�
 
 | 项 | 实测 |
 |---|---|
-| GPU 常驻显存（MinerU parse-server） | 2547 MiB |
+| GPU 常驻显存（MinerU parse-server） | 2547 MiB（首轮）→ 3300 MiB（预热后） |
 | 推理期 GPU 利用率采样 | 9 / 21 / 8 / 9 % |
 | 模型体积 | torch bundle 854 MB + GGUF 1.2 GB |
 | 文档 API 成本 | 0（本地） |
+
+**解析期显存采样**（`services/mineru-local/vram_probe.py`，DOC-PDF-SCAN-001，
+0.2 s 间隔，17 个样本，原始数据 `runs/mineru-vram-20261118T180153.json`）：
+
+| 指标 | 基线 | 解析期峰值 | 均值 |
+|---|---|---|---|
+| 整卡显存 | 6811 MiB | **6979 MiB** | 6849.8 MiB |
+| MinerU 进程显存 | 3300 MiB | **3468 MiB** | 3339.5 MiB |
+| 整卡利用率 | 27 % | **63 %** | 31.8 % |
+
+17/17 个采样点利用率 > 0，证明推理确实在 GPU 上跑，而不是 CPU 回退。
+解析只额外占 +168 MiB；**容量规划应按常驻 3.3 GB 算，不是按增量算**。
+
+注意这块卡是共享的：整卡数字里含其他用户的进程（isaac 2.3 GB 等），
+`mineru_proc` 才是本部署可归因的部分。
 
 ## 4. 结论
 
