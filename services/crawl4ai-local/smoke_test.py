@@ -41,6 +41,16 @@ EXTERNAL_URL = "https://quotes.toscrape.com/js/"
 EXTERNAL_MARKER = "Albert Einstein"
 
 
+# Same policy as the benchmark client: wait for the network to settle, then
+# give the page a fixed 1.5 s for timers. Not per-page.
+CRAWLER_CONFIG = {
+    "wait_until": "networkidle",
+    "delay_before_return_html": 1.5,
+    "page_timeout": 30000,
+    "cache_mode": "bypass",
+}
+
+
 def load_token() -> str:
     for line in ENV_FILE.read_text().splitlines():
         if line.startswith("CRAWL4AI_API_TOKEN="):
@@ -74,11 +84,23 @@ def get(path: str, timeout: int = 15):
 
 
 def first_markdown(payload: dict) -> str:
+    """The first result's text, for both API shapes.
+
+    The Python API returns `markdown` as a string; the official image returns
+    an object. Returning the object here used to crash on `text[:160]`, which
+    hid the server answer behind a smoke-test bug.
+    """
     results = payload.get("results") or []
     if not results:
         return ""
     item = results[0]
-    return item.get("markdown") or item.get("html") or ""
+    md = item.get("markdown")
+    if isinstance(md, str):
+        return md
+    if isinstance(md, dict):
+        return (md.get("raw_markdown") or md.get("fit_markdown")
+                or item.get("html") or "")
+    return item.get("html") or ""
 
 
 def main() -> int:
@@ -90,7 +112,7 @@ def main() -> int:
         {"name": "health", "status": status, "passed": status == 200, "body": body}
     )
 
-    status, payload, ms = post("/crawl", {"urls": [STATIC_URL]}, token=None, timeout=60)
+    status, payload, ms = post("/crawl", {"urls": [STATIC_URL], "crawler_config": CRAWLER_CONFIG}, token=None, timeout=60)
     out["checks"].append(
         {
             "name": "auth_required",
@@ -101,7 +123,7 @@ def main() -> int:
         }
     )
 
-    status, payload, ms = post("/crawl", {"urls": [STATIC_URL]}, token=token, timeout=120)
+    status, payload, ms = post("/crawl", {"urls": [STATIC_URL], "crawler_config": CRAWLER_CONFIG}, token=token, timeout=120)
     text = first_markdown(payload)
     out["checks"].append(
         {
@@ -114,7 +136,7 @@ def main() -> int:
         }
     )
 
-    status, payload, ms = post("/crawl", {"urls": [JS_URL]}, token=token, timeout=180)
+    status, payload, ms = post("/crawl", {"urls": [JS_URL], "crawler_config": CRAWLER_CONFIG}, token=token, timeout=180)
     text = first_markdown(payload)
     out["checks"].append(
         {
@@ -127,7 +149,7 @@ def main() -> int:
         }
     )
 
-    status, payload, ms = post("/crawl", {"urls": [EXTERNAL_URL]}, token=token, timeout=180)
+    status, payload, ms = post("/crawl", {"urls": [EXTERNAL_URL], "crawler_config": CRAWLER_CONFIG}, token=token, timeout=180)
     text = first_markdown(payload)
     out["external"] = {
         "name": "external_js_page",

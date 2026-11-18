@@ -14,12 +14,20 @@ services:
     container_name: mo-crawl4ai-local
     restart: unless-stopped
 
-    # Loopback only. Nothing on the LAN reaches this service.
-    ports:
-      - "127.0.0.1:11235:11235"
+    # Host networking, not a port mapping: the fetch benchmark's fixtures live
+    # on the host's loopback (127.0.0.1:18080/18081), and inside a bridge
+    # network 127.0.0.1 is the container itself. The server binds loopback, so
+    # nothing on the LAN reaches it either way.
+    network_mode: host
 
     environment:
       CRAWL4AI_API_TOKEN: ${CRAWL4AI_API_TOKEN:?CRAWL4AI_API_TOKEN must be set in .env}
+      # The image refuses loopback/private URLs (SSRF guard, /app/utils.py:353).
+      # The whole fetch benchmark runs against fixtures on 127.0.0.1, so without
+      # this every local case is a 400 "URL blocked" rather than a measurement.
+      # Benchmark-only: production must leave this false and never crawl
+      # internal addresses.
+      CRAWL4AI_ALLOW_INTERNAL_URLS: "true"
 
     # Chromium needs more than the 64 MB default /dev/shm, or tabs crash under
     # load and the crash looks like a provider failure in the benchmark.

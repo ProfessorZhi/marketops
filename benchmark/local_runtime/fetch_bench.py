@@ -74,12 +74,52 @@ def fetch_http_trafilatura(case: dict) -> dict:
     }
 
 
+# The same wait policy for every URL, sent explicitly so both deployments
+# (Python API and the official image) crawl under identical settings. The
+# image's defaults do not wait for the fixture's 300 ms timer, so without this
+# a JS page reads as 20 characters of shell and scores as a fetch failure that
+# is really a configuration difference. No per-case selectors: `wait_for="css:…"`
+# would tell the provider where the answer is.
+CRAWLER_CONFIG = {
+    "wait_until": "networkidle",
+    "delay_before_return_html": 1.5,
+    "page_timeout": 30000,
+    "cache_mode": "bypass",
+}
+
+
 def _crawl4ai_token() -> str:
     env_file = ROOT / "services/crawl4ai-local/.env"
     for line in env_file.read_text().splitlines():
         if line.startswith("CRAWL4AI_API_TOKEN="):
             return line.split("=", 1)[1].strip()
     raise RuntimeError("CRAWL4AI_API_TOKEN not found")
+
+
+def _markdown_text(item: dict) -> str:
+    """The crawled text, whichever shape the server used.
+
+    The Python API returns ``markdown`` as a string; the official Docker image
+    returns it as an object (raw_markdown / markdown_with_citations /
+    fit_markdown). Reading only one shape turns a working crawl into 0 chars,
+    which then scores as a fetch failure.
+    """
+    md = item.get("markdown")
+    if isinstance(md, str):
+        return md
+    if isinstance(md, dict):
+        return (md.get("raw_markdown") or md.get("markdown_with_citations")
+                or md.get("fit_markdown") or "")
+    return item.get("cleaned_html") or ""
+
+
+def _final_url(item: dict, fallback: str) -> str:
+    """Where the crawl actually landed.
+
+    The official image reports ``redirected_url``; the Python API reported
+    ``final_url``. Missing both would score every redirect as wrong.
+    """
+    return item.get("final_url") or item.get("redirected_url") or fallback
 
 
 def fetch_crawl4ai_local(case: dict) -> dict:
@@ -95,7 +135,7 @@ def fetch_crawl4ai_local(case: dict) -> dict:
     try:
         resp = httpx.post(
             "http://127.0.0.1:11235/crawl",
-            json={"urls": [case["url"]]},
+            json={"urls": [case["url"]], "crawler_config": CRAWLER_CONFIG},
             headers={"Authorization": f"Bearer {_crawl4ai_token()}"},
             timeout=case.get("timeout_seconds", 15) + 60,
         )
@@ -113,13 +153,13 @@ def fetch_crawl4ai_local(case: dict) -> dict:
     item = (payload.get("results") or [{}])[0]
     # A failed crawl still answers 200 with success=false; that is not content.
     if not item.get("success"):
-        return {"status": item.get("status_code"), "final_url": item.get("final_url") or case["url"],
+        return {"status": item.get("status_code"), "final_url": _final_url(item, case["url"]),
                 "text": "", "error": item.get("error") or "crawl reported success=false",
                 "latency_s": latency, "meta": {"engine": "crawl4ai-local-api"}}
     return {
         "status": item.get("status_code"),
-        "final_url": item.get("final_url") or case["url"],
-        "text": item.get("markdown") or "",
+        "final_url": _final_url(item, case["url"]),
+        "text": _markdown_text(item),
         "error": None,
         "latency_s": latency,
         "meta": {"engine": "crawl4ai-local-api", "server_elapsed_s": item.get("elapsed_s")},
