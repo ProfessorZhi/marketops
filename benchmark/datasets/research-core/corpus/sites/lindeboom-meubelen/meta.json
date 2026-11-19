@@ -1,0 +1,28 @@
+{
+  "address": "Station Lane 3, BE",
+  "aliases": [
+    "Lindeboom"
+  ],
+  "contact_method": "email",
+  "country": "BE",
+  "description": "Lindeboom Meubelen produceert eiken meubelen voor de Benelux-markt.",
+  "domain": "lindeboommeubelen.example",
+  "employees": 160,
+  "founded": 1959,
+  "generic_emails": [
+    "verkoop@lindeboommeubelen.example"
+  ],
+  "industry": "furniture manufacturing",
+  "language": "nl",
+  "name": "Lindeboom Meubelen B.V.",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Koen Lindeboom",
+      "role": "Zaakvoerder"
+    }
+  ],
+  "slug": "lindeboom-meubelen"
+}

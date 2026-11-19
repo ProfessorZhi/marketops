@@ -1,0 +1,34 @@
+{
+  "address": "Havenweg 22, BE",
+  "aliases": [
+    "Kempen Bouw"
+  ],
+  "contact_method": "email",
+  "country": "BE",
+  "description": "Kempen Bouw realiseert utiliteitsbouw en renovaties in de Kempen.",
+  "domain": "kempenbouw.example",
+  "employees": 410,
+  "founded": 1982,
+  "generic_emails": [
+    "info@kempenbouw.example"
+  ],
+  "industry": "construction",
+  "language": "nl",
+  "name": "Kempen Bouw B.V.",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Bart Claes",
+      "role": "Zaakvoerder"
+    },
+    {
+      "decision_maker": true,
+      "email": "i.maes@kempenbouw.example",
+      "name": "Ilse Maes",
+      "role": "Directeur Aankoop"
+    }
+  ],
+  "slug": "kempen-bouw"
+}

@@ -1,0 +1,34 @@
+{
+  "address": "Gewerbepark 5, DE",
+  "aliases": [
+    "Adlerwerk"
+  ],
+  "contact_method": "email",
+  "country": "DE",
+  "description": "Adlerwerk Werkzeuge stellt Handwerkzeuge für Schreiner und Zimmerleute her.",
+  "domain": "adlerwerk.example",
+  "employees": 88,
+  "founded": 1949,
+  "generic_emails": [
+    "vertrieb@adlerwerk.example"
+  ],
+  "industry": "hand tools",
+  "language": "de",
+  "name": "Adlerwerk Werkzeuge GmbH",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Bernd Adler",
+      "role": "Geschäftsführer"
+    },
+    {
+      "decision_maker": true,
+      "email": "k.sommer@adlerwerk.example",
+      "name": "Katrin Sommer",
+      "role": "Vertriebsleiterin"
+    }
+  ],
+  "slug": "adlerwerk-werkzeuge"
+}

@@ -1,0 +1,63 @@
+{
+  "schema_version": "marketops.research.run-manifest.v1",
+  "tool_version": "research-core-1.0.0",
+  "run_id": "rc-20261119T112737-a9f1f1",
+  "stage": "e2e",
+  "provider": "mock_research_e2e",
+  "model": null,
+  "configuration": {
+    "config_sha256": "f3913e53305fecfbf1ccacf7de9f6685feca0e84b62b9819c59fbabc5d1fbb79",
+    "params": {
+      "repeat": 3,
+      "suite": "reference"
+    }
+  },
+  "started_at": "2026-11-19T11:27:37+08:00",
+  "finished_at": "2026-11-19T11:27:37+08:00",
+  "environment": {
+    "host": "FJ-NJ-SER-1009",
+    "python": "3.14.4",
+    "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.43"
+  },
+  "datasets": [
+    {
+      "name": "research-core/e2e",
+      "version": "research-core-1.0.0",
+      "path": "/home/fjd/projects/marketops-local-runtime-lab/benchmark/datasets/research-core/synthetic/e2e",
+      "checksum": "b126fc39f15f0b8294ee57233806fc00754d6c12ac38d6826a5047c09af6fd5f",
+      "cases": 3,
+      "label_status": {
+        "draft": 3
+      }
+    }
+  ],
+  "results_path": "/home/fjd/projects/marketops-local-runtime-lab/benchmark/research-core/runs/rc-20261119T112737-a9f1f1-mock_research_e2e.jsonl",
+  "counts": {
+    "cases": 3,
+    "ok": 9,
+    "empty": 0,
+    "failed": 0,
+    "not_configured": 0,
+    "timeout": 0,
+    "invalid_output": 0,
+    "skipped": 0,
+    "scored": 9
+  },
+  "metrics": {
+    "prospects_expected": 36,
+    "prospects_found": 36,
+    "prospect_recall": 1.0,
+    "status_accuracy": 1.0,
+    "person_presence_accuracy": 1.0,
+    "email_presence_accuracy": 1.0,
+    "evidence_coverage": 1.0,
+    "fabricated_claims": 0,
+    "forbidden_claims_seen": 0,
+    "gap_honesty": 1.0,
+    "dossier_complete": 1.0,
+    "scored_cases": 3,
+    "repeat_identical": true
+  },
+  "repeat": 3,
+  "notes": "reference suite: e2e"
+}

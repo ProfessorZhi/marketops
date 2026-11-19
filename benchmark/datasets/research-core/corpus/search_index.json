@@ -1,0 +1,1042 @@
+{
+  "adlerwerk-werkzeuge": {
+    "aliases": [
+      "Adlerwerk"
+    ],
+    "country": "DE",
+    "description": "Adlerwerk Werkzeuge stellt Handwerkzeuge für Schreiner und Zimmerleute her.",
+    "domain": "adlerwerk.example",
+    "employees": 88,
+    "industry": "hand tools",
+    "language": "de",
+    "name": "Adlerwerk Werkzeuge GmbH",
+    "slug": "adlerwerk-werkzeuge",
+    "tokens": [
+      "adlerwerk",
+      "für",
+      "gmbh",
+      "hand",
+      "handwerkzeuge",
+      "her",
+      "schreiner",
+      "stellt",
+      "tools",
+      "und",
+      "werkzeuge",
+      "zimmerleute"
+    ]
+  },
+  "alpenblick-hotels": {
+    "aliases": [
+      "Alpenblick"
+    ],
+    "country": "AT",
+    "description": "Alpenblick Hotels betreibt neun Häuser in Tirol und Salzburg.",
+    "domain": "alpenblick-hotels.example",
+    "employees": 600,
+    "industry": "hotel group",
+    "language": "de",
+    "name": "Alpenblick Hotels AG",
+    "slug": "alpenblick-hotels",
+    "tokens": [
+      "alpenblick",
+      "betreibt",
+      "group",
+      "hotel",
+      "hotels",
+      "häuser",
+      "neun",
+      "salzburg",
+      "tirol",
+      "und"
+    ]
+  },
+  "amberlight-media": {
+    "aliases": [
+      "Amberlight"
+    ],
+    "country": "IE",
+    "description": "Amberlight Media produces narrative podcasts and audio documentaries.",
+    "domain": "amberlightmedia.example",
+    "employees": 33,
+    "industry": "podcast production",
+    "language": "en",
+    "name": "Amberlight Media",
+    "slug": "amberlight-media",
+    "tokens": [
+      "amberlight",
+      "and",
+      "audio",
+      "documentaries",
+      "media",
+      "narrative",
+      "podcast",
+      "podcasts",
+      "produces",
+      "production"
+    ]
+  },
+  "amstel-data": {
+    "aliases": [
+      "Amstel Data"
+    ],
+    "country": "NL",
+    "description": "Amstel Data exploiteert twee datacenters in de regio Amsterdam.",
+    "domain": "amsteldatacentres.example",
+    "employees": 145,
+    "industry": "data centres",
+    "language": "nl",
+    "name": "Amstel Data B.V.",
+    "slug": "amstel-data",
+    "tokens": [
+      "amstel",
+      "amsterdam",
+      "centres",
+      "data",
+      "datacenters",
+      "exploiteert",
+      "regio",
+      "twee"
+    ]
+  },
+  "antwerpen-drukwerk": {
+    "aliases": [
+      "Antwerpen Drukwerk"
+    ],
+    "country": "BE",
+    "description": "Antwerpen Drukwerk verzorgt offsetdruk en afwerking voor uitgeverijen.",
+    "domain": "antwerpendrukwerk.example",
+    "employees": 54,
+    "industry": "printing",
+    "language": "nl",
+    "name": "Antwerpen Drukwerk B.V.",
+    "slug": "antwerpen-drukwerk",
+    "tokens": [
+      "afwerking",
+      "antwerpen",
+      "drukwerk",
+      "offsetdruk",
+      "printing",
+      "uitgeverijen",
+      "verzorgt",
+      "voor"
+    ]
+  },
+  "atlas-field-services": {
+    "aliases": [
+      "Atlas Field"
+    ],
+    "country": "US",
+    "description": "Atlas Field Services provides scheduled maintenance crews for refineries and chemical plants along the Gulf Coast.",
+    "domain": "atlasfield.example",
+    "employees": 1250,
+    "industry": "industrial maintenance",
+    "language": "en",
+    "name": "Atlas Field Services LLC",
+    "slug": "atlas-field-services",
+    "tokens": [
+      "along",
+      "and",
+      "atlas",
+      "chemical",
+      "coast",
+      "crews",
+      "field",
+      "for",
+      "gulf",
+      "industrial",
+      "llc",
+      "maintenance",
+      "plants",
+      "provides",
+      "refineries",
+      "scheduled",
+      "services",
+      "the"
+    ]
+  },
+  "bluepeak-logistics": {
+    "aliases": [
+      "Bluepeak"
+    ],
+    "country": "US",
+    "description": "Bluepeak Logistics moves container freight between the US Gulf Coast and Europe. It operates three bonded warehouses and a customs brokerage.",
+    "domain": "bluepeaklogistics.example",
+    "employees": 640,
+    "industry": "freight forwarding",
+    "language": "en",
+    "name": "Bluepeak Logistics Inc",
+    "slug": "bluepeak-logistics",
+    "tokens": [
+      "and",
+      "between",
+      "bluepeak",
+      "bonded",
+      "brokerage",
+      "coast",
+      "container",
+      "customs",
+      "europe",
+      "forwarding",
+      "freight",
+      "gulf",
+      "inc",
+      "logistics",
+      "moves",
+      "operates",
+      "the",
+      "three",
+      "warehouses"
+    ]
+  },
+  "brabant-food-group": {
+    "aliases": [
+      "Brabant Food"
+    ],
+    "country": "NL",
+    "description": "Brabant Food Group verwerkt groenten voor supermarktketens in de Benelux.",
+    "domain": "brabantfood.example",
+    "employees": 830,
+    "industry": "food processing",
+    "language": "nl",
+    "name": "Brabant Food Group B.V.",
+    "slug": "brabant-food-group",
+    "tokens": [
+      "benelux",
+      "brabant",
+      "food",
+      "groenten",
+      "group",
+      "processing",
+      "supermarktketens",
+      "verwerkt",
+      "voor"
+    ]
+  },
+  "braunfeld-maschinenbau": {
+    "aliases": [
+      "Braunfeld"
+    ],
+    "country": "DE",
+    "description": "Braunfeld Maschinenbau baut CNC-Fräsmaschinen für den Werkzeug- und Formenbau. Der Standort liegt in Esslingen.",
+    "domain": "braunfeld-mb.example",
+    "employees": 320,
+    "industry": "machine tools",
+    "language": "de",
+    "name": "Braunfeld Maschinenbau GmbH",
+    "slug": "braunfeld-maschinenbau",
+    "tokens": [
+      "baut",
+      "braunfeld",
+      "cnc",
+      "den",
+      "der",
+      "esslingen",
+      "formenbau",
+      "fräsmaschinen",
+      "für",
+      "gmbh",
+      "liegt",
+      "machine",
+      "maschinenbau",
+      "standort",
+      "tools",
+      "und",
+      "werkzeug"
+    ]
+  },
+  "cedar-finch": {
+    "aliases": [
+      "Cedar and Finch"
+    ],
+    "country": "GB",
+    "description": "Cedar & Finch sells solid-wood furniture from two showrooms in Bristol and Bath.",
+    "domain": "cedarandfinch.example",
+    "employees": 42,
+    "industry": "furniture retail",
+    "language": "en",
+    "name": "Cedar & Finch",
+    "slug": "cedar-finch",
+    "tokens": [
+      "and",
+      "bath",
+      "bristol",
+      "cedar",
+      "finch",
+      "from",
+      "furniture",
+      "retail",
+      "sells",
+      "showrooms",
+      "solid",
+      "two",
+      "wood"
+    ]
+  },
+  "de-vries-luchtbehandeling": {
+    "aliases": [
+      "De Vries Luchtbehandeling"
+    ],
+    "country": "NL",
+    "description": "De Vries Luchtbehandeling installeert klimaatinstallaties voor kantoren en scholen.",
+    "domain": "devrieslucht.example",
+    "employees": 92,
+    "industry": "HVAC",
+    "language": "nl",
+    "name": "De Vries Luchtbehandeling",
+    "slug": "de-vries-luchtbehandeling",
+    "tokens": [
+      "hvac",
+      "installeert",
+      "kantoren",
+      "klimaatinstallaties",
+      "luchtbehandeling",
+      "scholen",
+      "voor",
+      "vries"
+    ]
+  },
+  "delta-ridge-holdings": {
+    "aliases": [
+      "Delta Ridge"
+    ],
+    "country": "US",
+    "description": "Delta Ridge Holdings owns industrial equipment businesses in mining and rail.",
+    "domain": "deltaridge.example",
+    "employees": 2100,
+    "industry": "industrial holding company",
+    "language": "en",
+    "name": "Delta Ridge Holdings",
+    "slug": "delta-ridge-holdings",
+    "tokens": [
+      "and",
+      "businesses",
+      "company",
+      "delta",
+      "equipment",
+      "holding",
+      "holdings",
+      "industrial",
+      "mining",
+      "owns",
+      "rail",
+      "ridge"
+    ]
+  },
+  "delta-ridge-mining": {
+    "aliases": [
+      "Delta Ridge Mining"
+    ],
+    "country": "US",
+    "description": "Delta Ridge Mining Equipment builds haul trucks and drilling rigs. It is a subsidiary of Delta Ridge Holdings.",
+    "domain": "deltaridgemining.example",
+    "employees": 1500,
+    "industry": "mining equipment",
+    "language": "en",
+    "name": "Delta Ridge Mining Equipment",
+    "slug": "delta-ridge-mining",
+    "tokens": [
+      "and",
+      "builds",
+      "delta",
+      "drilling",
+      "equipment",
+      "haul",
+      "holdings",
+      "mining",
+      "ridge",
+      "rigs",
+      "subsidiary",
+      "trucks"
+    ]
+  },
+  "donau-consulting": {
+    "aliases": [
+      "Donau Consulting"
+    ],
+    "country": "AT",
+    "description": "Donau Consulting berät Industrieunternehmen bei Prozessoptimierung.",
+    "domain": "donau-consulting.example",
+    "employees": 75,
+    "industry": "management consulting",
+    "language": "de",
+    "name": "Donau Consulting GmbH",
+    "slug": "donau-consulting",
+    "tokens": [
+      "bei",
+      "berät",
+      "consulting",
+      "donau",
+      "gmbh",
+      "industrieunternehmen",
+      "management",
+      "prozessoptimierung"
+    ]
+  },
+  "elbwerk-automation": {
+    "aliases": [
+      "Elbwerk"
+    ],
+    "country": "DE",
+    "description": "Elbwerk Automation integriert Roboterzellen in Produktionslinien.",
+    "domain": "elbwerk-automation.example",
+    "employees": 540,
+    "industry": "factory automation",
+    "language": "de",
+    "name": "Elbwerk Automation AG",
+    "slug": "elbwerk-automation",
+    "tokens": [
+      "automation",
+      "elbwerk",
+      "factory",
+      "integriert",
+      "produktionslinien",
+      "roboterzellen"
+    ]
+  },
+  "falkenried-kliniken": {
+    "aliases": [
+      "Falkenried"
+    ],
+    "country": "DE",
+    "description": "Falkenried Kliniken betreibt vier private Fachkliniken in Hamburg und Bremen.",
+    "domain": "falkenried-kliniken.example",
+    "employees": 720,
+    "industry": "private clinics",
+    "language": "de",
+    "name": "Falkenried Kliniken GmbH",
+    "slug": "falkenried-kliniken",
+    "tokens": [
+      "betreibt",
+      "bremen",
+      "clinics",
+      "fachkliniken",
+      "falkenried",
+      "gmbh",
+      "hamburg",
+      "kliniken",
+      "private",
+      "und",
+      "vier"
+    ]
+  },
+  "fluweelmode": {
+    "aliases": [
+      "Fluweelmode"
+    ],
+    "country": "BE",
+    "description": "Fluweelmode verkoopt dameskleding aan boetieks in Vlaanderen.",
+    "domain": "fluweelmode.example",
+    "employees": 38,
+    "industry": "fashion wholesale",
+    "language": "nl",
+    "name": "Fluweelmode B.V.",
+    "slug": "fluweelmode",
+    "tokens": [
+      "aan",
+      "boetieks",
+      "dameskleding",
+      "fashion",
+      "fluweelmode",
+      "verkoopt",
+      "vlaanderen",
+      "wholesale"
+    ]
+  },
+  "harborline-foods": {
+    "aliases": [
+      "Harborline"
+    ],
+    "country": "IE",
+    "description": "Harborline Foods distributes chilled and frozen produce to restaurants and hotels across Leinster and Munster.",
+    "domain": "harborlinefoods.example",
+    "employees": 95,
+    "industry": "food distribution",
+    "language": "en",
+    "name": "Harborline Foods",
+    "slug": "harborline-foods",
+    "tokens": [
+      "across",
+      "and",
+      "chilled",
+      "distributes",
+      "distribution",
+      "food",
+      "foods",
+      "frozen",
+      "harborline",
+      "hotels",
+      "leinster",
+      "munster",
+      "produce",
+      "restaurants"
+    ]
+  },
+  "hollands-groen": {
+    "aliases": [
+      "Hollands Groen"
+    ],
+    "country": "NL",
+    "description": "Hollands Groen levert substraten en irrigatiesystemen aan tuinders.",
+    "domain": "hollandsgroen.example",
+    "employees": 260,
+    "industry": "horticulture supplies",
+    "language": "nl",
+    "name": "Hollands Groen B.V.",
+    "slug": "hollands-groen",
+    "tokens": [
+      "aan",
+      "groen",
+      "hollands",
+      "horticulture",
+      "irrigatiesystemen",
+      "levert",
+      "substraten",
+      "supplies",
+      "tuinders"
+    ]
+  },
+  "ironbark-analytics": {
+    "aliases": [
+      "Ironbark"
+    ],
+    "country": "GB",
+    "description": "Ironbark Analytics builds supply-chain forecasting models for retailers.",
+    "domain": "ironbarkan.example",
+    "employees": 68,
+    "industry": "data analytics",
+    "language": "en",
+    "name": "Ironbark Analytics",
+    "slug": "ironbark-analytics",
+    "tokens": [
+      "analytics",
+      "builds",
+      "chain",
+      "data",
+      "for",
+      "forecasting",
+      "ironbark",
+      "models",
+      "retailers",
+      "supply"
+    ]
+  },
+  "kempen-bouw": {
+    "aliases": [
+      "Kempen Bouw"
+    ],
+    "country": "BE",
+    "description": "Kempen Bouw realiseert utiliteitsbouw en renovaties in de Kempen.",
+    "domain": "kempenbouw.example",
+    "employees": 410,
+    "industry": "construction",
+    "language": "nl",
+    "name": "Kempen Bouw B.V.",
+    "slug": "kempen-bouw",
+    "tokens": [
+      "bouw",
+      "construction",
+      "kempen",
+      "realiseert",
+      "renovaties",
+      "utiliteitsbouw"
+    ]
+  },
+  "kestrel-robotics": {
+    "aliases": [
+      "Kestrel"
+    ],
+    "country": "US",
+    "description": "Kestrel Robotics builds autonomous picking systems for e-commerce fulfilment centres.",
+    "domain": "kestrelrobotics.example",
+    "employees": 430,
+    "industry": "warehouse automation",
+    "language": "en",
+    "name": "Kestrel Robotics",
+    "slug": "kestrel-robotics",
+    "tokens": [
+      "automation",
+      "autonomous",
+      "builds",
+      "centres",
+      "commerce",
+      "for",
+      "fulfilment",
+      "kestrel",
+      "picking",
+      "robotics",
+      "systems",
+      "warehouse"
+    ]
+  },
+  "kranich-software": {
+    "aliases": [
+      "Kranich"
+    ],
+    "country": "DE",
+    "description": "Kranich Software entwickelt ERP-Lösungen für den Mittelstand.",
+    "domain": "kranich-sw.example",
+    "employees": 260,
+    "industry": "ERP software",
+    "language": "de",
+    "name": "Kranich Software AG",
+    "slug": "kranich-software",
+    "tokens": [
+      "den",
+      "entwickelt",
+      "erp",
+      "für",
+      "kranich",
+      "lösungen",
+      "mittelstand",
+      "software"
+    ]
+  },
+  "lindeboom-meubelen": {
+    "aliases": [
+      "Lindeboom"
+    ],
+    "country": "BE",
+    "description": "Lindeboom Meubelen produceert eiken meubelen voor de Benelux-markt.",
+    "domain": "lindeboommeubelen.example",
+    "employees": 160,
+    "industry": "furniture manufacturing",
+    "language": "nl",
+    "name": "Lindeboom Meubelen B.V.",
+    "slug": "lindeboom-meubelen",
+    "tokens": [
+      "benelux",
+      "eiken",
+      "furniture",
+      "lindeboom",
+      "manufacturing",
+      "markt",
+      "meubelen",
+      "produceert",
+      "voor"
+    ]
+  },
+  "lindenhof-logistik": {
+    "aliases": [
+      "Lindenhof"
+    ],
+    "country": "DE",
+    "description": "Lindenhof Logistik betreibt Kontraktlogistik-Standorte in Nordrhein-Westfalen.",
+    "domain": "lindenhof-logistik.example",
+    "employees": 480,
+    "industry": "logistics",
+    "language": "de",
+    "name": "Lindenhof Logistik GmbH",
+    "slug": "lindenhof-logistik",
+    "tokens": [
+      "betreibt",
+      "gmbh",
+      "kontraktlogistik",
+      "lindenhof",
+      "logistics",
+      "logistik",
+      "nordrhein",
+      "standorte",
+      "westfalen"
+    ]
+  },
+  "maasvallei-transport": {
+    "aliases": [
+      "Maasvallei"
+    ],
+    "country": "BE",
+    "description": "Maasvallei Transport verzorgt distributie in België en Zuid-Nederland.",
+    "domain": "maasvalleitransport.example",
+    "employees": 220,
+    "industry": "road transport",
+    "language": "nl",
+    "name": "Maasvallei Transport B.V.",
+    "slug": "maasvallei-transport",
+    "tokens": [
+      "belgië",
+      "distributie",
+      "maasvallei",
+      "nederland",
+      "road",
+      "transport",
+      "verzorgt",
+      "zuid"
+    ]
+  },
+  "meridian-health": {
+    "aliases": [
+      "Meridian Health"
+    ],
+    "country": "US",
+    "description": "Meridian Health Partners runs fourteen outpatient clinics in the Midwest.",
+    "domain": "meridianhealth.example",
+    "employees": 310,
+    "industry": "outpatient healthcare",
+    "language": "en",
+    "name": "Meridian Health Partners",
+    "slug": "meridian-health",
+    "tokens": [
+      "clinics",
+      "fourteen",
+      "health",
+      "healthcare",
+      "meridian",
+      "midwest",
+      "outpatient",
+      "partners",
+      "runs",
+      "the"
+    ]
+  },
+  "nordlicht-energie": {
+    "aliases": [
+      "Nordlicht"
+    ],
+    "country": "DE",
+    "description": "Nordlicht Energie plant und betreibt Windparks in Schleswig-Holstein.",
+    "domain": "nordlicht-energie.example",
+    "employees": 390,
+    "industry": "wind energy",
+    "language": "de",
+    "name": "Nordlicht Energie GmbH",
+    "slug": "nordlicht-energie",
+    "tokens": [
+      "betreibt",
+      "energie",
+      "energy",
+      "gmbh",
+      "holstein",
+      "nordlicht",
+      "plant",
+      "schleswig",
+      "und",
+      "wind",
+      "windparks"
+    ]
+  },
+  "northwind-marine": {
+    "aliases": [
+      "Northwind Marine"
+    ],
+    "country": "GB",
+    "description": "Northwind Marine designs and assembles deck fittings for commercial vessels. It supplies shipyards across the North Sea and keeps a spare-parts warehouse in Hull.",
+    "domain": "northwindmarine.example",
+    "employees": 180,
+    "industry": "marine equipment",
+    "language": "en",
+    "name": "Northwind Marine Ltd",
+    "slug": "northwind-marine",
+    "tokens": [
+      "across",
+      "and",
+      "assembles",
+      "commercial",
+      "deck",
+      "designs",
+      "equipment",
+      "fittings",
+      "for",
+      "hull",
+      "keeps",
+      "ltd",
+      "marine",
+      "north",
+      "northwind",
+      "parts",
+      "sea",
+      "shipyards",
+      "spare",
+      "supplies",
+      "the",
+      "vessels",
+      "warehouse"
+    ]
+  },
+  "quarry-lane-studios": {
+    "aliases": [
+      "Quarry Lane"
+    ],
+    "country": "GB",
+    "description": "Quarry Lane Studios produces brand films and documentary series for charities and cultural institutions.",
+    "domain": "quarrylane.example",
+    "employees": 24,
+    "industry": "video production",
+    "language": "en",
+    "name": "Quarry Lane Studios",
+    "slug": "quarry-lane-studios",
+    "tokens": [
+      "and",
+      "brand",
+      "charities",
+      "cultural",
+      "documentary",
+      "films",
+      "for",
+      "institutions",
+      "lane",
+      "produces",
+      "production",
+      "quarry",
+      "series",
+      "studios",
+      "video"
+    ]
+  },
+  "rosenheim-papier": {
+    "aliases": [
+      "Rosenheim Papier"
+    ],
+    "country": "DE",
+    "description": "Rosenheim Papier produziert Faltschachteln aus Recyclingkarton.",
+    "domain": "rosenheim-papier.example",
+    "employees": 210,
+    "industry": "paper packaging",
+    "language": "de",
+    "name": "Rosenheim Papier GmbH",
+    "slug": "rosenheim-papier",
+    "tokens": [
+      "aus",
+      "faltschachteln",
+      "gmbh",
+      "packaging",
+      "paper",
+      "papier",
+      "produziert",
+      "recyclingkarton",
+      "rosenheim"
+    ]
+  },
+  "rowan-pike": {
+    "aliases": [
+      "Rowan and Pike"
+    ],
+    "country": "GB",
+    "description": "Rowan & Pike Architects designs civic and education buildings.",
+    "domain": "rowanpike.example",
+    "employees": 61,
+    "industry": "architecture",
+    "language": "en",
+    "name": "Rowan & Pike Architects",
+    "slug": "rowan-pike",
+    "tokens": [
+      "and",
+      "architects",
+      "architecture",
+      "buildings",
+      "civic",
+      "designs",
+      "education",
+      "pike",
+      "rowan"
+    ]
+  },
+  "schwarzwald-praezision": {
+    "aliases": [
+      "Schwarzwald Präzision"
+    ],
+    "country": "DE",
+    "description": "Schwarzwald Präzision fertigt Drehteile aus Edelstahl für die Medizintechnik.",
+    "domain": "sw-praezision.example",
+    "employees": 150,
+    "industry": "precision parts",
+    "language": "de",
+    "name": "Schwarzwald Präzision GmbH",
+    "slug": "schwarzwald-praezision",
+    "tokens": [
+      "aus",
+      "die",
+      "drehteile",
+      "edelstahl",
+      "fertigt",
+      "für",
+      "gmbh",
+      "medizintechnik",
+      "parts",
+      "precision",
+      "präzision",
+      "schwarzwald"
+    ]
+  },
+  "solstice-renewables": {
+    "aliases": [
+      "Solstice"
+    ],
+    "country": "IE",
+    "description": "Solstice Renewables installs rooftop solar arrays for farms and industrial sites.",
+    "domain": "solsticerenew.example",
+    "employees": 210,
+    "industry": "solar installation",
+    "language": "en",
+    "name": "Solstice Renewables",
+    "slug": "solstice-renewables",
+    "tokens": [
+      "and",
+      "arrays",
+      "farms",
+      "for",
+      "industrial",
+      "installation",
+      "installs",
+      "renewables",
+      "rooftop",
+      "sites",
+      "solar",
+      "solstice"
+    ]
+  },
+  "tideswell-publishing": {
+    "aliases": [
+      "Tideswell Press"
+    ],
+    "country": "GB",
+    "description": "Tideswell Publishing produces peer-reviewed journals in the earth sciences.",
+    "domain": "tideswellpub.example",
+    "employees": 55,
+    "industry": "academic publishing",
+    "language": "en",
+    "name": "Tideswell Publishing",
+    "slug": "tideswell-publishing",
+    "tokens": [
+      "academic",
+      "earth",
+      "journals",
+      "peer",
+      "press",
+      "produces",
+      "publishing",
+      "reviewed",
+      "sciences",
+      "the",
+      "tideswell"
+    ]
+  },
+  "van-dijk-watersport": {
+    "aliases": [
+      "Van Dijk"
+    ],
+    "country": "NL",
+    "description": "Van Dijk Watersport levert bootbenodigdheden en dekbeslag aan werven in Zeeland.",
+    "domain": "vandijkwatersport.example",
+    "employees": 48,
+    "industry": "marine equipment",
+    "language": "nl",
+    "name": "Van Dijk Watersport",
+    "slug": "van-dijk-watersport",
+    "tokens": [
+      "aan",
+      "bootbenodigdheden",
+      "dekbeslag",
+      "dijk",
+      "equipment",
+      "levert",
+      "marine",
+      "van",
+      "watersport",
+      "werven",
+      "zeeland"
+    ]
+  },
+  "vlaamse-zorg": {
+    "aliases": [
+      "Vlaamse Zorg"
+    ],
+    "country": "BE",
+    "description": "Vlaamse Zorg Groep beheert woonzorgcentra in Oost- en West-Vlaanderen.",
+    "domain": "vlaamsezorg.example",
+    "employees": 950,
+    "industry": "elderly care",
+    "language": "nl",
+    "name": "Vlaamse Zorg Groep B.V.",
+    "slug": "vlaamse-zorg",
+    "tokens": [
+      "beheert",
+      "care",
+      "elderly",
+      "groep",
+      "oost",
+      "vlaamse",
+      "vlaanderen",
+      "west",
+      "woonzorgcentra",
+      "zorg"
+    ]
+  },
+  "vulcan-composites": {
+    "aliases": [
+      "Vulcan Composites"
+    ],
+    "country": "US",
+    "description": "Vulcan Composites manufactures carbon-fibre structures for business aircraft.",
+    "domain": "vulcancomp.example",
+    "employees": 870,
+    "industry": "aerospace materials",
+    "language": "en",
+    "name": "Vulcan Composites Corp",
+    "slug": "vulcan-composites",
+    "tokens": [
+      "aerospace",
+      "aircraft",
+      "business",
+      "carbon",
+      "composites",
+      "corp",
+      "fibre",
+      "for",
+      "manufactures",
+      "materials",
+      "structures",
+      "vulcan"
+    ]
+  },
+  "wienerwald-kueche": {
+    "aliases": [
+      "Wienerwald Küche"
+    ],
+    "country": "AT",
+    "description": "Wienerwald Küche plant und liefert Großküchen für Hotellerie und Betriebsgastronomie.",
+    "domain": "wienerwald-kueche.example",
+    "employees": 130,
+    "industry": "commercial kitchens",
+    "language": "de",
+    "name": "Wienerwald Küche GmbH",
+    "slug": "wienerwald-kueche",
+    "tokens": [
+      "betriebsgastronomie",
+      "commercial",
+      "für",
+      "gmbh",
+      "großküchen",
+      "hotellerie",
+      "kitchens",
+      "küche",
+      "liefert",
+      "plant",
+      "und",
+      "wienerwald"
+    ]
+  },
+  "zuiderzee-techniek": {
+    "aliases": [
+      "Zuiderzee Techniek"
+    ],
+    "country": "NL",
+    "description": "Zuiderzee Techniek bouwt en onderhoudt aandrijfsystemen voor binnenvaartschepen.",
+    "domain": "zuiderzeetechniek.example",
+    "employees": 175,
+    "industry": "marine engineering",
+    "language": "nl",
+    "name": "Zuiderzee Techniek B.V.",
+    "slug": "zuiderzee-techniek",
+    "tokens": [
+      "aandrijfsystemen",
+      "binnenvaartschepen",
+      "bouwt",
+      "engineering",
+      "marine",
+      "onderhoudt",
+      "techniek",
+      "voor",
+      "zuiderzee"
+    ]
+  }
+}

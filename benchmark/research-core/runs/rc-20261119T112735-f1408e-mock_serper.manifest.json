@@ -1,0 +1,62 @@
+{
+  "schema_version": "marketops.research.run-manifest.v1",
+  "tool_version": "research-core-1.0.0",
+  "run_id": "rc-20261119T112735-f1408e",
+  "stage": "search",
+  "provider": "mock_serper",
+  "model": null,
+  "configuration": {
+    "config_sha256": "f3913e53305fecfbf1ccacf7de9f6685feca0e84b62b9819c59fbabc5d1fbb79",
+    "params": {
+      "repeat": 3,
+      "suite": "reference"
+    }
+  },
+  "started_at": "2026-11-19T11:27:35+08:00",
+  "finished_at": "2026-11-19T11:27:35+08:00",
+  "environment": {
+    "host": "FJ-NJ-SER-1009",
+    "python": "3.14.4",
+    "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.43"
+  },
+  "datasets": [
+    {
+      "name": "research-core/search",
+      "version": "research-core-1.0.0",
+      "path": "/home/fjd/projects/marketops-local-runtime-lab/benchmark/datasets/research-core/synthetic/search",
+      "checksum": "2526ff4c6c4ecc923c2fbb01129b5f115824742699b3a655ecb9a25319279e25",
+      "cases": 47,
+      "label_status": {
+        "draft": 47
+      }
+    }
+  ],
+  "results_path": "/home/fjd/projects/marketops-local-runtime-lab/benchmark/research-core/runs/rc-20261119T112735-f1408e-mock_serper.jsonl",
+  "counts": {
+    "cases": 47,
+    "ok": 138,
+    "empty": 3,
+    "failed": 0,
+    "not_configured": 0,
+    "timeout": 0,
+    "invalid_output": 0,
+    "skipped": 0,
+    "scored": 141
+  },
+  "metrics": {
+    "results": 57,
+    "precision_at_5": 0.2174,
+    "precision_at_10": 0.1087,
+    "recall_at_10": 1.0,
+    "mrr": 0.9787,
+    "domain_hit_rate": 1.0,
+    "unique_discovery_rate": 1.0,
+    "excluded_hits": 0,
+    "duplicate_rate": 0.0,
+    "correct_shape": 1.0,
+    "scored_cases": 47,
+    "repeat_identical": true
+  },
+  "repeat": 3,
+  "notes": "reference suite: search"
+}

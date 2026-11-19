@@ -1,0 +1,34 @@
+{
+  "address": "Kanaalstraat 8, GB",
+  "aliases": [
+    "Ironbark"
+  ],
+  "contact_method": "email",
+  "country": "GB",
+  "description": "Ironbark Analytics builds supply-chain forecasting models for retailers.",
+  "domain": "ironbarkan.example",
+  "employees": 68,
+  "founded": 2016,
+  "generic_emails": [
+    "team@ironbarkan.example"
+  ],
+  "industry": "data analytics",
+  "language": "en",
+  "name": "Ironbark Analytics",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Nadia Karim",
+      "role": "Co-founder & CEO"
+    },
+    {
+      "decision_maker": true,
+      "email": "ben@ironbarkan.example",
+      "name": "Ben Fletcher",
+      "role": "Head of Sales"
+    }
+  ],
+  "slug": "ironbark-analytics"
+}

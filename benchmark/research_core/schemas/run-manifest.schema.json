@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marketops.dev/schemas/research-core/run-manifest.schema.json",
+  "title": "MarketOps Research Core Run Manifest",
+  "description": "Written next to every results JSONL. It states exactly which dataset bytes produced the numbers: a summary without a checksum cannot be compared to anything later.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "tool_version", "run_id", "stage", "provider", "model",
+    "configuration", "started_at", "finished_at", "environment", "datasets",
+    "results_path", "counts", "metrics", "repeat", "notes"
+  ],
+  "properties": {
+    "schema_version": { "const": "marketops.research.run-manifest.v1" },
+    "tool_version": { "type": "string" },
+    "run_id": { "type": "string", "pattern": "^rc-[0-9]{8}T[0-9]{6}-[a-z0-9]{6}$" },
+    "stage": { "enum": ["brief", "search", "fetch", "extraction", "qualification", "identity", "evidence", "channel", "e2e"] },
+    "provider": { "type": "string" },
+    "model": { "type": ["string", "null"] },
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["config_sha256", "params"],
+      "properties": {
+        "config_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "params": { "type": "object" }
+      }
+    },
+    "started_at": { "type": "string", "format": "date-time" },
+    "finished_at": { "type": "string", "format": "date-time" },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["host", "python", "platform"],
+      "properties": {
+        "host": { "type": "string" },
+        "python": { "type": "string" },
+        "platform": { "type": "string" }
+      }
+    },
+    "datasets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "version", "path", "checksum", "cases", "label_status"],
+        "properties": {
+          "name": { "type": "string" },
+          "version": { "type": "string" },
+          "path": { "type": "string" },
+          "checksum": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "cases": { "type": "integer", "minimum": 0 },
+          "label_status": {
+            "type": "object",
+            "additionalProperties": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "results_path": { "type": "string" },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cases", "ok", "empty", "failed", "not_configured", "timeout", "invalid_output", "skipped", "scored"],
+      "properties": {
+        "cases": { "type": "integer", "minimum": 0 },
+        "ok": { "type": "integer", "minimum": 0 },
+        "empty": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "not_configured": { "type": "integer", "minimum": 0 },
+        "timeout": { "type": "integer", "minimum": 0 },
+        "invalid_output": { "type": "integer", "minimum": 0 },
+        "skipped": { "type": "integer", "minimum": 0 },
+        "scored": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "metrics": { "type": ["object", "null"] },
+    "repeat": { "type": "integer", "minimum": 1, "description": "How many times the dataset was replayed in this run; gold metrics must be identical across repeats." },
+    "notes": { "type": "string" }
+  }
+}

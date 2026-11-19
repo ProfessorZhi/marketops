@@ -21,3 +21,7 @@
 *.bat text eol=crlf
 *.cmd text eol=crlf
 *.ps1 text eol=crlf
+
+# Research Core public snapshots：字节即证据，SHA256 是对存入字节算的。
+# Git 若做行尾转换，clone 后的文件就与 manifest 里的哈希对不上。
+benchmark/datasets/research-core/public-evidence/snapshots/** -text

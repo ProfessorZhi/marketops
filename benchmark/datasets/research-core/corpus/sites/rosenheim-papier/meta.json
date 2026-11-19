@@ -1,0 +1,28 @@
+{
+  "address": "Harbour Road 14, DE",
+  "aliases": [
+    "Rosenheim Papier"
+  ],
+  "contact_method": "form",
+  "country": "DE",
+  "description": "Rosenheim Papier produziert Faltschachteln aus Recyclingkarton.",
+  "domain": "rosenheim-papier.example",
+  "employees": 210,
+  "founded": 1968,
+  "generic_emails": [
+    "office@rosenheim-papier.example"
+  ],
+  "industry": "paper packaging",
+  "language": "de",
+  "name": "Rosenheim Papier GmbH",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Georg Maier",
+      "role": "Geschäftsführer"
+    }
+  ],
+  "slug": "rosenheim-papier"
+}

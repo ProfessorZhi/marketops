@@ -1,0 +1,40 @@
+{
+  "address": "Dock Street 41, DE",
+  "aliases": [
+    "Braunfeld"
+  ],
+  "contact_method": "email",
+  "country": "DE",
+  "description": "Braunfeld Maschinenbau baut CNC-Fräsmaschinen für den Werkzeug- und Formenbau. Der Standort liegt in Esslingen.",
+  "domain": "braunfeld-mb.example",
+  "employees": 320,
+  "founded": 1954,
+  "generic_emails": [
+    "info@braunfeld-mb.example"
+  ],
+  "industry": "machine tools",
+  "language": "de",
+  "name": "Braunfeld Maschinenbau GmbH",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Klaus Braunfeld",
+      "role": "Geschäftsführer"
+    },
+    {
+      "decision_maker": true,
+      "email": "s.krueger@braunfeld-mb.example",
+      "name": "Sabine Krüger",
+      "role": "Leiterin Vertrieb"
+    },
+    {
+      "decision_maker": false,
+      "email": null,
+      "name": "Jonas Weber",
+      "role": "Marketingreferent"
+    }
+  ],
+  "slug": "braunfeld-maschinenbau"
+}

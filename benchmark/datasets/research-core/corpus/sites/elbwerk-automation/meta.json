@@ -1,0 +1,34 @@
+{
+  "address": "Havenweg 22, DE",
+  "aliases": [
+    "Elbwerk"
+  ],
+  "contact_method": "email",
+  "country": "DE",
+  "description": "Elbwerk Automation integriert Roboterzellen in Produktionslinien.",
+  "domain": "elbwerk-automation.example",
+  "employees": 540,
+  "founded": 1999,
+  "generic_emails": [
+    "info@elbwerk-automation.example"
+  ],
+  "industry": "factory automation",
+  "language": "de",
+  "name": "Elbwerk Automation AG",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Martin Elbe",
+      "role": "Vorstand Technik"
+    },
+    {
+      "decision_maker": false,
+      "email": null,
+      "name": "Nina Albrecht",
+      "role": "Leiterin Marketing"
+    }
+  ],
+  "slug": "elbwerk-automation"
+}

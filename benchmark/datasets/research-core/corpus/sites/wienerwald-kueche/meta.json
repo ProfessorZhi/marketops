@@ -1,0 +1,34 @@
+{
+  "address": "Werkstraße 19, AT",
+  "aliases": [
+    "Wienerwald Küche"
+  ],
+  "contact_method": "email",
+  "country": "AT",
+  "description": "Wienerwald Küche plant und liefert Großküchen für Hotellerie und Betriebsgastronomie.",
+  "domain": "wienerwald-kueche.example",
+  "employees": 130,
+  "founded": 1994,
+  "generic_emails": [
+    "office@wienerwald-kueche.example"
+  ],
+  "industry": "commercial kitchens",
+  "language": "de",
+  "name": "Wienerwald Küche GmbH",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Lukas Gruber",
+      "role": "Geschäftsführer"
+    },
+    {
+      "decision_maker": true,
+      "email": "a.moser@wienerwald-kueche.example",
+      "name": "Anna Moser",
+      "role": "Leiterin Einkauf"
+    }
+  ],
+  "slug": "wienerwald-kueche"
+}

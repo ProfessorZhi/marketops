@@ -1,0 +1,22 @@
+{
+  "address": "Dock Street 41, GB",
+  "aliases": [
+    "MSD"
+  ],
+  "contact_method": "email",
+  "country": "GB",
+  "description": "A directory that lists marine equipment suppliers. The directory itself does not design, stock or supply equipment; it sells listings.",
+  "domain": "maritimesuppliers.example",
+  "employees": 6,
+  "founded": 2011,
+  "generic_emails": [
+    "listings@maritimesuppliers.example"
+  ],
+  "industry": "trade directory",
+  "language": "en",
+  "name": "Maritime Suppliers Directory",
+  "parent": null,
+  "people": [],
+  "record_type": "directory",
+  "slug": "maritime-suppliers-directory"
+}

@@ -1,0 +1,62 @@
+{
+  "schema_version": "marketops.research.run-manifest.v1",
+  "tool_version": "research-core-1.0.0",
+  "run_id": "rc-20261119T112735-99633b",
+  "stage": "brief",
+  "provider": "mock_brief_rules",
+  "model": null,
+  "configuration": {
+    "config_sha256": "f3913e53305fecfbf1ccacf7de9f6685feca0e84b62b9819c59fbabc5d1fbb79",
+    "params": {
+      "repeat": 3,
+      "suite": "reference"
+    }
+  },
+  "started_at": "2026-11-19T11:27:35+08:00",
+  "finished_at": "2026-11-19T11:27:35+08:00",
+  "environment": {
+    "host": "FJ-NJ-SER-1009",
+    "python": "3.14.4",
+    "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.43"
+  },
+  "datasets": [
+    {
+      "name": "research-core/brief",
+      "version": "research-core-1.0.0",
+      "path": "/home/fjd/projects/marketops-local-runtime-lab/benchmark/datasets/research-core/synthetic/brief",
+      "checksum": "e129908a170db961124cfcbf0aff6a9edcb508f418138853cb754e3f04161632",
+      "cases": 3,
+      "label_status": {
+        "draft": 3
+      }
+    }
+  ],
+  "results_path": "/home/fjd/projects/marketops-local-runtime-lab/benchmark/research-core/runs/rc-20261119T112735-99633b-mock_brief_rules.jsonl",
+  "counts": {
+    "cases": 3,
+    "ok": 9,
+    "empty": 0,
+    "failed": 0,
+    "not_configured": 0,
+    "timeout": 0,
+    "invalid_output": 0,
+    "skipped": 0,
+    "scored": 9
+  },
+  "metrics": {
+    "overall_coverage": 1.0,
+    "forbidden_claims_leaked": 0,
+    "coverage": {
+      "channels": 1.0,
+      "exclusions": 1.0,
+      "icp_attributes": 1.0,
+      "pain_points": 1.0,
+      "personas": 1.0,
+      "queries": 1.0
+    },
+    "scored_cases": 3,
+    "repeat_identical": true
+  },
+  "repeat": 3,
+  "notes": "reference suite: brief"
+}

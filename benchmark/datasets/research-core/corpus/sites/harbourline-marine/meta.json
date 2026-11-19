@@ -1,0 +1,20 @@
+{
+  "address": "Werkstraße 19, GB",
+  "aliases": [
+    "Harbourline"
+  ],
+  "contact_method": "none",
+  "country": "GB",
+  "description": "A registered domain with no published company site. Every page serves the same placeholder text, so no company fact can be confirmed here.",
+  "domain": "harbourline.example",
+  "domain_status": "placeholder",
+  "employees": 180,
+  "founded": 1994,
+  "generic_emails": [],
+  "industry": "marine equipment",
+  "language": "en",
+  "name": "Harbourline Marine Ltd",
+  "parent": null,
+  "people": [],
+  "slug": "harbourline-marine"
+}

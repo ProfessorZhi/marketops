@@ -1,0 +1,28 @@
+{
+  "address": "Gewerbepark 5, US",
+  "aliases": [
+    "Delta Ridge"
+  ],
+  "contact_method": "email",
+  "country": "US",
+  "description": "Delta Ridge Holdings owns industrial equipment businesses in mining and rail.",
+  "domain": "deltaridge.example",
+  "employees": 2100,
+  "founded": 1960,
+  "generic_emails": [
+    "ir@deltaridge.example"
+  ],
+  "industry": "industrial holding company",
+  "language": "en",
+  "name": "Delta Ridge Holdings",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Patricia Vance",
+      "role": "Chief Executive Officer"
+    }
+  ],
+  "slug": "delta-ridge-holdings"
+}

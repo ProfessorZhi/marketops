@@ -1,0 +1,28 @@
+{
+  "address": "Industriestraße 7, AT",
+  "aliases": [
+    "Alpenblick"
+  ],
+  "contact_method": "email",
+  "country": "AT",
+  "description": "Alpenblick Hotels betreibt neun Häuser in Tirol und Salzburg.",
+  "domain": "alpenblick-hotels.example",
+  "employees": 600,
+  "founded": 1971,
+  "generic_emails": [
+    "zentrale@alpenblick-hotels.example"
+  ],
+  "industry": "hotel group",
+  "language": "de",
+  "name": "Alpenblick Hotels AG",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Stefan Hofer",
+      "role": "Vorstand"
+    }
+  ],
+  "slug": "alpenblick-hotels"
+}

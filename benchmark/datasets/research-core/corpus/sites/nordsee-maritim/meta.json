@@ -1,0 +1,28 @@
+{
+  "address": "Harbour Road 14, GB",
+  "aliases": [
+    "Nordsee Maritim"
+  ],
+  "contact_method": "email",
+  "country": "GB",
+  "description": "Nordsee Maritim supplies mooring hardware to North Sea terminals.",
+  "domain": "nordseemaritim.example",
+  "employees": 180,
+  "founded": 2002,
+  "generic_emails": [
+    "info@nordseemaritim.example"
+  ],
+  "industry": "marine equipment",
+  "language": "en",
+  "name": "Nordsee Maritim Ltd",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Iain MacLeod",
+      "role": "Managing Director"
+    }
+  ],
+  "slug": "nordsee-maritim"
+}

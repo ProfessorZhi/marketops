@@ -1,0 +1,34 @@
+{
+  "address": "Industriestraße 7, NL",
+  "aliases": [
+    "Brabant Food"
+  ],
+  "contact_method": "email",
+  "country": "NL",
+  "description": "Brabant Food Group verwerkt groenten voor supermarktketens in de Benelux.",
+  "domain": "brabantfood.example",
+  "employees": 830,
+  "founded": 1967,
+  "generic_emails": [
+    "info@brabantfood.example"
+  ],
+  "industry": "food processing",
+  "language": "nl",
+  "name": "Brabant Food Group B.V.",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Marieke van den Berg",
+      "role": "CEO"
+    },
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Joost Visser",
+      "role": "Directeur Inkoop"
+    }
+  ],
+  "slug": "brabant-food-group"
+}

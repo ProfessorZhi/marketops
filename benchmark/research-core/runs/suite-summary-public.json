@@ -1,0 +1,59 @@
+{
+  "fetch": {
+    "provider": "mock_local_http",
+    "run_id": "rc-20261119T112829-15a8ad",
+    "counts": {
+      "cases": 56,
+      "ok": 165,
+      "empty": 3,
+      "failed": 0,
+      "not_configured": 0,
+      "timeout": 0,
+      "invalid_output": 0,
+      "skipped": 0,
+      "scored": 168
+    },
+    "metrics": {
+      "text_length": 101353.4464,
+      "marker_recall": 1.0,
+      "extraction_completeness": 1.0,
+      "false_success": 0.0,
+      "forbidden_hit": 0.0,
+      "correct_no_content": 1.0,
+      "scored_cases": 56,
+      "repeat_identical": true
+    },
+    "manifest_path": "benchmark/research-core/runs/rc-20261119T112829-15a8ad-mock_local_http.manifest.json",
+    "results_path": "benchmark/research-core/runs/rc-20261119T112829-15a8ad-mock_local_http.jsonl",
+    "dataset_checksum": "66e7c8921675b84ef0c20c3c9862286cbb56239720507e59173df413debd1d44",
+    "dataset_version": "research-core-public-1.0.0"
+  },
+  "evidence": {
+    "provider": "mock_evidence_checker",
+    "run_id": "rc-20261119T112837-aad16b",
+    "counts": {
+      "cases": 56,
+      "ok": 168,
+      "empty": 0,
+      "failed": 0,
+      "not_configured": 0,
+      "timeout": 0,
+      "invalid_output": 0,
+      "skipped": 0,
+      "scored": 168
+    },
+    "metrics": {
+      "snapshot_exists_correct": 1.0,
+      "sha256_correct": 1.0,
+      "fields_traceable_recall": 1.0,
+      "entity_correct": 1.0,
+      "contradictions_found": 0,
+      "scored_cases": 56,
+      "repeat_identical": true
+    },
+    "manifest_path": "benchmark/research-core/runs/rc-20261119T112837-aad16b-mock_evidence_checker.manifest.json",
+    "results_path": "benchmark/research-core/runs/rc-20261119T112837-aad16b-mock_evidence_checker.jsonl",
+    "dataset_checksum": "1b4e919468f5ee030d0853df96c23f493b5de8c80e95354adc9915902f336e89",
+    "dataset_version": "research-core-public-1.0.0"
+  }
+}

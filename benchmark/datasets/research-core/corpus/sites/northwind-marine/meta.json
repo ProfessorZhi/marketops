@@ -1,0 +1,41 @@
+{
+  "address": "Dock Street 41, GB",
+  "aliases": [
+    "Northwind Marine"
+  ],
+  "contact_method": "email",
+  "country": "GB",
+  "description": "Northwind Marine designs and assembles deck fittings for commercial vessels. It supplies shipyards across the North Sea and keeps a spare-parts warehouse in Hull.",
+  "domain": "northwindmarine.example",
+  "employees": 180,
+  "founded": 1987,
+  "generic_emails": [
+    "info@northwindmarine.example",
+    "press@northwindmarine.example"
+  ],
+  "industry": "marine equipment",
+  "language": "en",
+  "name": "Northwind Marine Ltd",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": "m.visser@northwindmarine.example",
+      "name": "Marta Visser",
+      "role": "Managing Director"
+    },
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Oliver Grant",
+      "role": "Head of Partnerships"
+    },
+    {
+      "decision_maker": false,
+      "email": null,
+      "name": "Priya Raman",
+      "role": "Marketing Manager"
+    }
+  ],
+  "slug": "northwind-marine"
+}

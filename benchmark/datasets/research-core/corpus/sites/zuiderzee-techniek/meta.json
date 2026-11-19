@@ -1,0 +1,34 @@
+{
+  "address": "Gewerbepark 5, NL",
+  "aliases": [
+    "Zuiderzee Techniek"
+  ],
+  "contact_method": "email",
+  "country": "NL",
+  "description": "Zuiderzee Techniek bouwt en onderhoudt aandrijfsystemen voor binnenvaartschepen.",
+  "domain": "zuiderzeetechniek.example",
+  "employees": 175,
+  "founded": 2005,
+  "generic_emails": [
+    "info@zuiderzeetechniek.example"
+  ],
+  "industry": "marine engineering",
+  "language": "nl",
+  "name": "Zuiderzee Techniek B.V.",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Pieter Bakker",
+      "role": "Directeur"
+    },
+    {
+      "decision_maker": true,
+      "email": "l.smit@zuiderzeetechniek.example",
+      "name": "Lieke Smit",
+      "role": "Manager Commercie"
+    }
+  ],
+  "slug": "zuiderzee-techniek"
+}

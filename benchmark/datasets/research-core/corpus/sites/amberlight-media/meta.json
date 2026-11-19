@@ -1,0 +1,34 @@
+{
+  "address": "Werkstraße 19, IE",
+  "aliases": [
+    "Amberlight"
+  ],
+  "contact_method": "email",
+  "country": "IE",
+  "description": "Amberlight Media produces narrative podcasts and audio documentaries.",
+  "domain": "amberlightmedia.example",
+  "employees": 33,
+  "founded": 2018,
+  "generic_emails": [
+    "hello@amberlightmedia.example"
+  ],
+  "industry": "podcast production",
+  "language": "en",
+  "name": "Amberlight Media",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": "niamh@amberlightmedia.example",
+      "name": "Niamh Byrne",
+      "role": "Founder"
+    },
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Sean Fitzgerald",
+      "role": "Head of Partnerships"
+    }
+  ],
+  "slug": "amberlight-media"
+}

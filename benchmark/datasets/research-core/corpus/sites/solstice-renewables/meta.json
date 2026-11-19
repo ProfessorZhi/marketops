@@ -1,0 +1,34 @@
+{
+  "address": "Station Lane 3, IE",
+  "aliases": [
+    "Solstice"
+  ],
+  "contact_method": "email",
+  "country": "IE",
+  "description": "Solstice Renewables installs rooftop solar arrays for farms and industrial sites.",
+  "domain": "solsticerenew.example",
+  "employees": 210,
+  "founded": 2012,
+  "generic_emails": [
+    "info@solsticerenew.example"
+  ],
+  "industry": "solar installation",
+  "language": "en",
+  "name": "Solstice Renewables",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Declan Murphy",
+      "role": "Managing Director"
+    },
+    {
+      "decision_maker": true,
+      "email": "siobhan@solsticerenew.example",
+      "name": "Siobhan Kelly",
+      "role": "Head of Commercial"
+    }
+  ],
+  "slug": "solstice-renewables"
+}

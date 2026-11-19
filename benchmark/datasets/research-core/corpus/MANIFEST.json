@@ -1,0 +1,866 @@
+{
+  "companies": 43,
+  "corpus_version": "research-core-corpus-1.0.0",
+  "files": {
+    "sites/adlerwerk-werkzeuge/about.html": {
+      "bytes": 731,
+      "sha256": "7aad833b7f4ffd416ca434d4aacfaa878c255d948c4671ecfccd71c420e79e98"
+    },
+    "sites/adlerwerk-werkzeuge/contact.html": {
+      "bytes": 838,
+      "sha256": "6a10519c5872b15398b7c7b21fac6fe744bc489d3dbd0a07920a653281c56785"
+    },
+    "sites/adlerwerk-werkzeuge/index.html": {
+      "bytes": 711,
+      "sha256": "551c916980ab355995ccd38b46c2f62851f2bf59a701d2ac5c975b7edbb866d4"
+    },
+    "sites/adlerwerk-werkzeuge/meta.json": {
+      "bytes": 784,
+      "sha256": "1478acadd9d25033c894e25598ca9bef3b8248e4754e8b2002ffd56c4f8e7c87"
+    },
+    "sites/adlerwerk-werkzeuge/team.html": {
+      "bytes": 731,
+      "sha256": "7ad9123835e3f13a7ddaac35b486d7a4d54e8554f2432e11849c3cbf85e6b1ee"
+    },
+    "sites/alpenblick-hotels/about.html": {
+      "bytes": 698,
+      "sha256": "9e415f1e9ee319fd83a3a5ba17ac6c560cae25d9927a8f853d6941fbd359e485"
+    },
+    "sites/alpenblick-hotels/contact.html": {
+      "bytes": 715,
+      "sha256": "70ad371c998ceed37751f21beb3e84bfaa2cbda920c548b28f5b3d6706c429a1"
+    },
+    "sites/alpenblick-hotels/index.html": {
+      "bytes": 673,
+      "sha256": "6ffb36b1c53baf651da9cc33bde08c95619490a39996cc70d3aa4966d75d5417"
+    },
+    "sites/alpenblick-hotels/meta.json": {
+      "bytes": 627,
+      "sha256": "92e7774d1bd7ce79d88c5add28d4d63328103aace7a7a656c1f654f70c676a80"
+    },
+    "sites/alpenblick-hotels/team.html": {
+      "bytes": 563,
+      "sha256": "06ba268be08b528d554e9f48fba3f0a4d8a450a373b2f9a28739a539845547c6"
+    },
+    "sites/amberlight-media/about.html": {
+      "bytes": 691,
+      "sha256": "858462be93cbf246d69bdaf4a9a521c08d86fe8f19af31388fe8fc389c48f95d"
+    },
+    "sites/amberlight-media/contact.html": {
+      "bytes": 817,
+      "sha256": "5712198207d1e0acd4679026c526ecf56e801a0af8ab03995de51052c00540e3"
+    },
+    "sites/amberlight-media/index.html": {
+      "bytes": 668,
+      "sha256": "40c4c12b153ebfd41676bfec231a3e252bbc874ef7cf5821e0a72354d8d12765"
+    },
+    "sites/amberlight-media/meta.json": {
+      "bytes": 783,
+      "sha256": "4ff4740581919b8e29b206b04dfa4c8fa96fe72b4848dd36f8bd09dfeecb6d98"
+    },
+    "sites/amberlight-media/team.html": {
+      "bytes": 695,
+      "sha256": "0f4ec5b7c51cea8a2777c9ea443f3c598729f1940f17ebac5536306b35c88410"
+    },
+    "sites/amstel-data/about.html": {
+      "bytes": 683,
+      "sha256": "1e58397686c2c6f1e61efacd8edd66af758a68a95ab568063d395ce4ebcc255b"
+    },
+    "sites/amstel-data/contact.html": {
+      "bytes": 821,
+      "sha256": "1421811b4ba5a99c524ed2c62cc7d000a6a662a949d79e91fb139ef52906ec06"
+    },
+    "sites/amstel-data/index.html": {
+      "bytes": 654,
+      "sha256": "11648a22c1296585608a38d4eb2cabfdcf66a762670868a035ef75959d7c59ae"
+    },
+    "sites/amstel-data/meta.json": {
+      "bytes": 762,
+      "sha256": "007c778803fea5de3a7f7630e158b40e34abdb54f65336fbcd12c32860fc4771"
+    },
+    "sites/amstel-data/team.html": {
+      "bytes": 684,
+      "sha256": "8bb2d76a53a646efebe8fbb1111784253c114210795981782c18a58a0cecbf44"
+    },
+    "sites/antwerpen-drukwerk/about.html": {
+      "bytes": 714,
+      "sha256": "8d4abc3dbb9bdfb9d07f8417f10c5f30c018a0ba0c30901f5fb0e2344d1ef551"
+    },
+    "sites/antwerpen-drukwerk/contact.html": {
+      "bytes": 923,
+      "sha256": "763ad072cbced122f8b53b892f364a77122d91f39a7d410e88d16adaa786cf6f"
+    },
+    "sites/antwerpen-drukwerk/index.html": {
+      "bytes": 684,
+      "sha256": "413b1bcdcff4f725b6715d0c2510f306f8a247539ada8e6a5e7d6b362cd4c6dd"
+    },
+    "sites/antwerpen-drukwerk/meta.json": {
+      "bytes": 640,
+      "sha256": "ebb4b0b62d4959bb27ce1e837f342feb919253362bec2beb5c7f6c5860e3e6e4"
+    },
+    "sites/antwerpen-drukwerk/team.html": {
+      "bytes": 571,
+      "sha256": "dd7cd9799060eeec9c7dbde54e9b0b9dd0516226f6a0a67f6c3d10a6e0f83696"
+    },
+    "sites/atlas-field-services/about.html": {
+      "bytes": 810,
+      "sha256": "978c46821a79dd748b63604e9525d7027506368bcbe334c75aa22c4f7c99c0a8"
+    },
+    "sites/atlas-field-services/contact.html": {
+      "bytes": 764,
+      "sha256": "9b204d6bc381eaf5a9f168130dff36385d61e4a7f4c1e9db5272de832f4b7bb7"
+    },
+    "sites/atlas-field-services/index.html": {
+      "bytes": 788,
+      "sha256": "a2b9c58ca96950c2b6fc46a57e09f7e797c3049f9981b095ed5d37142f953d75"
+    },
+    "sites/atlas-field-services/meta.json": {
+      "bytes": 815,
+      "sha256": "39a126b240611102572ae4492545826cb57a01358a29542968edae4e5e28cbd8"
+    },
+    "sites/atlas-field-services/team.html": {
+      "bytes": 676,
+      "sha256": "466b5ed3e1d12d797fa850a233684ad961a4d67470434cfc360d014442cdefd8"
+    },
+    "sites/bluepeak-logistics/about.html": {
+      "bytes": 832,
+      "sha256": "f588c97d01c5309b1da9de544fcb66b818f9052596c11a7628c03842211342fd"
+    },
+    "sites/bluepeak-logistics/contact.html": {
+      "bytes": 909,
+      "sha256": "d46aefafacc62b0119dda221859f99c03bcd98d8ffafd8022021679c0a5c333a"
+    },
+    "sites/bluepeak-logistics/index.html": {
+      "bytes": 810,
+      "sha256": "532139f0ec5ef632ed754a85912f5e5a6693fd063c6a36daab18514c21fd5aa2"
+    },
+    "sites/bluepeak-logistics/meta.json": {
+      "bytes": 893,
+      "sha256": "6bcd4e06beeff43ae2e75b389966fad8fa533636171083e0c6d9b3f2a37df60b"
+    },
+    "sites/bluepeak-logistics/team.html": {
+      "bytes": 794,
+      "sha256": "a4b75ac8230673f773a23133c26cc0d8907fc864c3c20d8920a20254d34333d1"
+    },
+    "sites/brabant-food-group/about.html": {
+      "bytes": 731,
+      "sha256": "35f14ad7c3f207895cf0215929274a68222f7a6b3ee32082eb5413e1722935cb"
+    },
+    "sites/brabant-food-group/contact.html": {
+      "bytes": 721,
+      "sha256": "fb4ad8a2f56053305d1059346b7bc5a87e828b9c1669d1c74ab941c326a30dad"
+    },
+    "sites/brabant-food-group/index.html": {
+      "bytes": 698,
+      "sha256": "ac4c58028c49d981542e156f360494594230637a007af7db40fba1d64e2e3735"
+    },
+    "sites/brabant-food-group/meta.json": {
+      "bytes": 762,
+      "sha256": "18ceb36108267fb9ef2c0e7d9bbfa96fb8520b0a49a430a0e33cc0ad9191d84c"
+    },
+    "sites/brabant-food-group/team.html": {
+      "bytes": 632,
+      "sha256": "15dc399037ea2a85e9e9687d3b88a40619a4a68a9a7b97df87beb9b3eb8bd934"
+    },
+    "sites/braunfeld-maschinenbau/about.html": {
+      "bytes": 819,
+      "sha256": "21ebaebaa74a130d376d9c77e473f041022e70eabdad9b3844fd55a0db4cbf82"
+    },
+    "sites/braunfeld-maschinenbau/contact.html": {
+      "bytes": 892,
+      "sha256": "0072bc33364cfdfc6290ed6530514fc1cc6cb396bab7295409bc7f62b41a2b7e"
+    },
+    "sites/braunfeld-maschinenbau/index.html": {
+      "bytes": 798,
+      "sha256": "e5930919a2ff91859dabf0bb6705193aa46fb4a6ee0df13715d13665eaef7fe9"
+    },
+    "sites/braunfeld-maschinenbau/meta.json": {
+      "bytes": 971,
+      "sha256": "24d03e807b4b5e0997671f9c6934deccd19a0726e91eb0223ff59b64ec0e76a3"
+    },
+    "sites/braunfeld-maschinenbau/team.html": {
+      "bytes": 847,
+      "sha256": "9c6ce927833fc03e82373b9ca0e3e1c4a18cebc1e191ca7795ae77e446b4bf5f"
+    },
+    "sites/cedar-finch/about.html": {
+      "bytes": 722,
+      "sha256": "2558b6cde43293ae577c46d64abbf1e633c4cba1eb35eb0168a0fd801bf44ae8"
+    },
+    "sites/cedar-finch/contact.html": {
+      "bytes": 910,
+      "sha256": "8d50cec69742a437f17fa37cba672c1389a2892c0d1ec3bf90f6bed42cb7b615"
+    },
+    "sites/cedar-finch/index.html": {
+      "bytes": 699,
+      "sha256": "bdf38e3c526fb1e5b0b74cde86b105d4d514391d2070f1d4de21b418d6e14771"
+    },
+    "sites/cedar-finch/meta.json": {
+      "bytes": 620,
+      "sha256": "803310bd1b1b03c6cf9a7fd90f17fcb3fab4da8c4b8fe574c510940b653f7ec7"
+    },
+    "sites/cedar-finch/team.html": {
+      "bytes": 561,
+      "sha256": "ca35fd7c90e977be5da8095d6bd429946d13a7d9d0fb663e773b7b20903e282b"
+    },
+    "sites/de-vries-luchtbehandeling/about.html": {
+      "bytes": 741,
+      "sha256": "120458310d7e32277e7d2f979f4d5398c740cbff73d56d68f8d2d1f11254f58f"
+    },
+    "sites/de-vries-luchtbehandeling/contact.html": {
+      "bytes": 942,
+      "sha256": "d05c24f37dcb0e68bf5932452bae0bbdadc91c9f726a2d7b4a6c270b1e67bbbd"
+    },
+    "sites/de-vries-luchtbehandeling/index.html": {
+      "bytes": 712,
+      "sha256": "ba48f7cceacbaacb1e2e10c813b068a4ec64a466f8bd4f431146bd6dd1e7d37e"
+    },
+    "sites/de-vries-luchtbehandeling/meta.json": {
+      "bytes": 654,
+      "sha256": "a34b644465f4ab26820b1cd304069989022b4096ab18cbc9d7d4887715d66702"
+    },
+    "sites/de-vries-luchtbehandeling/team.html": {
+      "bytes": 585,
+      "sha256": "fdbc2a0d68393cf54e1fd3d492eee6a62f58eef5aeb9abf17ee866fc3a7b22f3"
+    },
+    "sites/delta-ridge-holdings/about.html": {
+      "bytes": 728,
+      "sha256": "9fb66bd10e861269f63e1177fcde7cc6b3a9c580f0ff62e758a88d60a891ff85"
+    },
+    "sites/delta-ridge-holdings/contact.html": {
+      "bytes": 701,
+      "sha256": "4766730e106f52ced9c707245197866bdcf9a4e50267b416f577c6191319a721"
+    },
+    "sites/delta-ridge-holdings/index.html": {
+      "bytes": 706,
+      "sha256": "cebe71393c313e87f05192e041bb28c893bbafd7447d36c4648d6160267f48c6"
+    },
+    "sites/delta-ridge-holdings/meta.json": {
+      "bytes": 654,
+      "sha256": "af8f6f840c51931bf8eefcf58e087964b37877d8b2732cd3602b7b59f14604f0"
+    },
+    "sites/delta-ridge-holdings/team.html": {
+      "bytes": 581,
+      "sha256": "bcf2b64d92dc3442923b23c74c4d830bfb63ba4f882884adffdc882d39dfe948"
+    },
+    "sites/delta-ridge-mining/about.html": {
+      "bytes": 858,
+      "sha256": "e6378091bacb39ec8e1e75437efd291bdf882fd9f2e1188c9840b3ab79f509c7"
+    },
+    "sites/delta-ridge-mining/contact.html": {
+      "bytes": 781,
+      "sha256": "dae9299d4990e9555d199d699400428d48f56ff4cb1d5755a4353520e61d3af0"
+    },
+    "sites/delta-ridge-mining/index.html": {
+      "bytes": 786,
+      "sha256": "8a864d2e74328d9a6224b29dad3572577fb2b3f33660d542ad8b88d8f9470e65"
+    },
+    "sites/delta-ridge-mining/meta.json": {
+      "bytes": 712,
+      "sha256": "68a62a5235c192c12ff262f4988426e5eef167ea598cd95cabd295c019b7b159"
+    },
+    "sites/delta-ridge-mining/team.html": {
+      "bytes": 614,
+      "sha256": "bc72f29791088a0439b37e81c82597faed1998038be173b2c73158cb5e7906cc"
+    },
+    "sites/donau-consulting/about.html": {
+      "bytes": 715,
+      "sha256": "0271d454ef7229b5e43dad78358b5e9964c5730f3ee60297c1afc80c08f904cf"
+    },
+    "sites/donau-consulting/contact.html": {
+      "bytes": 912,
+      "sha256": "30517b03c72af01137a2a5a7a0d7707a209f2fc3beaaf6fb26cb219a5f44cba8"
+    },
+    "sites/donau-consulting/index.html": {
+      "bytes": 697,
+      "sha256": "5b0a331b9ff3a7a29b0da9f053d749297494a16d88631480c4958e4fc9f87603"
+    },
+    "sites/donau-consulting/meta.json": {
+      "bytes": 648,
+      "sha256": "4c8a6b0d73669e6ce1a628ea238cd4a0e0ad5f80815478f9da8215cf741c42a1"
+    },
+    "sites/donau-consulting/team.html": {
+      "bytes": 583,
+      "sha256": "e09aac8022d562b532d340b96b3536a1df7a7f3e95bd9ba9bd6c2e76f9da7592"
+    },
+    "sites/elbwerk-automation/about.html": {
+      "bytes": 707,
+      "sha256": "1ca13d2218e78d02651e336084f133c39b378bfcd5557cda95b901ace2e7164f"
+    },
+    "sites/elbwerk-automation/contact.html": {
+      "bytes": 709,
+      "sha256": "6dd8bb7c53e2d143a6b81ba8afc747367eae073b3259ed8c198876aeb163eb00"
+    },
+    "sites/elbwerk-automation/index.html": {
+      "bytes": 689,
+      "sha256": "19ed8dbfd4c77f31ced24f837e92bef2d61028fbfe4e3aeb94c7732ffbbfe3ba"
+    },
+    "sites/elbwerk-automation/meta.json": {
+      "bytes": 765,
+      "sha256": "f9770024da55ebd4021e7d63f787e8486d1a31e8379ebb2b6b103a6fd27d6aa2"
+    },
+    "sites/elbwerk-automation/team.html": {
+      "bytes": 638,
+      "sha256": "3a2d8220e2bc5d37c9d62cbb26a2ea6d0daac7bbe30a52ebfb6b103c33ec2157"
+    },
+    "sites/falkenried-kliniken/about.html": {
+      "bytes": 739,
+      "sha256": "a2208186dc8644c20a469f5c50db200cf674d9c11e8e507c0561117b695a03b3"
+    },
+    "sites/falkenried-kliniken/contact.html": {
+      "bytes": 746,
+      "sha256": "9ca1eb318f37d99ec85c8c2f44ec9d383570c70bd38424a8111eb7569ca1709e"
+    },
+    "sites/falkenried-kliniken/index.html": {
+      "bytes": 719,
+      "sha256": "8bb3cf6bf1e864867b255701d88fbc60436a8629067e3d4a00cf1e76130ba430"
+    },
+    "sites/falkenried-kliniken/meta.json": {
+      "bytes": 673,
+      "sha256": "47998a79c1906ab35633361eb1890b9885013da7a880a4c2f6a824e4c77cfc26"
+    },
+    "sites/falkenried-kliniken/team.html": {
+      "bytes": 606,
+      "sha256": "83b16a9779921702c5ff5c1b63e424921cf73fadc50aa0b746fdb9cb2316112b"
+    },
+    "sites/fluweelmode/about.html": {
+      "bytes": 687,
+      "sha256": "27df31eb732b4390b2262bc6d25f37312582013b4295c46948ef8d7b1d3fd43e"
+    },
+    "sites/fluweelmode/contact.html": {
+      "bytes": 896,
+      "sha256": "ddfdec1faf3adfa812c3cdc46967f92a11ce5f4f46e90536f506b10a68261574"
+    },
+    "sites/fluweelmode/index.html": {
+      "bytes": 654,
+      "sha256": "da0772a03451047c6a724a0487e49ee4e2825eb38d13c73ccc2a6d184e1e0796"
+    },
+    "sites/fluweelmode/meta.json": {
+      "bytes": 609,
+      "sha256": "92f59648fc5d6212dc21d605e46578f573469cd41d2777f0309dc66408721828"
+    },
+    "sites/fluweelmode/team.html": {
+      "bytes": 546,
+      "sha256": "7180c0d528d11066159b59deb03aad91df1d21b11b5fd2c9ce0256e81df1de9b"
+    },
+    "sites/harborline-foods/about.html": {
+      "bytes": 772,
+      "sha256": "ff1bd472c5a19d33de4d04e6ed910ebc3fa5b09caa12a8b9cbb5aca7507639d0"
+    },
+    "sites/harborline-foods/contact.html": {
+      "bytes": 860,
+      "sha256": "4a7135de35c55739d7ba5cc1c80d490ef3187e9e7fb717812e40319e1cc5fd0b"
+    },
+    "sites/harborline-foods/index.html": {
+      "bytes": 749,
+      "sha256": "bf7c415abc7144d94478b028ca9d1091b77c86dba50ccca22e430934733ae1db"
+    },
+    "sites/harborline-foods/meta.json": {
+      "bytes": 836,
+      "sha256": "ce5370ad6245fd660939d55d593ad7e49d5541a032db19b5fa52c35d9e439827"
+    },
+    "sites/harborline-foods/team.html": {
+      "bytes": 753,
+      "sha256": "0e2b5708082d850bcbab14977fb007cf281ee3aaafe258ceedc173ec4a23a08a"
+    },
+    "sites/harbourline-marine/about.html": {
+      "bytes": 718,
+      "sha256": "c6d9c6b9d6a030180933819a0e10552b7d914541152b844c932259d7d1e0b7fc"
+    },
+    "sites/harbourline-marine/contact.html": {
+      "bytes": 718,
+      "sha256": "c6d9c6b9d6a030180933819a0e10552b7d914541152b844c932259d7d1e0b7fc"
+    },
+    "sites/harbourline-marine/index.html": {
+      "bytes": 718,
+      "sha256": "c6d9c6b9d6a030180933819a0e10552b7d914541152b844c932259d7d1e0b7fc"
+    },
+    "sites/harbourline-marine/meta.json": {
+      "bytes": 570,
+      "sha256": "897aeb249519cd5ea2b3c7c8c03b6fb0b05edb978ed60a8f421a04cb18373b85"
+    },
+    "sites/harbourline-marine/team.html": {
+      "bytes": 718,
+      "sha256": "c6d9c6b9d6a030180933819a0e10552b7d914541152b844c932259d7d1e0b7fc"
+    },
+    "sites/hollands-groen/about.html": {
+      "bytes": 709,
+      "sha256": "5df098eb258dae69c5e54f3e5dc0f26dc5ab597a0c96423afdd5bc9e9d27f3d1"
+    },
+    "sites/hollands-groen/contact.html": {
+      "bytes": 709,
+      "sha256": "7a67dfb1dc64fe7726057ccb836187e4b2217a15a731373169f95c8d0cd5f3ac"
+    },
+    "sites/hollands-groen/index.html": {
+      "bytes": 680,
+      "sha256": "461a8d02058865d86726e376ecc32baa18bf468e350299269cef019decbf87dd"
+    },
+    "sites/hollands-groen/meta.json": {
+      "bytes": 638,
+      "sha256": "f621b70d88c8878a297387c03c384affe6fce78d003d22dd887b4fd88bc507ea"
+    },
+    "sites/hollands-groen/team.html": {
+      "bytes": 564,
+      "sha256": "253ae9552463e5912756d12c8ed485a78a60b12f4c8e8d74fcac9b227d790e37"
+    },
+    "sites/ironbark-analytics/about.html": {
+      "bytes": 699,
+      "sha256": "9dabefcf98d3272abefc577e2e67001ebd8281c7d1e72e61eea8dd9793af3f1e"
+    },
+    "sites/ironbark-analytics/contact.html": {
+      "bytes": 802,
+      "sha256": "f5b476feadca785aac579ec5ff192a1834f6e102a63929ee9c3f6e235669e00c"
+    },
+    "sites/ironbark-analytics/index.html": {
+      "bytes": 676,
+      "sha256": "1a508abbd758de302dd9dd11285dab54c916c7f0e52a8e63063877cd3f2b8ffb"
+    },
+    "sites/ironbark-analytics/meta.json": {
+      "bytes": 765,
+      "sha256": "73ab7d7e8f6f76fcd3142c4ace0a818a81240a94e0f6ed0c1d5c323ae49fc06b"
+    },
+    "sites/ironbark-analytics/team.html": {
+      "bytes": 691,
+      "sha256": "5ea8e37be4740daa75f585d550964a204ee8ce15889c036b18a5654a6497151c"
+    },
+    "sites/kempen-bouw/about.html": {
+      "bytes": 684,
+      "sha256": "a7703c2f3aa0baf2a30893a1c8c9e63437e0f8aec683396e4c726233a4e1a07a"
+    },
+    "sites/kempen-bouw/contact.html": {
+      "bytes": 791,
+      "sha256": "55d4dd478a3d7d39c328bf7f9813af4ebb759d5cd67faed9e6e229f65136832c"
+    },
+    "sites/kempen-bouw/index.html": {
+      "bytes": 658,
+      "sha256": "63fded76e0d88bfe5ec59137a8763da1972bf3b630c58ee3e2c686e062e71db2"
+    },
+    "sites/kempen-bouw/meta.json": {
+      "bytes": 746,
+      "sha256": "cb0c9d8dfd7763942fae89a737dc2aa3022bb32a6704c551b30850147805a637"
+    },
+    "sites/kempen-bouw/team.html": {
+      "bytes": 680,
+      "sha256": "8eab3b978daeff75ab303e744201ad3b7f2cac565df1f1ae3d663b10cff6f4cf"
+    },
+    "sites/kestrel-robotics/about.html": {
+      "bytes": 726,
+      "sha256": "b6bc4e10cb228f07c92b87889aeaaca9186973c82eaa855d3f6e009d15439cd7"
+    },
+    "sites/kestrel-robotics/contact.html": {
+      "bytes": 832,
+      "sha256": "11ea0bc29752d4b65a9b7223d33228b1f46e4477ffb755fa85d7e397ea6141c1"
+    },
+    "sites/kestrel-robotics/index.html": {
+      "bytes": 703,
+      "sha256": "3ce6118ddc3f2ff65aada826774805e26c805e2673976778f24c1ba9c7365e67"
+    },
+    "sites/kestrel-robotics/meta.json": {
+      "bytes": 793,
+      "sha256": "3d465cc55ef35b3ff01ef44c92a6b00120706fac32a0fd6128bd83bd6943b2ba"
+    },
+    "sites/kestrel-robotics/team.html": {
+      "bytes": 710,
+      "sha256": "b6df4d643d4661dd29bbb7bfcc40cca4ed7d844a95cf51039814969abbadf66e"
+    },
+    "sites/kranich-software/about.html": {
+      "bytes": 695,
+      "sha256": "2e4009241c1e0d76408ab6f62e405693442e3588e83db8d61dd38412873e0451"
+    },
+    "sites/kranich-software/contact.html": {
+      "bytes": 807,
+      "sha256": "42486076972357010ba30d0ed6e086628c84e617a97f71203ee8ff0216ab70ee"
+    },
+    "sites/kranich-software/index.html": {
+      "bytes": 673,
+      "sha256": "ba6ec39ff36e335b6d9c6012fd2ae472621a43037fdb39129bdf5f83f92bc5f3"
+    },
+    "sites/kranich-software/meta.json": {
+      "bytes": 778,
+      "sha256": "6ee36a3b283347cab485477db17943c35d5a2124cb000d61b27fe784b36f868b"
+    },
+    "sites/kranich-software/team.html": {
+      "bytes": 785,
+      "sha256": "3efa2fa44a3d1ceb9ed6fe53b6081c1a7abccb8845e96f26d204b01e364ca964"
+    },
+    "sites/lindeboom-meubelen/about.html": {
+      "bytes": 723,
+      "sha256": "9fcc45ec1c99f41ba3b8c17228be65830cdf5924349bf120b5aaa3e3adaf0d09"
+    },
+    "sites/lindeboom-meubelen/contact.html": {
+      "bytes": 728,
+      "sha256": "643fae2230ad9b7f63995e301bb1a66a230362097343a72552b16e11fbe42a63"
+    },
+    "sites/lindeboom-meubelen/index.html": {
+      "bytes": 694,
+      "sha256": "fc19bccac49b8edbc527ccc59abcc728a20d5d51d4eb9d82141563e8e1619282"
+    },
+    "sites/lindeboom-meubelen/meta.json": {
+      "bytes": 647,
+      "sha256": "0832f4a1904889dac7defaafc9cd0b7ad17aceab45dca3a59fddcfd3123aa405"
+    },
+    "sites/lindeboom-meubelen/team.html": {
+      "bytes": 568,
+      "sha256": "520daa7359c27af47a02ec31ac3132deb9e6d1abd226b30d975c0c98b92d2c7b"
+    },
+    "sites/lindenhof-logistik/about.html": {
+      "bytes": 730,
+      "sha256": "045da8552d92167c00ebc46d4d12b21e486ae780e71b1cbfb45856206aff2039"
+    },
+    "sites/lindenhof-logistik/contact.html": {
+      "bytes": 874,
+      "sha256": "ba4ec376f3cad1f6b0d9dfaa9669b6a601029179d03e78cb3925083d785d4b59"
+    },
+    "sites/lindenhof-logistik/index.html": {
+      "bytes": 712,
+      "sha256": "8f557d0918d44d337bae40951654b1252d5c9c8a67e257cc6a9ab7f7a4764641"
+    },
+    "sites/lindenhof-logistik/meta.json": {
+      "bytes": 830,
+      "sha256": "95742db764a92e34b748becb67ca69789b1c2f7c113e36f566fdb0a1ad29f903"
+    },
+    "sites/lindenhof-logistik/team.html": {
+      "bytes": 773,
+      "sha256": "79a50c6de5bdec6dce3b100e1b5b7913a97352cb686d769412c66122604335fd"
+    },
+    "sites/maasvallei-transport/about.html": {
+      "bytes": 732,
+      "sha256": "b443f305fde1372971c5c50fbc6710e5a1cc66c272ed0aea2349401f141dc466"
+    },
+    "sites/maasvallei-transport/contact.html": {
+      "bytes": 748,
+      "sha256": "181a5999b0101e3f60dcff0fd0f2254188a0e0f692d2e8121a2f9911461a18c8"
+    },
+    "sites/maasvallei-transport/index.html": {
+      "bytes": 699,
+      "sha256": "d0212e185ce968b0946e90f79df49f6f96b32df64677166c35c6cd2d63ad7243"
+    },
+    "sites/maasvallei-transport/meta.json": {
+      "bytes": 651,
+      "sha256": "4e3702a4fde7b73e79b280a3a6ff157c0079f8cca81b1d1e8c5ffea7d791c4ab"
+    },
+    "sites/maasvallei-transport/team.html": {
+      "bytes": 571,
+      "sha256": "32f3bfecd613a83a34780fa3c30861db5d45d4e8ba36bb32ca3f3a7fa719ca26"
+    },
+    "sites/maritime-suppliers-directory/about.html": {
+      "bytes": 839,
+      "sha256": "944ab6fed041bb8507d7777cf81523265701d24122cb0d1f2315e20b622e59fc"
+    },
+    "sites/maritime-suppliers-directory/contact.html": {
+      "bytes": 796,
+      "sha256": "96aa98847fa57b9dc65ccb3eeff69a2e3ab2213d69eeb2f98e9a843c1d1d2707"
+    },
+    "sites/maritime-suppliers-directory/index.html": {
+      "bytes": 816,
+      "sha256": "982a833d5844e832884fdd496e46236cf1edebd513896152578575a218ad903a"
+    },
+    "sites/maritime-suppliers-directory/meta.json": {
+      "bytes": 618,
+      "sha256": "e839c232849f24cdf7827de1615f42b92edd2455c076a43e1585327e594b105b"
+    },
+    "sites/maritime-suppliers-directory/team.html": {
+      "bytes": 572,
+      "sha256": "b8f8e2042bf06783d9431c59f4569694678512b7f3c0aae2ae8473480616f769"
+    },
+    "sites/meridian-health/about.html": {
+      "bytes": 727,
+      "sha256": "6732f3bf0f5c541ff1ddacac691d8cc195e32d77a633534a5b0c96c295289205"
+    },
+    "sites/meridian-health/contact.html": {
+      "bytes": 852,
+      "sha256": "c6e02aa779a87514846c470c299e6c4cc4a1c1f1de3789f0c3320ca6a1ab38b8"
+    },
+    "sites/meridian-health/index.html": {
+      "bytes": 704,
+      "sha256": "26aa1b8e5add71d0fb2ffa75291fbd4563d9cf53fdcff2b58459ef625e67c6a1"
+    },
+    "sites/meridian-health/meta.json": {
+      "bytes": 820,
+      "sha256": "3c21c3e84ccd95df183d98cd6d5dfc421247cc11770dc7dbdaf478f648413dc9"
+    },
+    "sites/meridian-health/team.html": {
+      "bytes": 733,
+      "sha256": "e79400d571aba45d73aa9051830056651395996dae0fa8ac2e6d51206ebda14c"
+    },
+    "sites/nordlicht-energie/about.html": {
+      "bytes": 714,
+      "sha256": "515e7c33b5e9a89bbf76ade67cac348afa12eb01099b152d715a1cfcb645e9dc"
+    },
+    "sites/nordlicht-energie/contact.html": {
+      "bytes": 920,
+      "sha256": "7ec701b1de8e1ec5e594e6cf3ce7c8e643455acf072478d5dedff1d0923b5890"
+    },
+    "sites/nordlicht-energie/index.html": {
+      "bytes": 693,
+      "sha256": "f6a604541608e6110757accabb60e92b226edfc04da43771a147d0340dc0918f"
+    },
+    "sites/nordlicht-energie/meta.json": {
+      "bytes": 773,
+      "sha256": "a055061876fa248988d515e3cc7e0ef0b8e096616f4147735fc42d25bef98366"
+    },
+    "sites/nordlicht-energie/team.html": {
+      "bytes": 654,
+      "sha256": "87ea5fb9155ab50e00a30f134fd4cbf389ba569176531bc6de01510212c68219"
+    },
+    "sites/nordsee-maritim/about.html": {
+      "bytes": 692,
+      "sha256": "3f03a8fe0ec8a7a59f1badc97c5ed80f9bc14cc88e427d6304d1b75f2dd7f827"
+    },
+    "sites/nordsee-maritim/contact.html": {
+      "bytes": 701,
+      "sha256": "6b6803ff5bf7482a5ed380023dd804f95384345fdd3666be25c5665832cff186"
+    },
+    "sites/nordsee-maritim/index.html": {
+      "bytes": 668,
+      "sha256": "eb14328b2142f261ae954848d95264363b1e2eb32b3cca2715725058d1bf05bb"
+    },
+    "sites/nordsee-maritim/meta.json": {
+      "bytes": 633,
+      "sha256": "ea68498d80d198f59fdc05e99d603585384c6f9d24b7b72d6ca2454ee9f45bd1"
+    },
+    "sites/nordsee-maritim/team.html": {
+      "bytes": 626,
+      "sha256": "d6aaddc8122984aef39180269883ff96144d6419ceb40501c02d014a6971862c"
+    },
+    "sites/northwind-marine/about.html": {
+      "bytes": 846,
+      "sha256": "6277a11ee84eec385bc24481f59473680895c821b3eab9b44cae2bbbbc62ace5"
+    },
+    "sites/northwind-marine/contact.html": {
+      "bytes": 968,
+      "sha256": "04c90383502e4cd0e65e8ee8ef58b4be18a12983a7b9df27594352aceb6a8c68"
+    },
+    "sites/northwind-marine/index.html": {
+      "bytes": 823,
+      "sha256": "68ac4b25ea6e10b8268fdc34e142a6c8e5459eff175d63f019fd6d712a89768b"
+    },
+    "sites/northwind-marine/meta.json": {
+      "bytes": 1060,
+      "sha256": "0a02a373b3846b1b4db9bd8e1d81fbb8baa155be337ce12b5ae8425eb9254a80"
+    },
+    "sites/northwind-marine/team.html": {
+      "bytes": 874,
+      "sha256": "43738e27cc5ef37b38da03de45e2c9039d7f4c7339c0befc4259ee5bf09f2a36"
+    },
+    "sites/quarry-lane-studios/about.html": {
+      "bytes": 772,
+      "sha256": "fce50a2fce64617b0b1a4f9746f1d64ed7eac0f073c8d7df3cdb04575a4bb093"
+    },
+    "sites/quarry-lane-studios/contact.html": {
+      "bytes": 851,
+      "sha256": "0e1e5e7476fd02e16152bb3e63dac088c3436b999294f758da11f7c566583cde"
+    },
+    "sites/quarry-lane-studios/index.html": {
+      "bytes": 745,
+      "sha256": "c00b62693bd3a18cb49deac3ba935f30e6ba164d86fd293ae6f80dce0d393efa"
+    },
+    "sites/quarry-lane-studios/meta.json": {
+      "bytes": 818,
+      "sha256": "bb801115c575f439fa2cf81e285607d3dced1d0ddca33a218e2eb7c792f70b88"
+    },
+    "sites/quarry-lane-studios/team.html": {
+      "bytes": 732,
+      "sha256": "4998b8f446df837c75b27f97b74eb50545aa85f0f61f421208258f56132adecb"
+    },
+    "sites/rosenheim-papier/about.html": {
+      "bytes": 704,
+      "sha256": "eece57bc1054c04fe64535235a22eb2b0d34d76270259d149d70875de006daf0"
+    },
+    "sites/rosenheim-papier/contact.html": {
+      "bytes": 912,
+      "sha256": "24457809babca17ab68c761483af0c651002239a75dc58dbd5abbf976aae48d5"
+    },
+    "sites/rosenheim-papier/index.html": {
+      "bytes": 682,
+      "sha256": "10e63dd54c723c823fb4b0986161bf10998b3666ba1bc89196ee8e53b3c7f224"
+    },
+    "sites/rosenheim-papier/meta.json": {
+      "bytes": 638,
+      "sha256": "874a12555649759ee9c3ed64165ad90c535bad01727694fe9eca5375a97e2a2b"
+    },
+    "sites/rosenheim-papier/team.html": {
+      "bytes": 574,
+      "sha256": "9c4338f8637ec9a16a8d8ca8af189a4a21848b07c345e2f32c5c62b2e2df4ca8"
+    },
+    "sites/rowan-pike/about.html": {
+      "bytes": 712,
+      "sha256": "29710bb7f59de99874456b46185eca584ac51bce8f9d12aacb80b7604b9affea"
+    },
+    "sites/rowan-pike/contact.html": {
+      "bytes": 922,
+      "sha256": "7b0ebfa2fce7440e384c6643ba442b813bee434d21ca026cdd94aea0fdad310e"
+    },
+    "sites/rowan-pike/index.html": {
+      "bytes": 689,
+      "sha256": "1f68398c27e540626c9f07cd09491d1bc2e33c102cac81e73a8a5a54d2e8a04b"
+    },
+    "sites/rowan-pike/meta.json": {
+      "bytes": 720,
+      "sha256": "2fc33e5fc3643c0eebd1c0f823ac8c642f08dc464b1a91176ec85eb8786ed7ad"
+    },
+    "sites/rowan-pike/team.html": {
+      "bytes": 618,
+      "sha256": "e8e6a9e391389a3e80270a108cae8fd3a880a377ed377b869f448bf04d4e31cf"
+    },
+    "sites/schwarzwald-praezision/about.html": {
+      "bytes": 753,
+      "sha256": "4c4de73cd3048b55b37d575dc01200711235d6cb6bb5528f90c18495c72a2db3"
+    },
+    "sites/schwarzwald-praezision/contact.html": {
+      "bytes": 740,
+      "sha256": "54f02506bc2250ba89cb11e6c40837b04b743f9868a395b5d2f624ef3e93d8f1"
+    },
+    "sites/schwarzwald-praezision/index.html": {
+      "bytes": 732,
+      "sha256": "6feccd9fd2bc1675c8d9cb60d58dc763ae3ef40a0d7c993cc6e3f1466763b7a4"
+    },
+    "sites/schwarzwald-praezision/meta.json": {
+      "bytes": 667,
+      "sha256": "b370e25e9d0f558184645c7620e91b576f54d52bc52c2e26cb3557163e0d72ac"
+    },
+    "sites/schwarzwald-praezision/team.html": {
+      "bytes": 602,
+      "sha256": "5ea745e34592bf7809c12cca4a9fe63992ccbb304edd7b272769146e15e3111d"
+    },
+    "sites/solstice-renewables/about.html": {
+      "bytes": 725,
+      "sha256": "306132456033a9b093ef2f6e06eb04c95b31d036ba26b251c385c684fa446aaf"
+    },
+    "sites/solstice-renewables/contact.html": {
+      "bytes": 834,
+      "sha256": "72e8e3761ad7e58f591542c3867745cb15a89adc75cd8560f3cebc18a56390e4"
+    },
+    "sites/solstice-renewables/index.html": {
+      "bytes": 702,
+      "sha256": "35ed67e07bb758d478c3899c6efca95de2d4c25ddbc42dcca7182eae8ccfe803"
+    },
+    "sites/solstice-renewables/meta.json": {
+      "bytes": 803,
+      "sha256": "dc4a0f91d1ede75e0f74ae8fe7c731c54fc0fe786ce98d628325a910a9696091"
+    },
+    "sites/solstice-renewables/team.html": {
+      "bytes": 721,
+      "sha256": "0e47e6e0d6e148257044f4bf5df938e6695fb85611cf0718ca7b1102e1408cd0"
+    },
+    "sites/tideswell-publishing/about.html": {
+      "bytes": 715,
+      "sha256": "5e27fece9022ba2080364d4546aa2eaf9118144d84f263f3fae68dd4ba805733"
+    },
+    "sites/tideswell-publishing/contact.html": {
+      "bytes": 716,
+      "sha256": "02e28def79fe8936740e64cb0cc816ac3cd9d384508662262b60ba37d479664b"
+    },
+    "sites/tideswell-publishing/index.html": {
+      "bytes": 693,
+      "sha256": "6d5705832e61525342a94d5bc62fc66658eff720d47b83637def159b598665cd"
+    },
+    "sites/tideswell-publishing/meta.json": {
+      "bytes": 643,
+      "sha256": "a938ce12ecc4cd2f104b9a96b020fe1bcc0733a6eb987aca1bda29e7b6fa972d"
+    },
+    "sites/tideswell-publishing/team.html": {
+      "bytes": 565,
+      "sha256": "cc5610c67c2310a04b4cc19dafabb8b99a80d0830e7ec9e64d282d3610c1516b"
+    },
+    "sites/van-dijk-watersport/about.html": {
+      "bytes": 729,
+      "sha256": "d120ef235023dc39e730db5005b5fd62d7f3da41f7f547de7b5d41e2e66f1c69"
+    },
+    "sites/van-dijk-watersport/contact.html": {
+      "bytes": 852,
+      "sha256": "225024d9b8336bd6faf20ae223505367db13db008e82cd0b48eafa09c213d012"
+    },
+    "sites/van-dijk-watersport/index.html": {
+      "bytes": 700,
+      "sha256": "398ef2aa692b9491312f774cad46a4a1617db6ec990628d385eeb2e3ff0ff56d"
+    },
+    "sites/van-dijk-watersport/meta.json": {
+      "bytes": 798,
+      "sha256": "1aa3eae76c21b9d82abdbe50a03e953377c114f548502f46868a22de4f8d2897"
+    },
+    "sites/van-dijk-watersport/team.html": {
+      "bytes": 718,
+      "sha256": "0d0f918d2ef2e85388f0f5ad2fa71d83e298ae47e8efb7ad5be418e563d72e38"
+    },
+    "sites/vlaamse-zorg/about.html": {
+      "bytes": 719,
+      "sha256": "d90fca156250f2042960138ec96e914a738f98efbd93fc30029f2280a3796156"
+    },
+    "sites/vlaamse-zorg/contact.html": {
+      "bytes": 714,
+      "sha256": "ed78fe63ee6d1bf23891c85acdab121cf2d443a5483b51f288a915d5feb6b9fc"
+    },
+    "sites/vlaamse-zorg/index.html": {
+      "bytes": 689,
+      "sha256": "15521a2632adb4e609c44f73e87f06a782d23c6eace7ef5d83ca31df91f73ae3"
+    },
+    "sites/vlaamse-zorg/meta.json": {
+      "bytes": 627,
+      "sha256": "3761401f521453f82f3f02d832a49501e7d82e2200a9f72f11ab4a977c861f84"
+    },
+    "sites/vlaamse-zorg/team.html": {
+      "bytes": 576,
+      "sha256": "3a270679517f1778303c35850f857c61a9d7f0350a0600d74d68621d91cc2ea9"
+    },
+    "sites/vulcan-composites/about.html": {
+      "bytes": 727,
+      "sha256": "d94efc53ea2739a80e1d9ac84f67e63d3ca8dd93b17d62f1c7f115d6977ce2e6"
+    },
+    "sites/vulcan-composites/contact.html": {
+      "bytes": 722,
+      "sha256": "6c862aa3e45af637fbf948f0ec6be888d16c5fea2d01c268a231edde9d07a4b4"
+    },
+    "sites/vulcan-composites/index.html": {
+      "bytes": 704,
+      "sha256": "314858c9fb26850a4c251142e6004e77b328a954d33e659175d3dc473049fa94"
+    },
+    "sites/vulcan-composites/meta.json": {
+      "bytes": 789,
+      "sha256": "c178972d7df473d4f533cac9ae7469e32d152f8a28f07204cd97890c008ac939"
+    },
+    "sites/vulcan-composites/team.html": {
+      "bytes": 648,
+      "sha256": "9a75bce51d989476804274c1c5521bed03d69c99c3210b3520c5858c97569456"
+    },
+    "sites/wienerwald-kueche/about.html": {
+      "bytes": 762,
+      "sha256": "d967c67162bc8af200210359ce0c4ac8c4e39b6a46d7279474646f49b8c9a4ef"
+    },
+    "sites/wienerwald-kueche/contact.html": {
+      "bytes": 868,
+      "sha256": "ce5791803af2adff476c80328b77f25e90064fae57f7245b41347cd1308601e3"
+    },
+    "sites/wienerwald-kueche/index.html": {
+      "bytes": 741,
+      "sha256": "1032e68c89398155557b02982e994f9cbba243db296ef9b17b062ba8cd0430ff"
+    },
+    "sites/wienerwald-kueche/meta.json": {
+      "bytes": 830,
+      "sha256": "2566c23deb14f8d1d46d44fc857bddb8ebd845c23d55957eb6171cac674ef71d"
+    },
+    "sites/wienerwald-kueche/team.html": {
+      "bytes": 751,
+      "sha256": "df165c99283b54cbfa37b04d367e40d150ff4c84a1004c48b21b517caa5eefd6"
+    },
+    "sites/zuiderzee-techniek/about.html": {
+      "bytes": 743,
+      "sha256": "e15ba45c7ac9289a2d10d689e82b042b9e97ceb75b1f024c3a80781c07079220"
+    },
+    "sites/zuiderzee-techniek/contact.html": {
+      "bytes": 859,
+      "sha256": "2c7648eb2f3b3fc2851d65b76849acfdf4b115ff4c363b010ee6e8cc251561f1"
+    },
+    "sites/zuiderzee-techniek/index.html": {
+      "bytes": 715,
+      "sha256": "131170015c5fd9d30f7ccf3445c4c794b79b05498a5ac7cf0653c4835e3b6e21"
+    },
+    "sites/zuiderzee-techniek/meta.json": {
+      "bytes": 813,
+      "sha256": "9fb9e7d9c18d57ba8e36d9c937ea47795450fd13b0d614e69b1e1054b664fe99"
+    },
+    "sites/zuiderzee-techniek/team.html": {
+      "bytes": 770,
+      "sha256": "63228279888a63ce432dab4060ec0fb8ac3527ce9ea649b0c26050daa50bcce3"
+    }
+  }
+}

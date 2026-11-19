@@ -1,0 +1,28 @@
+{
+  "address": "Werkstraße 19, GB",
+  "aliases": [
+    "Cedar and Finch"
+  ],
+  "contact_method": "form",
+  "country": "GB",
+  "description": "Cedar & Finch sells solid-wood furniture from two showrooms in Bristol and Bath.",
+  "domain": "cedarandfinch.example",
+  "employees": 42,
+  "founded": 2011,
+  "generic_emails": [
+    "shop@cedarandfinch.example"
+  ],
+  "industry": "furniture retail",
+  "language": "en",
+  "name": "Cedar & Finch",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Helen Marsh",
+      "role": "Owner"
+    }
+  ],
+  "slug": "cedar-finch"
+}

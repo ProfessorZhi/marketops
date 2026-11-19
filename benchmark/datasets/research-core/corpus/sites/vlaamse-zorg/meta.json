@@ -1,0 +1,28 @@
+{
+  "address": "Harbour Road 14, BE",
+  "aliases": [
+    "Vlaamse Zorg"
+  ],
+  "contact_method": "email",
+  "country": "BE",
+  "description": "Vlaamse Zorg Groep beheert woonzorgcentra in Oost- en West-Vlaanderen.",
+  "domain": "vlaamsezorg.example",
+  "employees": 950,
+  "founded": 1976,
+  "generic_emails": [
+    "info@vlaamsezorg.example"
+  ],
+  "industry": "elderly care",
+  "language": "nl",
+  "name": "Vlaamse Zorg Groep B.V.",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "An Vermeulen",
+      "role": "Directeur-generaal"
+    }
+  ],
+  "slug": "vlaamse-zorg"
+}

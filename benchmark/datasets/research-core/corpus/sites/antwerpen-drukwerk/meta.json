@@ -1,0 +1,28 @@
+{
+  "address": "Harbour Road 14, BE",
+  "aliases": [
+    "Antwerpen Drukwerk"
+  ],
+  "contact_method": "form",
+  "country": "BE",
+  "description": "Antwerpen Drukwerk verzorgt offsetdruk en afwerking voor uitgeverijen.",
+  "domain": "antwerpendrukwerk.example",
+  "employees": 54,
+  "founded": 2008,
+  "generic_emails": [
+    "druk@antwerpendrukwerk.example"
+  ],
+  "industry": "printing",
+  "language": "nl",
+  "name": "Antwerpen Drukwerk B.V.",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Dirk Verhoeven",
+      "role": "Zaakvoerder"
+    }
+  ],
+  "slug": "antwerpen-drukwerk"
+}

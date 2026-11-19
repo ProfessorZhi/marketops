@@ -1,0 +1,28 @@
+{
+  "address": "Industriestraße 7, BE",
+  "aliases": [
+    "Maasvallei"
+  ],
+  "contact_method": "email",
+  "country": "BE",
+  "description": "Maasvallei Transport verzorgt distributie in België en Zuid-Nederland.",
+  "domain": "maasvalleitransport.example",
+  "employees": 220,
+  "founded": 1993,
+  "generic_emails": [
+    "planning@maasvalleitransport.example"
+  ],
+  "industry": "road transport",
+  "language": "nl",
+  "name": "Maasvallei Transport B.V.",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Tom Willems",
+      "role": "Directeur"
+    }
+  ],
+  "slug": "maasvallei-transport"
+}

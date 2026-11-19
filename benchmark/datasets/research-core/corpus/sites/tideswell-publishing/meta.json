@@ -1,0 +1,28 @@
+{
+  "address": "Gewerbepark 5, GB",
+  "aliases": [
+    "Tideswell Press"
+  ],
+  "contact_method": "email",
+  "country": "GB",
+  "description": "Tideswell Publishing produces peer-reviewed journals in the earth sciences.",
+  "domain": "tideswellpub.example",
+  "employees": 55,
+  "founded": 1974,
+  "generic_emails": [
+    "journals@tideswellpub.example"
+  ],
+  "industry": "academic publishing",
+  "language": "en",
+  "name": "Tideswell Publishing",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Margaret Ashby",
+      "role": "Publisher"
+    }
+  ],
+  "slug": "tideswell-publishing"
+}

@@ -1,0 +1,34 @@
+{
+  "address": "Station Lane 3, DE",
+  "aliases": [
+    "Nordlicht"
+  ],
+  "contact_method": "form",
+  "country": "DE",
+  "description": "Nordlicht Energie plant und betreibt Windparks in Schleswig-Holstein.",
+  "domain": "nordlicht-energie.example",
+  "employees": 390,
+  "founded": 2007,
+  "generic_emails": [
+    "post@nordlicht-energie.example"
+  ],
+  "industry": "wind energy",
+  "language": "de",
+  "name": "Nordlicht Energie GmbH",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Frauke Petersen",
+      "role": "Geschäftsführerin"
+    },
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Hauke Thomsen",
+      "role": "Leiter Projektakquise"
+    }
+  ],
+  "slug": "nordlicht-energie"
+}

@@ -1,0 +1,34 @@
+{
+  "address": "Kanaalstraat 8, NL",
+  "aliases": [
+    "Amstel Data"
+  ],
+  "contact_method": "email",
+  "country": "NL",
+  "description": "Amstel Data exploiteert twee datacenters in de regio Amsterdam.",
+  "domain": "amsteldatacentres.example",
+  "employees": 145,
+  "founded": 2014,
+  "generic_emails": [
+    "sales@amsteldatacentres.example"
+  ],
+  "industry": "data centres",
+  "language": "nl",
+  "name": "Amstel Data B.V.",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Ruben Mulder",
+      "role": "Directeur"
+    },
+    {
+      "decision_maker": true,
+      "email": "f.bos@amsteldatacentres.example",
+      "name": "Femke Bos",
+      "role": "Hoofd Sales"
+    }
+  ],
+  "slug": "amstel-data"
+}

@@ -1,0 +1,34 @@
+{
+  "address": "Werkstraße 19, US",
+  "aliases": [
+    "Meridian Health"
+  ],
+  "contact_method": "email",
+  "country": "US",
+  "description": "Meridian Health Partners runs fourteen outpatient clinics in the Midwest.",
+  "domain": "meridianhealth.example",
+  "employees": 310,
+  "founded": 2009,
+  "generic_emails": [
+    "contact@meridianhealth.example"
+  ],
+  "industry": "outpatient healthcare",
+  "language": "en",
+  "name": "Meridian Health Partners",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": "g.okafor@meridianhealth.example",
+      "name": "Grace Okafor",
+      "role": "Chief Operating Officer"
+    },
+    {
+      "decision_maker": false,
+      "email": null,
+      "name": "Thomas Reed",
+      "role": "Director of Marketing"
+    }
+  ],
+  "slug": "meridian-health"
+}

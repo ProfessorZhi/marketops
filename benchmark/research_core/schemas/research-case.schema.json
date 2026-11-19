@@ -1,0 +1,530 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marketops.dev/schemas/research-core/research-case.schema.json",
+  "title": "MarketOps Research Core Test Case",
+  "description": "One provider-independent research task. The envelope is identical for every stage; `input` and `gold` are stage-specific and validated by the stage branches below. A case never names a provider: the same case is run against a mock, a real API, or a local tool without editing.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "case_id", "schema_version", "dataset_version", "stage", "split", "origin",
+    "market", "language", "input", "gold", "label_status", "provenance", "notes"
+  ],
+  "properties": {
+    "case_id": {
+      "type": "string",
+      "pattern": "^RC-[A-Z0-9-]+-[0-9]{3}$",
+      "description": "Stable for the life of the case. Never reused for different content: a changed expectation is a new id."
+    },
+    "schema_version": { "const": "marketops.research.case.v1" },
+    "dataset_version": {
+      "type": "string",
+      "pattern": "^research-core(-[a-z]+)?-[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Semantic version of the dataset. The optional family word keeps the synthetic and public-evidence benchmarks from ever sharing a version string."
+    },
+    "stage": {
+      "enum": ["brief", "search", "fetch", "extraction", "qualification", "identity", "evidence", "channel", "e2e"]
+    },
+    "split": { "enum": ["development", "validation", "holdout"] },
+    "origin": {
+      "enum": ["synthetic", "public_real_world", "bruce_derived"],
+      "description": "synthetic = authored here; public_real_world = a real public page/site; bruce_derived = a real work pattern, synthetic content."
+    },
+    "market": { "type": "string", "minLength": 1 },
+    "language": { "type": "string", "pattern": "^[a-z]{2}$" },
+    "input": { "type": "object" },
+    "gold": { "type": "object" },
+    "label_status": { "enum": ["draft", "human_verified", "disputed"] },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_ref", "captured_at", "content_sha256", "notes"],
+      "properties": {
+        "source_ref": { "type": "string", "minLength": 1 },
+        "captured_at": { "type": "string", "format": "date-time" },
+        "content_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+        "notes": { "type": "string" }
+      }
+    },
+    "notes": { "type": "string" }
+  },
+  "allOf": [
+    { "if": { "properties": { "stage": { "const": "brief" } }, "required": ["stage"] },
+      "then": { "$ref": "#/$defs/briefCase" } },
+    { "if": { "properties": { "stage": { "const": "search" } }, "required": ["stage"] },
+      "then": { "$ref": "#/$defs/searchCase" } },
+    { "if": { "properties": { "stage": { "const": "fetch" } }, "required": ["stage"] },
+      "then": { "$ref": "#/$defs/fetchCase" } },
+    { "if": { "properties": { "stage": { "const": "extraction" } }, "required": ["stage"] },
+      "then": { "$ref": "#/$defs/extractionCase" } },
+    { "if": { "properties": { "stage": { "const": "qualification" } }, "required": ["stage"] },
+      "then": { "$ref": "#/$defs/qualificationCase" } },
+    { "if": { "properties": { "stage": { "const": "identity" } }, "required": ["stage"] },
+      "then": { "$ref": "#/$defs/identityCase" } },
+    { "if": { "properties": { "stage": { "const": "evidence" } }, "required": ["stage"] },
+      "then": { "$ref": "#/$defs/evidenceCase" } },
+    { "if": { "properties": { "stage": { "const": "channel" } }, "required": ["stage"] },
+      "then": { "$ref": "#/$defs/channelCase" } },
+    { "if": { "properties": { "stage": { "const": "e2e" } }, "required": ["stage"] },
+      "then": { "$ref": "#/$defs/e2eCase" } }
+  ],
+  "$defs": {
+    "briefCase": {
+      "properties": {
+        "stage": { "const": "brief" },
+        "case_id": { "pattern": "^RC-BRIEF-[0-9]{3}$" },
+        "input": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["raw_brief"],
+          "properties": {
+            "raw_brief": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["product", "description", "offer", "markets", "languages", "goal"],
+              "properties": {
+                "product": { "type": "string" },
+                "description": { "type": "string" },
+                "offer": { "type": "string" },
+                "markets": { "type": "array", "items": { "type": "string" } },
+                "languages": { "type": "array", "items": { "type": "string" } },
+                "goal": { "type": "string" }
+              }
+            }
+          }
+        },
+        "gold": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["icp_attributes", "personas", "pain_points", "channels", "queries", "exclusions", "forbidden_claims"],
+          "properties": {
+            "icp_attributes": { "type": "array", "minItems": 3, "items": { "type": "string" } },
+            "personas": { "type": "array", "minItems": 2, "items": { "type": "string" } },
+            "pain_points": { "type": "array", "minItems": 2, "items": { "type": "string" } },
+            "channels": { "type": "array", "minItems": 2, "items": { "type": "string" } },
+            "queries": { "type": "array", "minItems": 3, "items": { "type": "string" } },
+            "exclusions": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+            "forbidden_claims": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+
+    "searchCase": {
+      "properties": {
+        "stage": { "const": "search" },
+        "case_id": { "pattern": "^RC-SRCH(-[A-Z0-9]+)*-[0-9]{3}$" },
+        "input": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["query", "intent", "country_code", "language_code", "top_k"],
+          "properties": {
+            "query": { "type": "string", "minLength": 3 },
+            "intent": {
+              "enum": [
+                "official_website", "contact_page", "team_page", "executive",
+                "youtube_channel", "youtube_creator", "exact_company", "long_tail",
+                "multilingual", "country_limited", "parent_subsidiary", "disambiguation",
+                "competitor", "identity_link", "official_source_priority",
+                "product_catalogue", "pdf_document", "news_article", "job_posting",
+                "social_profile", "local_business"
+              ]
+            },
+            "country_code": { "type": "string", "description": "Sent to the provider; empty string means 'sent none'." },
+            "language_code": { "type": "string" },
+            "top_k": { "type": "integer", "minimum": 1, "maximum": 50 },
+            "expected_result_kind": { "enum": ["results", "no_results", "irrelevant_only"] }
+          }
+        },
+        "gold": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["expected_domains", "expected_urls", "expected_entities", "excluded_domains", "source_refs"],
+          "properties": {
+            "expected_domains": { "type": "array", "items": { "type": "string" } },
+            "expected_urls": { "type": "array", "items": { "type": "string" } },
+            "expected_entities": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name", "entity_type"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "entity_type": { "enum": ["organisation", "person", "channel", "page"] }
+                }
+              }
+            },
+            "excluded_domains": { "type": "array", "items": { "type": "string" } },
+            "source_refs": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+
+    "fetchCase": {
+      "properties": {
+        "stage": { "const": "fetch" },
+        "case_id": { "pattern": "^RC-FECH(-[A-Z0-9]+)*-[0-9]{3}$" },
+        "input": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["url", "timeout_seconds", "expected_outcome"],
+          "properties": {
+            "url": { "type": "string" },
+            "timeout_seconds": { "type": "integer", "minimum": 5, "maximum": 180 },
+            "expected_outcome": { "enum": ["content", "no_content"] },
+            "final_url_expected": { "type": ["string", "null"] }
+          }
+        },
+        "gold": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["page_kind", "expected_text_markers", "expected_emails", "expected_persons", "expected_links", "min_text_chars"],
+          "properties": {
+            "page_kind": { "type": "string" },
+            "requires_js": { "type": "boolean" },
+            "expected_text_markers": { "type": "array", "items": { "type": "string" } },
+            "expected_emails": { "type": "array", "items": { "type": "string" } },
+            "expected_persons": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name", "role"],
+                "properties": { "name": { "type": "string" }, "role": { "type": "string" } }
+              }
+            },
+            "expected_links": { "type": "array", "items": { "type": "string" } },
+            "min_text_chars": { "type": "integer", "minimum": 0 },
+            "forbidden_strings": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+
+    "extractionCase": {
+      "properties": {
+        "stage": { "const": "extraction" },
+        "case_id": { "pattern": "^RC-EXTR(-[A-Z0-9]+)*-[0-9]{3}$" },
+        "input": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["snapshot_path", "source_url", "company"],
+          "properties": {
+            "snapshot_path": { "type": "string", "description": "Repository-relative path to the page bytes the extractor reads." },
+            "source_url": { "type": "string" },
+            "company": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "domain"],
+              "properties": { "name": { "type": "string" }, "domain": { "type": "string" } }
+            }
+          }
+        },
+        "gold": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["companies", "people", "emails", "expect_no_personal_email"],
+          "properties": {
+            "companies": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name", "domain"],
+                "properties": { "name": { "type": "string" }, "domain": { "type": "string" } }
+              }
+            },
+            "people": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name", "role", "company", "decision_maker", "evidence_text"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "role": { "type": "string" },
+                  "company": { "type": "string" },
+                  "decision_maker": { "type": "boolean" },
+                  "evidence_text": { "type": "string", "minLength": 5 }
+                }
+              }
+            },
+            "emails": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["value", "kind", "person"],
+                "properties": {
+                  "value": { "type": "string" },
+                  "kind": { "enum": ["personal", "role", "generic", "contact_form", "phone"] },
+                  "person": { "type": ["string", "null"] },
+                  "evidence_text": { "type": "string" }
+                }
+              }
+            },
+            "expect_no_personal_email": { "type": "boolean" },
+            "forbidden_emails": { "type": "array", "items": { "type": "string" } },
+            "missing_evidence": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+
+    "qualificationCase": {
+      "properties": {
+        "stage": { "const": "qualification" },
+        "case_id": { "pattern": "^RC-QUAL(-[A-Z0-9]+)*-[0-9]{3}$" },
+        "input": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["prospect", "icp"],
+          "properties": {
+            "prospect": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "domain", "country", "industry", "employees", "evidence"],
+              "properties": {
+                "name": { "type": "string" },
+                "domain": { "type": "string" },
+                "country": { "type": "string" },
+                "industry": { "type": "string" },
+                "employees": { "type": ["integer", "null"] },
+                "evidence": { "type": "array", "items": { "type": "string" }, "description": "Evidence ids backing the facts above." },
+                "record_type": {
+                  "enum": ["company", "directory", "marketplace", "aggregator"],
+                  "description": "What the record is. Only 'company' can be qualified as a prospect; absent means 'company'."
+                },
+                "domain_status": {
+                  "enum": ["live", "placeholder", "parked"],
+                  "description": "What the domain serves. Absent means 'live'."
+                },
+                "conflicts": {
+                  "type": "array", "items": { "type": "string" },
+                  "description": "Facts on the cited pages that contradict each other."
+                },
+                "evidence_notes": {
+                  "type": "object", "additionalProperties": { "type": "string" },
+                  "description": "Evidence id -> the quoted text it rests on, so the citation is auditable."
+                }
+              }
+            },
+            "icp": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["countries", "industries", "employees_min", "employees_max", "target_roles", "exclusions"],
+              "properties": {
+                "countries": { "type": "array", "items": { "type": "string" } },
+                "industries": { "type": "array", "items": { "type": "string" } },
+                "employees_min": { "type": "integer", "minimum": 0 },
+                "employees_max": { "type": "integer", "minimum": 0 },
+                "target_roles": { "type": "array", "items": { "type": "string" } },
+                "exclusions": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
+        },
+        "gold": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["qualification_status", "icp_match", "relevance", "reason", "supporting_evidence", "missing_evidence"],
+          "properties": {
+            "qualification_status": {
+              "enum": ["strong", "partial", "weak", "not_qualified", "excluded",
+                       "insufficient_evidence", "duplicate", "out_of_scope",
+                       "unverified_identity", "needs_review"]
+            },
+            "icp_match": { "type": "boolean" },
+            "relevance": { "type": "integer", "minimum": 0, "maximum": 3 },
+            "reason": { "type": "string" },
+            "supporting_evidence": { "type": "array", "items": { "type": "string" } },
+            "missing_evidence": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+
+    "identityCase": {
+      "properties": {
+        "stage": { "const": "identity" },
+        "case_id": { "pattern": "^RC-IDNT(-[A-Z0-9]+)*-[0-9]{3}$" },
+        "input": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["records"],
+          "properties": {
+            "records": {
+              "type": "array",
+              "minItems": 2,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["record_id", "name", "domain", "country"],
+                "properties": {
+                  "record_id": { "type": "string" },
+                  "name": { "type": "string" },
+                  "domain": { "type": ["string", "null"] },
+                  "country": { "type": "string" },
+                  "aliases": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            }
+          }
+        },
+        "gold": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["clusters", "relations"],
+          "properties": {
+            "clusters": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+              "description": "Records that are the same real-world organisation."
+            },
+            "relations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["parent", "child", "kind"],
+                "properties": {
+                  "parent": { "type": "string" },
+                  "child": { "type": "string" },
+                  "kind": { "enum": ["parent_of", "branch_of"] }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "evidenceCase": {
+      "properties": {
+        "stage": { "const": "evidence" },
+        "case_id": { "pattern": "^RC-EVID(-[A-Z0-9]+)*-[0-9]{3}$" },
+        "input": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["evidence"],
+          "properties": {
+            "evidence": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["evidence_id", "source_url", "source_type", "retrieved_at", "snapshot_path", "sha256", "extracted_fields", "entity_refs", "upstream_refs"],
+              "properties": {
+                "evidence_id": { "type": "string" },
+                "source_url": { "type": "string" },
+                "source_type": { "enum": ["official_site", "official_youtube", "public_registry", "press_release", "document", "search_snippet"] },
+                "retrieved_at": { "type": "string", "format": "date-time" },
+                "snapshot_path": { "type": "string" },
+                "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+                "extracted_fields": { "type": "object", "additionalProperties": true },
+                "entity_refs": { "type": "array", "items": { "type": "string" } },
+                "upstream_refs": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
+        },
+        "gold": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["snapshot_exists", "sha256_matches", "fields_traceable", "entity_ref", "stale_after_days", "contradicts"],
+          "properties": {
+            "snapshot_exists": { "type": "boolean" },
+            "sha256_matches": { "type": "boolean" },
+            "fields_traceable": { "type": "array", "items": { "type": "string" }, "description": "Fields whose value must appear verbatim in the snapshot." },
+            "entity_ref": { "type": "string" },
+            "stale_after_days": { "type": ["integer", "null"] },
+            "contradicts": { "type": "array", "items": { "type": "string" }, "description": "Evidence ids that assert a different value for the same field." }
+          }
+        }
+      }
+    },
+
+    "channelCase": {
+      "properties": {
+        "stage": { "const": "channel" },
+        "case_id": { "pattern": "^RC-CHAN(-[A-Z0-9]+)*-[0-9]{3}$" },
+        "input": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["brief_ref", "channels"],
+          "properties": {
+            "brief_ref": { "type": "string" },
+            "channels": {
+              "type": "array",
+              "minItems": 2,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["channel_id", "name", "hypothesis", "reach", "cost", "prior"],
+                "properties": {
+                  "channel_id": { "type": "string" },
+                  "name": { "type": "string" },
+                  "hypothesis": { "type": "string" },
+                  "reach": { "type": "integer", "minimum": 0, "maximum": 3 },
+                  "cost": { "type": "integer", "minimum": 0, "maximum": 3 },
+                  "prior": { "type": "number", "minimum": 0, "maximum": 1 }
+                }
+              }
+            }
+          }
+        },
+        "gold": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ranked_channels", "acceptable_set", "rejected"],
+          "properties": {
+            "ranked_channels": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+            "acceptable_set": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+            "rejected": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    },
+
+    "e2eCase": {
+      "properties": {
+        "stage": { "const": "e2e" },
+        "case_id": { "pattern": "^RC-E2E(-[A-Z0-9]+)*-[0-9]{3}$" },
+        "input": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["brief_ref", "max_prospects", "corpus"],
+          "properties": {
+            "brief_ref": { "type": "string" },
+            "max_prospects": { "type": "integer", "minimum": 1, "maximum": 50 },
+            "corpus": { "type": "string", "description": "Which deterministic synthetic web the mock providers serve." }
+          }
+        },
+        "gold": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["expected_prospects", "expected_gaps", "forbidden_claims"],
+          "properties": {
+            "expected_prospects": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["company", "expected_status", "has_person", "has_email"],
+                "properties": {
+                  "company": { "type": "string" },
+                  "expected_status": { "enum": ["strong", "partial", "weak", "not_qualified", "excluded", "insufficient_evidence", "duplicate"] },
+                  "has_person": { "type": "boolean" },
+                  "has_email": { "type": "boolean" }
+                }
+              }
+            },
+            "expected_gaps": { "type": "array", "items": { "type": "string" } },
+            "forbidden_claims": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+          }
+        }
+      }
+    }
+  }
+}

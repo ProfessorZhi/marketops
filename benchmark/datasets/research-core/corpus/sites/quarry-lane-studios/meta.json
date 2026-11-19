@@ -1,0 +1,34 @@
+{
+  "address": "Industriestraße 7, GB",
+  "aliases": [
+    "Quarry Lane"
+  ],
+  "contact_method": "email",
+  "country": "GB",
+  "description": "Quarry Lane Studios produces brand films and documentary series for charities and cultural institutions.",
+  "domain": "quarrylane.example",
+  "employees": 24,
+  "founded": 2015,
+  "generic_emails": [
+    "studio@quarrylane.example"
+  ],
+  "industry": "video production",
+  "language": "en",
+  "name": "Quarry Lane Studios",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": "imogen@quarrylane.example",
+      "name": "Imogen Price",
+      "role": "Creative Director"
+    },
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Ravi Menon",
+      "role": "Executive Producer"
+    }
+  ],
+  "slug": "quarry-lane-studios"
+}

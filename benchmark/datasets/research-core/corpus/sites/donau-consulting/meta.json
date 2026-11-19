@@ -1,0 +1,28 @@
+{
+  "address": "Havenweg 22, AT",
+  "aliases": [
+    "Donau Consulting"
+  ],
+  "contact_method": "form",
+  "country": "AT",
+  "description": "Donau Consulting berät Industrieunternehmen bei Prozessoptimierung.",
+  "domain": "donau-consulting.example",
+  "employees": 75,
+  "founded": 2010,
+  "generic_emails": [
+    "office@donau-consulting.example"
+  ],
+  "industry": "management consulting",
+  "language": "de",
+  "name": "Donau Consulting GmbH",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Elisabeth Wagner",
+      "role": "Managing Partner"
+    }
+  ],
+  "slug": "donau-consulting"
+}

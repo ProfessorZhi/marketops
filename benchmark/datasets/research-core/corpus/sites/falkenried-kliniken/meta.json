@@ -1,0 +1,28 @@
+{
+  "address": "Gewerbepark 5, DE",
+  "aliases": [
+    "Falkenried"
+  ],
+  "contact_method": "email",
+  "country": "DE",
+  "description": "Falkenried Kliniken betreibt vier private Fachkliniken in Hamburg und Bremen.",
+  "domain": "falkenried-kliniken.example",
+  "employees": 720,
+  "founded": 1985,
+  "generic_emails": [
+    "verwaltung@falkenried-kliniken.example"
+  ],
+  "industry": "private clinics",
+  "language": "de",
+  "name": "Falkenried Kliniken GmbH",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Dr. Ulrike Falkenried",
+      "role": "Geschäftsführerin"
+    }
+  ],
+  "slug": "falkenried-kliniken"
+}

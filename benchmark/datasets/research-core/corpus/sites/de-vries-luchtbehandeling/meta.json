@@ -1,0 +1,28 @@
+{
+  "address": "Kanaalstraat 8, NL",
+  "aliases": [
+    "De Vries Luchtbehandeling"
+  ],
+  "contact_method": "form",
+  "country": "NL",
+  "description": "De Vries Luchtbehandeling installeert klimaatinstallaties voor kantoren en scholen.",
+  "domain": "devrieslucht.example",
+  "employees": 92,
+  "founded": 1988,
+  "generic_emails": [
+    "service@devrieslucht.example"
+  ],
+  "industry": "HVAC",
+  "language": "nl",
+  "name": "De Vries Luchtbehandeling",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Hans de Vries",
+      "role": "Directeur"
+    }
+  ],
+  "slug": "de-vries-luchtbehandeling"
+}

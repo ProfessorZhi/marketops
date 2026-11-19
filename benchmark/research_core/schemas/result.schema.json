@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://marketops.dev/schemas/research-core/result.schema.json",
+  "title": "MarketOps Research Core Result Row",
+  "description": "One JSONL row: one case, one provider, one run. A row always states which of six outcomes happened. `empty` (the provider ran and legitimately returned nothing), `failed` (transport/provider error) and `not_configured` (no credential) are three different facts and are never collapsed into one another.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_id", "case_id", "stage", "provider", "model", "configuration",
+    "started_at", "latency_s", "status", "output", "gold", "evaluation",
+    "error", "cost_usd", "provenance"
+  ],
+  "properties": {
+    "run_id": { "type": "string", "pattern": "^rc-[0-9]{8}T[0-9]{6}-[a-z0-9]{6}$" },
+    "case_id": { "type": "string" },
+    "stage": { "enum": ["brief", "search", "fetch", "extraction", "qualification", "identity", "evidence", "channel", "e2e"] },
+    "provider": { "type": "string", "minLength": 1 },
+    "model": { "type": ["string", "null"] },
+    "configuration": { "type": "object" },
+    "started_at": { "type": "string", "format": "date-time" },
+    "latency_s": { "type": ["number", "null"], "minimum": 0 },
+    "status": {
+      "enum": ["ok", "empty", "failed", "not_configured", "timeout", "invalid_output", "skipped"],
+      "description": "ok = ran and produced a scoreable answer. empty = ran, answered with nothing (scoreable: for a no-results case this is correct). failed = provider/transport error. not_configured = no credential/endpoint. timeout = budget exceeded. invalid_output = ran but violated the adapter contract. skipped = not attempted (precondition unmet)."
+    },
+    "output": {
+      "type": ["object", "null"],
+      "description": "Normalised provider output. Null only when no output exists (failed/not_configured/timeout)."
+    },
+    "gold": { "type": ["object", "null"] },
+    "evaluation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scored", "metrics", "detail"],
+      "properties": {
+        "scored": { "type": "boolean", "description": "false when the row must not enter an aggregate (not_configured, failed, skipped)." },
+        "metrics": { "type": "object" },
+        "detail": { "type": "string" }
+      }
+    },
+    "error": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["kind", "message"],
+      "properties": {
+        "kind": { "enum": ["transport", "http", "parse", "contract", "timeout", "credential", "internal"] },
+        "message": { "type": "string" },
+        "http_status": { "type": ["integer", "null"] }
+      }
+    },
+    "cost_usd": { "type": "number", "minimum": 0 },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dataset_version", "dataset_checksum", "case_sha256", "host", "python"],
+      "properties": {
+        "dataset_version": { "type": "string" },
+        "dataset_checksum": { "type": "string" },
+        "case_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "host": { "type": "string" },
+        "python": { "type": "string" }
+      }
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "address": "Werkstraße 19, NL",
+  "aliases": [
+    "Van Dijk"
+  ],
+  "contact_method": "email",
+  "country": "NL",
+  "description": "Van Dijk Watersport levert bootbenodigdheden en dekbeslag aan werven in Zeeland.",
+  "domain": "vandijkwatersport.example",
+  "employees": 48,
+  "founded": 1983,
+  "generic_emails": [
+    "info@vandijkwatersport.example"
+  ],
+  "industry": "marine equipment",
+  "language": "nl",
+  "name": "Van Dijk Watersport",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Willem van Dijk",
+      "role": "Directeur"
+    },
+    {
+      "decision_maker": true,
+      "email": "s.dewit@vandijkwatersport.example",
+      "name": "Sanne de Wit",
+      "role": "Hoofd Inkoop"
+    }
+  ],
+  "slug": "van-dijk-watersport"
+}

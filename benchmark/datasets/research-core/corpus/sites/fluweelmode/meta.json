@@ -1,0 +1,28 @@
+{
+  "address": "Industriestraße 7, BE",
+  "aliases": [
+    "Fluweelmode"
+  ],
+  "contact_method": "form",
+  "country": "BE",
+  "description": "Fluweelmode verkoopt dameskleding aan boetieks in Vlaanderen.",
+  "domain": "fluweelmode.example",
+  "employees": 38,
+  "founded": 2013,
+  "generic_emails": [
+    "hallo@fluweelmode.example"
+  ],
+  "industry": "fashion wholesale",
+  "language": "nl",
+  "name": "Fluweelmode B.V.",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Elke Peeters",
+      "role": "Zaakvoerder"
+    }
+  ],
+  "slug": "fluweelmode"
+}

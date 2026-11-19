@@ -1,0 +1,28 @@
+{
+  "address": "Station Lane 3, DE",
+  "aliases": [
+    "Schwarzwald Präzision"
+  ],
+  "contact_method": "email",
+  "country": "DE",
+  "description": "Schwarzwald Präzision fertigt Drehteile aus Edelstahl für die Medizintechnik.",
+  "domain": "sw-praezision.example",
+  "employees": 150,
+  "founded": 1978,
+  "generic_emails": [
+    "anfrage@sw-praezision.example"
+  ],
+  "industry": "precision parts",
+  "language": "de",
+  "name": "Schwarzwald Präzision GmbH",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Thomas Benz",
+      "role": "Geschäftsführer"
+    }
+  ],
+  "slug": "schwarzwald-praezision"
+}

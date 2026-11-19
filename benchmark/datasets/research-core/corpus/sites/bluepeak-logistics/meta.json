@@ -1,0 +1,34 @@
+{
+  "address": "Gewerbepark 5, US",
+  "aliases": [
+    "Bluepeak"
+  ],
+  "contact_method": "email",
+  "country": "US",
+  "description": "Bluepeak Logistics moves container freight between the US Gulf Coast and Europe. It operates three bonded warehouses and a customs brokerage.",
+  "domain": "bluepeaklogistics.example",
+  "employees": 640,
+  "founded": 2004,
+  "generic_emails": [
+    "hello@bluepeaklogistics.example"
+  ],
+  "industry": "freight forwarding",
+  "language": "en",
+  "name": "Bluepeak Logistics Inc",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Daniel Reyes",
+      "role": "Chief Executive Officer"
+    },
+    {
+      "decision_maker": true,
+      "email": "s.whitfield@bluepeaklogistics.example",
+      "name": "Susan Whitfield",
+      "role": "VP Business Development"
+    }
+  ],
+  "slug": "bluepeak-logistics"
+}

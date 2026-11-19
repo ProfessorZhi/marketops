@@ -1,0 +1,28 @@
+{
+  "address": "Kanaalstraat 8, NL",
+  "aliases": [
+    "Hollands Groen"
+  ],
+  "contact_method": "email",
+  "country": "NL",
+  "description": "Hollands Groen levert substraten en irrigatiesystemen aan tuinders.",
+  "domain": "hollandsgroen.example",
+  "employees": 260,
+  "founded": 1997,
+  "generic_emails": [
+    "verkoop@hollandsgroen.example"
+  ],
+  "industry": "horticulture supplies",
+  "language": "nl",
+  "name": "Hollands Groen B.V.",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Bram Jansen",
+      "role": "Algemeen Directeur"
+    }
+  ],
+  "slug": "hollands-groen"
+}

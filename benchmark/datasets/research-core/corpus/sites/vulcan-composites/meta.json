@@ -1,0 +1,34 @@
+{
+  "address": "Werkstraße 19, US",
+  "aliases": [
+    "Vulcan Composites"
+  ],
+  "contact_method": "email",
+  "country": "US",
+  "description": "Vulcan Composites manufactures carbon-fibre structures for business aircraft.",
+  "domain": "vulcancomp.example",
+  "employees": 870,
+  "founded": 1989,
+  "generic_emails": [
+    "suppliers@vulcancomp.example"
+  ],
+  "industry": "aerospace materials",
+  "language": "en",
+  "name": "Vulcan Composites Corp",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Robert Hale",
+      "role": "Chief Executive Officer"
+    },
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Lena Ortiz",
+      "role": "Director of Supply Chain"
+    }
+  ],
+  "slug": "vulcan-composites"
+}

@@ -1,0 +1,34 @@
+{
+  "address": "Kanaalstraat 8, GB",
+  "aliases": [
+    "Rowan and Pike"
+  ],
+  "contact_method": "form",
+  "country": "GB",
+  "description": "Rowan & Pike Architects designs civic and education buildings.",
+  "domain": "rowanpike.example",
+  "employees": 61,
+  "founded": 2001,
+  "generic_emails": [
+    "mail@rowanpike.example"
+  ],
+  "industry": "architecture",
+  "language": "en",
+  "name": "Rowan & Pike Architects",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Charlotte Rowan",
+      "role": "Partner"
+    },
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "James Pike",
+      "role": "Partner"
+    }
+  ],
+  "slug": "rowan-pike"
+}

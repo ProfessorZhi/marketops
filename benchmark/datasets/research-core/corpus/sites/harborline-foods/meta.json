@@ -1,0 +1,34 @@
+{
+  "address": "Dock Street 41, IE",
+  "aliases": [
+    "Harborline"
+  ],
+  "contact_method": "email",
+  "country": "IE",
+  "description": "Harborline Foods distributes chilled and frozen produce to restaurants and hotels across Leinster and Munster.",
+  "domain": "harborlinefoods.example",
+  "employees": 95,
+  "founded": 1996,
+  "generic_emails": [
+    "sales@harborlinefoods.example"
+  ],
+  "industry": "food distribution",
+  "language": "en",
+  "name": "Harborline Foods",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": "aoife@harborlinefoods.example",
+      "name": "Aoife Brennan",
+      "role": "Founder & Managing Director"
+    },
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Cormac Doyle",
+      "role": "Sales Director"
+    }
+  ],
+  "slug": "harborline-foods"
+}

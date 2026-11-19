@@ -1,0 +1,34 @@
+{
+  "address": "Havenweg 22, DE",
+  "aliases": [
+    "Lindenhof"
+  ],
+  "contact_method": "email",
+  "country": "DE",
+  "description": "Lindenhof Logistik betreibt Kontraktlogistik-Standorte in Nordrhein-Westfalen.",
+  "domain": "lindenhof-logistik.example",
+  "employees": 480,
+  "founded": 1991,
+  "generic_emails": [
+    "kontakt@lindenhof-logistik.example"
+  ],
+  "industry": "logistics",
+  "language": "de",
+  "name": "Lindenhof Logistik GmbH",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Andreas Lindenhof",
+      "role": "Geschäftsführer"
+    },
+    {
+      "decision_maker": true,
+      "email": "m.hoffmann@lindenhof-logistik.example",
+      "name": "Meike Hoffmann",
+      "role": "Leiterin Geschäftsentwicklung"
+    }
+  ],
+  "slug": "lindenhof-logistik"
+}

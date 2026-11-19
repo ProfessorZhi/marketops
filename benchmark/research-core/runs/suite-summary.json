@@ -1,0 +1,283 @@
+{
+  "brief": {
+    "provider": "mock_brief_rules",
+    "run_id": "rc-20261119T112735-99633b",
+    "counts": {
+      "cases": 3,
+      "ok": 9,
+      "empty": 0,
+      "failed": 0,
+      "not_configured": 0,
+      "timeout": 0,
+      "invalid_output": 0,
+      "skipped": 0,
+      "scored": 9
+    },
+    "metrics": {
+      "overall_coverage": 1.0,
+      "forbidden_claims_leaked": 0,
+      "coverage": {
+        "channels": 1.0,
+        "exclusions": 1.0,
+        "icp_attributes": 1.0,
+        "pain_points": 1.0,
+        "personas": 1.0,
+        "queries": 1.0
+      },
+      "scored_cases": 3,
+      "repeat_identical": true
+    },
+    "manifest_path": "/home/fjd/projects/marketops-local-runtime-lab/benchmark/research-core/runs/rc-20261119T112735-99633b-mock_brief_rules.manifest.json",
+    "results_path": "/home/fjd/projects/marketops-local-runtime-lab/benchmark/research-core/runs/rc-20261119T112735-99633b-mock_brief_rules.jsonl",
+    "dataset_checksum": "e129908a170db961124cfcbf0aff6a9edcb508f418138853cb754e3f04161632",
+    "dataset_version": "research-core-1.0.0"
+  },
+  "search": {
+    "provider": "mock_serper",
+    "run_id": "rc-20261119T112735-f1408e",
+    "counts": {
+      "cases": 47,
+      "ok": 138,
+      "empty": 3,
+      "failed": 0,
+      "not_configured": 0,
+      "timeout": 0,
+      "invalid_output": 0,
+      "skipped": 0,
+      "scored": 141
+    },
+    "metrics": {
+      "results": 57,
+      "precision_at_5": 0.2174,
+      "precision_at_10": 0.1087,
+      "recall_at_10": 1.0,
+      "mrr": 0.9787,
+      "domain_hit_rate": 1.0,
+      "unique_discovery_rate": 1.0,
+      "excluded_hits": 0,
+      "duplicate_rate": 0.0,
+      "correct_shape": 1.0,
+      "scored_cases": 47,
+      "repeat_identical": true
+    },
+    "manifest_path": "/home/fjd/projects/marketops-local-runtime-lab/benchmark/research-core/runs/rc-20261119T112735-f1408e-mock_serper.manifest.json",
+    "results_path": "/home/fjd/projects/marketops-local-runtime-lab/benchmark/research-core/runs/rc-20261119T112735-f1408e-mock_serper.jsonl",
+    "dataset_checksum": "2526ff4c6c4ecc923c2fbb01129b5f115824742699b3a655ecb9a25319279e25",
+    "dataset_version": "research-core-1.0.0"
+  },
+  "fetch": {
+    "provider": "mock_local_http",
+    "run_id": "rc-20261119T112735-34177d",
+    "counts": {
+      "cases": 33,
+      "ok": 84,
+      "empty": 15,
+      "failed": 0,
+      "not_configured": 0,
+      "timeout": 0,
+      "invalid_output": 0,
+      "skipped": 0,
+      "scored": 99
+    },
+    "metrics": {
+      "text_length": 173.5152,
+      "marker_recall": 1.0,
+      "extraction_completeness": 1.0,
+      "false_success": 0.0,
+      "forbidden_hit": 0.0,
+      "email_recall": 1.0,
+      "person_recall": 1.0,
+      "link_recall": 1.0,
+      "final_url_ok": 1.0,
+      "correct_no_content": 1.0,
+      "scored_cases": 33,
+      "repeat_identical": true
+    },
+    "manifest_path": "/home/fjd/projects/marketops-local-runtime-lab/benchmark/research-core/runs/rc-20261119T112735-34177d-mock_local_http.manifest.json",
+    "results_path": "/home/fjd/projects/marketops-local-runtime-lab/benchmark/research-core/runs/rc-20261119T112735-34177d-mock_local_http.jsonl",
+    "dataset_checksum": "ba0871a9f4d22e864ff9c54888b5f56109c3b9509eb03cfb6a74970e24a39949",
+    "dataset_version": "research-core-1.0.0"
+  },
+  "extraction": {
+    "provider": "mock_extractor_regex",
+    "run_id": "rc-20261119T112736-ebeed2",
+    "counts": {
+      "cases": 30,
+      "ok": 90,
+      "empty": 0,
+      "failed": 0,
+      "not_configured": 0,
+      "timeout": 0,
+      "invalid_output": 0,
+      "skipped": 0,
+      "scored": 90
+    },
+    "metrics": {
+      "company_recall": 1.0,
+      "person_recall": 1.0,
+      "person_precision": 1.0,
+      "person_hallucinations": 0,
+      "forbidden_email_hits": 0,
+      "invented_personal_emails": 0,
+      "decision_maker_accuracy": 1.0,
+      "gap_honesty": 1.0,
+      "email_recall": 1.0,
+      "email_kind_accuracy": 1.0,
+      "scored_cases": 30,
+      "repeat_identical": true
+    },
+    "manifest_path": "/home/fjd/projects/marketops-local-runtime-lab/benchmark/research-core/runs/rc-20261119T112736-ebeed2-mock_extractor_regex.manifest.json",
+    "results_path": "/home/fjd/projects/marketops-local-runtime-lab/benchmark/research-core/runs/rc-20261119T112736-ebeed2-mock_extractor_regex.jsonl",
+    "dataset_checksum": "62780f3641fc08e414e29b9d743abc24310914447eedfac0e6a257bf0a4a0ce1",
+    "dataset_version": "research-core-1.0.0"
+  },
+  "qualification": {
+    "provider": "mock_qualification_rules",
+    "run_id": "rc-20261119T112736-28fd6c",
+    "counts": {
+      "cases": 23,
+      "ok": 69,
+      "empty": 0,
+      "failed": 0,
+      "not_configured": 0,
+      "timeout": 0,
+      "invalid_output": 0,
+      "skipped": 0,
+      "scored": 69
+    },
+    "metrics": {
+      "status_correct": 1.0,
+      "icp_match_correct": 1.0,
+      "relevance_error": 0,
+      "grounded": 1.0,
+      "ungrounded_citations": 0,
+      "missing_evidence_recall": 1.0,
+      "scored_cases": 23,
+      "repeat_identical": true
+    },
+    "manifest_path": "/home/fjd/projects/marketops-local-runtime-lab/benchmark/research-core/runs/rc-20261119T112736-28fd6c-mock_qualification_rules.manifest.json",
+    "results_path": "/home/fjd/projects/marketops-local-runtime-lab/benchmark/research-core/runs/rc-20261119T112736-28fd6c-mock_qualification_rules.jsonl",
+    "dataset_checksum": "5480d7afd328ea6f28149516a3b26beb234715c54f0ab9895806b8f68612cd7a",
+    "dataset_version": "research-core-1.0.0"
+  },
+  "identity": {
+    "provider": "mock_identity_rules",
+    "run_id": "rc-20261119T112736-8afd37",
+    "counts": {
+      "cases": 15,
+      "ok": 45,
+      "empty": 0,
+      "failed": 0,
+      "not_configured": 0,
+      "timeout": 0,
+      "invalid_output": 0,
+      "skipped": 0,
+      "scored": 45
+    },
+    "metrics": {
+      "pair_precision": 1.0,
+      "pair_recall": 1.0,
+      "pair_f1": 1.0,
+      "relation_correct": 0.9333,
+      "relation_false_positives": 0,
+      "relation_misses": 1,
+      "scored_cases": 15,
+      "repeat_identical": true
+    },
+    "manifest_path": "/home/fjd/projects/marketops-local-runtime-lab/benchmark/research-core/runs/rc-20261119T112736-8afd37-mock_identity_rules.manifest.json",
+    "results_path": "/home/fjd/projects/marketops-local-runtime-lab/benchmark/research-core/runs/rc-20261119T112736-8afd37-mock_identity_rules.jsonl",
+    "dataset_checksum": "d6e81fce9a6a2248d9d007ab505d2b2756627ebde1f58fe94e14d8bd3b1168d3",
+    "dataset_version": "research-core-1.0.0"
+  },
+  "evidence": {
+    "provider": "mock_evidence_checker",
+    "run_id": "rc-20261119T112737-ed3c2a",
+    "counts": {
+      "cases": 15,
+      "ok": 45,
+      "empty": 0,
+      "failed": 0,
+      "not_configured": 0,
+      "timeout": 0,
+      "invalid_output": 0,
+      "skipped": 0,
+      "scored": 45
+    },
+    "metrics": {
+      "snapshot_exists_correct": 1.0,
+      "sha256_correct": 1.0,
+      "fields_traceable_recall": 1.0,
+      "entity_correct": 1.0,
+      "contradictions_found": 0,
+      "stale_detected": 1.0,
+      "scored_cases": 15,
+      "repeat_identical": true
+    },
+    "manifest_path": "/home/fjd/projects/marketops-local-runtime-lab/benchmark/research-core/runs/rc-20261119T112737-ed3c2a-mock_evidence_checker.manifest.json",
+    "results_path": "/home/fjd/projects/marketops-local-runtime-lab/benchmark/research-core/runs/rc-20261119T112737-ed3c2a-mock_evidence_checker.jsonl",
+    "dataset_checksum": "25f3350ed4f168167d970f3e7f5dc0c126aef40915bb179fdaf6bfb7cb55766d",
+    "dataset_version": "research-core-1.0.0"
+  },
+  "channel": {
+    "provider": "mock_channel_rules",
+    "run_id": "rc-20261119T112737-f5efde",
+    "counts": {
+      "cases": 6,
+      "ok": 18,
+      "empty": 0,
+      "failed": 0,
+      "not_configured": 0,
+      "timeout": 0,
+      "invalid_output": 0,
+      "skipped": 0,
+      "scored": 18
+    },
+    "metrics": {
+      "top1_correct": 1.0,
+      "top3_acceptable": 1.0,
+      "ndcg": 1.0,
+      "rejected_selected": 0,
+      "order_match": 0.6667,
+      "scored_cases": 6,
+      "repeat_identical": true
+    },
+    "manifest_path": "/home/fjd/projects/marketops-local-runtime-lab/benchmark/research-core/runs/rc-20261119T112737-f5efde-mock_channel_rules.manifest.json",
+    "results_path": "/home/fjd/projects/marketops-local-runtime-lab/benchmark/research-core/runs/rc-20261119T112737-f5efde-mock_channel_rules.jsonl",
+    "dataset_checksum": "f2183045dde1830d84138bb9e84ae9cbbed7beb019e73c632e47b26baa125c8e",
+    "dataset_version": "research-core-1.0.0"
+  },
+  "e2e": {
+    "provider": "mock_research_e2e",
+    "run_id": "rc-20261119T112737-a9f1f1",
+    "counts": {
+      "cases": 3,
+      "ok": 9,
+      "empty": 0,
+      "failed": 0,
+      "not_configured": 0,
+      "timeout": 0,
+      "invalid_output": 0,
+      "skipped": 0,
+      "scored": 9
+    },
+    "metrics": {
+      "prospects_expected": 36,
+      "prospects_found": 36,
+      "prospect_recall": 1.0,
+      "status_accuracy": 1.0,
+      "person_presence_accuracy": 1.0,
+      "email_presence_accuracy": 1.0,
+      "evidence_coverage": 1.0,
+      "fabricated_claims": 0,
+      "forbidden_claims_seen": 0,
+      "gap_honesty": 1.0,
+      "dossier_complete": 1.0,
+      "scored_cases": 3,
+      "repeat_identical": true
+    },
+    "manifest_path": "/home/fjd/projects/marketops-local-runtime-lab/benchmark/research-core/runs/rc-20261119T112737-a9f1f1-mock_research_e2e.manifest.json",
+    "results_path": "/home/fjd/projects/marketops-local-runtime-lab/benchmark/research-core/runs/rc-20261119T112737-a9f1f1-mock_research_e2e.jsonl",
+    "dataset_checksum": "b126fc39f15f0b8294ee57233806fc00754d6c12ac38d6826a5047c09af6fd5f",
+    "dataset_version": "research-core-1.0.0"
+  }
+}

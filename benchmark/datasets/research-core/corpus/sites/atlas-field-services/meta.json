@@ -1,0 +1,34 @@
+{
+  "address": "Gewerbepark 5, US",
+  "aliases": [
+    "Atlas Field"
+  ],
+  "contact_method": "email",
+  "country": "US",
+  "description": "Atlas Field Services provides scheduled maintenance crews for refineries and chemical plants along the Gulf Coast.",
+  "domain": "atlasfield.example",
+  "employees": 1250,
+  "founded": 1998,
+  "generic_emails": [
+    "contracts@atlasfield.example"
+  ],
+  "industry": "industrial maintenance",
+  "language": "en",
+  "name": "Atlas Field Services LLC",
+  "parent": null,
+  "people": [
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Marcus Bell",
+      "role": "President"
+    },
+    {
+      "decision_maker": true,
+      "email": null,
+      "name": "Elena Petrov",
+      "role": "Director of Procurement"
+    }
+  ],
+  "slug": "atlas-field-services"
+}
